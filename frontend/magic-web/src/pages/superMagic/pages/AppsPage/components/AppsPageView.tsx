@@ -168,7 +168,7 @@ export function AppsPageView(props: AppsPageViewProps) {
 					aria-label={menuAriaLabel}
 					data-testid="super-apps-menu-button"
 				>
-					<Menu className="h-[22px] w-[22px] text-foreground" aria-hidden />
+					<Menu className="size-[22px] text-foreground" aria-hidden />
 				</button>
 				<p
 					className="min-w-0 flex-1 truncate px-2 text-center font-poppins text-[18px] font-medium leading-6 text-foreground"

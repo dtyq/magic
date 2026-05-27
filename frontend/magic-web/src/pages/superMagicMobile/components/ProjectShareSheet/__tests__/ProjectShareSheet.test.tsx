@@ -122,7 +122,7 @@ vi.mock("react-i18next", () => ({
 		t: (key: string) => {
 			const labels: Record<string, string> = {
 				"projectShare.empty": "暂无分享链接",
-				"projectShare.manageTitle": "管理分享链接",
+				"projectShare.manageTitle": "分享管理",
 				"common.close": "关闭",
 			}
 			return labels[key] || key

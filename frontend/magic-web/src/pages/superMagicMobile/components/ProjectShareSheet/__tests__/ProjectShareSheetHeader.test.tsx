@@ -17,7 +17,7 @@ vi.mock("react-i18next", () => ({
 			const labels: Record<string, string> = {
 				"projectShare.fileModeCreateTitle": "文件分享",
 				"projectShare.createTitle": "项目分享",
-				"projectShare.manageTitle": "管理分享链接",
+				"projectShare.manageTitle": "分享管理",
 				"projectShare.linkDetailTitle": "分享详情",
 				"projectShare.expiryTitle": "有效期",
 				"projectShare.deleteConfirmTitle": "删除分享",

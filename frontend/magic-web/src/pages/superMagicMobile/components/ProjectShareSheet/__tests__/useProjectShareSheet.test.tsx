@@ -1,18 +1,19 @@
-import { act, renderHook } from "@testing-library/react"
+import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { NodeType } from "@dtyq/user-selector"
 import { ResourceType, ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import type {
 	FileShareItem,
 	ProjectShareItem,
 } from "@/pages/superMagic/components/ShareManagement/types"
 import { useProjectShareSheet } from "../hooks/useProjectShareSheet"
-import { NodeType } from "@dtyq/user-selector"
 
 const mocks = vi.hoisted(() => ({
 	refreshData: vi.fn(),
 	cancelShare: vi.fn(),
 	createOrUpdateShareResource: vi.fn(),
 	getSnowflakeIds: vi.fn(),
+	getShareResourceMembers: vi.fn(),
 	writeText: vi.fn(),
 	successToast: vi.fn(),
 	errorToast: vi.fn(),
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		getSnowflakeIds: mocks.getSnowflakeIds,
+		getShareResourceMembers: mocks.getShareResourceMembers,
 		createOrUpdateShareResource: mocks.createOrUpdateShareResource,
 		batchGetFileDetails: vi.fn().mockResolvedValue({ files: [] }),
 	},
@@ -100,6 +102,7 @@ describe("useProjectShareSheet", () => {
 		mocks.projectShareData = []
 		mocks.fileShareData = []
 		mocks.getSnowflakeIds.mockResolvedValue({ ids: ["share-1"] })
+		mocks.getShareResourceMembers.mockResolvedValue({ members: [] })
 		mocks.createOrUpdateShareResource.mockResolvedValue({})
 		mocks.cancelShare.mockResolvedValue(undefined)
 	})
@@ -443,5 +446,113 @@ describe("useProjectShareSheet", () => {
 
 		expect(result.current.selectedFileCount).toBe(0)
 		expect(result.current.selectedFileHierarchy).toEqual([])
+	})
+
+	it("打开组织分享详情时会请求成员列表并归一化节点 id", async () => {
+		mocks.projectShareData = [
+			{
+				resource_id: "org-share-1",
+				title: "组织分享",
+				project_id: "project-1",
+				project_name: "Demo Project",
+				share_type: ShareType.Organization,
+				created_at: "2026-05-05",
+				has_password: false,
+				extend: { file_count: 2 },
+			},
+		]
+		mocks.getShareResourceMembers.mockResolvedValue({
+			members: [
+				{
+					id: "legacy-user",
+					user_id: "user-1",
+					name: "User One",
+					type: "User",
+					dataType: NodeType.User,
+					avatar_url: "https://static-legacy.dingtalk.com/avatar@100w_100h",
+				},
+				{
+					id: "legacy-department",
+					department_id: "department-1",
+					name: "Design Team",
+					type: "Department",
+					dataType: NodeType.Department,
+				},
+			],
+		})
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.goToLinkDetail("org-share-1")
+		})
+
+		await waitFor(() => {
+			expect(mocks.getShareResourceMembers).toHaveBeenCalledWith({
+				resource_id: "org-share-1",
+			})
+		})
+
+		await waitFor(() => {
+			expect(result.current.detailMemberLoading).toBe(false)
+			expect(result.current.detailMemberNodes).toEqual([
+				expect.objectContaining({
+					id: "user-1",
+					name: "User One",
+					avatar_url: "https://static-legacy.dingtalk.com/avatar",
+				}),
+				expect.objectContaining({
+					id: "department-1",
+					name: "Design Team",
+				}),
+			])
+		})
+	})
+
+	it("打开非组织分享详情时不会请求成员列表", async () => {
+		mocks.projectShareData = [
+			{
+				resource_id: "password-share-1",
+				title: "密码分享",
+				project_id: "project-1",
+				project_name: "Demo Project",
+				share_type: ShareType.PasswordProtected,
+				created_at: "2026-05-05",
+				has_password: true,
+				password: "abc123",
+				extend: { file_count: 2 },
+			},
+		]
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.goToLinkDetail("password-share-1")
+		})
+
+		await waitFor(() => {
+			expect(result.current.view).toBe("linkDetail")
+		})
+
+		expect(mocks.getShareResourceMembers).not.toHaveBeenCalled()
+		expect(result.current.detailMemberNodes).toEqual([])
 	})
 })

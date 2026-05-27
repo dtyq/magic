@@ -1,11 +1,18 @@
 import { useState } from "react"
-import { Eye, EyeOff, Globe, Lock, Users } from "lucide-react"
+import { Building2, Eye, EyeOff, UserRound } from "lucide-react"
+import { NodeType } from "@dtyq/user-selector"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
 import { generateShareUrl } from "@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers"
+import { formatRelativeTime } from "@/utils/string"
 import type { ProjectShareSheetController } from "../types"
 import { isPartialFileShare } from "../utils/shareScope"
+import {
+	buildDetailMetaLabel,
+	getShareTypeDescriptionKey,
+	getShareTypeVisualMeta,
+} from "../utils/shareTypeVisual"
 import SelectedFilesHierarchySection from "./SelectedFilesHierarchySection"
 import { ProjectShareScrollSpacer } from "./ProjectShareFloatingActionBar"
 
@@ -14,45 +21,12 @@ interface ProjectShareLinkDetailViewProps {
 }
 
 /**
- * 根据分享类型选择图标与文案，让详情页保持原型的类型信息卡结构。
- */
-function getShareTypeMeta(
-	shareType: ShareType,
-	t: (key: string, values?: Record<string, unknown>) => string,
-) {
-	if (shareType === ShareType.Public) {
-		return {
-			Icon: Globe,
-			label: t("projectShare.typePublic"),
-			description: t("projectShare.typePublicDescription"),
-			className: "bg-blue-50 text-blue-600",
-		}
-	}
-
-	if (shareType === ShareType.Organization) {
-		return {
-			Icon: Users,
-			label: t("projectShare.typeOrganization"),
-			description: t("projectShare.typeOrganizationDescription"),
-			className: "bg-emerald-50 text-emerald-600",
-		}
-	}
-
-	return {
-		Icon: Lock,
-		label: t("projectShare.typePassword"),
-		description: t("projectShare.typePasswordDescription"),
-		className: "bg-amber-50 text-amber-600",
-	}
-}
-
-/**
  * 详情页只使用现有分享字段展示链接和密码，不为了贴近原型补造接口没有返回的数据。
  */
 export default function ProjectShareLinkDetailView({
 	controller,
 }: ProjectShareLinkDetailViewProps) {
-	const { t } = useTranslation("super")
+	const { t, i18n } = useTranslation("super")
 	const [isPasswordVisible, setIsPasswordVisible] = useState(false)
 	const share = controller.selectedShare
 
@@ -68,36 +42,36 @@ export default function ProjectShareLinkDetailView({
 	}
 
 	const shareUrl = generateShareUrl(share.resource_id, share.password, "files")
-	const meta = getShareTypeMeta(share.share_type, t)
-	const TypeIcon = meta.Icon
-	const fileCount = share.extend?.file_count || 1
+	const visualMeta = getShareTypeVisualMeta(share.share_type)
+	const TypeIcon = visualMeta.Icon
+	const createdAtLabel = formatRelativeTime(i18n.language)(share.created_at)
+	const detailMetaLabel = buildDetailMetaLabel({ share, createdAtLabel, t })
 	// Show selected files only for partial file shares; hide for whole-project shares even when opened from the file list entry.
 	const shouldShowSelectedFiles = controller.selectedFileCount > 0 && isPartialFileShare(share)
+	const detailMemberNodes = controller.detailMemberNodes || []
+	const shouldShowOrganizationMembers =
+		share.share_type === ShareType.Organization && detailMemberNodes.length > 0
 
 	return (
-		<div className="flex flex-col gap-2.5" data-testid="project-share-sheet-detail-view">
+		<div className="flex flex-col gap-2" data-testid="project-share-sheet-detail-view">
 			<section
-				className="flex items-start gap-3 rounded-[14px] bg-white p-4"
+				className={cn("flex items-start gap-3 rounded-lg p-4", visualMeta.cardClassName)}
 				data-testid="project-share-sheet-detail-type-card"
 			>
 				<div
 					className={cn(
 						"flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-						meta.className,
+						visualMeta.iconClassName,
 					)}
 				>
 					<TypeIcon className="h-5 w-5" strokeWidth={1.8} />
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="text-[15px] font-medium leading-5 text-foreground">
-						{meta.label}
+						{t(getShareTypeDescriptionKey(share.share_type))}
 					</div>
 					<div className="mt-0.5 text-[13px] leading-[18px] text-muted-foreground">
-						{meta.description}
-					</div>
-					<div className="mt-1 text-[13px] leading-[18px] text-muted-foreground">
-						{share.expire_at ? share.expire_at : t("projectShare.expiresPermanent")} ·{" "}
-						{t("projectShare.fileCount", { count: fileCount })}
+						{detailMetaLabel}
 					</div>
 				</div>
 			</section>
@@ -107,21 +81,54 @@ export default function ProjectShareLinkDetailView({
 					{t("projectShare.linkLabel")}
 				</div>
 				<div
-					className="rounded-[14px] bg-white px-3.5 py-3"
+					className="flex h-12 items-center rounded-lg bg-white px-3.5"
 					data-testid="project-share-sheet-detail-link-card"
 				>
-					<div className="break-all text-[15px] leading-5 text-foreground">
+					<div className="truncate font-mono text-[15px] leading-5 text-foreground">
 						{shareUrl}
 					</div>
 				</div>
 			</section>
+
+			{shouldShowOrganizationMembers ? (
+				<section
+					className="space-y-2"
+					data-testid="project-share-sheet-detail-members-section"
+				>
+					<div className="px-3.5 text-sm leading-5 text-[#8A8A8A]">
+						{t("projectShare.organizationMembersLabel")}
+					</div>
+					<div className="overflow-hidden rounded-lg bg-white">
+						{detailMemberNodes.map((member) => {
+							const isUser =
+								member.type === "User" || member.dataType === NodeType.User
+							const MemberIcon = isUser ? UserRound : Building2
+
+							return (
+								<div
+									key={member.id}
+									className="flex h-12 items-center gap-2.5 border-b border-[#F1F1F1] px-3.5 last:border-b-0"
+									data-testid={`project-share-sheet-detail-member-row-${member.id}`}
+								>
+									<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+										<MemberIcon className="h-4 w-4" strokeWidth={1.8} />
+									</div>
+									<div className="min-w-0 flex-1 truncate text-[16px] leading-5 text-foreground">
+										{member.name}
+									</div>
+								</div>
+							)
+						})}
+					</div>
+				</section>
+			) : null}
 
 			{share.password ? (
 				<section className="space-y-2">
 					<div className="px-3.5 text-sm leading-5 text-[#8A8A8A]">
 						{t("share.accessPassword")}
 					</div>
-					<div className="flex h-12 items-center gap-2 rounded-[14px] bg-white px-3.5">
+					<div className="flex h-12 items-center gap-2 rounded-lg bg-white px-3.5">
 						<div
 							className="min-w-0 flex-1 truncate font-mono text-[16px] tracking-widest text-foreground"
 							data-testid="project-share-sheet-password-value"

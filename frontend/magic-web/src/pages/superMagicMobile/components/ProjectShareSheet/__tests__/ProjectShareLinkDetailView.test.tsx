@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import { NodeType } from "@dtyq/user-selector"
 import { ResourceType, ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import ProjectShareLinkDetailView from "../components/ProjectShareLinkDetailView"
 import { ProjectShareSheetFooter } from "../components/ProjectShareSheetFooter"
@@ -25,19 +26,28 @@ vi.mock("@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers", 
 	return {
 		...actual,
 		generateShareUrl: () => "https://example.com/share-1?password=abc123",
+		formatExpireAt: (expireAt?: string) => expireAt || "",
 	}
 })
 
+vi.mock("@/utils/string", () => ({
+	formatRelativeTime: () => (value: string) => `formatted:${value}`,
+}))
+
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
+		i18n: { language: "zh_CN" },
 		t: (key: string, values?: Record<string, unknown>) => {
 			const labels: Record<string, string> = {
 				"projectShare.copyLink": "复制链接",
 				"share.cancelShare": "取消分享",
+				"projectShare.expiresOn": "到期于",
 				"projectShare.expiresPermanent": "永久有效",
-				"projectShare.linkLabel": "链接",
+				"projectShare.linkLabel": "分享链接",
+					"projectShare.organizationMembersLabel": "成员 / 部门",
 				"projectShare.typePassword": "密码",
-				"projectShare.typePasswordDescription": "需要密码访问的分享链接",
+					"projectShare.typeOrganizationDescription": "仅限指定成员或部门访问",
+				"projectShare.typePasswordDescription": "需要正确密码才能访问",
 				"share.accessPassword": "访问密码",
 				"share.copyPassword": "复制密码",
 				"share.hidePassword": "隐藏密码",
@@ -99,6 +109,8 @@ function createController(
 		selectedFileCount: 0,
 		memberSelectorOpen: false,
 		selectedMemberNodes: [],
+		detailMemberNodes: [],
+		detailMemberLoading: false,
 		setShareName: vi.fn(),
 		setShareType: vi.fn(),
 		setShareExpiry: vi.fn(),
@@ -137,10 +149,16 @@ describe("ProjectShareLinkDetailView", () => {
 		render(<ProjectShareLinkDetailView controller={controller} />)
 
 		expect(screen.getByTestId("project-share-sheet-detail-type-card")).toHaveTextContent(
-			"需要密码访问的分享链接",
+			"需要正确密码才能访问",
+		)
+		expect(screen.getByTestId("project-share-sheet-detail-type-card").className).toContain(
+			"bg-warning/10",
 		)
 		expect(screen.getByTestId("project-share-sheet-detail-link-card")).toHaveTextContent(
 			"https://example.com/share-1?password=abc123",
+		)
+		expect(screen.getByTestId("project-share-sheet-detail-type-card")).toHaveTextContent(
+			"永久有效 · formatted:2026-05-05T00:00:00.000Z",
 		)
 		expect(screen.getByTestId("project-share-sheet-copy-password-button")).toHaveTextContent(
 			"复制密码",
@@ -267,5 +285,73 @@ describe("ProjectShareLinkDetailView", () => {
 		expect(
 			screen.queryByTestId("project-share-sheet-selected-files-trigger"),
 		).not.toBeInTheDocument()
+	})
+
+	it("有到期时间时副标题展示「到期于」前缀与格式化日期", () => {
+		render(
+			<ProjectShareLinkDetailView
+				controller={createController({
+					selectedShare: {
+						resource_id: "share-expire",
+						title: "限时分享",
+						project_id: "project-1",
+						project_name: "Demo Project",
+						share_type: ShareType.Public,
+						created_at: "2026-05-05T00:00:00.000Z",
+						expire_at: "2026/05/14",
+						has_password: false,
+						extend: { file_count: 1 },
+					},
+				})}
+			/>,
+		)
+
+		expect(screen.getByTestId("project-share-sheet-detail-type-card")).toHaveTextContent(
+			"到期于 2026/05/14 · formatted:2026-05-05T00:00:00.000Z",
+		)
+		expect(screen.getByTestId("project-share-sheet-detail-type-card").className).toContain(
+			"bg-info/10",
+		)
+	})
+
+	it("组织分享详情会展示接口返回的成员和部门列表", () => {
+		render(
+			<ProjectShareLinkDetailView
+				controller={createController({
+					selectedShare: {
+						resource_id: "org-share-1",
+						title: "组织分享",
+						project_id: "project-1",
+						project_name: "Demo Project",
+						share_type: ShareType.Organization,
+						created_at: "2026-05-05T00:00:00.000Z",
+						has_password: false,
+						extend: { file_count: 3 },
+					},
+					detailMemberNodes: [
+						{
+							id: "user-1",
+							name: "张三",
+							dataType: NodeType.User,
+						},
+						{
+							id: "dept-1",
+							name: "设计部",
+							dataType: NodeType.Department,
+						},
+					],
+				})}
+			/>,
+		)
+
+		expect(screen.getByTestId("project-share-sheet-detail-members-section")).toHaveTextContent(
+			"成员 / 部门",
+		)
+		expect(screen.getByTestId("project-share-sheet-detail-member-row-user-1")).toHaveTextContent(
+			"张三",
+		)
+		expect(screen.getByTestId("project-share-sheet-detail-member-row-dept-1")).toHaveTextContent(
+			"设计部",
+		)
 	})
 })

@@ -195,6 +195,24 @@ function countSelectedHierarchyFiles(nodes: SelectedFileHierarchyNode[]): number
 	}, 0)
 }
 
+const DINGTALK_AVATAR_SIZE_SUFFIX_PATTERN = /@\d+w_\d+h$/
+
+function normalizeDetailMemberNode(node: TreeNode): TreeNode {
+	const isUser = node.type === "User" || node.dataType === NodeType.User
+	const normalizedId = isUser ? node.user_id || node.id : node.department_id || node.id
+	const normalizedAvatarUrl =
+		typeof node.avatar_url === "string" &&
+		node.avatar_url.includes("static-legacy.dingtalk.com")
+			? node.avatar_url.replace(DINGTALK_AVATAR_SIZE_SUFFIX_PATTERN, "")
+			: node.avatar_url || ""
+
+	return {
+		...node,
+		id: normalizedId,
+		avatar_url: normalizedAvatarUrl,
+	}
+}
+
 /**
  * 移动端项目分享控制器：只编排原型视图栈，并把保存、列表、取消等动作委托给现有分享 API/Hook。
  */
@@ -220,6 +238,8 @@ export function useProjectShareSheet({
 	const [advancedOpen, setAdvancedOpen] = useState(true)
 	const [memberSelectorOpen, setMemberSelectorOpen] = useState(false)
 	const [selectedMemberNodes, setSelectedMemberNodes] = useState<TreeNode[]>([])
+	const [detailMemberNodes, setDetailMemberNodes] = useState<TreeNode[]>([])
+	const [detailMemberLoading, setDetailMemberLoading] = useState(false)
 	const [formState, setFormState] = useState<ProjectShareFormState>(() =>
 		createInitialFormState(),
 	)
@@ -275,6 +295,8 @@ export function useProjectShareSheet({
 		setAdvancedOpen(true)
 		setMemberSelectorOpen(false)
 		setSelectedMemberNodes([])
+		setDetailMemberNodes([])
+		setDetailMemberLoading(false)
 		setFormState({
 			...createInitialFormState(),
 			shareName: initialSelectedShare
@@ -347,6 +369,52 @@ export function useProjectShareSheet({
 		() => countSelectedHierarchyFiles(selectedFileHierarchy),
 		[selectedFileHierarchy],
 	)
+
+	useEffect(() => {
+		if (
+			!open ||
+			view !== "linkDetail" ||
+			selectedShare?.share_type !== ShareType.Organization ||
+			!selectedShare.resource_id
+		) {
+			setDetailMemberNodes([])
+			setDetailMemberLoading(false)
+			return
+		}
+
+		let isCancelled = false
+		setDetailMemberLoading(true)
+		setDetailMemberNodes([])
+
+		// Keep the detail shell responsive and ignore late responses when the user switches shares quickly.
+		void SuperMagicApi.getShareResourceMembers({
+			resource_id: selectedShare.resource_id,
+		})
+			.then((response) => {
+				if (isCancelled) {
+					return
+				}
+
+				setDetailMemberNodes((response.members || []).map(normalizeDetailMemberNode))
+			})
+			.catch((error) => {
+				if (isCancelled) {
+					return
+				}
+
+				console.error("Failed to fetch organization share members:", error)
+				setDetailMemberNodes([])
+			})
+			.finally(() => {
+				if (!isCancelled) {
+					setDetailMemberLoading(false)
+				}
+			})
+
+		return () => {
+			isCancelled = true
+		}
+	}, [open, selectedShare?.resource_id, selectedShare?.share_type, view])
 
 	const goTo = useMemoizedFn((nextView: ProjectShareSheetView) => {
 		setViewStack((prev) => [...prev, view])
@@ -584,6 +652,8 @@ export function useProjectShareSheet({
 		selectedFileCount,
 		memberSelectorOpen,
 		selectedMemberNodes,
+		detailMemberNodes,
+		detailMemberLoading,
 		setShareName: (value) => setFormValue("shareName", value),
 		setShareType: (value) => setFormValue("shareType", value),
 		setShareExpiry: (value) => setFormValue("shareExpiry", value),

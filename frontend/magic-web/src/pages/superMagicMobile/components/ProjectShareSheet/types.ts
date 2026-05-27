@@ -67,6 +67,8 @@ export interface ProjectShareSheetController {
 	selectedFileCount: number
 	memberSelectorOpen: boolean
 	selectedMemberNodes: TreeNode[]
+	detailMemberNodes: TreeNode[]
+	detailMemberLoading: boolean
 	setShareName: (value: string) => void
 	setShareType: (value: ShareType) => void
 	setShareExpiry: (value: number | null) => void

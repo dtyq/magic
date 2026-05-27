@@ -1,40 +1,87 @@
-import { ChevronRight, Globe, Lock, Users } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import type { ShareExtendInfo } from "@/pages/superMagic/components/ShareManagement/types"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
+import { formatRelativeTime } from "@/utils/string"
 import type { ProjectShareSheetController } from "../types"
+import { getShareTypeVisualMeta } from "../utils/shareTypeVisual"
 
 interface ProjectShareManageViewProps {
 	controller: ProjectShareSheetController
+}
+
+function getDefaultTitleKey(shareType: ShareType) {
+	if (shareType === ShareType.Public) {
+		return "projectShare.defaultNamePublic"
+	}
+
+	if (shareType === ShareType.Organization) {
+		return "projectShare.defaultNameOrganization"
+	}
+
+	return "projectShare.defaultNamePassword"
+}
+
+function formatManageCreatedAt(value?: string) {
+	if (!value) return ""
+	return value
+}
+
+function getOrganizationSummary(
+	shareExtend: ShareExtendInfo | undefined,
+	t: (key: string, values?: Record<string, unknown>) => string,
+) {
+	const userCount = shareExtend?.user_count || 0
+	const departmentCount = shareExtend?.department_count || 0
+
+	if (userCount > 0 && departmentCount > 0) {
+		return t("projectShare.manageOrganizationMembersAndDepartments", {
+			userCount,
+			departmentCount,
+		})
+	}
+
+	if (userCount > 0) {
+		return t("projectShare.manageOrganizationMembersOnly", { userCount })
+	}
+
+	if (departmentCount > 0) {
+		return t("projectShare.manageOrganizationDepartmentsOnly", { departmentCount })
+	}
+
+	return t("projectShare.manageOrganizationSummary")
 }
 
 /**
  * 根据分享类型生成列表图标与摘要，管理页只展示入口，不在列表内承载旧操作按钮。
  */
 function getManageItemMeta(
+	shareExtend: ShareExtendInfo | undefined,
 	shareType: ShareType,
 	t: (key: string, values?: Record<string, unknown>) => string,
 ) {
+	const visualMeta = getShareTypeVisualMeta(shareType)
+
 	if (shareType === ShareType.Public) {
 		return {
-			Icon: Globe,
+			Icon: visualMeta.Icon,
 			summary: t("projectShare.managePublicSummary"),
-			className: "bg-blue-50 text-blue-600",
+			className: visualMeta.iconClassName,
 		}
 	}
 
 	if (shareType === ShareType.Organization) {
 		return {
-			Icon: Users,
-			summary: t("projectShare.manageOrganizationSummary"),
-			className: "bg-emerald-50 text-emerald-600",
+			Icon: visualMeta.Icon,
+			summary: getOrganizationSummary(shareExtend, t),
+			className: visualMeta.iconClassName,
 		}
 	}
 
 	return {
-		Icon: Lock,
+		Icon: visualMeta.Icon,
 		summary: t("projectShare.managePasswordSummary"),
-		className: "bg-amber-50 text-amber-600",
+		className: visualMeta.iconClassName,
 	}
 }
 
@@ -42,7 +89,7 @@ function getManageItemMeta(
  * 管理页使用原型的单一卡片列表；复制、编辑、删除等动作统一收敛到详情页。
  */
 export default function ProjectShareManageView({ controller }: ProjectShareManageViewProps) {
-	const { t } = useTranslation("super")
+	const { t, i18n } = useTranslation("super")
 
 	if (controller.loading) {
 		return (
@@ -72,9 +119,11 @@ export default function ProjectShareManageView({ controller }: ProjectShareManag
 			data-testid="project-share-sheet-manage-list"
 		>
 			{controller.filteredShareItems.map((item, index) => {
-				const meta = getManageItemMeta(item.share_type, t)
+				const meta = getManageItemMeta(item.share_extend, item.share_type, t)
 				const Icon = meta.Icon
-				const fileCount = item.extend?.file_count || 1
+				const createdAt = formatRelativeTime(i18n.language)(
+					formatManageCreatedAt(item.created_at),
+				)
 
 				return (
 					<div key={item.resource_id}>
@@ -95,17 +144,17 @@ export default function ProjectShareManageView({ controller }: ProjectShareManag
 							</div>
 							<div className="min-w-0 flex-1">
 								<div className="truncate text-[16px] font-medium leading-5 text-foreground">
-									{item.title || t("share.untitled")}
+									{item.title || t(getDefaultTitleKey(item.share_type))}
 								</div>
 								<div className="mt-1 truncate text-[13px] leading-4 text-muted-foreground">
-									{meta.summary} ·{" "}
-									{t("projectShare.fileCount", { count: fileCount })}
-								</div>
-								<div className="mt-1 text-[13px] leading-4 text-muted-foreground">
-									{item.expire_at || t("projectShare.managePermanent")}
+									{meta.summary}
 								</div>
 							</div>
-							<ChevronRight className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
+							{createdAt ? (
+								<div className="shrink-0 text-[13px] leading-4 text-muted-foreground">
+									{createdAt}
+								</div>
+							) : null}
 						</button>
 					</div>
 				)

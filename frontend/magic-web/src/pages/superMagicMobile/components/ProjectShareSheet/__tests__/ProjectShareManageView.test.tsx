@@ -6,19 +6,36 @@ import type { ProjectShareSheetController } from "../types"
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
+		i18n: { language: "zh_CN" },
 		t: (key: string, values?: Record<string, unknown>) => {
 			const labels: Record<string, string> = {
 				"projectShare.empty": "暂无分享链接",
+				"projectShare.defaultNameOrganization": "组织分享",
+				"projectShare.defaultNamePassword": "密码链接",
+				"projectShare.defaultNamePublic": "公开链接",
+				"projectShare.manageOrganizationDepartmentsOnly": "{{departmentCount}} 个部门",
+				"projectShare.manageOrganizationMembersAndDepartments": "{{userCount}} 个成员，{{departmentCount}} 个部门",
+				"projectShare.manageOrganizationMembersOnly": "{{userCount}} 个成员",
+				"projectShare.manageOrganizationSummary": "组织成员可访问",
 				"projectShare.managePasswordSummary": "需要密码访问",
-				"projectShare.managePermanent": "永久有效",
-				"share.untitled": "未命名分享",
+				"projectShare.managePublicSummary": "获得链接的人可访问",
 			}
-			if (key === "projectShare.fileCount" && typeof values?.count === "number") {
-				return `${values.count} 个文件`
+			if (key === "projectShare.manageOrganizationMembersAndDepartments") {
+				return `${values?.userCount} 个成员，${values?.departmentCount} 个部门`
+			}
+			if (key === "projectShare.manageOrganizationMembersOnly") {
+				return `${values?.userCount} 个成员`
+			}
+			if (key === "projectShare.manageOrganizationDepartmentsOnly") {
+				return `${values?.departmentCount} 个部门`
 			}
 			return labels[key] || key
 		},
 	}),
+}))
+
+vi.mock("@/utils/string", () => ({
+	formatRelativeTime: () => (value: string) => `formatted:${value}`,
 }))
 
 /**
@@ -105,11 +122,59 @@ describe("ProjectShareManageView", () => {
 		expect(screen.getByTestId("project-share-sheet-manage-row")).toHaveTextContent(
 			"需要密码访问",
 		)
-		expect(screen.getByTestId("project-share-sheet-manage-row")).toHaveTextContent("2 个文件")
+		expect(screen.getByTestId("project-share-sheet-manage-row")).toHaveTextContent(
+			"formatted:2026-05-05T00:00:00.000Z",
+		)
+		expect(screen.getByTestId("project-share-sheet-manage-row")).not.toHaveTextContent(
+			"2 个文件",
+		)
 		expect(screen.queryByText("取消分享")).not.toBeInTheDocument()
 
 		fireEvent.click(screen.getByTestId("project-share-sheet-manage-row"))
 
 		expect(controller.goToLinkDetail).toHaveBeenCalledWith("share-1")
+	})
+
+	it("组织分享优先展示 share_extend 的成员与部门数量", () => {
+		const controller = createController({
+			filteredShareItems: [
+				{
+					resource_id: "share-org-1",
+					title: "组织链接",
+					project_id: "project-1",
+					project_name: "Demo Project",
+					share_type: ShareType.Organization,
+					created_at: "2026-05-05T00:00:00.000Z",
+					has_password: false,
+					share_extend: { user_count: 3, department_count: 2 },
+				},
+			],
+		})
+
+		render(<ProjectShareManageView controller={controller} />)
+
+		expect(screen.getByTestId("project-share-sheet-manage-row")).toHaveTextContent(
+			"3 个成员，2 个部门",
+		)
+	})
+
+	it("未命名分享按分享类型回退默认标题", () => {
+		const controller = createController({
+			filteredShareItems: [
+				{
+					resource_id: "share-public-1",
+					title: "",
+					project_id: "project-1",
+					project_name: "Demo Project",
+					share_type: ShareType.Public,
+					created_at: "2026-05-05T00:00:00.000Z",
+					has_password: false,
+				},
+			],
+		})
+
+		render(<ProjectShareManageView controller={controller} />)
+
+		expect(screen.getByTestId("project-share-sheet-manage-row")).toHaveTextContent("公开链接")
 	})
 })

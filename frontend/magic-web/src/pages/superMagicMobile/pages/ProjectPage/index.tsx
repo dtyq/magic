@@ -154,7 +154,6 @@ function LegacyProjectPage() {
 		projectActionComponents,
 	} = useProjectListActions({
 		actionContext: "project-detail",
-		deleteSelectedProjectBehavior: "navigate-home",
 		visibleActionKeys: projectDetailHeaderActions.visibleActionKeys,
 	})
 
