@@ -1,7 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
-import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell"
+import {
+	SuperMobileShellRouteLayout,
+	useOptionalSuperMobileShellOutlet,
+} from "@/pages/superMagicMobile/components/MobileShell"
 import ChatPageHeader from "./components/ChatPageHeader"
 import SloganSection from "./components/SloganSection"
 import type { HierarchicalWorkspacePopupRef } from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/types"
@@ -46,7 +49,8 @@ const HierarchicalWorkspacePopup = lazy(
 const ChatPagePanel = observer(function ChatPagePanel() {
 	const { t } = useTranslation(["super", "sidebar"])
 	const location = useLocation()
-	const { openSidebar } = useSuperMobileShellOutlet()
+	const shellOutlet = useOptionalSuperMobileShellOutlet()
+	const openSidebar = shellOutlet?.openSidebar ?? (() => undefined)
 	const [stopEventLoading, setStopEventLoading] = useState(false)
 	const [isCreatingEmptyChat, setIsCreatingEmptyChat] = useState(false)
 	const [isHierarchicalWorkspacePopupInitialized, setIsHierarchicalWorkspacePopupInitialized] =
@@ -291,7 +295,10 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 						<SloganSection />
 					</div>
 					{/* 底部真实输入区继续复用现有 MobileInputContainer，不额外造首页输入状态。 */}
-					<div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+					<div
+						className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-card"
+						style={{ paddingBottom: "max(var(--safe-area-inset-bottom), 0px)" }}
+					>
 						<div className="pointer-events-auto">
 							<MobileInputContainer
 								ref={mobileInputContainerRef}
@@ -314,9 +321,26 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 
 /** Mobile-home route entry: desktop viewport redirects to /super. */
 function MobileHomePage() {
+	const shellOutlet = useOptionalSuperMobileShellOutlet()
+	const { t } = useTranslation("super")
+
+	if (shellOutlet) {
+		return (
+			<MobileOnlyRoute>
+				<ChatPagePanel />
+			</MobileOnlyRoute>
+		)
+	}
+
 	return (
 		<MobileOnlyRoute>
-			<ChatPagePanel />
+			<SuperMobileShellRouteLayout
+				activeView=""
+				testIdPrefix="mobile-chat-home-page"
+				closeSidebarAriaLabel={t("mobile.shell.closeSidebar")}
+			>
+				<ChatPagePanel />
+			</SuperMobileShellRouteLayout>
 		</MobileOnlyRoute>
 	)
 }

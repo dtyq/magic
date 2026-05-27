@@ -9,7 +9,8 @@ import { useLocation } from "react-router"
 import SuperMagicMobileTabsWrapper from "./components/SuperMagicMobileTabsWrapper"
 import ChatMobileSkeleton from "@/pages/chatNew/lazy/skeleton/ChatMobileSkeleton"
 import WorkspacePageMobileSkeleton from "../superMagic/lazy/skeleton/WorkspacePageMobileSkeleton"
-import { MobileTabParam, TAB_PARAM_TO_TAB_KEY, MobileTabBarKey } from "./constants"
+import { TAB_PARAM_TO_TAB_KEY, MobileTabBarKey } from "./constants"
+import { isLegacyMobileTabsHomeEntry } from "./legacyEntry"
 import { notifyAppTabChange } from "@/layouts/BaseLayoutMobile/components/MobileTabBar/utils"
 
 // Lazy load tab pages (只加载一次)
@@ -52,9 +53,10 @@ function MobileTabs() {
 
 	// 使用路由判断的 activeTab，如果没有则使用 store 的值
 	const activeTab = activeTabFromRoute || mobileTabStore.activeTab
-	const isExplicitSuperMobileTabsEntry =
-		location.pathname.includes("/mobile-tabs") &&
-		new URLSearchParams(location.search).get("tab") === MobileTabParam.Super
+	const shouldRedirectLegacyMobileHome = isLegacyMobileTabsHomeEntry(
+		location.pathname,
+		location.search,
+	)
 
 	/**
 	 * 兼容历史 `mobile-tabs?tab=magi-claw` 链接，命中后立即跳转到独立页，避免继续挂在旧 Tabs 容器下。
@@ -82,11 +84,11 @@ function MobileTabs() {
 		}
 	}, [activeTab])
 
-	if (isExplicitSuperMobileTabsEntry) {
+	if (shouldRedirectLegacyMobileHome) {
 		return <Navigate name={RouteName.MobileHome} replace />
 	}
 
-	// 显式命中的 mobile-tabs?tab=super 需要继续渲染移动端首页承载，避免被桌面态重定向打回旧 workspace 入口。
+	// Legacy mobile home aliases now collapse to /mobile-home before desktop/mobile fallback handling.
 	if (!isMobile) {
 		return <Navigate name={RouteName.Super} replace />
 	}
