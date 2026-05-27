@@ -86,7 +86,7 @@ export function MagiClawMobileListItem({
 						type="button"
 						variant="ghost"
 						size="icon"
-						className="h-9 w-9 rounded-full border border-border bg-background/80 shadow-none transition-opacity active:opacity-60"
+						className="h-9 w-9 rounded-full border border-border bg-white shadow-none transition-opacity active:opacity-60"
 						aria-label={moreActionsLabel}
 						data-testid={`magi-claw-mobile-item-more-${rowId}`}
 						onClick={(event) => onOpenMenu(claw, event.currentTarget)}
@@ -98,7 +98,7 @@ export function MagiClawMobileListItem({
 						type="button"
 						variant="ghost"
 						className={cn(
-							"h-9 rounded-full border border-border bg-background/80 px-3 text-[13px] font-medium leading-none text-primary shadow-none transition-opacity active:opacity-60",
+							"h-9 rounded-full border border-border bg-white px-3 text-[13px] font-medium leading-none text-primary shadow-none transition-opacity active:opacity-60",
 							"gap-1.5",
 						)}
 						data-testid={`magi-claw-mobile-item-chat-${rowId}`}
