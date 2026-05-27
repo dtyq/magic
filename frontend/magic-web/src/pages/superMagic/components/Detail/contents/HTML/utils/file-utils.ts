@@ -48,28 +48,7 @@ export function resolveUploadPath(path: string, relativeFilePath?: string): stri
 	// 如果已经明确是相对路径，或者路径不包含 "/"（单个文件名），则按相对路径处理
 	if (isRelative || !normalizedPath.includes("/")) {
 		// 相对路径：相对于当前 HTML 文件所在目录
-		if (!relativeFilePath || relativeFilePath === "/") {
-			// 如果当前文件在根目录，直接返回规范化后的路径
-			return normalizePath(normalizedPath) || path
-		}
-
-		// 计算当前 HTML 文件所在目录
-		// relative_file_path 格式如 "/folder/subfolder/index.html"
-		// 需要去掉文件名，得到目录路径
-		let htmlDir = relativeFilePath
-		if (htmlDir.startsWith("/")) {
-			htmlDir = htmlDir.slice(1)
-		}
-
-		// 找到最后一个 "/"，去掉文件名部分
-		const lastSlashIndex = htmlDir.lastIndexOf("/")
-		if (lastSlashIndex >= 0) {
-			htmlDir = htmlDir.substring(0, lastSlashIndex + 1)
-		} else {
-			htmlDir = ""
-		}
-
-		// 拼接相对路径
+		const htmlDir = getHtmlDirectoryPath(relativeFilePath)
 		const resolved = htmlDir + normalizedPath
 
 		// 规范化路径：去掉多余的 "/" 和 "./"
@@ -91,20 +70,91 @@ export function resolveUploadPath(path: string, relativeFilePath?: string): stri
 		return normalizePath(normalizedPath) || path
 	}
 
-	let htmlDir = relativeFilePath
-	if (htmlDir.startsWith("/")) {
-		htmlDir = htmlDir.slice(1)
-	}
-
-	const lastSlashIndex = htmlDir.lastIndexOf("/")
-	if (lastSlashIndex >= 0) {
-		htmlDir = htmlDir.substring(0, lastSlashIndex + 1)
-	} else {
-		htmlDir = ""
-	}
-
+	const htmlDir = getHtmlDirectoryPath(relativeFilePath)
 	const resolved = htmlDir + normalizedPath
 	return normalizePath(resolved)
+}
+
+export function getHtmlDirectoryPath(relativeFilePath?: string): string {
+	if (!relativeFilePath || relativeFilePath === "/") return ""
+
+	const normalized = normalizePath(relativeFilePath)
+	if (!normalized) return ""
+
+	if (relativeFilePath.endsWith("/")) {
+		return `${normalized}/`
+	}
+
+	const lastSlashIndex = normalized.lastIndexOf("/")
+	const lastPart = lastSlashIndex >= 0 ? normalized.slice(lastSlashIndex + 1) : normalized
+	if (lastPart.includes(".") && !lastPart.startsWith(".")) {
+		return lastSlashIndex >= 0 ? `${normalized.slice(0, lastSlashIndex + 1)}` : ""
+	}
+
+	return `${normalized}/`
+}
+
+export function resolveHtmlRelativePath(
+	projectRelativePath: string,
+	relativeFilePath?: string,
+): string {
+	const normalizedProjectPath = normalizePath(projectRelativePath)
+	const htmlDir = getHtmlDirectoryPath(relativeFilePath)
+
+	if (htmlDir && normalizedProjectPath.startsWith(htmlDir)) {
+		return `./${normalizedProjectPath.slice(htmlDir.length)}`
+	}
+
+	return normalizedProjectPath
+}
+
+export interface ProjectAttachmentNode {
+	file_id?: string
+	file_name?: string
+	parent_id?: string
+	relative_file_path?: string
+	is_directory?: boolean
+	children?: ProjectAttachmentNode[]
+}
+
+export function normalizeProjectPath(path?: string): string {
+	return (path ?? "").replace(/^\/+/, "").replace(/\/+$/, "")
+}
+
+export function findAttachmentByFileId(
+	attachments: ProjectAttachmentNode[] | undefined,
+	fileId?: string,
+): ProjectAttachmentNode | undefined {
+	if (!attachments || !fileId) return undefined
+
+	for (const item of attachments) {
+		if (item.file_id === fileId) return item
+		const childMatch = findAttachmentByFileId(item.children, fileId)
+		if (childMatch) return childMatch
+	}
+
+	return undefined
+}
+
+export function findDirectoryByRelativePath(
+	attachments: ProjectAttachmentNode[] | undefined,
+	targetPath: string,
+): ProjectAttachmentNode | undefined {
+	const normalizedTarget = normalizeProjectPath(targetPath)
+	if (!attachments || !normalizedTarget) return undefined
+
+	for (const item of attachments) {
+		if (
+			item.is_directory &&
+			normalizeProjectPath(item.relative_file_path) === normalizedTarget
+		) {
+			return item
+		}
+		const childMatch = findDirectoryByRelativePath(item.children, normalizedTarget)
+		if (childMatch) return childMatch
+	}
+
+	return undefined
 }
 
 /**

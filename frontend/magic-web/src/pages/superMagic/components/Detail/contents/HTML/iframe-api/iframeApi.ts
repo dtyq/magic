@@ -59,6 +59,7 @@ export async function createIframeFile(data: {
 	parent_id?: string | number
 	file_name: string
 	is_directory: boolean
+	ignore_duplicate?: boolean
 }): Promise<{ file_id?: string }> {
 	return iframeClient.post("/api/v1/super-agent/file", data)
 }

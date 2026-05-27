@@ -580,12 +580,15 @@
 				"untitledPost": "未命名帖子"
 			},
 			"edit": {
+				"addArticleFileToChat": "添加文章文件到输入框",
 				"addCurrentPageToChat": "添加本卡片到当前对话",
 				"addPostFolderToCurrentChat": "添加该文章到当前对话",
 				"cancel": "取消",
 				"discard": "放弃",
+				"goToArticleEdit": "编辑文章",
 				"goToEdit": "修改本卡片",
 				"noCards": "当前文章没有卡片",
+				"refreshArticle": "刷新文章",
 				"refreshCard": "刷新卡片",
 				"refreshConfirmDescription": "当前编辑内容有未保存更改。你可以立即保存，或放弃更改后再刷新。",
 				"refreshConfirmTitle": "刷新前处理未保存更改",
@@ -773,6 +776,11 @@
 		"uploadFailed": "上传失败",
 		"uploadFailedPrefix": "上传失败: ",
 		"uploadedAttachments": "已上传附件 ({{count}})"
+	},
+	"htmlEditor": {
+		"dropOverlay": {
+			"hint": "释放以插入图片"
+		}
 	},
 	"fileViewer": {
 		"addNewSlide": "新建幻灯片",

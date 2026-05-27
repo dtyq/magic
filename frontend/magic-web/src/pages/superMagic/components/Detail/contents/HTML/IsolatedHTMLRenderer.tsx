@@ -31,7 +31,9 @@ import type {
 	ImageUploadResultPayload,
 } from "./iframe-bridge/types/messages"
 import { useHTMLEditorV2 } from "./hooks/useHTMLEditorV2"
+import { useImageDrop } from "./hooks/useImageDrop"
 import { SelectionOverlay } from "./components/SelectionOverlay"
+import { DropOverlay } from "./components/DropOverlay"
 import { useZoomControls } from "./hooks/useZoomControls"
 import { StylePanelStoreProvider } from "./iframe-bridge/contexts/StylePanelContext"
 import { TAILWIND_Z_INDEX_CLASSES } from "./constants/z-index"
@@ -69,7 +71,16 @@ export interface IsolatedHTMLRendererContentMetrics {
 	verticalScrollbarWidth?: number
 }
 import magicToast from "@/components/base/MagicToaster/utils"
-import { resolveUploadPath, cleanPath } from "./utils/file-utils"
+import {
+	resolveUploadPath,
+	cleanPath,
+	getHtmlDirectoryPath,
+	resolveHtmlRelativePath,
+	findAttachmentByFileId,
+	findDirectoryByRelativePath,
+	normalizeProjectPath,
+	type ProjectAttachmentNode,
+} from "./utils/file-utils"
 import { logger as Logger } from "@/utils/log"
 import { useFetchInterceptionCache } from "./hooks/useFetchInterceptionCache"
 import { POST_MESSAGE_TARGET_STRATEGIES, type OnFetchIntercepted } from "./utils/fetchInterceptor"
@@ -128,6 +139,11 @@ interface IsolatedHTMLRendererProps {
 	onInterrupt?: () => void //新增：中断回调
 	/** 调试控制台关闭时回调（用于同步父组件状态）*/
 	onDevConsoleClose?: () => void
+}
+
+function isHtmlImagesUploadPath(path: string): boolean {
+	const normalized = normalizeProjectPath(path.trim().replace(/^\.\//, ""))
+	return normalized === "images" || normalized.startsWith("images/")
 }
 
 interface MagicI18nLangSubscribeRequest {
@@ -359,17 +375,17 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 		const { t, i18n } = useTranslation("super")
 
-		// DevTools console — resolve the full file path (with filename) for the current HTML file
-		const devConsoleFilePath = useMemo(
+		const currentHtmlFile = useMemo(
 			() =>
-				(
-					attachmentList as
-						| Array<{ file_id: string; relative_file_path?: string }>
-						| undefined
-				)?.find((item) => item.file_id === fileId)?.relative_file_path ??
-				relative_file_path,
-			[attachmentList, fileId, relative_file_path],
+				findAttachmentByFileId(
+					attachmentList as ProjectAttachmentNode[] | undefined,
+					fileId,
+				),
+			[attachmentList, fileId],
 		)
+		// DevTools console — resolve the full file path (with filename) for the current HTML file
+		const currentHtmlFilePath = currentHtmlFile?.relative_file_path ?? relative_file_path
+		const devConsoleFilePath = currentHtmlFilePath
 		const devConsole = useDevConsole({
 			iframeRef,
 			fileId,
@@ -380,11 +396,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		const elementInspector = useElementInspector({ iframeRef })
 		const inspectorFileInfo = useMemo(() => {
 			if (!fileId) return undefined
-			const file = (
-				attachmentList as
-					| Array<{ file_id: string; file_name?: string; relative_file_path?: string }>
-					| undefined
-			)?.find((item) => item.file_id === fileId)
+			const file = findAttachmentByFileId(
+				attachmentList as ProjectAttachmentNode[] | undefined,
+				fileId,
+			)
 			if (!file?.file_name) return undefined
 			return { fileId, fileName: file.file_name, filePath: file.relative_file_path ?? "" }
 		}, [fileId, attachmentList])
@@ -405,21 +420,33 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		})
 
 		const toStoredRelativePath = useMemoizedFn((uploadedRelativePath: string) => {
-			const normalizedUploadedPath = uploadedRelativePath.replace(/^\/+/, "")
-			if (!relative_file_path || relative_file_path === "/") {
-				return normalizedUploadedPath
-			}
+			return resolveHtmlRelativePath(uploadedRelativePath, currentHtmlFilePath)
+		})
 
-			const normalizedCurrentPath = relative_file_path.replace(/^\/+/, "")
-			const lastSlashIndex = normalizedCurrentPath.lastIndexOf("/")
-			const currentDirectory =
-				lastSlashIndex >= 0 ? normalizedCurrentPath.slice(0, lastSlashIndex + 1) : ""
+		const ensureHtmlImagesDirectoryId = useMemoizedFn(async () => {
+			if (!selectedProject?.id) throw new Error("No project selected")
 
-			if (currentDirectory && normalizedUploadedPath.startsWith(currentDirectory)) {
-				return normalizedUploadedPath.slice(currentDirectory.length)
-			}
+			const htmlDirectoryPath = getHtmlDirectoryPath(currentHtmlFilePath)
+			const imagesDirectoryPath = `${htmlDirectoryPath}images`
+			const htmlDirectory = findDirectoryByRelativePath(
+				attachmentList as ProjectAttachmentNode[] | undefined,
+				htmlDirectoryPath,
+			)
+			const existingDirectory = findDirectoryByRelativePath(
+				attachmentList as ProjectAttachmentNode[] | undefined,
+				imagesDirectoryPath,
+			)
+			if (existingDirectory?.file_id) return existingDirectory.file_id
 
-			return normalizedUploadedPath
+			const res = await createIframeFile({
+				project_id: selectedProject.id,
+				parent_id: currentHtmlFile?.parent_id || htmlDirectory?.file_id || "",
+				file_name: "images",
+				is_directory: true,
+				ignore_duplicate: true,
+			})
+			if (!res?.file_id) throw new Error("Failed to create images directory")
+			return res.file_id
 		})
 
 		const uploadImageFileToProject = useMemoizedFn(
@@ -438,8 +465,11 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					throw new Error("No project selected")
 				}
 
-				const resolvedPath = resolveUploadPath(path, relative_file_path)
+				const resolvedPath = resolveUploadPath(path, currentHtmlFilePath)
 				const cleanPathValue = cleanPath(resolvedPath)
+				const resolvedParentId =
+					parentId ??
+					(isHtmlImagesUploadPath(path) ? await ensureHtmlImagesDirectoryId() : undefined)
 
 				const token = await superMagicUploadTokenService.getUploadToken(
 					selectedProject.id,
@@ -457,7 +487,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 				const saveRes = await superMagicUploadTokenService.saveFileToProject({
 					project_id: selectedProject.id,
-					parent_id: parentId,
+					parent_id: resolvedParentId,
 					file_key: uploadedKey,
 					file_name: file.name,
 					file_size: fileSize || file.size,
@@ -477,6 +507,20 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				}
 			},
 		)
+
+		// 拖拽插入图片 hook
+		const { isDragOver, isGlobalDragActive, dragOverHandlers } = useImageDrop({
+			iframeRef,
+			isEditMode,
+			scaleRatio,
+			relative_file_path,
+			attachmentList,
+			filePathMapping,
+			uploadImageFileToProject,
+			onUploadSuccess: () => {
+				pubsub.publish(PubSubEvents.Update_Attachments)
+			},
+		})
 
 		// 消息列表预览这类只依赖预处理结果的场景，不需要再启用运行时相对路径拦截，
 		// 避免把不在附件树里的原始相对路径也带进通用业务拦截链。
@@ -1002,6 +1046,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					"MAGIC_CREATE_TOPIC_AND_SEND_REQUEST",
 					"MAGIC_SEND_MESSAGE_REQUEST",
 					"MAGIC_I18N_LANG_SUBSCRIBE",
+					"DRAG_POSITION_RESPONSE",
 					MEDIA_MESSAGE_TYPES.SPEAKER_EDITED,
 					MEDIA_MESSAGE_TYPES.IMAGE_URL_REQUEST,
 				]),
@@ -1524,6 +1569,16 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 										isPptRender={shouldApplyScaling}
 										disabled={isSaving}
 										onSelectedElementChange={setSelectedElementRect}
+									/>
+								)}
+								{/* 拖拽放置覆盖层 - 拖拽图片时显示 */}
+								{isEditMode && isGlobalDragActive && (
+									<DropOverlay
+										visible={isDragOver}
+										onDragEnter={dragOverHandlers.onDragEnter}
+										onDragOver={dragOverHandlers.onDragOver}
+										onDragLeave={dragOverHandlers.onDragLeave}
+										onDrop={dragOverHandlers.onDrop}
 									/>
 								)}
 								{/* 日志面板 - 用于查看运行时日志的开发工具 */}

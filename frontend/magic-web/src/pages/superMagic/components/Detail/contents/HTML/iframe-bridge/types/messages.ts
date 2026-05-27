@@ -594,3 +594,52 @@ export interface IframeZoomRequestPayload {
 	/** 时间戳 */
 	timestamp: number
 }
+
+// ========== 拖拽插入图片相关 ==========
+
+/**
+ * 拖拽位置查询 Payload（父 → iframe）
+ * 通知 iframe 当前拖拽坐标，用于计算插入位置并显示指示器
+ */
+export interface DragOverPayload {
+	/** iframe 内的 X 坐标（已除以 scaleRatio） */
+	x: number
+	/** iframe 内的 Y 坐标（已除以 scaleRatio） */
+	y: number
+}
+
+/**
+ * 拖拽离开 Payload（父 → iframe）
+ * 通知 iframe 拖拽已离开，应隐藏指示器
+ */
+export interface DragLeavePayload { }
+
+/**
+ * 拖拽放置图片 Payload（父 → iframe）
+ * 通知 iframe 在当前指示器位置插入图片
+ */
+export interface DropImagePayload {
+	/** 图片相对路径（用于 src 属性） */
+	relativePath: string
+	/** 图片预览 URL（用于即时显示） */
+	previewUrl?: string
+	/** iframe 内的 X 坐标 */
+	x: number
+	/** iframe 内的 Y 坐标 */
+	y: number
+}
+
+/**
+ * 拖拽位置响应 Payload（iframe → 父）
+ * 返回当前插入点的位置信息，用于父层渲染指示器
+ */
+export interface DragPositionResponsePayload {
+	/** 是否找到有效的插入点 */
+	valid: boolean
+	/** 指示器线条在 iframe 中的矩形位置（未缩放坐标） */
+	indicatorRect?: {
+		top: number
+		left: number
+		width: number
+	}
+}
