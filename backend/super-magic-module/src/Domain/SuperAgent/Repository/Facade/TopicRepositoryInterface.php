@@ -157,6 +157,14 @@ interface TopicRepositoryInterface
      */
     public function countTopicsByProjectId(int $projectId): int;
 
+    /**
+     * 批量统计用户在项目下的可见话题数量.
+     *
+     * @param int[] $projectIds
+     * @return array<int, int> [project_id => topic_count]
+     */
+    public function countUserVisibleTopicsByProjectIds(array $projectIds, string $userId): array;
+
     public function getWorkspaceIdsByTopicStatus(array $workspaceIds, array $taskStatuses, ?string $userId = null): array;
 
     public function getProjectIdsByTopicStatus(array $projectIds, array $taskStatuses, ?string $userId = null): array;

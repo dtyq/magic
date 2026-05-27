@@ -667,15 +667,18 @@ class ProjectMemberAppService extends AbstractAppService
         // 2. 分别获取协作者信息（拆分接口）
         $projectIdsFromResult = array_map(fn ($project) => $project->getId(), $projects);
 
-        // 2.1 获取用户在这些项目中的最高权限角色
+        // 2.1 批量获取当前用户在项目下的可见话题数量
+        $topicCountMap = $this->topicDomainService->countUserVisibleTopicsByProjectIds($projectIdsFromResult, $userId);
+
+        // 2.2 获取用户在这些项目中的最高权限角色
         $departmentIds = $this->departmentUserDomainService->getDepartmentIdsByUserId($dataIsolation, $userId, true);
         $targetIds = array_merge([$userId], $departmentIds);
         $userRolesMap = $this->projectMemberDomainService->getUserHighestRolesInProjects($projectIdsFromResult, $targetIds);
 
-        // 2.1 获取项目成员总数
+        // 2.3 获取项目成员总数
         $memberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIdsFromResult);
 
-        // 2.2 获取项目前4个成员预览
+        // 2.4 获取项目前4个成员预览
         $membersPreview = $this->projectMemberDomainService->getProjectMembersPreview($projectIdsFromResult, 4);
 
         $collaboratorsInfoMap = [];
@@ -728,7 +731,8 @@ class ProjectMemberAppService extends AbstractAppService
             $collaboratorsInfoMap,
             $workspaceNameMap,
             $totalCount,
-            $userRolesMap
+            $userRolesMap,
+            $topicCountMap
         );
 
         return $collaborationListResponseDTO->toArray();
