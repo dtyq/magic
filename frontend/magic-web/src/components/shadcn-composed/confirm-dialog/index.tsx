@@ -23,6 +23,9 @@ interface ConfirmDialogOptions {
 	destructivePresentation?: "solid" | "soft"
 	/** sm = equal-width footer buttons on narrow layouts */
 	dialogSize?: "default" | "sm"
+	portalContainer?: HTMLElement | null
+	overlayStyle?: React.CSSProperties
+	contentStyle?: React.CSSProperties
 	onConfirm: () => void
 }
 
@@ -72,6 +75,9 @@ export function useConfirmDialog() {
 			variant={state.variant}
 			destructivePresentation={state.destructivePresentation}
 			dialogSize={state.dialogSize}
+			portalContainer={state.portalContainer}
+			overlayStyle={state.overlayStyle}
+			contentStyle={state.contentStyle}
 			onConfirm={handleConfirm}
 			onCancel={handleCancel}
 		/>
@@ -89,6 +95,9 @@ interface ConfirmDialogProps {
 	variant?: "default" | "destructive"
 	destructivePresentation?: "solid" | "soft"
 	dialogSize?: "default" | "sm"
+	portalContainer?: HTMLElement | null
+	overlayStyle?: React.CSSProperties
+	contentStyle?: React.CSSProperties
 	confirmLoading?: boolean
 	confirmDisabled?: boolean
 	cancelDisabled?: boolean
@@ -110,6 +119,9 @@ export function ConfirmDialog({
 	variant = "default",
 	destructivePresentation = "solid",
 	dialogSize = "default",
+	portalContainer,
+	overlayStyle,
+	contentStyle,
 	confirmLoading = false,
 	confirmDisabled = false,
 	cancelDisabled = false,
@@ -123,7 +135,13 @@ export function ConfirmDialog({
 
 	return (
 		<AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-			<AlertDialogContent data-testid="confirm-dialog" size={dialogSize}>
+			<AlertDialogContent
+				data-testid="confirm-dialog"
+				size={dialogSize}
+				portalContainer={portalContainer}
+				overlayStyle={overlayStyle}
+				style={contentStyle}
+			>
 				<AlertDialogHeader>
 					<AlertDialogTitle
 						data-testid="confirm-dialog-title"

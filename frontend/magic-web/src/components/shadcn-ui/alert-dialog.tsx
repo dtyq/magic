@@ -21,33 +21,44 @@ function AlertDialogPortal({ ...props }: React.ComponentProps<typeof AlertDialog
 	return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
 }
 
-function AlertDialogOverlay({
-	className,
-	...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
+const AlertDialogOverlay = React.forwardRef<
+	React.ElementRef<typeof AlertDialogPrimitive.Overlay>,
+	React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Overlay>
+>(({ className, style, ...props }, ref) => {
 	return (
 		<AlertDialogPrimitive.Overlay
+			ref={ref}
 			data-slot="alert-dialog-overlay"
 			className={cn(
 				// PROJECT OVERRIDE — data-open variants, z-modal, light scrim, blur.
 				"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0 z-modal bg-black/10 duration-100 supports-[backdrop-filter]:backdrop-blur-sm",
 				className,
 			)}
+			style={style}
 			{...props}
 		/>
 	)
-}
+})
+
+AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 
 function AlertDialogContent({
 	className,
 	size = "default",
+	overlayClassName,
+	overlayStyle,
+	portalContainer,
+	style,
 	...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
 	size?: "default" | "sm"
+	overlayClassName?: string
+	overlayStyle?: React.CSSProperties
+	portalContainer?: HTMLElement | null
 }) {
 	return (
-		<AlertDialogPortal>
-			<AlertDialogOverlay />
+		<AlertDialogPortal container={portalContainer ?? undefined}>
+			<AlertDialogOverlay className={overlayClassName} style={overlayStyle} />
 			<AlertDialogPrimitive.Content
 				data-slot="alert-dialog-content"
 				data-size={size}
@@ -58,6 +69,7 @@ function AlertDialogContent({
 					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-open:[--tw-enter-translate-x:-50%] data-open:[--tw-enter-translate-y:-50%] data-closed:[--tw-exit-translate-x:-50%] data-closed:[--tw-exit-translate-y:-50%] group/alert-dialog-content fixed left-1/2 top-1/2 z-modal grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-hidden rounded-xl bg-background p-4 outline-none ring-1 ring-foreground/10 duration-100 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm",
 					className,
 				)}
+				style={style}
 				{...props}
 			/>
 		</AlertDialogPortal>

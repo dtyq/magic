@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { useOverlayZIndex } from "@/hooks/useOverlayZIndex"
 
@@ -12,6 +12,8 @@ export interface UseMobileAntdPopupLayerOptions {
 export interface UseMobileAntdPopupLayerResult {
 	/** Overlay z-index from the global stack; pass to Picker popupStyle. */
 	overlayZIndex: number
+	/** Live portal root for nested popup/dialog portals. */
+	portalContainer: HTMLElement | null
 	/** Portal target so DatePicker popups render above nested MagicModal layers. */
 	getContainer: () => HTMLElement
 }
@@ -36,6 +38,7 @@ export function useMobileAntdPopupLayer({
 	open,
 }: UseMobileAntdPopupLayerOptions): UseMobileAntdPopupLayerResult {
 	const containerRef = useRef<HTMLDivElement | null>(null)
+	const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null)
 	const { overlayZIndex, releaseOverlayZIndex } = useOverlayZIndex({ open })
 
 	useEffect(() => {
@@ -51,11 +54,13 @@ export function useMobileAntdPopupLayer({
 				containerRef.current.parentNode.removeChild(containerRef.current)
 			}
 			containerRef.current = null
+			setPortalContainer(null)
 			return undefined
 		}
 
 		const container = createPopupPortalContainer(overlayZIndex)
 		containerRef.current = container
+		setPortalContainer(container)
 
 		return () => {
 			if (container.parentNode) {
@@ -64,6 +69,9 @@ export function useMobileAntdPopupLayer({
 			if (containerRef.current === container) {
 				containerRef.current = null
 			}
+			setPortalContainer((currentContainer) =>
+				currentContainer === container ? null : currentContainer,
+			)
 		}
 	}, [open])
 
@@ -78,6 +86,7 @@ export function useMobileAntdPopupLayer({
 
 	return {
 		overlayZIndex,
+		portalContainer,
 		getContainer,
 	}
 }
