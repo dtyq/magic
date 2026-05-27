@@ -16,8 +16,6 @@ export const useStyles = createStyles(() => {
 		},
 		list: {},
 		item: {},
-		footer: {
-			paddingBottom: "4px",
-		},
+		footer: {},
 	}
 })

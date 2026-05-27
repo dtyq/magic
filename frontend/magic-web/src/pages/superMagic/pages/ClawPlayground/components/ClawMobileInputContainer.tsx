@@ -64,7 +64,7 @@ const ClawMobileInputContainer = forwardRef<
 
 	return (
 		<div
-			className="flex w-full flex-col bg-sidebar pb-1.5 pt-2"
+			className="flex w-full flex-col bg-sidebar pt-2"
 			data-testid="claw-mobile-input-section"
 		>
 			<ClawPlaygroundInputToolbar

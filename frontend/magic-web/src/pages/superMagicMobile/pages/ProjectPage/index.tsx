@@ -363,9 +363,7 @@ function LegacyProjectPage() {
 				<div
 					className={cn(
 						"flex w-full flex-shrink-0 flex-col gap-2",
-						shouldShowComposer
-							? "pointer-events-auto pb-1"
-							: "pointer-events-none hidden",
+						shouldShowComposer ? "pointer-events-auto" : "pointer-events-none hidden",
 					)}
 					aria-hidden={!shouldShowComposer}
 				>

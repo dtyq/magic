@@ -228,7 +228,7 @@ function MobileComposerComponent({
 		</>
 	) : (
 		<div
-			className="flex w-full shrink-0 flex-col gap-1.5 px-2 pb-1.5 pt-1.5"
+			className="flex w-full shrink-0 flex-col gap-1.5 px-2 pb-3 pt-1.5"
 			data-testid="mobile-composer"
 		>
 			{taskAndQueueNodes}

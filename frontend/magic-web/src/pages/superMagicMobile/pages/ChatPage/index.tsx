@@ -291,10 +291,7 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 						<SloganSection />
 					</div>
 					{/* 底部真实输入区继续复用现有 MobileInputContainer，不额外造首页输入状态。 */}
-					<div
-						className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
-						style={{ bottom: mobileInputBottomOffset }}
-					>
+					<div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
 						<div className="pointer-events-auto">
 							<MobileInputContainer
 								ref={mobileInputContainerRef}
