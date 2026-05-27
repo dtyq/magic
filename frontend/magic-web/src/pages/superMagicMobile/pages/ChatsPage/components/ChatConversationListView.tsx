@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from "react"
 import { Loader2, Menu, MessageCirclePlus, Search } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { cn } from "@/lib/utils"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { ChatConversationListItem } from "./ChatConversationListItem"
 import type { ChatConversationListItem as ChatConversationListItemData } from "../hooks/useChatConversationList"
@@ -73,6 +74,13 @@ export function ChatConversationListView({
 	const [showBottomMask, setShowBottomMask] = useState(true)
 	/** 仅首屏无数据时展示全屏 loading，操作后静默刷新不遮挡已有列表 */
 	const showInitialLoading = isLoading && items.length === 0
+	const shouldStretchPullToRefresh = !showInitialLoading && (isEmpty || isSearchEmpty)
+	/*
+	 * 对话页只有空态需要把 PullToRefresh 内容拉满；正常列表保持默认高度，
+	 * 避免共享样式长期干预滚动容器，导致下拉刷新不再触发。
+	 */
+	const pullToRefreshStretchClassName =
+		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
 
 	/**
 	 * 顶底遮罩直接跟随真实滚动容器，保留原型里列表“还能继续滚”的视觉提示。
@@ -136,7 +144,11 @@ export function ChatConversationListView({
 			<div id={scrollContainerId} className="relative min-h-0 flex-1 overflow-y-auto">
 				<MagicPullToRefresh
 					onRefresh={onRefresh}
-					containerClassName="relative min-h-0 flex-1"
+					containerClassName={cn(
+						"relative min-h-0 flex-1",
+						shouldStretchPullToRefresh &&
+							cn("!overflow-hidden", pullToRefreshStretchClassName),
+					)}
 					showSuccessMessage={false}
 				>
 					<div

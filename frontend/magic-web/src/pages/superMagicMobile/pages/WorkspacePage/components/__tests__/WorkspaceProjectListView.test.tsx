@@ -37,7 +37,17 @@ vi.mock("antd-mobile", () => ({
 }))
 
 vi.mock("@/components/base-mobile/MagicPullToRefresh", () => ({
-	default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	default: ({
+		children,
+		containerClassName,
+	}: {
+		children: React.ReactNode
+		containerClassName?: string
+	}) => (
+		<div data-testid="workspace-project-page-pull-refresh" className={containerClassName}>
+			{children}
+		</div>
+	),
 }))
 
 vi.mock("@/pages/superMagicMobile/components/ProjectList", () => ({
@@ -87,6 +97,14 @@ describe("WorkspaceProjectListView", () => {
 		fireEvent.focus(screen.getByPlaceholderText("搜索"))
 
 		expect(screen.getByTestId("workspace-project-page-search-clear")).not.toBeNull()
+	})
+
+	it("only stretches pull-to-refresh content for empty states", () => {
+		renderWorkspaceProjectListView({ isProjectEmpty: true, isSearchEmpty: false })
+
+		expect(screen.getByTestId("workspace-project-page-pull-refresh").className).toContain(
+			"!overflow-hidden",
+		)
 	})
 
 	it("renders empty state with flex centering classes for vertical alignment", () => {

@@ -3,6 +3,7 @@ import { Box, ChevronLeft, Ellipsis, Plus, Search } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { cn } from "@/lib/utils"
 import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import ProjectList from "@/pages/superMagicMobile/components/ProjectList"
@@ -59,6 +60,13 @@ export function WorkspaceProjectListView({
 	const scrollContainerId = useId()
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(true)
+	const shouldStretchPullToRefresh = isProjectEmpty || isSearchEmpty
+	/*
+	 * 仅在空态时补齐 PullToRefresh 的高度链，让空内容可以保持垂直居中。
+	 * 正常列表持续保留原始滚动结构，避免共享高度链把下拉手势和滚动状态改坏。
+	 */
+	const pullToRefreshStretchClassName =
+		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
 
 	/**
 	 * 渐变遮罩直接监听真实滚动容器，保证列表上下边缘的视觉反馈与原型一致。
@@ -143,7 +151,11 @@ export function WorkspaceProjectListView({
 				<MagicPullToRefresh
 					onRefresh={onRefresh}
 					showSuccessMessage={false}
-					containerClassName="relative min-h-0 flex-1"
+					containerClassName={cn(
+						"relative min-h-0 flex-1",
+						shouldStretchPullToRefresh &&
+							cn("!overflow-hidden", pullToRefreshStretchClassName),
+					)}
 				>
 					<div
 						className="flex min-h-full flex-col gap-1 px-3 pb-4 pt-2"
