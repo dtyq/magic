@@ -8,9 +8,57 @@ export default createStyles(({ token, css }) => ({
 	`,
 
 	fileListSection: css`
-		width: 248px;
 		flex-shrink: 0;
 		border-right: 1px solid ${token.colorBorder};
+		position: relative;
+		overflow: hidden;
+	`,
+
+	resizeHandle: css`
+		position: absolute;
+		top: 0;
+		right: -4px;
+		width: 8px;
+		height: 100%;
+		cursor: col-resize;
+		z-index: 10;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+
+		&::before {
+			content: "";
+			position: absolute;
+			inset: 0;
+			z-index: 0;
+			background: linear-gradient(
+				to bottom,
+				rgba(239, 246, 255, 0),
+				rgba(210, 230, 255, 1),
+				rgba(239, 246, 255, 0)
+			);
+			opacity: 0;
+			transition: opacity 0.2s;
+		}
+
+		&:hover::before,
+		&:active::before {
+			opacity: 1;
+		}
+
+		& > .resize-bar {
+			width: 1px;
+			height: 20px;
+			border-radius: 1px;
+			background: ${token.colorTextQuaternary};
+			transition: background-color 0.2s;
+		}
+
+		&:hover > .resize-bar,
+		&:active > .resize-bar {
+			background: ${token.colorPrimary};
+		}
 	`,
 	fileSelector: css`
 		height: calc(100% - 80px);
@@ -18,6 +66,7 @@ export default createStyles(({ token, css }) => ({
 
 	shareOptionsSection: css`
 		flex: 1;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
