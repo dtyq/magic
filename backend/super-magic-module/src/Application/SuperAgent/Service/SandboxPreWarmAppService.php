@@ -59,72 +59,18 @@ class SandboxPreWarmAppService extends AbstractAppService
      */
     public function preWarmForTopic(RequestContext $requestContext, int $topicId, ?string $language = null): array
     {
-        $this->logger->info(sprintf('开始话题内沙箱预启动, topicId=%d', $topicId));
-
-        $userAuthorization = $requestContext->getUserAuthorization();
-        $userId = $userAuthorization->getId();
-
-        // 获取话题信息
-        $topicEntity = $this->topicDomainService->getTopicById($topicId);
-        if ($topicEntity === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.not_found');
-        }
-
-        // 验证话题所有权
-        if ($topicEntity->getUserId() !== $userId) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.access_denied');
-        }
-
-        // 创建 DataIsolation 对象
-        $dataIsolation = DataIsolation::simpleMake(
-            $userAuthorization->getOrganizationCode(),
-            $userId
-        );
-        if ($language !== null && $language !== '') {
-            $dataIsolation->setLanguage($language);
-        }
-
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($topicEntity->getProjectId());
-
-        // 初始化任务
-        $taskEntity = $this->taskDomainService->initPreWarmTask($dataIsolation, $topicEntity);
-
-        // 记录沙箱创建前的状态
-        $hadSandboxId = ! empty($topicEntity->getSandboxId());
-
-        // 初始化用户记忆
-        $memories = $this->longTermMemoryDomainService->getEffectiveMemoriesForSandbox(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-            (string) $projectEntity->getId(),
-        );
-
-        // 使用 AgentAppService 确保沙箱已初始化
-        // 这个方法会自动处理沙箱的创建和初始化
-        $agentContext = $this->agentDomainService->buildInitAgentContext(
-            dataIsolation: $dataIsolation,
-            projectEntity: $projectEntity,
-            topicEntity: $topicEntity,
-            taskEntity: $taskEntity,
-            sandboxId: (string) $topicEntity->getId(),
-            skipInitMessage: true,
-            memories: $memories,
-        );
-        $sandboxId = $this->agentDomainService->ensureSandboxInitialized($dataIsolation, $agentContext);
-
-        $this->logger->info(sprintf(
-            '话题内沙箱预启动成功, topicId=%d, sandboxId=%s, hadSandboxId=%s',
-            $topicId,
-            $sandboxId,
-            $hadSandboxId ? 'true' : 'false'
-        ));
+        // Pre-warm has been disabled: it used to call ensureSandboxInitialized
+        // with sandboxId = topicId, which permanently bound the topic to a
+        // legacy "sandbox-{topicId}" pod and prevented the warm-pool fast
+        // path from ever being taken on the first real chat message.
+        // We now return a no-op response so the FE call stays compatible.
+        $this->logger->info(sprintf('话题内沙箱预启动已禁用, 直接返回, topicId=%d', $topicId));
 
         return [
             'topic_id' => (string) $topicId,
-            'sandbox_id' => $sandboxId,
-            'status' => 'ready',
-            'is_new' => ! $hadSandboxId,
+            'sandbox_id' => '',
+            'status' => 'disabled',
+            'is_new' => false,
         ];
     }
 
@@ -139,120 +85,15 @@ class SandboxPreWarmAppService extends AbstractAppService
      */
     public function preWarmForWorkspace(RequestContext $requestContext, int $workspaceId, ?string $language = null): array
     {
-        $this->logger->info(sprintf('开始话题外沙箱预启动, workspaceId=%d', $workspaceId));
-
-        $userAuthorization = $requestContext->getUserAuthorization();
-        $userId = $userAuthorization->getId();
-
-        // 验证工作区存在性和所有权
-        $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
-        if ($workspaceEntity === null) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.not_found');
-        }
-
-        if ($workspaceEntity->getUserId() !== $userId) {
-            $this->logger->error('话题外沙箱预启动：工作区归属校验失败', [
-                'workspace_id' => $workspaceId,
-                'workspace_owner_user_id' => $workspaceEntity->getUserId(),
-                'request_user_id' => $userId,
-            ]);
-            ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
-        }
-
-        // 获取或创建隐藏项目
-        $hiddenProject = $this->projectAppService->ensureHiddenProject(
-            $requestContext,
-            $workspaceId,
-            HiddenType::PRE_WARM->value
-        );
-
-        $this->logger->info(sprintf(
-            '获取或创建隐藏项目成功, workspaceId=%d, projectId=%d',
-            $workspaceId,
-            $hiddenProject->getId()
-        ));
-
-        // Check whether the project already has a matching hidden topic.
-        // This is used later to decide whether to roll back the project if topic creation fails.
-        $existingTopicBeforeEnsure = $this->topicDomainService->findHiddenTopicByProjectUserAndType(
-            $hiddenProject->getId(),
-            $userId,
-            HiddenType::PRE_WARM->value
-        );
-
-        // 获取或创建隐藏话题
-        // If topic creation fails and the project had no pre-existing topic, the project is
-        // orphaned (no steps created it before us). Apply a compensating delete to prevent
-        // accumulating zombie hidden projects.
-        try {
-            $hiddenTopic = $this->topicAppService->ensureHiddenTopic(
-                $requestContext,
-                $hiddenProject->getId(),
-                HiddenType::PRE_WARM->value
-            );
-        } catch (Throwable $e) {
-            if ($existingTopicBeforeEnsure === null) {
-                $this->cleanOrphanedHiddenProject($hiddenProject, $userId);
-            }
-            throw $e;
-        }
-
-        $this->logger->info(sprintf(
-            '获取或创建隐藏话题成功, projectId=%d, topicId=%d',
-            $hiddenProject->getId(),
-            $hiddenTopic->getId()
-        ));
-
-        // 创建 DataIsolation 对象
-        $dataIsolation = DataIsolation::simpleMake(
-            $userAuthorization->getOrganizationCode(),
-            $userId
-        );
-        if ($language !== null && $language !== '') {
-            $dataIsolation->setLanguage($language);
-        }
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($hiddenTopic->getProjectId());
-
-        // 初始化任务
-        $taskEntity = $this->taskDomainService->initPreWarmTask($dataIsolation, $hiddenTopic);
-
-        // 记录沙箱创建前的状态
-        $hadSandboxId = ! empty($hiddenTopic->getSandboxId());
-
-        // 初始化用户记忆
-        $memories = $this->longTermMemoryDomainService->getEffectiveMemoriesForSandbox(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-            (string) $projectEntity->getId(),
-        );
-
-        // 使用 AgentAppService 确保沙箱已初始化
-        // 这个方法会自动处理沙箱的创建和初始化
-        $agentContext = $this->agentDomainService->buildInitAgentContext(
-            dataIsolation: $dataIsolation,
-            projectEntity: $projectEntity,
-            topicEntity: $hiddenTopic,
-            taskEntity: $taskEntity,
-            sandboxId: (string) $hiddenTopic->getId(),
-            skipInitMessage: true,
-            memories: $memories
-        );
-        $sandboxId = $this->agentDomainService->ensureSandboxInitialized($dataIsolation, $agentContext);
-
-        $this->logger->info(sprintf(
-            '话题外沙箱预启动成功, topicId=%d, sandboxId=%s, hadSandboxId=%s',
-            $hiddenTopic->getId(),
-            $sandboxId,
-            $hadSandboxId ? 'true' : 'false'
-        ));
+        // Pre-warm has been disabled — see preWarmForTopic() for rationale.
+        $this->logger->info(sprintf('话题外沙箱预启动已禁用, 直接返回, workspaceId=%d', $workspaceId));
 
         return [
-            'topic_id' => (string) $hiddenTopic->getId(),
-            'project_id' => (string) $hiddenProject->getId(),
-            'sandbox_id' => $sandboxId,
-            'status' => 'ready',
-            'is_new' => ! $hadSandboxId,
+            'topic_id' => '',
+            'project_id' => '',
+            'sandbox_id' => '',
+            'status' => 'disabled',
+            'is_new' => false,
             'is_hidden' => true,
         ];
     }
@@ -268,86 +109,15 @@ class SandboxPreWarmAppService extends AbstractAppService
      */
     public function preWarmForProject(RequestContext $requestContext, int $projectId, ?string $language = null): array
     {
-        $this->logger->info(sprintf('开始为项目预热沙箱, projectId=%d', $projectId));
-
-        $userAuthorization = $requestContext->getUserAuthorization();
-        $userId = $userAuthorization->getId();
-        $organizationCode = $userAuthorization->getOrganizationCode();
-
-        // 验证项目存在且当前用户有访问权限（不存在或无权限时 getProject 内部会抛异常）
-        $projectEntity = $this->getAccessibleProjectWithEditor($projectId, $userId, $organizationCode);
-
-        // 获取或创建该项目下的预热隐藏话题（每个项目最多1个，由 ensureHiddenTopic 内部控制）
-        try {
-            $hiddenTopic = $this->topicAppService->ensureHiddenTopic(
-                $requestContext,
-                $projectId,
-                HiddenType::PRE_WARM->value
-            );
-        } catch (Throwable $e) {
-            $this->logger->error(sprintf(
-                '创建项目预热隐藏话题失败, projectId=%d: %s',
-                $projectId,
-                $e->getMessage()
-            ));
-            throw $e;
-        }
-
-        $this->logger->info(sprintf(
-            '获取或创建项目预热隐藏话题成功, projectId=%d, topicId=%d',
-            $projectId,
-            $hiddenTopic->getId()
-        ));
-
-        // 创建 DataIsolation
-        $dataIsolation = DataIsolation::simpleMake(
-            $userAuthorization->getOrganizationCode(),
-            $userId
-        );
-        if ($language !== null && $language !== '') {
-            $dataIsolation->setLanguage($language);
-        }
-
-        // 初始化预热任务
-        $taskEntity = $this->taskDomainService->initPreWarmTask($dataIsolation, $hiddenTopic);
-
-        // 记录沙箱创建前的状态
-        $hadSandboxId = ! empty($hiddenTopic->getSandboxId());
-
-        // 初始化用户记忆
-        $memories = $this->longTermMemoryDomainService->getEffectiveMemoriesForSandbox(
-            $dataIsolation->getCurrentOrganizationCode(),
-            AppCodeEnum::SUPER_MAGIC->value,
-            $dataIsolation->getCurrentUserId(),
-            (string) $projectEntity->getId(),
-        );
-
-        // 初始化沙箱
-        $agentContext = $this->agentDomainService->buildInitAgentContext(
-            dataIsolation: $dataIsolation,
-            projectEntity: $projectEntity,
-            topicEntity: $hiddenTopic,
-            taskEntity: $taskEntity,
-            sandboxId: (string) $hiddenTopic->getId(),
-            skipInitMessage: true,
-            memories: $memories
-        );
-        $sandboxId = $this->agentDomainService->ensureSandboxInitialized($dataIsolation, $agentContext);
-
-        $this->logger->info(sprintf(
-            '为项目预热沙箱成功, projectId=%d, topicId=%d, sandboxId=%s, hadSandboxId=%s',
-            $projectId,
-            $hiddenTopic->getId(),
-            $sandboxId,
-            $hadSandboxId ? 'true' : 'false'
-        ));
+        // Pre-warm has been disabled — see preWarmForTopic() for rationale.
+        $this->logger->info(sprintf('项目沙箱预启动已禁用, 直接返回, projectId=%d', $projectId));
 
         return [
-            'topic_id' => (string) $hiddenTopic->getId(),
+            'topic_id' => '',
             'project_id' => (string) $projectId,
-            'sandbox_id' => $sandboxId,
-            'status' => 'ready',
-            'is_new' => ! $hadSandboxId,
+            'sandbox_id' => '',
+            'status' => 'disabled',
+            'is_new' => false,
             'is_hidden' => true,
         ];
     }
