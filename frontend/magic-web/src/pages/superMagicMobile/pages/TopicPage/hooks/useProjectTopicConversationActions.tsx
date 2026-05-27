@@ -23,7 +23,7 @@ export function useProjectTopicConversationActions({
 		useBoolean(false)
 	const [filesDrawerOpen, setFilesDrawerOpen] = useState(false)
 	const { topicActions, updateCurrentActionItem, topicActionComponents, toggleTopicPin } =
-		useTopicListActions()
+		useTopicListActions({ topicActionContext: "topic-detail" })
 
 	const topicActionMap = useMemo(
 		() => new Map(topicActions.map((action) => [action.key, action])),

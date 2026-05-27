@@ -10,6 +10,8 @@ import { projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import magicToast from "@/components/base/MagicToaster/utils"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
+import { navigateSuperMobileBack } from "@/pages/superMagicMobile/layout/MainLayout/components/MainHeader/backNavigation"
+import { resolveWorkspaceDetailDeleteFallback } from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { formatRelativeTime } from "@/utils/string"
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
@@ -316,12 +318,10 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 			magicToast.success(t("workspace.deleteWorkspaceSuccess"))
 			closeMoreSheet()
 			if (isDeletingCurrentWorkspace) {
-				// 详情页删除后不要自动切到下一个工作区详情；优先返回打开它的上一页，
-				// 深链直达等没有历史栈时，再兜底回到移动端首页。
-				navigate({
-					delta: -1,
-					name: RouteName.MobileHome,
-					viewTransition: false,
+				// 详情页删除：返回上一级；无历史时兜底到工作区列表（与项目详情删除一致）。
+				navigateSuperMobileBack({
+					navigate,
+					fallback: resolveWorkspaceDetailDeleteFallback(),
 				})
 			}
 		} catch (error) {

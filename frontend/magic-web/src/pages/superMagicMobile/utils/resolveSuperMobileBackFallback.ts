@@ -1,5 +1,7 @@
 import { RouteName } from "@/routes/constants"
 import type { RouteParams } from "@/routes/history/types"
+import { isCollaborationProject } from "@/pages/superMagic/constants"
+import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import {
 	getMobileTopicPageCapabilities,
 	MobileTopicPageKind,
@@ -32,6 +34,124 @@ export function resolveSuperMobileProjectDetailBackFallback({
 		name: RouteName.SuperWorkspaceProjects,
 		params: { workspaceId },
 	}
+}
+
+interface ResolvePostMoveBackFallbackParams {
+	targetWorkspaceId: string
+	movedProject: Pick<ProjectListItem, "user_role"> | null | undefined
+}
+
+/**
+ * Resolves the fallback route after a project move when history back is unavailable.
+ * Uses the post-move workspace (target), not the source workspace.
+ */
+export function resolvePostMoveBackFallback({
+	targetWorkspaceId,
+	movedProject,
+}: ResolvePostMoveBackFallbackParams): SuperMobileBackFallbackTarget | null {
+	return resolveSuperMobileProjectDetailBackFallback({
+		workspaceId: targetWorkspaceId,
+		isSharedProjectDetail: isCollaborationProject(movedProject ?? null),
+	})
+}
+
+interface ShouldExitPageAfterMoveParams {
+	movedProjectId: string
+	selectedProjectId: string | undefined
+	isProjectDetailActionContext: boolean
+	shouldShowSaveAsProject: boolean
+	chatActionContext: "drawer" | "detail"
+}
+
+/**
+ * Decides whether the user should leave the current page after moving a project.
+ */
+export function shouldExitPageAfterProjectMove({
+	movedProjectId,
+	selectedProjectId,
+	isProjectDetailActionContext,
+	shouldShowSaveAsProject,
+	chatActionContext,
+}: ShouldExitPageAfterMoveParams): boolean {
+	const isMovingViewedProject = selectedProjectId === movedProjectId
+	if (!isMovingViewedProject) return false
+
+	if (isProjectDetailActionContext) return true
+
+	return shouldShowSaveAsProject && chatActionContext === "detail"
+}
+
+interface ShouldExitDetailPageAfterDeleteParams {
+	deletedProjectId: string
+	selectedProjectId: string | undefined
+	isProjectDetailActionContext: boolean
+}
+
+/**
+ * Only workspace project detail pages should leave via back+fallback after delete; list pages keep local refresh.
+ */
+export function shouldExitDetailPageAfterDelete({
+	deletedProjectId,
+	selectedProjectId,
+	isProjectDetailActionContext,
+}: ShouldExitDetailPageAfterDeleteParams): boolean {
+	if (!isProjectDetailActionContext) return false
+
+	return selectedProjectId === deletedProjectId
+}
+
+interface ShouldExitChatDetailAfterDeleteParams {
+	deletedProjectId: string
+	selectedProjectId: string | undefined
+	isChatMode: boolean
+	chatActionContext: "drawer" | "detail"
+}
+
+/**
+ * Chat conversation detail should leave via back+fallback; drawer/list keeps in-place refresh.
+ */
+export function shouldExitChatDetailAfterDelete({
+	deletedProjectId,
+	selectedProjectId,
+	isChatMode,
+	chatActionContext,
+}: ShouldExitChatDetailAfterDeleteParams): boolean {
+	if (!isChatMode || chatActionContext !== "detail") return false
+
+	return selectedProjectId === deletedProjectId
+}
+
+interface ShouldExitTopicDetailAfterDeleteParams {
+	deletedTopicId: string
+	selectedTopicId: string | undefined
+	isTopicDetailActionContext: boolean
+}
+
+/**
+ * Project topic sub-page delete should return to project entry, not auto-select another topic.
+ */
+export function shouldExitTopicDetailAfterDelete({
+	deletedTopicId,
+	selectedTopicId,
+	isTopicDetailActionContext,
+}: ShouldExitTopicDetailAfterDeleteParams): boolean {
+	if (!isTopicDetailActionContext) return false
+
+	return selectedTopicId === deletedTopicId
+}
+
+/**
+ * Fallback when leaving workspace detail after the workspace itself is deleted.
+ */
+export function resolveWorkspaceDetailDeleteFallback(): SuperMobileBackFallbackTarget {
+	return { name: RouteName.SuperWorkspacesList }
+}
+
+/**
+ * Fallback when leaving chat conversation detail after deleting the chat project.
+ */
+export function resolveChatDetailDeleteFallback(): SuperMobileBackFallbackTarget {
+	return { name: RouteName.SuperChatsList }
 }
 
 interface ResolveBackFallbackByRouteParams {

@@ -29,7 +29,6 @@ export function useChatConversationActions({
 		useProjectListActions({
 			mode: "chat",
 			chatActionContext: "detail",
-			deleteSelectedProjectBehavior: "navigate-home",
 			visibleActionKeys: ["pinProject", "rename", "saveAsProject", "delete"],
 		})
 	const { openShareModal, topicActionComponents } = useTopicListActions()

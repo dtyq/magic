@@ -16,6 +16,7 @@ import {
 	getCachedChatWorkspaceId,
 } from "@/pages/superMagic/hooks/useChatWorkspace"
 import { isChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
+import { wasProjectRemovedFromLoadedList } from "@/pages/superMagic/services/topicProjectConsistency"
 
 const ProjectPageDesktop = lazy(() => import("@/pages/superMagic/pages/ProjectPage/index.desktop"))
 const ProjectPageMobile = lazy(() => import("@/pages/superMagicMobile/pages/ProjectPage"))
@@ -87,6 +88,9 @@ const ProjectPage = observer(() => {
 				projectStore.selectedProject?.id === projectId ? projectStore.selectedProject : null
 
 			if (!currentProject) {
+				if (wasProjectRemovedFromLoadedList(projectId, projectStore.projects)) {
+					return
+				}
 				currentProject = await superMagicService.project.getProjectDetail(projectId, {
 					enableErrorMessagePrompt: false,
 				})

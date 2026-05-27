@@ -4,6 +4,7 @@ import {
 	isTopicBoundToProject,
 	shouldCreateFreshTopicForProject,
 	shouldRefreshChatProjectState,
+	wasProjectRemovedFromLoadedList,
 } from "@/pages/superMagic/services/topicProjectConsistency"
 
 describe("topicProjectConsistency", () => {
@@ -21,6 +22,39 @@ describe("topicProjectConsistency", () => {
 				selectedTopic: staleTopic,
 			}),
 		).toBe(true)
+	})
+
+	it("should skip refresh when route project was optimistically removed from a loaded list", () => {
+		expect(
+			shouldRefreshChatProjectState({
+				projectId: "project-deleted",
+				selectedProjectId: undefined,
+				selectedWorkspaceId: "workspace-1",
+				selectedTopic: null,
+				loadedProjects: [{ id: "project-other" } as unknown as ProjectListItem],
+			}),
+		).toBe(false)
+	})
+
+	it("should still refresh when project list is empty (cold entry)", () => {
+		expect(
+			shouldRefreshChatProjectState({
+				projectId: "project-b",
+				selectedProjectId: undefined,
+				selectedWorkspaceId: undefined,
+				selectedTopic: null,
+				loadedProjects: [],
+			}),
+		).toBe(true)
+	})
+
+	it("wasProjectRemovedFromLoadedList detects optimistic delete", () => {
+		expect(
+			wasProjectRemovedFromLoadedList("project-a", [
+				{ id: "project-b" } as unknown as ProjectListItem,
+			]),
+		).toBe(true)
+		expect(wasProjectRemovedFromLoadedList("project-a", [])).toBe(false)
 	})
 
 	it("should allow skipping refresh only when project workspace and topic are all aligned", () => {

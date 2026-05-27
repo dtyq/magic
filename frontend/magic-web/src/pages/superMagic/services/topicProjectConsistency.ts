@@ -1,6 +1,18 @@
 import type { Topic, ProjectListItem } from "../pages/Workspace/types"
 
 /**
+ * Returns true when a loaded project list no longer contains the route project id (e.g. after delete).
+ */
+export function wasProjectRemovedFromLoadedList(
+	projectId: string,
+	loadedProjects: ProjectListItem[],
+): boolean {
+	if (!projectId || loadedProjects.length === 0) return false
+
+	return !loadedProjects.some((project) => project.id === projectId)
+}
+
+/**
  * 统一判断当前话题是否仍然属于目标项目，避免移动端 chat 项目页继续复用旧会话状态。
  */
 export function isTopicBoundToProject(
@@ -23,18 +35,24 @@ export function shouldRefreshChatProjectState({
 	selectedProjectId,
 	selectedWorkspaceId,
 	selectedTopic,
+	loadedProjects = [],
 }: {
 	projectId: string | undefined
 	routeTopicId: string | undefined
 	selectedProjectId: string | undefined
 	selectedWorkspaceId: string | undefined
 	selectedTopic: Topic | null | undefined
+	loadedProjects?: ProjectListItem[]
 }): boolean {
 	if (!projectId) {
 		return false
 	}
 
 	if (selectedProjectId !== projectId) {
+		// After delete/move optimistic removal, do not refetch a stale URL project id.
+		if (wasProjectRemovedFromLoadedList(projectId, loadedProjects)) {
+			return false
+		}
 		return true
 	}
 

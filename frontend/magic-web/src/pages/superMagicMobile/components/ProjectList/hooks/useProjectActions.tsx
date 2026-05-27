@@ -5,7 +5,12 @@ import { useTranslation } from "react-i18next"
 import { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import type { HandleRenameProjectParams } from "@/pages/superMagic/hooks/useProjects"
 import ProjectMovePopup from "../components/ProjectMovePopup"
-import { isCollaborationProject, isWorkspaceShortcutProject } from "@/pages/superMagic/constants"
+import {
+	isCollaborationProject,
+	isOtherCollaborationProject,
+	isWorkspaceShortcutProject,
+	SHARE_WORKSPACE_ID,
+} from "@/pages/superMagic/constants"
 import useCollaboratorUpdatePanel from "@/pages/superMagic/components/WithCollaborators/hooks/useCollaboratorUpdatePanel"
 import useProjectTransferModal from "./useProjectTransferModal"
 import { canManageProject, isOwner } from "@/pages/superMagic/utils/permission"
@@ -18,12 +23,22 @@ import MobileDeleteConfirmPopup from "@/pages/superMagicMobile/components/Mobile
 import { IconX } from "@tabler/icons-react"
 import { Check } from "lucide-react"
 import useNavigate from "@/routes/hooks/useNavigate"
-import { RouteName } from "@/routes/constants"
 import {
 	shouldShowProjectCollaboratorAction,
 	shouldShowProjectTransferAction,
 } from "@/pages/superMagicMobile/utils/projectActionVisibility"
 import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
+import {
+	applyProjectDetailExitNavigation,
+	applySuperMobileDetailExitNavigation,
+	shouldExitChatDetailAfterDelete,
+	shouldExitPageAfterProjectMove,
+} from "@/pages/superMagicMobile/utils/navigateAfterProjectMove"
+import {
+	resolveChatDetailDeleteFallback,
+	resolvePostMoveBackFallback,
+	shouldExitDetailPageAfterDelete,
+} from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 
 interface UseProjectListActionsOptions {
 	onProjectChanged?: () => Promise<void> | void
@@ -97,48 +112,6 @@ export function useProjectListActions({
 	})
 
 	/**
-	 * 聊天详情里的“另存为项目”在当前产品口径下仍然是移动。
-	 * 成功后显式切到目标工作区对应路由，避免页面停留在旧工作区上下文。
-	 */
-	const navigateAfterMoveInChatDetail = useMemoizedFn(
-		(targetWorkspaceId: string, nextProjectName?: string) => {
-			if (!currentActionItem || chatActionContext !== "detail") return
-
-			const targetWorkspace =
-				workspaceStore.workspaces.find((workspace) => workspace.id === targetWorkspaceId) ||
-				null
-			if (targetWorkspace) {
-				workspaceStore.setSelectedWorkspace(targetWorkspace)
-			}
-
-			// 先乐观更新当前项目名称和归属工作区，保证路由落地前的头部文案不闪回旧值。
-			projectStore.setSelectedProject({
-				...currentActionItem,
-				project_name: nextProjectName?.trim() || currentActionItem.project_name,
-				workspace_id: targetWorkspaceId,
-			})
-
-			if (selectedTopic?.id) {
-				navigate({
-					name: RouteName.SuperWorkspaceProjectTopicState,
-					params: {
-						projectId: currentActionItem.id,
-						topicId: selectedTopic.id,
-					},
-				})
-				return
-			}
-
-			navigate({
-				name: RouteName.SuperWorkspaceProjectState,
-				params: {
-					projectId: currentActionItem.id,
-				},
-			})
-		},
-	)
-
-	/**
 	 * 统一处理普通移动与“另存为项目”的确认提交。
 	 * 这里把原型里的项目名作为可选参数透传给移动接口，后端若暂未支持会按 API_LIMITATIONS 降级。
 	 */
@@ -149,16 +122,28 @@ export function useProjectListActions({
 			// 此时回退到项目自身的 workspace_id 作为移动源，确保操作能正常发起。
 			const sourceWorkspaceId = selectedWorkspace?.id ?? currentActionItem.workspace_id
 			if (!sourceWorkspaceId) return
+			const movedProject = currentActionItem
+			const shouldExitAfterMove = shouldExitPageAfterProjectMove({
+				movedProjectId: movedProject.id,
+				selectedProjectId: projectStore.selectedProject?.id,
+				isProjectDetailActionContext,
+				shouldShowSaveAsProject,
+				chatActionContext,
+			})
 			setIsMoveProjectLoading(true)
 			try {
 				await SuperMagicService.project.moveProject(
-					currentActionItem.id,
+					movedProject.id,
 					workspaceId,
 					sourceWorkspaceId,
 					projectName,
 				)
-				if (shouldShowSaveAsProject) {
-					navigateAfterMoveInChatDetail(workspaceId, projectName)
+				if (shouldExitAfterMove) {
+					await applyProjectDetailExitNavigation({
+						workspaceId,
+						project: movedProject,
+						navigate,
+					})
 				}
 				magicToast.success(
 					t(
@@ -390,16 +375,64 @@ export function useProjectListActions({
 
 	const handleDeleteProject = useMemoizedFn(async () => {
 		if (!currentActionItem?.id) return
+		const deletedProject = currentActionItem
+		const deleteWorkspaceId = isOtherCollaborationProject(deletedProject)
+			? SHARE_WORKSPACE_ID
+			: selectedWorkspace?.id ?? deletedProject.workspace_id
+		const shouldExitProjectDetailPage = shouldExitDetailPageAfterDelete({
+			deletedProjectId: deletedProject.id,
+			selectedProjectId: projectStore.selectedProject?.id,
+			isProjectDetailActionContext,
+		})
+		const shouldExitChatDetailPage = shouldExitChatDetailAfterDelete({
+			deletedProjectId: deletedProject.id,
+			selectedProjectId: projectStore.selectedProject?.id,
+			isChatMode,
+			chatActionContext,
+		})
+
 		try {
 			if (onDeleteProjectConfirmed) {
-				await onDeleteProjectConfirmed(currentActionItem)
+				await onDeleteProjectConfirmed(deletedProject)
+			} else if (shouldExitChatDetailPage && deleteWorkspaceId) {
+				applySuperMobileDetailExitNavigation({
+					navigate,
+					fallback: resolveChatDetailDeleteFallback(),
+					leaveRouteImmediately: true,
+				})
+				await SuperMagicService.project.deleteProject(deletedProject.id, deleteWorkspaceId)
+				void SuperMagicService.project.fetchProjects({
+					workspaceId: deleteWorkspaceId,
+					page: 1,
+				})
+			} else if (shouldExitProjectDetailPage && deleteWorkspaceId) {
+				const cachedWorkspace = workspaceStore.workspaces.find(
+					(workspace) => workspace.id === deleteWorkspaceId,
+				)
+				if (cachedWorkspace) {
+					workspaceStore.setSelectedWorkspace(cachedWorkspace)
+				}
+				const fallback = resolvePostMoveBackFallback({
+					targetWorkspaceId: deleteWorkspaceId,
+					movedProject: deletedProject,
+				})
+				applySuperMobileDetailExitNavigation({
+					navigate,
+					fallback,
+					leaveRouteImmediately: true,
+				})
+				await SuperMagicService.project.deleteProject(deletedProject.id, deleteWorkspaceId)
+				void SuperMagicService.project.fetchProjects({
+					workspaceId: deleteWorkspaceId,
+					page: 1,
+				})
 			} else {
-				await SuperMagicService.deleteProject(currentActionItem, {
+				await SuperMagicService.deleteProject(deletedProject, {
 					selectedProjectBehavior: deleteSelectedProjectBehavior,
 					lastUsedWorkspaceId: selectedWorkspace?.id,
 				})
-				await onProjectChanged?.()
 			}
+			await onProjectChanged?.()
 			setDeleteModalVisible(false)
 		} catch {
 			// Keep the confirm sheet open so the user can retry after a failed delete.

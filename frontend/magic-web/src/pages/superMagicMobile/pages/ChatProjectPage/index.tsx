@@ -24,6 +24,7 @@ function ChatProjectPage() {
 				selectedProjectId,
 				selectedWorkspaceId,
 				selectedTopic,
+				loadedProjects: projectStore.projects,
 			})
 		) {
 			return

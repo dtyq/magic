@@ -19,14 +19,29 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { X, Check } from "lucide-react"
 import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
 import { sortTopicsWithPinnedFirst } from "./topicPinSort"
+import useNavigate from "@/routes/hooks/useNavigate"
+import {
+	getMobileTopicPageCapabilities,
+	MobileTopicPageKind,
+} from "@/pages/superMagicMobile/pages/shared/topicPageCapabilities"
+import { applySuperMobileDetailExitNavigation } from "@/pages/superMagicMobile/utils/navigateAfterProjectMove"
+import { shouldExitTopicDetailAfterDelete } from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
+
+interface UseTopicListActionsOptions {
+	/** Topic sub-page uses back+fallback; project topics tab keeps in-page topic switching. */
+	topicActionContext?: "default" | "topic-detail"
+}
 
 /**
  * Use topic list actions hook
- * @param _ empty params
  * @returns topic actions
  */
-export function useTopicListActions() {
+export function useTopicListActions({
+	topicActionContext = "default",
+}: UseTopicListActionsOptions = {}) {
 	const { t } = useTranslation("super")
+	const navigate = useNavigate()
+	const isTopicDetailActionContext = topicActionContext === "topic-detail"
 
 	// Get data from stores
 	const currentTopics = topicStore.topics
@@ -166,11 +181,40 @@ export function useTopicListActions() {
 		return actions
 	}, [closeActionsPopup, currentTopics.length, handleDelete, t])
 
-	const handleDeleteConfirm = useMemoizedFn(() => {
-		if (!currentActionItem?.topic?.id || !currentActionItem?.workspace?.id) return
+	const handleDeleteConfirm = useMemoizedFn(async () => {
+		const topic = currentActionItem?.topic
+		const project = currentActionItem?.project
+		if (!topic?.id || !project?.id || !currentActionItem?.workspace?.id) return
+
+		const shouldExitTopicDetailPage = shouldExitTopicDetailAfterDelete({
+			deletedTopicId: topic.id,
+			selectedTopicId: selectedTopic?.id,
+			isTopicDetailActionContext,
+		})
+
+		if (shouldExitTopicDetailPage) {
+			try {
+				const fallback = getMobileTopicPageCapabilities(
+					MobileTopicPageKind.ProjectTopic,
+				).resolveBackTarget(project.id)
+				applySuperMobileDetailExitNavigation({
+					navigate,
+					fallback,
+					clearProjectSelection: false,
+					leaveRouteImmediately: true,
+				})
+				await SuperMagicService.topic.deleteTopic(topic.id)
+				magicToast.success(t("hierarchicalWorkspacePopup.deleteSuccess"))
+				setDeleteModalVisible(false)
+			} catch (error) {
+				console.error("删除话题失败:", error)
+			}
+			return
+		}
+
 		topicHandlers.handleDeleteTopic(
 			currentActionItem.workspace.id,
-			currentActionItem.topic.id,
+			topic.id,
 			selectedTopic?.id,
 		)
 	})
