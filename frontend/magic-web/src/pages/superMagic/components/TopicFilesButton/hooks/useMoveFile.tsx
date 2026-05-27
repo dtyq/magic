@@ -7,6 +7,7 @@ import MagicModal from "@/components/base/MagicModal"
 import { IconAlertTriangleFilled } from "@tabler/icons-react"
 import { SuperMagicApi } from "@/apis"
 import { collectSelectedFolderIds } from "../../SelectPathModal/utils/attachmentUtils"
+import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
 
 interface UseMoveFileOptions {
 	projectId?: string
@@ -53,47 +54,6 @@ export function useMoveFile(options: UseMoveFileOptions = {}) {
 		setIsMovingFn(moving)
 	}
 
-	// 根据 relative_file_path 构建完整的父目录路径
-	const buildParentPathFromRelativePath = useCallback(
-		(relativePath: string | undefined): AttachmentItem[] => {
-			if (!relativePath || !attachments) return []
-
-			// 解析路径，获取父目录部分（去掉最后的文件名）
-			const pathParts = relativePath.split("/").filter(Boolean)
-			if (pathParts.length === 0) return []
-
-			// 移除最后一个部分（文件/文件夹名本身）
-			const parentPathParts = pathParts.slice(0, -1)
-			if (parentPathParts.length === 0) return []
-
-			// 根据路径部分逐级查找对应的 AttachmentItem
-			const result: AttachmentItem[] = []
-			let currentLevel = attachments
-
-			for (const partName of parentPathParts) {
-				const found = currentLevel.find(
-					(item) =>
-						item.is_directory &&
-						(item.name === partName ||
-							item.file_name === partName ||
-							item.filename === partName ||
-							item.display_filename === partName),
-				)
-
-				if (found) {
-					result.push(found)
-					currentLevel = found.children || []
-				} else {
-					// 如果找不到对应的路径，返回已找到的部分
-					break
-				}
-			}
-
-			return result
-		},
-		[attachments],
-	)
-
 	// 显示移动选择器
 	const showMoveSelector = useCallback(
 		(item: AttachmentItem) => {
@@ -102,12 +62,11 @@ export function useMoveFile(options: UseMoveFileOptions = {}) {
 			// 单个文件移动时，禁用其父文件夹（如果是文件夹的话）
 			const disabled = item.is_directory && item.file_id ? [item.file_id] : []
 			setDisabledFolderIds(disabled)
-			// 设置默认路径为被移动文件所在的目录
-			const parentPath = buildParentPathFromRelativePath(item.relative_file_path)
-			setDefaultPath(parentPath)
+			// 点击移动时始终从当前项目根目录开始选择目标位置。
+			setDefaultPath([])
 			setVisible(true)
 		},
-		[buildParentPathFromRelativePath],
+		[],
 	)
 
 	// 显示批量移动选择器
@@ -120,28 +79,7 @@ export function useMoveFile(options: UseMoveFileOptions = {}) {
 				const disabledIds = collectSelectedFolderIds(attachments, fileIds)
 				console.log("🔵 disabledIds", disabledIds)
 				setDisabledFolderIds(disabledIds)
-
-				// 找到第一个被移动的文件，并设置其父目录为默认路径
-				const findFirstItem = (items: AttachmentItem[]): AttachmentItem | null => {
-					for (const item of items) {
-						if (item.file_id && fileIds.includes(item.file_id)) {
-							return item
-						}
-						if (item.children) {
-							const found = findFirstItem(item.children)
-							if (found) return found
-						}
-					}
-					return null
-				}
-
-				const firstItem = findFirstItem(attachments)
-				if (firstItem?.relative_file_path) {
-					const parentPath = buildParentPathFromRelativePath(firstItem.relative_file_path)
-					setDefaultPath(parentPath)
-				} else {
-					setDefaultPath([])
-				}
+				setDefaultPath([])
 			} else {
 				setDisabledFolderIds([])
 				setDefaultPath([])
@@ -149,31 +87,13 @@ export function useMoveFile(options: UseMoveFileOptions = {}) {
 
 			setVisible(true)
 		},
-		[attachments, buildParentPathFromRelativePath],
+		[attachments],
 	)
 
 	// 打开批量移动（内部根据选中项收集 file_ids）
 	const openBatchMove = useCallback(() => {
 		if (!selectedItems || selectedItems.size === 0 || !allFiles || !getItemId) return
-		const ids: string[] = []
-		const collect = (items: AttachmentItem[]) => {
-			items.forEach((item) => {
-				const id = getItemId(item)
-				if (selectedItems.has(id)) {
-					if (
-						item.is_directory &&
-						"children" in item &&
-						(item.children?.length || 0) > 0
-					) {
-						if (item.file_id) ids.push(item.file_id)
-						collect(item.children || [])
-					} else if (item.file_id) ids.push(item.file_id)
-				} else if (item.is_directory && "children" in item) {
-					collect(item.children || [])
-				}
-			})
-		}
-		collect(allFiles)
+		const ids = collectSelectedItemIds(allFiles, selectedItems, getItemId)
 		if (ids.length === 0) return
 		showBatchMoveSelector(ids)
 	}, [allFiles, getItemId, selectedItems, showBatchMoveSelector])
@@ -574,6 +494,12 @@ export function useMoveFile(options: UseMoveFileOptions = {}) {
 			tips: t("topicFiles.moveModal.tips"),
 			projectId: projectId || "",
 			attachments,
+			pendingMoveFileIds:
+				isBatchMode
+					? batchFileIds
+					: currentMoveItem?.file_id
+						? [currentMoveItem.file_id]
+						: [],
 			onSubmit: confirmMove,
 			onClose: hideMoveSelector,
 			okText: t("topicFiles.moveModal.confirm"),

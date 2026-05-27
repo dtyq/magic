@@ -25,9 +25,11 @@ import MobileProjectDetailFilesView from "./components/MobileProjectDetailFilesV
 import { SelectDirectoryModal } from "../SelectPathModal"
 import { useBatchDownload } from "./hooks/useBatchDownload"
 import { useProjectDetailFilesController } from "./hooks/useProjectDetailFilesController"
+import { useCrossProjectFileOperation } from "./hooks/useCrossProjectFileOperation"
 import { useMobileProjectFilesDownload } from "./hooks/useMobileProjectFilesDownload"
 import { getMobileAttachmentKey } from "./utils/get-mobile-attachment-key"
 import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
+import { isCachedChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
 
 interface TopicFilesPanelProps {
 	className?: string
@@ -102,6 +104,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 		const { t } = useTranslation("super")
 		const resolvedTitle = title || t("topicFiles.title")
 		const isMobile = useIsMobile()
+		const isChatProject = isCachedChatWorkspaceProject(selectedProject)
 		const { isShareRoute } = useShareRoute()
 		const [fileFilters] = useState({
 			documents: true,
@@ -166,6 +169,42 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			refreshAttachments,
 		})
 
+		const crossProjectOperation = useCrossProjectFileOperation({
+			projectId,
+			selectedWorkspace: selectedWorkspace || null,
+			selectedProject: selectedProject || null,
+			projects,
+			onSuccess: async () => {
+				await refreshAttachments?.()
+				setIsSelectMode(false)
+				projectDetailFilesController.resetMobileSelection()
+				pubsub.publish(PubSubEvents.Update_Attachments)
+			},
+		})
+
+		const handleProjectDetailMoveSubmit = async (params: {
+			path: AttachmentItem[]
+			targetProjectId?: string
+			targetAttachments?: AttachmentItem[]
+			sourceAttachments?: AttachmentItem[]
+		}) => {
+			if (params.targetProjectId && params.targetAttachments && params.sourceAttachments) {
+				await crossProjectOperation.executeMoveOperation({
+					fileIds:
+						projectDetailFilesController.moveSelectorProps.pendingMoveFileIds || [],
+					targetProjectId: params.targetProjectId,
+					targetPath: params.path,
+					targetAttachments: params.targetAttachments,
+					sourceAttachments: params.sourceAttachments,
+				})
+				return
+			}
+
+			await projectDetailFilesController.moveSelectorProps.onSubmit?.({
+				path: params.path,
+			})
+		}
+
 		const [mobileSelectedKeys, setMobileSelectedKeys] = useState<Set<string>>(new Set())
 
 		const mobileProjectFilesDownload = useMobileProjectFilesDownload({
@@ -197,6 +236,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			attachments,
 			allowEdit,
 			isInProject,
+			removeFile: () => undefined,
 			onBatchShareClick: (fileIds) => {
 				projectDetailFilesController.batchShare(new Set(fileIds))
 			},
@@ -548,7 +588,30 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 					) : null)}
 
 				{shouldUseProjectDetailMobileView ? (
-					<SelectDirectoryModal {...projectDetailFilesController.moveSelectorProps} />
+					<>
+						<SelectDirectoryModal
+							{...projectDetailFilesController.moveSelectorProps}
+							mobileCrossProjectConfig={
+								selectedProject
+									? {
+											currentProject: selectedProject,
+											currentWorkspace: selectedWorkspace,
+											sourceAttachments: attachments,
+											isChatProject,
+										}
+									: undefined
+							}
+							onSubmit={handleProjectDetailMoveSubmit}
+						/>
+						<DuplicateFileModal
+							visible={crossProjectOperation.duplicateModalVisible}
+							fileName={crossProjectOperation.currentDuplicateFileName}
+							totalDuplicates={crossProjectOperation.totalDuplicates}
+							onCancel={crossProjectOperation.handleDuplicateCancel}
+							onReplace={crossProjectOperation.handleDuplicateReplace}
+							onKeepBoth={crossProjectOperation.handleDuplicateKeepBoth}
+						/>
+					</>
 				) : null}
 
 				{/* Mobile file list must mount watermark agreement modal (TopicFilesCore does this on desktop). */}

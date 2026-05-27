@@ -109,12 +109,14 @@ export function useCrossProjectFileOperation(options: UseCrossProjectFileOperati
 			targetPath: AttachmentItem[]
 			targetAttachments: AttachmentItem[]
 			sourceAttachments: AttachmentItem[]
+			fileIds?: string[]
 		}) => {
-			if (!projectId || fileIds.length === 0) return
+			const effectiveFileIds = data.fileIds || fileIds
+			if (!projectId || effectiveFileIds.length === 0) return
 
 			// 1. 检测同名文件（递归检测文件夹内所有子文件）
 			const duplicates = detectDuplicateFilesForMove(
-				fileIds,
+				effectiveFileIds,
 				data.sourceAttachments,
 				data.targetAttachments,
 				data.targetPath,
@@ -143,10 +145,10 @@ export function useCrossProjectFileOperation(options: UseCrossProjectFileOperati
 				let result
 
 				// 区分单文件移动和批量移动
-				if (fileIds.length === 1) {
+				if (effectiveFileIds.length === 1) {
 					// 使用单文件移动接口（moveFile）
 					result = await SuperMagicApi.moveFile({
-						file_id: fileIds[0],
+						file_id: effectiveFileIds[0],
 						target_parent_id: targetParentId,
 						project_id: projectId,
 						target_project_id: data.targetProjectId,
@@ -155,7 +157,7 @@ export function useCrossProjectFileOperation(options: UseCrossProjectFileOperati
 				} else {
 					// 使用批量移动接口（moveFiles）
 					result = await SuperMagicApi.moveFiles({
-						file_ids: fileIds,
+						file_ids: effectiveFileIds,
 						project_id: projectId,
 						target_project_id: data.targetProjectId,
 						target_parent_id: targetParentId,

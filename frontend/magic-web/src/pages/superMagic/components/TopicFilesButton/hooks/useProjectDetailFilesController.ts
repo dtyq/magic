@@ -13,6 +13,7 @@ import { useUploadWithModal } from "./useUploadWithModal"
 import { useMoveFile } from "./useMoveFile"
 import { collectFileIds } from "../utils/collectFileIds"
 import { getAttachmentKey } from "../utils/getAttachmentKey"
+import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
 import { buildDeleteConfirmHierarchyFromAttachments } from "../utils/mobileAttachmentTreeSelection"
 import { resolveMagicDeleteWarningVariant } from "../utils/magic-system-folder"
 
@@ -96,6 +97,10 @@ export function useProjectDetailFilesController({
 			getItemId: getAttachmentKey,
 			includeFolderIds: true,
 		})
+	}
+
+	const collectDirectSelectedFileIds = (selectedKeys: Set<string>) => {
+		return collectSelectedItemIds(attachments, selectedKeys, getAttachmentKey)
 	}
 
 	const createFile = async (
@@ -220,7 +225,7 @@ export function useProjectDetailFilesController({
 	}
 
 	const batchMove = (selectedKeys: Set<string>) => {
-		const fileIds = collectSelectedFileIds(selectedKeys)
+		const fileIds = collectDirectSelectedFileIds(selectedKeys)
 		if (fileIds.length === 0) return
 		moveFileHook.openBatchMoveByFileIds(fileIds)
 	}

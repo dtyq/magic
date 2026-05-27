@@ -77,6 +77,7 @@ import { handleAttachmentDragEnd } from "../MessageEditor/utils/drag"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import mentionPanelStore from "@/components/business/MentionPanel/builtin-store"
+import { isCachedChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
 
 import { useDownloadImageMenu } from "../Detail/contents/Image/hooks/useDownloadImageMenu"
 import { DownloadImageMode } from "../../pages/Workspace/types"
@@ -197,6 +198,8 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 	const { organizationCode } = useOrganization()
 	// 有userId，认为有登录状态
 	const hasLogin = userStore.user?.userInfo?.user_id
+	const isChatProject = isCachedChatWorkspaceProject(selectedProject)
+	const canUseDesktopCrossProjectMove = projects.length > 0 && !isChatProject && !isMobile
 
 	const workspaceId = selectedProject?.workspace_id
 
@@ -603,9 +606,22 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 	})
 
 	// 确认移动：交由 hook 内部批量处理
-	const handleBatchMoveConfirm = useMemoizedFn(async ({ path }: { path: AttachmentItem[] }) => {
-		await moveFileHook.confirmMove({ path })
-	})
+	const handleBatchMoveConfirm = useMemoizedFn(
+		async ({ path, targetProjectId, targetAttachments, sourceAttachments }) => {
+			if (targetProjectId && targetAttachments && sourceAttachments) {
+				await crossProjectOperation.executeMoveOperation({
+					fileIds: moveFileHook.selectorConfig.pendingMoveFileIds,
+					targetProjectId,
+					targetPath: path,
+					targetAttachments,
+					sourceAttachments,
+				})
+				return
+			}
+
+			await moveFileHook.confirmMove({ path })
+		},
+	)
 
 	// 跨项目文件操作 Hook
 	const crossProjectOperation = useCrossProjectFileOperation({
@@ -634,8 +650,8 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 
 	// 创建移动文件处理函数的适配器
 	const handleMoveFileAdapter = useMemoizedFn((item: AttachmentItem) => {
-		// 如果有跨项目操作所需的数据，使用新的跨项目 Modal
-		if (projects.length > 0) {
+		// 桌面端普通项目继续复用现有跨项目 Modal；移动端和 chat 项目统一走目录 Sheet。
+		if (canUseDesktopCrossProjectMove) {
 			if (item.file_id) {
 				// 获取文件的父目录路径
 				const parentPath = getParentPathFromFileId(item.file_id, attachments)
@@ -1884,6 +1900,15 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 					{...{
 						...moveFileHook.selectorConfig,
 						visible: moveFileHook.selectorConfig.visible,
+						mobileCrossProjectConfig:
+							isMobile && selectedProject
+								? {
+									currentProject: selectedProject,
+									currentWorkspace: selectedWorkspace,
+									sourceAttachments: attachments,
+									isChatProject,
+								}
+								: undefined,
 						onSubmit: handleBatchMoveConfirm,
 					}}
 				/>

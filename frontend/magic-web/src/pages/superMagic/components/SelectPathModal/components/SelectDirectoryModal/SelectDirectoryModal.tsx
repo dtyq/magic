@@ -63,6 +63,7 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 			okText,
 			cancelText,
 			disabledFolderIds = [],
+			mobileCrossProjectConfig,
 		},
 		ref,
 	) {
@@ -770,6 +771,7 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 					attachments={attachments}
 					defaultPath={defaultPath}
 					disabledFolderIds={disabledFolderIds}
+					mobileCrossProjectConfig={mobileCrossProjectConfig}
 					rootLabel={t("selectPathModal.rootDirectory")}
 					backLabel={t("back")}
 					homeLabel={t("selectPathModal.rootDirectory")}
@@ -780,8 +782,8 @@ const SelectDirectoryModal = forwardRef<SelectDirectoryModalRef, SelectDirectory
 					searchEmptyDescription={searchEmptyDescription}
 					emptyTip={emptyTip}
 					onClose={handleCancel}
-					onSubmit={({ path: nextPath }) => {
-						onSubmit && onSubmit({ path: nextPath })
+					onSubmit={(params) => {
+						onSubmit && onSubmit(params)
 					}}
 				/>
 			)

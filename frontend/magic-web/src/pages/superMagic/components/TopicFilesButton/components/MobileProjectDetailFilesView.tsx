@@ -2,6 +2,7 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import MagicFileIcon from "@/components/base/MagicFileIcon"
 import magicToast from "@/components/base/MagicToaster/utils"
+import MobilePathBreadcrumb from "@/pages/superMagic/components/MobilePathBreadcrumb"
 import { Input } from "@/components/shadcn-ui/input"
 import { Button } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
@@ -18,7 +19,7 @@ import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesBut
 import { findFileInTree } from "@/pages/superMagic/components/TopicFilesButton/hooks/fileSelectionUtils"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { formatFileSize } from "@/utils/string"
-import { Check, ChevronLeft, ChevronRight, Home, Plus, Upload, X } from "lucide-react"
+import { Check, Plus, Upload, X } from "lucide-react"
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { PresetFileType } from "../constant"
@@ -906,48 +907,23 @@ function MobileProjectDetailFilesView({
 			data-testid="project-detail-mobile-files-view"
 		>
 			{!isSearching && (
-				<div
-					className={cn(
-						"flex shrink-0 items-center gap-1",
-						isChatSheetVariant ? "px-[10px] py-2" : "px-1 py-2",
-					)}
-				>
-					<button
-						type="button"
-						disabled={resolvedPathStack.length === 0}
-						className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-foreground active:bg-foreground/[0.06] disabled:opacity-30"
-						onClick={() => handleNavigateTo(resolvedPathStack.length - 2)}
-						aria-label={t("back")}
-					>
-						<ChevronLeft className="h-5 w-5" />
-					</button>
-					<div className="h-5 w-px shrink-0 bg-border" />
-					<button
-						type="button"
-						className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground active:bg-foreground/[0.06]"
-						onClick={() => handleNavigateTo(-1)}
-						aria-label={t("home")}
-					>
-						<Home className="h-4.5 w-4.5" />
-					</button>
-					{resolvedPathStack.map((item, index) => (
-						<div key={getAttachmentKey(item)} className="flex min-w-0 items-center">
-							<ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-							<button
-								type="button"
-								className={cn(
-									"min-w-0 truncate rounded-lg px-2 py-1 text-base leading-6",
-									index === resolvedPathStack.length - 1
-										? "font-medium text-foreground"
-										: "text-muted-foreground active:bg-foreground/[0.05]",
-								)}
-								onClick={() => handleNavigateTo(index)}
-							>
-								{getAttachmentDisplayName(item)}
-							</button>
-						</div>
-					))}
-				</div>
+				<MobilePathBreadcrumb
+					className={cn(isChatSheetVariant ? "px-[10px] py-2" : "px-1 py-2")}
+					canBack={resolvedPathStack.length > 0}
+					onBack={() => handleNavigateTo(resolvedPathStack.length - 2)}
+					onGoHome={() => handleNavigateTo(-1)}
+					backLabel={t("back")}
+					homeLabel={t("home")}
+					homeIconClassName="h-4.5 w-4.5"
+					separatorClassName="h-4 w-4 text-muted-foreground/60"
+					segmentButtonClassName="px-2 text-base leading-6"
+					scrollTestId="project-detail-files-breadcrumb-scroll"
+					segments={resolvedPathStack.map((item, index) => ({
+						key: getAttachmentKey(item),
+						label: getAttachmentDisplayName(item),
+						onClick: () => handleNavigateTo(index),
+					}))}
+				/>
 			)}
 
 			<div className="relative min-h-0 flex-1">
