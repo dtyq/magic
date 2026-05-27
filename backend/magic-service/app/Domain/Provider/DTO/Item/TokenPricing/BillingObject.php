@@ -7,19 +7,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO\Item\TokenPricing;
 
-use App\Domain\Provider\Support\BillingTypeTemplateResolver;
-use Dtyq\BillingManager\Infrastructure\Util\Billing\AbstractBillingUsageDto;
-use Dtyq\BillingManager\Infrastructure\Util\ImageCalculate\ImageUsageDto;
-use Dtyq\BillingManager\Infrastructure\Util\TokenCalculate\TokenUsageDto;
-use Dtyq\BillingManager\Infrastructure\Util\VideoCalculate\VideoUsageDto;
-
 /**
  * 统一描述所有可配置的计费对象。
  *
  * 说明：
  * - 文本类对象是固定常量；
  * - 图片按张、视频按时长、视频分辨率 token 走“动态对象族”；
- * - BillingType 负责声明对象归属，BillingObject 只负责值对象行为和 usage 取值。
+ * - BillingType 负责声明对象归属，BillingObject 只负责值对象行为。
  */
 final class BillingObject
 {
@@ -343,23 +337,6 @@ final class BillingObject
         return '1';
     }
 
-    public function resolveUsageValue(AbstractBillingUsageDto $usage): int
-    {
-        if ($usage instanceof TokenUsageDto) {
-            return $this->resolveTextUsageValue($usage);
-        }
-
-        if ($usage instanceof ImageUsageDto) {
-            return $this->resolveImageUsageValue($usage);
-        }
-
-        if ($usage instanceof VideoUsageDto) {
-            return $this->resolveVideoUsageValue($usage);
-        }
-
-        return 0;
-    }
-
     public function isTokenFamily(): bool
     {
         return in_array($this->value, [
@@ -389,21 +366,6 @@ final class BillingObject
         return self::parseVideoObjectValue($this->value);
     }
 
-    /**
-     * @return array{resolution: string, modifier: array<int, string>}
-     */
-    public static function resolveVideoUsagePricing(VideoUsageDto $usage): array
-    {
-        return [
-            'resolution' => self::normalizeVideoResolutionKey($usage->quality),
-            'modifier' => self::buildVideoModifier(
-                $usage->hasReferenceVideo(),
-                $usage->hasReferenceAudio(),
-                $usage->hasAudioOutput
-            ),
-        ];
-    }
-
     private static function videoObject(string $resolution, string $modifier, string $billingUnit, bool $isCost = false): self
     {
         $value = sprintf(
@@ -420,92 +382,15 @@ final class BillingObject
         return new self($value);
     }
 
-    private function resolveTextUsageValue(TokenUsageDto $usage): int
-    {
-        return match ($this->value) {
-            self::INPUT_TOKEN,
-            self::INPUT_COST => $usage->getInputTokens(),
-            self::OUTPUT_TOKEN,
-            self::OUTPUT_COST => $usage->getOutputTokens(),
-            self::CACHE_HIT_TOKEN,
-            self::CACHE_HIT_COST => $usage->getCachedTokens(),
-            self::CACHE_WRITE_TOKEN,
-            self::CACHE_WRITE_COST => $usage->getCacheWriteTokens(),
-            default => 0,
-        };
-    }
-
-    private function resolveImageUsageValue(ImageUsageDto $usage): int
-    {
-        if (in_array($this->value, [self::IMAGE_INPUT_TOKEN, self::IMAGE_INPUT_TOKEN_COST], true)) {
-            return max(0, $usage->promptTokens > 0 ? $usage->promptTokens : ($usage->tokenUsage?->getInputTokens() ?? 0));
-        }
-
-        if (in_array($this->value, [self::IMAGE_OUTPUT_TOKEN, self::IMAGE_OUTPUT_TOKEN_COST], true)) {
-            return max(0, $usage->tokenUsage?->getOutputTokens() ?? 0);
-        }
-
-        if (in_array($this->value, [self::THOUGHT_TOKEN, self::THOUGHT_TOKEN_COST], true)) {
-            return max(0, $usage->thoughtTokens);
-        }
-
-        if (in_array($this->value, self::OLD_IMAGE_OBJECTS, true)) {
-            return max(0, $usage->imageCount);
-        }
-
-        if (! $this->isImageCountObject()) {
-            return 0;
-        }
-
-        $resolution = self::normalizeImageResolutionKey($usage->resolution ?? '');
-        if ($resolution !== $this->extractResolutionKey('image_', '_output_count')) {
-            return 0;
-        }
-
-        return max(0, $usage->imageCount);
-    }
-
-    private function resolveVideoUsageValue(VideoUsageDto $usage): int
-    {
-        $objectPricing = $this->resolveVideoObjectPricing();
-        if ($objectPricing === null) {
-            return 0;
-        }
-
-        $usagePricing = self::resolveVideoUsagePricing($usage);
-        if (! BillingTypeTemplateResolver::videoObjectMatchesUsage($objectPricing, $usagePricing)) {
-            return 0;
-        }
-
-        if ($objectPricing['billing_unit'] === self::VIDEO_BILLING_UNIT_TOKEN) {
-            return max(0, (int) $usage->totalTokens);
-        }
-
-        return max(0, $usage->durationInMilliseconds);
-    }
-
-    /**
-     * @return null|array{resolution: string, modifier: array<int, string>, billing_unit: string, is_cost: bool}
-     */
-    private function resolveVideoObjectPricing(): ?array
-    {
-        return $this->toVideoPricing();
-    }
-
-    private function isImageCountObject(): bool
-    {
-        return preg_match(self::IMAGE_COUNT_PATTERN, $this->value) === 1;
-    }
-
     private function isVideoDurationObject(): bool
     {
-        $pricing = $this->resolveVideoObjectPricing();
+        $pricing = $this->toVideoPricing();
         return $pricing !== null && $pricing['billing_unit'] === self::VIDEO_BILLING_UNIT_DURATION;
     }
 
     private function isVideoTokenObject(): bool
     {
-        $pricing = $this->resolveVideoObjectPricing();
+        $pricing = $this->toVideoPricing();
         return $pricing !== null && $pricing['billing_unit'] === self::VIDEO_BILLING_UNIT_TOKEN;
     }
 
@@ -546,32 +431,6 @@ final class BillingObject
         }
 
         return $parts === $expectedParts && count($parts) === count(array_unique($parts));
-    }
-
-    private static function buildVideoModifier(bool $hasReferenceVideo, bool $hasReferenceAudio, bool $hasAudioOutput): array
-    {
-        $parts = [self::VIDEO_MODIFIER_BASE];
-        if ($hasReferenceVideo) {
-            $parts[] = self::VIDEO_MODIFIER_REFERENCE_VIDEO;
-        }
-        if ($hasReferenceAudio) {
-            $parts[] = self::VIDEO_MODIFIER_REFERENCE_AUDIO;
-        }
-        if ($hasAudioOutput) {
-            $parts[] = self::VIDEO_MODIFIER_AUDIO_OUTPUT;
-        }
-
-        return $parts;
-    }
-
-    private function extractResolutionKey(string $prefix, string $suffix): string
-    {
-        $value = $this->value;
-        if ($this->isCostObject()) {
-            $suffix .= '_cost';
-        }
-
-        return substr($value, strlen($prefix), -strlen($suffix));
     }
 
     private static function normalizeResolutionKey(string $resolution): string
