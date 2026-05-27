@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Domain\ModelGateway\Service;
 
+use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterFactoryInterface;
+use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfigCandidate;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
@@ -31,7 +33,10 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkSeedanceVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkVideoClient;
 use Hyperf\Guzzle\ClientFactory;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\AbstractLogger;
+use Stringable;
 
 /**
  * @internal
@@ -61,6 +66,40 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
         $veoConfig = $service->resolve('veo3.1_fast', 'veo-3.1-fast-generate-preview', ProviderCode::OpenAI);
 
         $this->assertNull($veoConfig);
+    }
+
+    public function testResolveLogsAdapterFactoryFailure(): void
+    {
+        $logger = new class extends AbstractLogger {
+            public array $records = [];
+
+            public function log($level, string|Stringable $message, array $context = []): void
+            {
+                $this->records[] = [
+                    'level' => $level,
+                    'message' => (string) $message,
+                    'context' => $context,
+                ];
+            }
+        };
+        $factory = new class implements VideoGenerationProviderAdapterFactoryInterface {
+            public function createByProviderCode(ProviderCode $providerCode, ?string $modelVersion = null): VideoGenerationProviderAdapterInterface
+            {
+                throw new InvalidArgumentException('unsupported provider code');
+            }
+        };
+        $service = new VideoGenerationConfigDomainService($factory, $logger);
+
+        $config = $service->resolve('model-version-test', 'model-id-test', ProviderCode::OpenAI);
+
+        $this->assertNull($config);
+        $this->assertCount(1, $logger->records);
+        $this->assertSame('warning', $logger->records[0]['level']);
+        $this->assertSame('video generation adapter resolve failed', $logger->records[0]['message']);
+        $this->assertSame('OpenAI', $logger->records[0]['context']['provider_code']);
+        $this->assertSame('model-version-test', $logger->records[0]['context']['model_version']);
+        $this->assertSame('model-id-test', $logger->records[0]['context']['model_id']);
+        $this->assertSame('unsupported provider code', $logger->records[0]['context']['error']);
     }
 
     public function testResolveReturnsVolcengineArkSeedanceConfig(): void

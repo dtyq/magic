@@ -120,6 +120,10 @@ class BillingTierItem extends AbstractTokenPricingValueObject
                 $this->throwInvalidPricing();
             }
 
+            if ($min === 0 && $followValue === 0) {
+                return $pricingRule->getPrice();
+            }
+
             if ($followValue <= $min) {
                 continue;
             }

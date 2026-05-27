@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO\Item\TokenPricing;
 
+use App\Domain\Provider\Support\BillingTypeTemplateResolver;
 use Dtyq\BillingManager\Infrastructure\Util\Billing\AbstractBillingUsageDto;
 use Dtyq\BillingManager\Infrastructure\Util\ImageCalculate\ImageUsageDto;
 use Dtyq\BillingManager\Infrastructure\Util\TokenCalculate\TokenUsageDto;
@@ -149,29 +150,27 @@ final class BillingObject
     private const string IMAGE_COUNT_PATTERN = '/^image_[a-z0-9x_]+_output_count(?:_cost)?$/';
 
     /**
-     * VideoDuration 基础对象族：video_{resolution}_output_duration[_cost].
+     * Video 动态对象族：video.{resolution}.{modifier}.{duration|token}[.cost].
      */
-    private const string VIDEO_DURATION_PATTERN = '/^video_[a-z0-9x_]+_output_duration(?:_cost)?$/';
+    private const string VIDEO_OBJECT_PATTERN = '/^video\.([a-z0-9x_]+)\.([a-z_]+(?:\.[a-z_]+)*)\.(duration|token)(?:\.cost)?$/';
 
-    /**
-     * VideoDuration 参考视频对象族：video_{resolution}_reference_video_output_duration[_cost].
-     */
-    private const string VIDEO_REFERENCE_VIDEO_DURATION_PATTERN = '/^video_[a-z0-9x_]+_reference_video_output_duration(?:_cost)?$/';
+    private const string VIDEO_MODIFIER_BASE = 'base';
 
-    /**
-     * VideoDuration 音频扩展对象族：video_{resolution}_audio_output_duration[_cost].
-     */
-    private const string VIDEO_AUDIO_DURATION_PATTERN = '/^video_[a-z0-9x_]+_audio_output_duration(?:_cost)?$/';
+    private const string VIDEO_MODIFIER_REFERENCE_VIDEO = 'ref_video';
 
-    /**
-     * VideoTokens 分辨率对象族：video_{resolution}_output_token[_cost].
-     */
-    private const string VIDEO_TOKEN_PATTERN = '/^video_[a-z0-9x_]+_output_token(?:_cost)?$/';
+    private const string VIDEO_MODIFIER_REFERENCE_AUDIO = 'ref_audio';
 
-    /**
-     * VideoTokens 分辨率 + 参考视频对象族：video_{resolution}_reference_video_output_token[_cost].
-     */
-    private const string VIDEO_REFERENCE_VIDEO_TOKEN_PATTERN = '/^video_[a-z0-9x_]+_reference_video_output_token(?:_cost)?$/';
+    private const string VIDEO_MODIFIER_AUDIO_OUTPUT = 'audio_output';
+
+    private const string VIDEO_BILLING_UNIT_DURATION = 'duration';
+
+    private const string VIDEO_BILLING_UNIT_TOKEN = 'token';
+
+    private const array VIDEO_MODIFIER_ORDER = [
+        self::VIDEO_MODIFIER_REFERENCE_VIDEO,
+        self::VIDEO_MODIFIER_REFERENCE_AUDIO,
+        self::VIDEO_MODIFIER_AUDIO_OUTPUT,
+    ];
 
     public function __construct(public readonly string $value)
     {
@@ -186,11 +185,7 @@ final class BillingObject
 
         if (in_array($normalized, self::STATIC_OBJECTS, true)
             || preg_match(self::IMAGE_COUNT_PATTERN, $normalized) === 1
-            || preg_match(self::VIDEO_DURATION_PATTERN, $normalized) === 1
-            || preg_match(self::VIDEO_REFERENCE_VIDEO_DURATION_PATTERN, $normalized) === 1
-            || preg_match(self::VIDEO_AUDIO_DURATION_PATTERN, $normalized) === 1
-            || preg_match(self::VIDEO_TOKEN_PATTERN, $normalized) === 1
-            || preg_match(self::VIDEO_REFERENCE_VIDEO_TOKEN_PATTERN, $normalized) === 1) {
+            || self::parseVideoObjectValue($normalized) !== null) {
             return new self($normalized);
         }
 
@@ -238,12 +233,12 @@ final class BillingObject
      */
     public static function videoDuration(string $resolution): self
     {
-        return new self(sprintf('video_%s_output_duration', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_BASE, self::VIDEO_BILLING_UNIT_DURATION);
     }
 
     public static function videoDurationCost(string $resolution): self
     {
-        return new self(sprintf('video_%s_output_duration_cost', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_BASE, self::VIDEO_BILLING_UNIT_DURATION, true);
     }
 
     /**
@@ -251,25 +246,25 @@ final class BillingObject
      */
     public static function videoReferenceVideoDuration(string $resolution): self
     {
-        return new self(sprintf('video_%s_reference_video_output_duration', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_REFERENCE_VIDEO, self::VIDEO_BILLING_UNIT_DURATION);
     }
 
     public static function videoReferenceVideoDurationCost(string $resolution): self
     {
-        return new self(sprintf('video_%s_reference_video_output_duration_cost', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_REFERENCE_VIDEO, self::VIDEO_BILLING_UNIT_DURATION, true);
     }
 
     /**
-     * VideoDuration: 分辨率 + 音频输入扩展。
+     * VideoDuration: 分辨率 + 音频输出扩展。
      */
     public static function videoAudioDuration(string $resolution): self
     {
-        return new self(sprintf('video_%s_audio_output_duration', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_AUDIO_OUTPUT, self::VIDEO_BILLING_UNIT_DURATION);
     }
 
     public static function videoAudioDurationCost(string $resolution): self
     {
-        return new self(sprintf('video_%s_audio_output_duration_cost', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_AUDIO_OUTPUT, self::VIDEO_BILLING_UNIT_DURATION, true);
     }
 
     /**
@@ -277,12 +272,12 @@ final class BillingObject
      */
     public static function videoToken(string $resolution): self
     {
-        return new self(sprintf('video_%s_output_token', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_BASE, self::VIDEO_BILLING_UNIT_TOKEN);
     }
 
     public static function videoTokenCost(string $resolution): self
     {
-        return new self(sprintf('video_%s_output_token_cost', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_BASE, self::VIDEO_BILLING_UNIT_TOKEN, true);
     }
 
     /**
@@ -290,17 +285,17 @@ final class BillingObject
      */
     public static function videoReferenceVideoToken(string $resolution): self
     {
-        return new self(sprintf('video_%s_reference_video_output_token', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_REFERENCE_VIDEO, self::VIDEO_BILLING_UNIT_TOKEN);
     }
 
     public static function videoReferenceVideoTokenCost(string $resolution): self
     {
-        return new self(sprintf('video_%s_reference_video_output_token_cost', self::normalizeVideoResolutionKey($resolution)));
+        return self::videoObject($resolution, self::VIDEO_MODIFIER_REFERENCE_VIDEO, self::VIDEO_BILLING_UNIT_TOKEN, true);
     }
 
     public function isCostObject(): bool
     {
-        return str_ends_with($this->value, '_cost');
+        return str_ends_with($this->value, '_cost') || str_ends_with($this->value, '.cost');
     }
 
     public function toFlatConfigField(): ?string
@@ -341,7 +336,7 @@ final class BillingObject
             return '1000000';
         }
 
-        if ($this->isVideoBaseDurationObject() || $this->isVideoReferenceVideoDurationObject() || $this->isVideoAudioDurationObject()) {
+        if ($this->isVideoDurationObject()) {
             return '1000';
         }
 
@@ -383,8 +378,46 @@ final class BillingObject
             self::THOUGHT_TOKEN,
             self::THOUGHT_TOKEN_COST,
         ], true)
-            || $this->isVideoTokenObject()
-            || $this->isVideoReferenceVideoTokenObject();
+            || $this->isVideoTokenObject();
+    }
+
+    /**
+     * @return null|array{resolution: string, modifier: array<int, string>, billing_unit: string, is_cost: bool}
+     */
+    public function toVideoPricing(): ?array
+    {
+        return self::parseVideoObjectValue($this->value);
+    }
+
+    /**
+     * @return array{resolution: string, modifier: array<int, string>}
+     */
+    public static function resolveVideoUsagePricing(VideoUsageDto $usage): array
+    {
+        return [
+            'resolution' => self::normalizeVideoResolutionKey($usage->quality),
+            'modifier' => self::buildVideoModifier(
+                $usage->hasReferenceVideo(),
+                $usage->hasReferenceAudio(),
+                $usage->hasAudioOutput
+            ),
+        ];
+    }
+
+    private static function videoObject(string $resolution, string $modifier, string $billingUnit, bool $isCost = false): self
+    {
+        $value = sprintf(
+            'video.%s.%s.%s',
+            self::normalizeVideoResolutionKey($resolution),
+            $modifier,
+            $billingUnit
+        );
+
+        if ($isCost) {
+            $value .= '.cost';
+        }
+
+        return new self($value);
     }
 
     private function resolveTextUsageValue(TokenUsageDto $usage): int
@@ -434,59 +467,29 @@ final class BillingObject
 
     private function resolveVideoUsageValue(VideoUsageDto $usage): int
     {
-        $resolution = self::normalizeResolutionKey($usage->quality !== '' ? $usage->quality : 'default');
-
-        if ($this->isVideoReferenceVideoTokenObject()) {
-            if (($usage->referenceVideoCount ?? 0) <= 0) {
-                return 0;
-            }
-
-            return $resolution === $this->extractResolutionKey('video_', '_reference_video_output_token')
-                ? max(0, (int) $usage->totalTokens)
-                : 0;
-        }
-
-        if ($this->isVideoTokenObject()) {
-            if (($usage->referenceVideoCount ?? 0) > 0) {
-                return 0;
-            }
-
-            return $resolution === $this->extractResolutionKey('video_', '_output_token')
-                ? max(0, (int) $usage->totalTokens)
-                : 0;
-        }
-
-        if ($this->isVideoReferenceVideoDurationObject()) {
-            if (($usage->referenceVideoCount ?? 0) <= 0) {
-                return 0;
-            }
-
-            return $resolution === $this->extractResolutionKey('video_', '_reference_video_output_duration')
-                ? max(0, $usage->durationInMilliseconds)
-                : 0;
-        }
-
-        if ($this->isVideoAudioDurationObject()) {
-            if (($usage->referenceAudioCount ?? 0) <= 0 || ($usage->referenceVideoCount ?? 0) > 0) {
-                return 0;
-            }
-
-            return $resolution === $this->extractResolutionKey('video_', '_audio_output_duration')
-                ? max(0, $usage->durationInMilliseconds)
-                : 0;
-        }
-
-        if (! $this->isVideoBaseDurationObject()) {
+        $objectPricing = $this->resolveVideoObjectPricing();
+        if ($objectPricing === null) {
             return 0;
         }
 
-        if (($usage->referenceVideoCount ?? 0) > 0 || ($usage->referenceAudioCount ?? 0) > 0) {
+        $usagePricing = self::resolveVideoUsagePricing($usage);
+        if (! BillingTypeTemplateResolver::videoObjectMatchesUsage($objectPricing, $usagePricing)) {
             return 0;
         }
 
-        return $resolution === $this->extractResolutionKey('video_', '_output_duration')
-            ? max(0, $usage->durationInMilliseconds)
-            : 0;
+        if ($objectPricing['billing_unit'] === self::VIDEO_BILLING_UNIT_TOKEN) {
+            return max(0, (int) $usage->totalTokens);
+        }
+
+        return max(0, $usage->durationInMilliseconds);
+    }
+
+    /**
+     * @return null|array{resolution: string, modifier: array<int, string>, billing_unit: string, is_cost: bool}
+     */
+    private function resolveVideoObjectPricing(): ?array
+    {
+        return $this->toVideoPricing();
     }
 
     private function isImageCountObject(): bool
@@ -494,29 +497,71 @@ final class BillingObject
         return preg_match(self::IMAGE_COUNT_PATTERN, $this->value) === 1;
     }
 
-    private function isVideoBaseDurationObject(): bool
+    private function isVideoDurationObject(): bool
     {
-        return preg_match(self::VIDEO_DURATION_PATTERN, $this->value) === 1;
-    }
-
-    private function isVideoReferenceVideoDurationObject(): bool
-    {
-        return preg_match(self::VIDEO_REFERENCE_VIDEO_DURATION_PATTERN, $this->value) === 1;
-    }
-
-    private function isVideoAudioDurationObject(): bool
-    {
-        return preg_match(self::VIDEO_AUDIO_DURATION_PATTERN, $this->value) === 1;
+        $pricing = $this->resolveVideoObjectPricing();
+        return $pricing !== null && $pricing['billing_unit'] === self::VIDEO_BILLING_UNIT_DURATION;
     }
 
     private function isVideoTokenObject(): bool
     {
-        return preg_match(self::VIDEO_TOKEN_PATTERN, $this->value) === 1;
+        $pricing = $this->resolveVideoObjectPricing();
+        return $pricing !== null && $pricing['billing_unit'] === self::VIDEO_BILLING_UNIT_TOKEN;
     }
 
-    private function isVideoReferenceVideoTokenObject(): bool
+    /**
+     * @return null|array{resolution: string, modifier: array<int, string>, billing_unit: string, is_cost: bool}
+     */
+    private static function parseVideoObjectValue(string $value): ?array
     {
-        return preg_match(self::VIDEO_REFERENCE_VIDEO_TOKEN_PATTERN, $this->value) === 1;
+        if (preg_match(self::VIDEO_OBJECT_PATTERN, $value, $matches) !== 1) {
+            return null;
+        }
+
+        $modifier = $matches[2];
+        if (! self::isValidVideoModifier($modifier)) {
+            return null;
+        }
+
+        return [
+            'resolution' => $matches[1],
+            'modifier' => explode('.', $modifier),
+            'billing_unit' => $matches[3],
+            'is_cost' => str_ends_with($value, '.cost'),
+        ];
+    }
+
+    private static function isValidVideoModifier(string $modifier): bool
+    {
+        if ($modifier === self::VIDEO_MODIFIER_BASE) {
+            return true;
+        }
+
+        $parts = explode('.', $modifier);
+        $expectedParts = [];
+        foreach (self::VIDEO_MODIFIER_ORDER as $allowedPart) {
+            if (in_array($allowedPart, $parts, true)) {
+                $expectedParts[] = $allowedPart;
+            }
+        }
+
+        return $parts === $expectedParts && count($parts) === count(array_unique($parts));
+    }
+
+    private static function buildVideoModifier(bool $hasReferenceVideo, bool $hasReferenceAudio, bool $hasAudioOutput): array
+    {
+        $parts = [self::VIDEO_MODIFIER_BASE];
+        if ($hasReferenceVideo) {
+            $parts[] = self::VIDEO_MODIFIER_REFERENCE_VIDEO;
+        }
+        if ($hasReferenceAudio) {
+            $parts[] = self::VIDEO_MODIFIER_REFERENCE_AUDIO;
+        }
+        if ($hasAudioOutput) {
+            $parts[] = self::VIDEO_MODIFIER_AUDIO_OUTPUT;
+        }
+
+        return $parts;
     }
 
     private function extractResolutionKey(string $prefix, string $suffix): string

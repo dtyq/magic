@@ -284,7 +284,11 @@ class ServiceProviderApi extends AbstractApi
         return $this->adminProviderAppService->queriesServiceProviderTemplates($category, $authenticatable->getOrganizationCode());
     }
 
-    #[CheckPermission([MagicResourceEnum::PLATFORM_AI_MODEL, MagicResourceEnum::PLATFORM_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_PLATFORM,
+        CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
+        MagicOperationEnum::QUERY
+    )]
     public function queriesProviderModelPricingTemplates(RequestInterface $request): array
     {
         $category = Category::tryFrom((string) $request->input('category'));
@@ -297,7 +301,18 @@ class ServiceProviderApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'common.invalid', ['label' => 'provider_code']);
         }
 
-        return $this->providerModelPricingTemplateAppService->queries($category, $providerCode);
+        $modelId = trim((string) $request->input('model_id', ''));
+        if ($modelId === '') {
+            $modelId = trim((string) $request->input('model_version', ''));
+        }
+        $includeOfficialPricing = filter_var($request->input('include_official_pricing', false), FILTER_VALIDATE_BOOLEAN);
+
+        return $this->providerModelPricingTemplateAppService->queries(
+            $category,
+            $providerCode,
+            $modelId === '' ? null : $modelId,
+            $includeOfficialPricing
+        );
     }
 
     /**

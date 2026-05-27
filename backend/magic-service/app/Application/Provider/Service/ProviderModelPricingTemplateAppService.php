@@ -14,13 +14,20 @@ class ProviderModelPricingTemplateAppService
 {
     private const CONFIG_KEY = 'provider_model_pricing_templates';
 
+    private const OFFICIAL_PRICING_CONFIG_KEY = 'provider_model_official_pricing';
+
     public function __construct(
         private readonly ?array $templatesConfig = null,
+        private readonly ?array $officialPricingConfig = null,
     ) {
     }
 
-    public function queries(Category $category, ProviderCode $providerCode): array
-    {
+    public function queries(
+        Category $category,
+        ProviderCode $providerCode,
+        ?string $modelId = null,
+        bool $includeOfficialPricing = false
+    ): array {
         $config = $this->getTemplatesConfig();
         $templateCodes = $this->resolveTemplateCodes($config, $category, $providerCode);
         if ($templateCodes === []) {
@@ -37,12 +44,21 @@ class ProviderModelPricingTemplateAppService
             $result[] = $template;
         }
 
-        return $result;
+        if (! $includeOfficialPricing || $modelId === null || trim($modelId) === '') {
+            return $result;
+        }
+
+        return $this->appendOfficialPricing($result, $category, $providerCode, trim($modelId));
     }
 
     private function getTemplatesConfig(): array
     {
         return $this->templatesConfig ?? config(self::CONFIG_KEY, []);
+    }
+
+    private function getOfficialPricingConfig(): array
+    {
+        return $this->officialPricingConfig ?? config(self::OFFICIAL_PRICING_CONFIG_KEY, []);
     }
 
     private function resolveTemplateCodes(array $config, Category $category, ProviderCode $providerCode): array
@@ -73,5 +89,101 @@ class ProviderModelPricingTemplateAppService
         }
 
         return $indexedTemplates;
+    }
+
+    private function appendOfficialPricing(
+        array $templates,
+        Category $category,
+        ProviderCode $providerCode,
+        string $modelId
+    ): array {
+        $officialPricing = $this->resolveOfficialPricing($category, $providerCode, $modelId);
+        if ($officialPricing === null) {
+            return $templates;
+        }
+
+        foreach ($templates as $templateIndex => $template) {
+            $hasOfficialPrice = false;
+            foreach ($template['items'] ?? [] as $itemIndex => $item) {
+                $billingObject = $item['billing_object'] ?? null;
+                if (! is_string($billingObject) || ! isset($officialPricing['items'][$billingObject])) {
+                    continue;
+                }
+
+                $templates[$templateIndex]['items'][$itemIndex]['official_price'] = $officialPricing['items'][$billingObject];
+                $templates[$templateIndex]['items'][$itemIndex]['official_currency'] = $officialPricing['currency'];
+                $hasOfficialPrice = true;
+            }
+
+            if ($hasOfficialPrice) {
+                $templates[$templateIndex]['official_currency'] = $officialPricing['currency'];
+            }
+        }
+
+        return $templates;
+    }
+
+    /**
+     * @return null|array{currency: string, items: array<string, string>}
+     */
+    private function resolveOfficialPricing(Category $category, ProviderCode $providerCode, string $modelId): ?array
+    {
+        $config = $this->getOfficialPricingConfig();
+        $result = null;
+
+        foreach ($config['prices'] ?? [] as $pricingGroup) {
+            if (! is_array($pricingGroup)) {
+                continue;
+            }
+
+            if (($pricingGroup['provider_code'] ?? null) !== $providerCode->value) {
+                continue;
+            }
+            if (($pricingGroup['category'] ?? null) !== $category->value) {
+                continue;
+            }
+            if (! $this->matchesModelId($pricingGroup, $modelId)) {
+                continue;
+            }
+
+            $currency = (string) ($pricingGroup['currency'] ?? '');
+            foreach ($pricingGroup['items'] ?? [] as $billingObject => $pricing) {
+                if (! is_string($billingObject) || ! is_array($pricing)) {
+                    continue;
+                }
+
+                $price = $pricing['price'] ?? null;
+                if ($price === null || $price === '') {
+                    continue;
+                }
+
+                $result ??= [
+                    'currency' => $currency,
+                    'items' => [],
+                ];
+                $result['items'][$billingObject] = (string) $price;
+            }
+        }
+
+        return $result;
+    }
+
+    private function matchesModelId(array $pricingGroup, string $modelId): bool
+    {
+        $modelIds = $pricingGroup['model_ids'] ?? [];
+        if (! is_array($modelIds)) {
+            $modelIds = [];
+        }
+        if (isset($pricingGroup['model_id'])) {
+            $modelIds[] = $pricingGroup['model_id'];
+        }
+
+        foreach ($modelIds as $candidateModelId) {
+            if (trim((string) $candidateModelId) === $modelId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

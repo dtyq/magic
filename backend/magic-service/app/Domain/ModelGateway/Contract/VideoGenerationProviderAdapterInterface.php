@@ -47,6 +47,11 @@ interface VideoGenerationProviderAdapterInterface
     public function resolveGenerationConfig(string $modelVersion, string $modelId): ?VideoGenerationConfig;
 
     /**
+     * 基于规范化请求判断本次视频结果是否会带音频输出。
+     */
+    public function resolveHasAudioOutput(string $modelVersion, string $modelId, array $request): bool;
+
+    /**
      * 把统一请求结构映射成 provider 自己的 payload。
      *
      * 参数支持性不在这里判断，进入 adapter 前应当已经完成能力校验。

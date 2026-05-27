@@ -42,6 +42,11 @@ readonly class CloudswayVideoAdapterRouter implements VideoGenerationProviderAda
         return $this->findAdapter($modelVersion, $modelId)?->resolveGenerationConfig($modelVersion, $modelId);
     }
 
+    public function resolveHasAudioOutput(string $modelVersion, string $modelId, array $request): bool
+    {
+        return $this->findAdapter($modelVersion, $modelId)?->resolveHasAudioOutput($modelVersion, $modelId, $request) ?? true;
+    }
+
     public function buildProviderPayload(VideoQueueOperationEntity $operation): array
     {
         return $this->resolveOperationAdapter($operation)->buildProviderPayload($operation);

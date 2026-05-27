@@ -104,6 +104,7 @@ readonly class VideoOperationAppService
             $dataIsolation,
             $requestDTO,
             $videoModel->getProviderCode(),
+            $videoModel->getModelVersion(),
             $videoModel->getProviderModelId(),
             $videoGenerationConfig,
         );
@@ -294,6 +295,7 @@ readonly class VideoOperationAppService
         ModelGatewayDataIsolation $dataIsolation,
         CreateVideoDTO $requestDTO,
         ProviderCode $providerCode,
+        string $modelVersion,
         string $providerModelId,
         VideoGenerationConfig $videoGenerationConfig
     ): VideoPointEstimateRequest {
@@ -308,6 +310,12 @@ readonly class VideoOperationAppService
             ? $normalizedRequest['inputs']['reference_videos']
             : [];
         $inputMetadata = $this->resolveEstimateInputMetadata($dataIsolation, $requestDTO, $referenceVideos);
+        $hasAudioOutput = $this->videoGenerationConfigDomainService->resolveHasAudioOutput(
+            $modelVersion,
+            $requestDTO->getModel(),
+            $providerCode,
+            $normalizedRequest,
+        );
 
         return new VideoPointEstimateRequest(
             $requestDTO->getModel(),
@@ -319,6 +327,7 @@ readonly class VideoOperationAppService
             (int) $inputMetadata['total_duration_seconds'],
             (int) $inputMetadata['reference_video_count'] > 0,
             $requestDTO->getBusinessParams(),
+            $hasAudioOutput,
         );
     }
 
@@ -387,6 +396,7 @@ readonly class VideoOperationAppService
         $event->setSize($billingDetails['size']);
         $event->setWidth($billingDetails['width']);
         $event->setHeight($billingDetails['height']);
+        $event->setHasAudioOutput($this->resolveHasAudioOutput($operation));
         $event->setProjectId($operation->getProjectId());
         $event->setTopicId($operation->getTopicId());
         $event->setTaskId($operation->getTaskId());
@@ -411,6 +421,7 @@ readonly class VideoOperationAppService
             'size' => $event->getSize(),
             'width' => $event->getWidth(),
             'height' => $event->getHeight(),
+            'has_audio_output' => $event->hasAudioOutput(),
             'project_id' => $event->getProjectId(),
             'topic_id' => $event->getTopicId(),
             'task_id' => $event->getTaskId(),
@@ -420,6 +431,21 @@ readonly class VideoOperationAppService
             'total_tokens' => $event->getTotalTokens(),
             'video_reference_material' => $event->getVideoReferenceMaterial(),
         ]);
+    }
+
+    private function resolveHasAudioOutput(VideoQueueOperationEntity $operation): bool
+    {
+        $providerCode = ProviderCode::tryFrom($operation->getProviderCode());
+        if (! $providerCode instanceof ProviderCode) {
+            return true;
+        }
+
+        return $this->videoGenerationConfigDomainService->resolveHasAudioOutput(
+            $operation->getModelVersion(),
+            $operation->getModel(),
+            $providerCode,
+            $operation->getRawRequest(),
+        );
     }
 
     private function dispatchVideoGenerateFailedEvent(
@@ -487,6 +513,7 @@ readonly class VideoOperationAppService
             'request_id' => $requestId,
             'magic_topic_id' => $magicTopicId,
             'ak' => $accessTokenEntity?->getAccessToken() ?? '',
+            'access_token_id' => $accessTokenEntity->getId(),
             'access_token_name' => $accessTokenName,
             'access_token_type' => $accessTokenType,
         ];
@@ -544,6 +571,10 @@ readonly class VideoOperationAppService
 
     private function resolveResponseOutput(VideoQueueOperationEntity $operation, array $output): array
     {
+        if ($output !== []) {
+            $output['has_audio_output'] = $this->resolveHasAudioOutput($operation);
+        }
+
         $fileKey = $this->buildStoredVideoFileKey($operation);
         if ($fileKey === null) {
             return $output;
