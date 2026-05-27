@@ -24,6 +24,11 @@ interface MagicPopupHeaderActionConfig {
 	testId?: string
 }
 
+type MagicPopupHeaderIconProps = {
+	className?: string
+	strokeWidth?: number
+}
+
 export type MagicPopupProps = React.ComponentProps<typeof Drawer> & {
 	/** Whether the popup is visible (maps to open) */
 	visible?: boolean
@@ -167,6 +172,17 @@ const MagicPopup = memo(
 		// Determine whether to render children
 		const shouldRenderChildren = destroyOnClose ? isOpen : hasBeenOpenedRef.current || isOpen
 
+		const normalizeHeaderActionIcon = (icon: React.ReactNode) => {
+			if (!React.isValidElement<MagicPopupHeaderIconProps>(icon)) {
+				return icon
+			}
+
+			return React.cloneElement(icon, {
+				className: cn(icon.props.className, "size-[22px] shrink-0"),
+				strokeWidth: 2,
+			})
+		}
+
 		/**
 		 * 统一渲染移动端弹层头部操作按钮，避免业务层重复维护圆形按钮、阴影和禁用态。
 		 */
@@ -199,7 +215,7 @@ const MagicPopup = memo(
 						toneClassName,
 					)}
 				>
-					{action.icon}
+					{normalizeHeaderActionIcon(action.icon)}
 				</button>
 			)
 		}

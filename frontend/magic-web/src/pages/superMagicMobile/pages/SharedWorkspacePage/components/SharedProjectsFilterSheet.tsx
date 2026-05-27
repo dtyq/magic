@@ -157,13 +157,13 @@ export function SharedProjectsFilterSheet({
 			headerLeadingAction={
 				view === "creatorPicker"
 					? {
-							icon: <ChevronLeft className="size-[22px]" />,
+							icon: <ChevronLeft />,
 							ariaLabel: t("common.back"),
 							onClick: () => setView("main"),
 							testId: "shared-projects-filter-creators-back",
 						}
 					: {
-							icon: <X className="size-[22px]" />,
+							icon: <X />,
 							ariaLabel: t("common.close"),
 							onClick: handleClose,
 							testId: "shared-projects-filter-close",
@@ -172,7 +172,7 @@ export function SharedProjectsFilterSheet({
 			headerTrailingAction={
 				view === "main" && activeFilterCount > 0
 					? {
-							icon: <RotateCcw className="size-5" />,
+							icon: <RotateCcw />,
 							ariaLabel: t("sharedProjects.filter.reset"),
 							onClick: onReset,
 							testId: "shared-projects-filter-reset",

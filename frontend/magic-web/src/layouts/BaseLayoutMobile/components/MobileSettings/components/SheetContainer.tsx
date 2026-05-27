@@ -117,7 +117,7 @@ export function MobileSettingsSheetContainer(props: {
 							onClick={onCloseClick ?? (() => onOpenChange(false))}
 							ariaLabel={t("button.close")}
 						>
-							<X className="h-5 w-5" />
+							<X className="size-[22px]" strokeWidth={2} />
 						</MobileSettingsHeaderIconButton>
 					)}
 

@@ -150,7 +150,7 @@ function MobileRecycleBinPanel() {
 				headerVariant="actionHeader"
 				headerTitle={t("mobile.recycleBin.filterSheet.title")}
 				headerLeadingAction={{
-					icon: <X className="size-[20px]" />,
+					icon: <X />,
 					ariaLabel: t("common.close"),
 					onClick: () => setFilterSheetOpen(false),
 				}}

@@ -1014,7 +1014,7 @@ function MobileProjectDetailFilesView({
 				headerVariant="actionHeader"
 				headerTitle={t("projectDetail.addTitle")}
 				headerLeadingAction={{
-					icon: <X className="size-[22px] text-foreground" />,
+					icon: <X />,
 					ariaLabel: t("close"),
 					onClick: () => setAddSheetOpen(false),
 					testId: "project-detail-files-menu-close-button",
@@ -1093,13 +1093,13 @@ function MobileProjectDetailFilesView({
 				headerVariant="actionHeader"
 				headerTitle={t("projectDetail.addTitle")}
 				headerLeadingAction={{
-					icon: <X className="size-[22px] text-foreground" />,
+					icon: <X />,
 					ariaLabel: t("close"),
 					onClick: closeCreateSheet,
 					testId: "project-detail-files-create-close-button",
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px] text-white" />,
+					icon: <Check />,
 					ariaLabel: t("confirm"),
 					onClick: () => {
 						void handleSubmitCreateDraft()

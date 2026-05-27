@@ -47,13 +47,13 @@ export function CreateWorkspaceSheet({ isOpen, onClose, onCreate }: CreateWorksp
 			headerVariant="actionHeader"
 			headerTitle={t("workspace.createWorkspaceSheetTitle")}
 			headerLeadingAction={{
-				icon: <X className="size-[22px]" />,
+				icon: <X />,
 				ariaLabel: t("common.cancel"),
 				onClick: handleCancel,
 				testId: "workspace-create-sheet-cancel",
 			}}
 			headerTrailingAction={{
-				icon: <Check className="size-[22px]" />,
+				icon: <Check />,
 				ariaLabel: t("common.confirm"),
 				onClick: () => {
 					void handleConfirm()

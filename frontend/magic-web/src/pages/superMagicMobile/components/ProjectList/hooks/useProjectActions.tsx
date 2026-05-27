@@ -508,7 +508,7 @@ export function useProjectListActions({
 				headerVariant="actionHeader"
 				headerTitle={actionPopupTitle}
 				headerLeadingAction={{
-					icon: <IconX className="size-5" />,
+					icon: <IconX />,
 					ariaLabel: t("common.cancel"),
 					onClick: closeActionsPopup,
 					testId: "project-actions-popup-close",
@@ -533,12 +533,12 @@ export function useProjectListActions({
 					isChatMode ? "chat.renameChat" : "hierarchicalWorkspacePopup.projectRename",
 				)}
 				headerLeadingAction={{
-					icon: <IconX className="size-5" />,
+					icon: <IconX />,
 					ariaLabel: t("common.cancel"),
 					onClick: () => setRenameModalVisible(false),
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px]" />,
+					icon: <Check />,
 					ariaLabel: t("common.confirm"),
 					onClick: () => {
 						void handleRenameProject({

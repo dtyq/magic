@@ -521,12 +521,12 @@ function ChatDrawer({
 				headerVariant="actionHeader"
 				headerTitle={t("ui.deleteProjectConfirmTitle")}
 				headerLeadingAction={{
-					icon: <X className="size-[22px] text-foreground" />,
+					icon: <X />,
 					ariaLabel: t("common.cancel"),
 					onClick: () => setProjectDeleteModalVisible(false),
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px] text-white" />,
+					icon: <Check />,
 					ariaLabel: t("common.confirm"),
 					onClick: handleDeleteProjectConfirm,
 					tone: "destructive",

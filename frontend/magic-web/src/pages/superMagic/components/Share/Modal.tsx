@@ -547,7 +547,7 @@ export default memo(function ShareModel(props: ShareModalProps) {
 			headerTitle={t("share.shareConversation")}
 			headerSubtitle={topicShareSubtitle}
 			headerLeadingAction={{
-				icon: <IconX className="size-[22px] text-foreground" strokeWidth={2} />,
+				icon: <IconX />,
 				ariaLabel: t("common.close"),
 				onClick: () => {
 					handleCancel()

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import * as React from "react"
+import { X } from "lucide-react"
 import { describe, expect, test, vi } from "vitest"
 
 import MagicPopup from "../index"
@@ -128,5 +129,26 @@ describe("MagicPopup interaction contract", () => {
 		)
 
 		expect(document.querySelectorAll('[data-slot="drawer-handle"]')).toHaveLength(1)
+	})
+
+	test("actionHeader 操作图标统一使用 22px 和 2px 描边", () => {
+		render(
+			<MagicPopup
+				visible
+				title="action-header-icons"
+				headerVariant="actionHeader"
+				headerTitle="Action Header"
+				headerLeadingAction={{
+					icon: <X className="text-foreground" strokeWidth={1} />,
+					ariaLabel: "close",
+					onClick: vi.fn(),
+				}}
+			/>,
+		)
+
+		const svg = screen.getByLabelText("close").querySelector("svg")
+		expect(svg?.getAttribute("class")).toContain("size-[22px]")
+		expect(svg?.getAttribute("class")).not.toContain("size-5")
+		expect(svg?.getAttribute("stroke-width")).toBe("2")
 	})
 })

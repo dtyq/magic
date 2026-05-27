@@ -30,13 +30,13 @@ function MobileDeleteConfirmPopup({
 			headerVariant="actionHeader"
 			headerTitle={title}
 			headerLeadingAction={{
-				icon: <IconX className="size-5" />,
+				icon: <IconX />,
 				ariaLabel: cancelAriaLabel,
 				onClick: onClose,
 				testId: `${testIdPrefix}-cancel`,
 			}}
 			headerTrailingAction={{
-				icon: <Check className="size-[22px]" />,
+				icon: <Check />,
 				ariaLabel: confirmAriaLabel,
 				onClick: () => {
 					void onConfirm()

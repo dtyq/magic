@@ -142,7 +142,7 @@ export function WorkspaceMoreSheet({
 				headerVariant="actionHeader"
 				headerTitle={title}
 				headerLeadingAction={{
-					icon: <X className="size-[22px]" />,
+					icon: <X />,
 					ariaLabel: t("common.cancel"),
 					onClick: handleMenuClose,
 				}}
@@ -189,12 +189,12 @@ export function WorkspaceMoreSheet({
 				headerVariant="actionHeader"
 				headerTitle={t("workspace.rename")}
 				headerLeadingAction={{
-					icon: <X className="size-[22px]" />,
+					icon: <X />,
 					ariaLabel: t("common.cancel"),
 					onClick: handleRenameClose,
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px]" />,
+					icon: <Check />,
 					ariaLabel: t("common.confirm"),
 					onClick: () => {
 						void handleRenameConfirm()

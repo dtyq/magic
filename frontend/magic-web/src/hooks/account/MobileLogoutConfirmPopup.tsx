@@ -52,14 +52,14 @@ export function MobileLogoutConfirmPopup(props: MobileLogoutConfirmPopupProps) {
 			headerVariant="actionHeader"
 			headerTitle={title}
 			headerLeadingAction={{
-				icon: <X className="h-5 w-5" />,
+				icon: <X />,
 				ariaLabel: cancelAriaLabel,
 				onClick: () => closePopup(true),
 				disabled: isSubmitting,
 				testId: "mobile-logout-confirm-cancel",
 			}}
 			headerTrailingAction={{
-				icon: <Check className="h-5 w-5" strokeWidth={2.5} />,
+				icon: <Check />,
 				ariaLabel: confirmAriaLabel,
 				onClick: () => {
 					void handleConfirm()

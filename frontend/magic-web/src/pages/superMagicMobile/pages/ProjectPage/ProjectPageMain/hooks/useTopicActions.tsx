@@ -284,12 +284,12 @@ export function useTopicListActions() {
 				headerVariant="actionHeader"
 				headerTitle={t("ui.deleteTopicConfirmTitle")}
 				headerLeadingAction={{
-					icon: <X className="size-[22px] text-foreground" />,
+					icon: <X />,
 					ariaLabel: t("common.cancel"),
 					onClick: () => setDeleteModalVisible(false),
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px] text-white" />,
+					icon: <Check />,
 					ariaLabel: t("common.confirm"),
 					onClick: handleDeleteConfirm,
 					tone: "destructive",

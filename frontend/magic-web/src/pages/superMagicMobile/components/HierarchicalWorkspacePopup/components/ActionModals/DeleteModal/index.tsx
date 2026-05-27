@@ -50,12 +50,12 @@ function DeleteModal({
 			headerVariant="actionHeader"
 			headerTitle={getHeaderTitle()}
 			headerLeadingAction={{
-				icon: <X className="size-[22px] text-foreground" />,
+				icon: <X />,
 				ariaLabel: translations.cancel,
 				onClick: onCancel,
 			}}
 			headerTrailingAction={{
-				icon: <Check className="size-[22px] text-white" />,
+				icon: <Check />,
 				ariaLabel: translations.confirm,
 				onClick: onOk,
 				tone: "destructive",

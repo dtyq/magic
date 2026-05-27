@@ -56,13 +56,13 @@ export function CreateProjectSheet({ isOpen, onClose, onCreate }: CreateProjectS
 			headerVariant="actionHeader"
 			headerTitle={t("project.createNewProject")}
 			headerLeadingAction={{
-				icon: <X className="size-[22px]" />,
+				icon: <X />,
 				ariaLabel: t("common.cancel"),
 				onClick: handleCancel,
 				testId: "workspace-project-create-sheet-cancel",
 			}}
 			headerTrailingAction={{
-				icon: <Check className="size-[22px]" />,
+				icon: <Check />,
 				ariaLabel: t("common.confirm"),
 				onClick: () => {
 					void handleConfirm()

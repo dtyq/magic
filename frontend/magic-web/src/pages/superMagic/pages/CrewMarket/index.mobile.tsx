@@ -209,13 +209,13 @@ function CrewMarketMobilePanelBase() {
 							dismissConfirmAgent.agentCode,
 					})}
 					headerLeadingAction={{
-						icon: <IconX className="size-5" />,
+						icon: <IconX />,
 						ariaLabel: t("cancel"),
 						onClick: () => setDismissConfirmAgent(null),
 						testId: "crew-dismiss-confirm-cancel",
 					}}
 					headerTrailingAction={{
-						icon: <Check className="size-[22px]" strokeWidth={2.5} />,
+						icon: <Check />,
 						ariaLabel: t("myCrewPage.dismissConfirm.confirm"),
 						tone: "destructive",
 						onClick: () => {

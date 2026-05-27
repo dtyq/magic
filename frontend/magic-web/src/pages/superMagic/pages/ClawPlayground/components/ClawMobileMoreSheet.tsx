@@ -80,7 +80,7 @@ export function ClawMobileMoreSheet({
 			className="rounded-t-3xl bg-secondary"
 			bodyClassName="px-3 pb-8 pt-3 bg-secondary"
 			headerLeadingAction={{
-				icon: <X className="size-[22px]" />,
+				icon: <X />,
 				ariaLabel: t("superLobster.mobile.close", "关闭"),
 				onClick: () => onOpenChange(false),
 			}}

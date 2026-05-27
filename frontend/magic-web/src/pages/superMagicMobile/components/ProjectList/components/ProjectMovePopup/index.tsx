@@ -326,7 +326,7 @@ function MoveProjectPopup({
 			headerVariant="actionHeader"
 			headerTitle={headerTitle}
 			headerLeadingAction={{
-				icon: <IconX className="size-5" />,
+				icon: <IconX />,
 				ariaLabel: t("common.cancel"),
 				onClick: handleHeaderClose,
 				testId: "project-move-popup-close",
@@ -336,7 +336,7 @@ function MoveProjectPopup({
 				isSaveAsProjectMode && saveAsView === "workspaceSelect"
 					? undefined
 					: {
-							icon: <Check className="size-[22px]" />,
+							icon: <Check />,
 							ariaLabel: t("common.confirm"),
 							onClick: handleConfirm,
 							disabled: isConfirmDisabled,

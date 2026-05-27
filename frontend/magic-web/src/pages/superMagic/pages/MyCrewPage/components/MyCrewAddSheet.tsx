@@ -28,7 +28,7 @@ export default function MyCrewAddSheet({
 			headerVariant="actionHeader"
 			headerTitle={t("myCrewPage.addSheet.title")}
 			headerLeadingAction={{
-				icon: <X className="h-[22px] w-[22px]" />,
+				icon: <X />,
 				ariaLabel: t("myCrewPage.addSheet.closeAria"),
 				onClick: () => onOpenChange(false),
 				testId: "my-crew-add-sheet-close",

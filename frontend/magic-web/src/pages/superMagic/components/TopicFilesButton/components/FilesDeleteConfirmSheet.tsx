@@ -88,13 +88,13 @@ export function FilesDeleteConfirmSheet({
 			headerVariant="actionHeader"
 			headerTitle={t("projectDetail.deleteConfirm.title")}
 			headerLeadingAction={{
-				icon: <X className="size-[22px] text-foreground" />,
+				icon: <X />,
 				ariaLabel: t("common.cancel"),
 				onClick: onClose,
 				testId: `${testIdPrefix}-cancel`,
 			}}
 			headerTrailingAction={{
-				icon: <Trash2 className="size-[22px] text-white" />,
+				icon: <Trash2 />,
 				ariaLabel: t("topicFiles.contextMenu.delete"),
 				onClick: () => {
 					void handleConfirm()

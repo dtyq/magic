@@ -41,7 +41,7 @@ export function ClawMobileFilesDrawer({
 			headerTitle={popupTitle}
 			headerSubtitle={popupSubtitle}
 			headerLeadingAction={{
-				icon: <X className="size-[22px]" strokeWidth={2} />,
+				icon: <X />,
 				ariaLabel: t("common.close"),
 				onClick: onClose,
 				testId: "claw-mobile-files-drawer-close-button",
