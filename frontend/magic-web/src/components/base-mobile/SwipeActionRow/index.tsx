@@ -35,6 +35,8 @@ export interface SwipeAction {
 	labelClassName?: string
 	/** 点击后的回调，组件内部已阻止冒泡 */
 	onClick: () => void
+	/** 操作按钮的 data-testid */
+	"data-testid"?: string
 }
 
 interface SwipeActionRowProps {
@@ -213,6 +215,7 @@ export function SwipeActionRow({
 					<button
 						key={action.id}
 						type="button"
+						data-testid={action["data-testid"]}
 						className={cn(
 							"flex h-full w-16 flex-col items-center justify-center gap-1",
 							action.className,

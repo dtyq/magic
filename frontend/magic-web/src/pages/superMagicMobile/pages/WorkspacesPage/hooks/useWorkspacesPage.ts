@@ -44,6 +44,7 @@ export interface UseWorkspacesPageReturn {
 	handleCreateWorkspace: (name: string) => Promise<void>
 	handleRenameWorkspace: (id: string, name: string) => Promise<void>
 	handleDeleteWorkspace: (id: string) => Promise<void>
+	handlePinWorkspace: (workspace: Workspace) => Promise<void>
 	handleSelectWorkspace: (workspace: Workspace) => void
 	/** 共享工作区入口 */
 	handleOpenSharedWorkspace: () => void
@@ -181,6 +182,23 @@ export function useWorkspacesPage(): UseWorkspacesPageReturn {
 		[t, closeMoreSheet],
 	)
 
+	const handlePinWorkspace = useCallback(
+		async (workspace: Workspace) => {
+			try {
+				await SuperMagicService.workspace.pinWorkspace(workspace.id, !workspace.is_pinned)
+				await fetchWorkspacesPage1()
+				magicToast.success(
+					workspace.is_pinned
+						? t("workspace.unpinWorkspaceSuccess")
+						: t("workspace.pinWorkspaceSuccess"),
+				)
+			} catch (error) {
+				console.error("置顶工作区失败:", error)
+			}
+		},
+		[t, fetchWorkspacesPage1],
+	)
+
 	/**
 	 * 新重构版工作空间列表点击后直接进入新详情页，避免回落到旧的 Super 路由流。
 	 */
@@ -260,6 +278,7 @@ export function useWorkspacesPage(): UseWorkspacesPageReturn {
 		handleCreateWorkspace,
 		handleRenameWorkspace,
 		handleDeleteWorkspace,
+		handlePinWorkspace,
 		handleSelectWorkspace,
 		handleOpenSharedWorkspace,
 		handleRefresh,

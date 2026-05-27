@@ -27,6 +27,7 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 		handleCreateWorkspace,
 		handleRenameWorkspace,
 		handleDeleteWorkspace,
+		handlePinWorkspace,
 		handleSelectWorkspace,
 		handleOpenSharedWorkspace,
 		openMoreSheet,
@@ -55,6 +56,7 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 				onOpenSharedWorkspace={handleOpenSharedWorkspace}
 				onOpenSidebar={openSidebar}
 				onMoreWorkspace={openMoreSheet}
+				onPinWorkspace={handlePinWorkspace}
 				onDeleteWorkspace={requestDeleteWorkspace}
 				onRefresh={handleRefresh}
 				loadMore={loadMore}

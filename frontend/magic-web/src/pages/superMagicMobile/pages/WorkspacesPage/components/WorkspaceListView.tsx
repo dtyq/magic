@@ -5,6 +5,8 @@ import {
 	ChevronRight,
 	Ellipsis,
 	Menu,
+	Pin,
+	PinOff,
 	Plus,
 	Search,
 	Share2,
@@ -15,6 +17,7 @@ import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { MobileShellIconButton } from "@/pages/superMagicMobile/components/MobileShell"
@@ -28,6 +31,7 @@ interface WorkspaceItemProps {
 	onOpen: () => void
 	onClose: () => void
 	onMoreClick: () => void
+	onPinClick: () => void
 	onDeleteClick: () => void
 	projectCountLabel: string
 }
@@ -54,6 +58,7 @@ function WorkspaceItem({
 	onOpen,
 	onClose,
 	onMoreClick,
+	onPinClick,
 	onDeleteClick,
 	projectCountLabel,
 }: WorkspaceItemProps) {
@@ -68,6 +73,22 @@ function WorkspaceItem({
 			className: "bg-secondary",
 			labelClassName: "text-secondary-foreground",
 			onClick: onMoreClick,
+			"data-testid": `workspace-item-${workspace.id}-more-button`,
+		},
+		{
+			id: "pin",
+			label: workspace.is_pinned
+				? t("workspaceList.swipeUnpin")
+				: t("workspaceList.swipePin"),
+			icon: workspace.is_pinned ? (
+				<PinOff className="size-4 text-primary-foreground" />
+			) : (
+				<Pin className="size-4 text-primary-foreground" />
+			),
+			className: "bg-primary",
+			labelClassName: "text-primary-foreground",
+			onClick: onPinClick,
+			"data-testid": `workspace-item-${workspace.id}-pin-button`,
 		},
 		{
 			id: "delete",
@@ -76,6 +97,7 @@ function WorkspaceItem({
 			className: "bg-destructive",
 			labelClassName: "text-white",
 			onClick: onDeleteClick,
+			"data-testid": `workspace-item-${workspace.id}-delete-button`,
 		},
 	]
 
@@ -98,9 +120,16 @@ function WorkspaceItem({
 				/>
 
 				<div className="flex min-w-0 flex-1 flex-col items-start">
-					<p className="truncate text-[16px] font-medium leading-6 text-foreground">
-						{workspace.name || "-"}
-					</p>
+					<div className="flex h-6 w-full min-w-0 items-center gap-1">
+						<p className="min-w-0 shrink truncate text-[16px] font-medium leading-6 text-foreground">
+							{workspace.name || "-"}
+						</p>
+						{workspace.is_pinned ? (
+							<MobilePinBadge
+								data-testid={`workspace-item-${workspace.id}-pin-badge`}
+							/>
+						) : null}
+					</div>
 					<p className="truncate text-[12px] font-light leading-4 text-muted-foreground">
 						{projectCountLabel}
 					</p>
@@ -127,6 +156,7 @@ interface WorkspaceListViewProps {
 	onOpenSharedWorkspace: () => void
 	onOpenSidebar: () => void
 	onMoreWorkspace: (workspace: Workspace) => void
+	onPinWorkspace: (workspace: Workspace) => void
 	onDeleteWorkspace: (workspace: Workspace) => void
 	/** 下拉刷新回调 */
 	onRefresh: () => Promise<void>
@@ -151,6 +181,7 @@ function WorkspaceListViewInner({
 	onOpenSharedWorkspace,
 	onOpenSidebar,
 	onMoreWorkspace,
+	onPinWorkspace,
 	onDeleteWorkspace,
 	onRefresh,
 	loadMore,
@@ -291,6 +322,7 @@ function WorkspaceListViewInner({
 										onOpen={() => setOpenItemId(workspace.id)}
 										onClose={() => setOpenItemId(null)}
 										onMoreClick={() => onMoreWorkspace(workspace)}
+										onPinClick={() => onPinWorkspace(workspace)}
 										onDeleteClick={() => onDeleteWorkspace(workspace)}
 										projectCountLabel={t("workspace.projectCount", {
 											count: workspace.project_count ?? 0,

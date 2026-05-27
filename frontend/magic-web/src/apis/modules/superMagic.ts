@@ -876,10 +876,18 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 	 * @param id
 	 * @param workspace_name
 	 */
-	editWorkspace({ id, workspace_name }: { id: string; workspace_name: string }) {
+	editWorkspace({
+		id,
+		workspace_name,
+		is_pinned,
+	}: {
+		id: string
+		workspace_name: string
+		is_pinned?: boolean
+	}) {
 		return fetch.put(
 			`/api/v1/super-agent/workspaces/${id}`,
-			{ workspace_name },
+			{ workspace_name, is_pinned },
 			{
 				enableRequestUnion: true,
 			},

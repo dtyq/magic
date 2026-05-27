@@ -150,6 +150,8 @@ export interface Workspace {
 	id: string
 	name: string
 	is_archived: 0 | 1 // 0: 未归档，1: 已归档
+	is_pinned?: boolean
+	pinned_at?: string | null
 	current_topic_id: string
 	current_project_id: string | null
 	workspace_status: WorkspaceStatus

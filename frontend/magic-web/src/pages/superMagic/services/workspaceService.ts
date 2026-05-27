@@ -146,6 +146,34 @@ class WorkspaceService {
 		})
 	}
 
+	pinWorkspace = async (id: string, isPinned: boolean): Promise<void> => {
+		const selectedWorkspace =
+			workspaceStore.selectedWorkspace?.id === id ? workspaceStore.selectedWorkspace : null
+		const targetWorkspace = workspaceStore.getWorkspaceById(id) ?? selectedWorkspace
+
+		if (!targetWorkspace?.name) {
+			throw new Error("workspaceNameRequired")
+		}
+
+		try {
+			await SuperMagicApi.editWorkspace({
+				id,
+				workspace_name: targetWorkspace.name,
+				is_pinned: isPinned,
+			})
+
+			runInAction(() => {
+				workspaceStore.updateWorkspace({
+					...targetWorkspace,
+					is_pinned: isPinned,
+				})
+			})
+		} catch (error) {
+			console.log("置顶工作区失败，失败原因：", error)
+			throw error
+		}
+	}
+
 	deleteWorkspace = async (id: string): Promise<Workspace | null> => {
 		try {
 			await SuperMagicApi.deleteWorkspace({ id })
