@@ -61,6 +61,7 @@ const config = {
 				input: rgbColor("--input", "var(--input-alpha)"),
 				ring: rgbColor("--ring"),
 				background: rgbColor("--background"),
+				"mobile-background": rgbColor("--mobile-background"),
 				fill: rgbColor("--fill"),
 				"fill-secondary": rgbColor("--fill-secondary", "var(--fill-secondary-alpha)"),
 				foreground: {

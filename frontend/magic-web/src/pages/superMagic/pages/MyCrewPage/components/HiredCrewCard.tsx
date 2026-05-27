@@ -134,7 +134,7 @@ function HiredCrewCard({
 						type="button"
 						variant="outline"
 						size="sm"
-						className="h-8 min-h-8 w-full gap-2 px-3 text-xs font-medium shadow-xs"
+						className="h-8 min-h-8 w-full gap-2 bg-card px-3 text-xs font-medium shadow-xs hover:bg-card"
 						onClick={(event) => {
 							preventMyCrewCardInteractiveClick(event)
 							onConversation?.(employee.agentCode)
@@ -172,7 +172,7 @@ function HiredCrewCard({
 									type="button"
 									variant="outline"
 									size="icon"
-									className="size-8 min-h-8 shrink-0 shadow-xs"
+									className="size-8 min-h-8 shrink-0 bg-card shadow-xs hover:bg-card"
 									onClick={preventMyCrewCardInteractiveClick}
 									aria-label={t("myCrewPage.moreActionsAria")}
 									data-testid="my-crew-card-more-trigger"
@@ -278,7 +278,7 @@ function HiredCrewCard({
 									type="button"
 									variant="outline"
 									size="sm"
-									className="h-8 min-h-8 w-full gap-2 px-3 text-xs font-medium shadow-xs"
+									className="h-8 min-h-8 w-full gap-2 bg-card px-3 text-xs font-medium shadow-xs hover:bg-card"
 									onClick={(event) => {
 										preventMyCrewCardInteractiveClick(event)
 										onConversation?.(employee.agentCode)

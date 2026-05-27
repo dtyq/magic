@@ -112,7 +112,7 @@ function CreatedCrewCard({
 											type="button"
 											variant="outline"
 											size="icon"
-											className="size-8 min-h-8 shrink-0 shadow-xs"
+											className="size-8 min-h-8 shrink-0 bg-card shadow-xs hover:bg-card"
 											onClick={preventMyCrewCardInteractiveClick}
 											aria-label={t("myCrewPage.moreActionsAria")}
 											data-testid="my-crew-card-more-trigger"

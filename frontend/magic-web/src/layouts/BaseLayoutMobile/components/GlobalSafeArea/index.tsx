@@ -12,6 +12,7 @@ const useStyles = createStyles(({ css, token }) => {
 	return {
 		safeArea: css`
 			width: 100%;
+			background-color: rgb(var(--mobile-background-rgb));
 
 			&.top {
 				height: ${token.safeAreaInsetTop};

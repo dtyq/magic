@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, type CSSProperties } from "react"
 
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/models/config/hooks"
@@ -43,6 +43,10 @@ export default function MobileShellScaffold({
 	const transitionMs = 350
 	const rootRef = useRef<HTMLDivElement>(null)
 	const { prefersColorScheme } = useTheme()
+	const panelSurfaceVars = {
+		"--background": "var(--mobile-background)",
+		"--background-rgb": "var(--mobile-background-rgb)",
+	} as CSSProperties
 
 	useEffect(() => {
 		if (!syncDocumentTheme || !rootRef.current) return
@@ -72,9 +76,8 @@ export default function MobileShellScaffold({
 			data-sidebar-open={isSidebarOpen}
 			className={cn(
 				"relative h-full w-full overflow-hidden [--mobile-shell-sidebar-width:80vw]",
-				"[--mobile-shell-bg-closed:#fafafa] [--mobile-shell-bg-open:#f5f5f5]",
-				"dark:[--mobile-shell-bg-closed:#0a0a0a] dark:[--mobile-shell-bg-open:#171717]",
-				"bg-[var(--mobile-shell-bg-closed)] data-[sidebar-open=true]:bg-[var(--mobile-shell-bg-open)]",
+				// 原型分层：左侧菜单轨道始终使用 muted，主内容面板单独使用 background。
+				"bg-muted",
 				rootClassName,
 			)}
 			data-testid={`${testIdPrefix}-root`}
@@ -103,7 +106,7 @@ export default function MobileShellScaffold({
 				<div
 					className={cn(
 						// 共享 panel 容器默认铺一层不透明背景，避免业务页忘记设置背景时透出后侧栏内容。
-						"ease-[cubic-bezier(0.4,0,0.2,1)] absolute inset-0 z-30 overflow-hidden bg-background",
+						"ease-[cubic-bezier(0.4,0,0.2,1)] absolute inset-0 z-30 overflow-hidden bg-mobile-background",
 						"transition-[transform,box-shadow]",
 						isSidebarOpen && "rounded-l-3xl shadow-2xl",
 						isSidebarOpen
@@ -111,7 +114,10 @@ export default function MobileShellScaffold({
 							: "translate-x-0",
 						panelClassName,
 					)}
-					style={{ transitionDuration: `${transitionMs}ms` }}
+					style={{
+						...panelSurfaceVars,
+						transitionDuration: `${transitionMs}ms`,
+					}}
 					data-testid={`${testIdPrefix}-panel`}
 				>
 					{panel}
