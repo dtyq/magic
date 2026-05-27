@@ -1,9 +1,20 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ButtonHTMLAttributes, ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import {
+	isDashboardTemplateShellReferencePath,
+	resolveHtmlPreviewBundledTemplate,
+} from "../html-preview-bundled-shell"
 import HTML from "../index"
 
 const mockGetFileContentById = vi.fn()
+const mockProcessHtmlContent = vi.fn(async ({ content }: { content?: string }) => ({
+	processedContent: content || "",
+	filePathMapping: new Map(),
+	hasSlides: false,
+	slidesMap: new Map(),
+	originalSlidesPaths: [],
+}))
 
 vi.mock("react-i18next", () => ({
 	initReactI18next: {
@@ -54,10 +65,19 @@ vi.mock("@dtyq/magic-admin", () => ({
 vi.mock("@dtyq/magic-admin/components", () => ({}))
 vi.mock("@dtyq/magic-admin/provider", () => ({}))
 
-vi.mock("antd", () => ({
-	Flex: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-	Tour: () => null,
-}))
+vi.mock("antd", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("antd")>()
+
+	return {
+		...actual,
+		Flex: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+		Tour: () => null,
+		message: {
+			...actual.message,
+			config: vi.fn(),
+		},
+	}
+})
 
 vi.mock("../styles", () => ({
 	useStyles: () => ({
@@ -96,11 +116,36 @@ vi.mock("@/pages/superMagic/hooks/useFileData", () => ({
 	}),
 }))
 
-vi.mock("../htmlProcessor", () => ({
-	processHtmlContent: async ({ content }: { content?: string }) => ({
-		processedContent: content || "",
-		filePathMapping: new Map(),
+vi.mock("./dashboard/useDashboardVersioning", () => ({
+	useDashboardVersioning: ({
+		attachmentList,
+		displayConfig,
+	}: {
+		attachmentList?: unknown[]
+		displayConfig?: { type?: string }
+	}) => ({
+		allAttachmentItems: attachmentList || [],
+		flattenedAttachmentList: attachmentList || [],
+		isDataAnalysis: displayConfig?.type === "dashboard",
+		dashboardDataJsFile: null,
+		dashboardDataJsContent: "",
+		activeHistory: {
+			fileVersion: 1,
+			changeFileVersion: vi.fn(),
+			fileVersionsList: [{ version: 1 }],
+			handleVersionRollback: vi.fn(),
+			isNewestVersion: true,
+			loading: false,
+			previewRevision: 0,
+			isPreviewReady: true,
+		},
+		resourceFileVersions: {},
+		fetchDashboardDataJsFileVersions: vi.fn(),
 	}),
+}))
+
+vi.mock("../htmlProcessor", () => ({
+	processHtmlContent: (input: { content?: string }) => mockProcessHtmlContent(input),
 }))
 
 vi.mock("../utils/fetchInterceptor", () => ({
@@ -108,6 +153,10 @@ vi.mock("../utils/fetchInterceptor", () => ({
 	injectFetchInterceptorScript: (content: string) => content,
 	injectKeyboardInterceptorScript: (content: string) => content,
 	createKeyboardMessageHandler: () => vi.fn(),
+	POST_MESSAGE_TARGET_STRATEGIES: {
+		CROSS_ORIGIN_PARENT: "cross-origin-parent",
+		SAME_ORIGIN_ANCESTOR: "same-origin-ancestor",
+	},
 }))
 
 vi.mock("../utils/nested-iframe-content", () => ({
@@ -149,9 +198,12 @@ vi.mock("@/pages/superMagic/hooks/useHTMLGuideTour", () => ({
 
 vi.mock("@/utils/pubsub", () => ({
 	default: {
+		subscribe: vi.fn(),
+		unsubscribe: vi.fn(),
 		publish: vi.fn(),
 	},
 	PubSubEvents: {
+		Super_Magic_Detail_Refresh: "Super_Magic_Detail_Refresh",
 		GuideTourHTMLElementReady: "GuideTourHTMLElementReady",
 	},
 }))
@@ -253,7 +305,7 @@ vi.mock("../../../components/versioning/VersionCompareDialog", () => ({
 	}: {
 		open: boolean
 		onUseMyVersion?: () => void
-		onUseServerVersion?: () => void
+		onUseServerVersion?: (content?: string) => void
 	}) =>
 		open ? (
 			<div data-testid="visual-version-compare-dialog">
@@ -473,6 +525,114 @@ const baseProps = {
 describe("HTML", () => {
 	beforeEach(() => {
 		mockGetFileContentById.mockReset()
+		mockProcessHtmlContent.mockClear()
+	})
+
+	it("should use bundled dashboard template for dashboard index entry html", async () => {
+		render(
+			<HTML
+				{...baseProps}
+				viewMode="desktop"
+				isEditMode={false}
+				displayConfig={{ type: "dashboard" }}
+				attachmentList={[
+					{
+						file_id: "file-1",
+						file_name: "index.html",
+						relative_file_path: "index.html",
+					},
+				]}
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(mockProcessHtmlContent).toHaveBeenCalled()
+		})
+
+		expect(mockProcessHtmlContent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				htmlPreviewBundledTemplate: "dashboard",
+			}),
+		)
+	})
+
+	it("should not use bundled dashboard template for non-entry dashboard html", async () => {
+		render(
+			<HTML
+				{...baseProps}
+				data={{
+					...baseProps.data,
+					file_name: "about.html",
+				}}
+				viewMode="desktop"
+				isEditMode={false}
+				displayConfig={{ type: "dashboard" }}
+				attachmentList={[
+					{
+						file_id: "file-1",
+						file_name: "about.html",
+						relative_file_path: "pages/about.html",
+					},
+				]}
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(mockProcessHtmlContent).toHaveBeenCalled()
+		})
+
+		expect(mockProcessHtmlContent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				htmlPreviewBundledTemplate: undefined,
+			}),
+		)
+	})
+
+	it("should require an exact relative path match for bundled template entry html", () => {
+		expect(
+			resolveHtmlPreviewBundledTemplate({
+				relativeFilePath: "nested/index.html",
+				displayConfigType: "dashboard",
+			}),
+		).toBe("dashboard")
+
+		expect(
+			resolveHtmlPreviewBundledTemplate({
+				relativeFilePath: "index.html",
+				displayConfigType: "dashboard",
+			}),
+		).toBe("dashboard")
+	})
+
+	it("should resolve bundled template for index html inside business folder", () => {
+		expect(
+			resolveHtmlPreviewBundledTemplate({
+				relativeFilePath: "/销售数据分析看板/index.html",
+				displayConfigType: "dashboard",
+			}),
+		).toBe("dashboard")
+	})
+
+	it("should only resolve bundled template from displayConfig.type", () => {
+		expect(
+			resolveHtmlPreviewBundledTemplate({
+				relativeFilePath: "index.html",
+			}),
+		).toBeUndefined()
+
+		expect(
+			resolveHtmlPreviewBundledTemplate({
+				relativeFilePath: "index.html",
+				displayConfigType: "audio",
+			}),
+		).toBe("audio")
+	})
+
+	it("should strictly map dashboard shell css and js only", () => {
+		expect(isDashboardTemplateShellReferencePath("./index.css")).toBe(true)
+		expect(isDashboardTemplateShellReferencePath("./dashboard.js")).toBe(true)
+		expect(isDashboardTemplateShellReferencePath("nested/index.css")).toBe(false)
+		expect(isDashboardTemplateShellReferencePath("./config.js")).toBe(false)
 	})
 
 	it("should show server update button after updatedAt changes in code mode without saving", async () => {

@@ -14,6 +14,7 @@ import type { SaveResult } from "./iframe-bridge/types"
 import { useStyles } from "./styles"
 import { useFileData } from "@/pages/superMagic/hooks/useFileData"
 import { processHtmlContent, type HtmlPreviewBundledTemplateKind } from "./htmlProcessor"
+import { resolveHtmlPreviewBundledTemplate } from "./html-preview-bundled-shell"
 import {
 	attemptHtmlSaveFlow,
 	confirmHtmlConflictSave,
@@ -328,15 +329,10 @@ export default memo(function HTML(props: HTMLProps) {
 		}
 	}, [handleDetailHeaderRefresh])
 
-	/** 与 useMediaScenario 一致：父目录 metadata 标识 audio / video */
-	const mediaParentScenarioType = useMemo((): "audio" | "video" | null => {
-		const file = allAttachmentItems.find((item: any) => item.file_id === displayData?.file_id)
-		if (!file?.parent_id || file?.file_name !== "index.html") return null
-		const parent = allAttachmentItems.find((item: any) => item.file_id === file.parent_id)
-		const t = parent?.display_config?.type
-		if (t === "audio" || t === "video") return t
-		return null
-	}, [allAttachmentItems, displayData?.file_id])
+	const currentAttachmentItem = useMemo(
+		() => allAttachmentItems.find((item: any) => item.file_id === displayData?.file_id),
+		[allAttachmentItems, displayData?.file_id],
+	)
 
 	/**
 	 * 仅可视化预览：dashboard / audio / video 入口 HTML 走构建内 templates；dashboard 另换壳 CSS/JS。
@@ -344,14 +340,15 @@ export default memo(function HTML(props: HTMLProps) {
 	 */
 	const htmlPreviewBundledTemplate = useMemo((): HtmlPreviewBundledTemplateKind | undefined => {
 		if (isEditMode || viewMode === "code" || isPlaybackMode || isInPPTMode) return undefined
-		if (isDataAnalysis || displayConfig?.type === "dashboard") return "dashboard"
-		if (displayConfig?.type === "audio" || mediaParentScenarioType === "audio") return "audio"
-		if (displayConfig?.type === "video" || mediaParentScenarioType === "video") return "video"
-		return undefined
+		return resolveHtmlPreviewBundledTemplate({
+			fileName: currentAttachmentItem?.file_name || data?.file_name,
+			relativeFilePath: currentAttachmentItem?.relative_file_path,
+			displayConfigType: displayConfig?.type,
+		})
 	}, [
-		isDataAnalysis,
+		currentAttachmentItem?.file_name,
+		currentAttachmentItem?.relative_file_path,
 		displayConfig?.type,
-		mediaParentScenarioType,
 		isEditMode,
 		viewMode,
 		isPlaybackMode,
