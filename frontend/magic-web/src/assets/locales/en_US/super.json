@@ -3526,10 +3526,23 @@
 			"workspace": "Transfer Workspace"
 		},
 		"transferConfirmSheet": {
-			"description": "\"{{entityName}}\" will be transferred to {{memberName}}. After the transfer, you will lose all management rights. This action cannot be undone.",
+			"afterTransfer": "After transfer",
+			"descriptionWithShare": {
+				"project": "\"{{entityName}}\" will be transferred to {{memberName}}. After the transfer, you will retain access to this project as \"{{role}}\". This action cannot be undone.",
+				"workspace": "\"{{entityName}}\" will be transferred to {{memberName}}. After the transfer, you will retain access to projects in this workspace as \"{{role}}\". This action cannot be undone."
+			},
+			"descriptionWithoutShare": {
+				"project": "\"{{entityName}}\" will be transferred to {{memberName}}. After the transfer, you will lose all access to this project. This action cannot be undone.",
+				"workspace": "\"{{entityName}}\" will be transferred to {{memberName}}. After the transfer, you will lose all access to this workspace. This action cannot be undone."
+			},
 			"entityLabel": {
 				"project": "Project",
 				"workspace": "Workspace"
+			},
+			"setMeAs": "And set me as",
+			"shareWithMe": {
+				"project": "Share the project with me",
+				"workspace": "Share the project with me"
 			},
 			"title": "Confirm Transfer",
 			"transferTo": "Transfer to"
@@ -3687,6 +3700,7 @@
 		"noOtherWorkspace": "No other workspaces available",
 		"noWorkspaces": "No workspaces",
 		"projectCount": "{{count}} Projects",
+		"pinWorkspaceSuccess": "Workspace pinned successfully",
 		"projects": "Projects",
 		"rename": "Rename",
 		"renameWorkspaceSuccess": "Rename workspace successfully",
@@ -3708,6 +3722,7 @@
 		"topicList": "Topic List",
 		"topics": "Topics",
 		"transfer": "Transfer Workspace",
+		"unpinWorkspaceSuccess": "Workspace unpinned successfully",
 		"unnamedWorkspace": "Unnamed Workspace",
 		"workspace": "Workspace",
 		"workspaceList": "Workspace List",
@@ -3718,6 +3733,8 @@
 	},
 	"workspaceList": {
 		"swipeDelete": "Delete",
-		"swipeMore": "More"
+		"swipeMore": "More",
+		"swipePin": "Pin",
+		"swipeUnpin": "Unpin"
 	}
 }

@@ -3538,10 +3538,23 @@
 			"workspace": "转让工作区"
 		},
 		"transferConfirmSheet": {
-			"description": "「{{entityName}}」将被转让给 {{memberName}}。转让后，您将失去所有管理权限，此操作无法撤销。",
+			"afterTransfer": "转让后",
+			"descriptionWithShare": {
+				"project": "「{{entityName}}」将被转让给 {{memberName}}。转让后，您将以“{{role}}”身份保留对该项目的访问权限，此操作无法撤销。",
+				"workspace": "「{{entityName}}」将被转让给 {{memberName}}。转让后，您将以“{{role}}”身份保留对该工作区内项目的访问权限，此操作无法撤销。"
+			},
+			"descriptionWithoutShare": {
+				"project": "「{{entityName}}」将被转让给 {{memberName}}。转让后，您将失去该项目的所有访问权限，此操作无法撤销。",
+				"workspace": "「{{entityName}}」将被转让给 {{memberName}}。转让后，您将失去该工作区的所有访问权限，此操作无法撤销。"
+			},
 			"entityLabel": {
 				"project": "项目",
 				"workspace": "工作区"
+			},
+			"setMeAs": "并将我设置为",
+			"shareWithMe": {
+				"project": "将项目共享给我",
+				"workspace": "将项目共享给我"
 			},
 			"title": "确认转让",
 			"transferTo": "转让给"
@@ -3701,6 +3714,7 @@
 		"noOtherWorkspace": "暂无其它可用工作区",
 		"noWorkspaces": "暂无工作空间",
 		"projectCount": "{{count}} 个项目",
+		"pinWorkspaceSuccess": "工作区已置顶",
 		"projects": "项目",
 		"rename": "重命名",
 		"renameWorkspaceSuccess": "重命名工作区成功",
@@ -3722,6 +3736,7 @@
 		"topicList": "话题列表",
 		"topics": "话题",
 		"transfer": "转让工作区",
+		"unpinWorkspaceSuccess": "工作区已取消置顶",
 		"unnamedWorkspace": "未命名工作区",
 		"workspace": "工作空间",
 		"workspaceList": "工作区列表",
@@ -3732,6 +3747,8 @@
 	},
 	"workspaceList": {
 		"swipeDelete": "删除",
-		"swipeMore": "更多"
+		"swipeMore": "更多",
+		"swipePin": "置顶",
+		"swipeUnpin": "取消置顶"
 	}
 }
