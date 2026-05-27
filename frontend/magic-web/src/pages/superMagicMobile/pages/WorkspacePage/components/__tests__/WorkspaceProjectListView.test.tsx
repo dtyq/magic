@@ -18,6 +18,9 @@ vi.mock("react-i18next", async (importOriginal) => {
 				if (key === "project.createProject") return "新建项目"
 				if (key === "project.empty") return "暂无项目"
 				if (key === "project.noProjects") return "暂无项目"
+				if (key === "project.emptyDescription") {
+					return "点击右上角 + 创建你的第一个项目"
+				}
 				if (key === "project.createNewProject") return "创建新项目"
 				if (key === "project.searchNoResults") {
 					return `未找到 ${options?.keyword || ""}`.trim()

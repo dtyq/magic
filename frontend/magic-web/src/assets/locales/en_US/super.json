@@ -1716,6 +1716,7 @@
 		"deleteProject": "Delete Project",
 		"deleteProjectSuccess": "Delete project successfully",
 		"deleteProjectTip": "Confirm to delete project \"{{projectName}}\"?",
+		"emptyDescription": "Tap + in the top right to create your first project",
 		"moveProjectSuccess": "Project moved successfully",
 		"moveProjectTitle": "Move Project",
 		"moveTo": "Move To",
@@ -2780,6 +2781,8 @@
 	},
 	"sharedProjects": {
 		"emptyDescription": "Projects shared with you or shared by you will appear here",
+		"emptyDescriptionSharedByMe": "Projects you shared with others will appear here",
+		"emptyDescriptionSharedWithMe": "Projects others shared with you will appear here",
 		"emptySearchDescription": "Adjust the search or filters and try again",
 		"emptyTitle": "No shared projects",
 		"filter": {

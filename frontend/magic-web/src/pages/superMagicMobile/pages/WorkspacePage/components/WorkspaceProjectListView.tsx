@@ -159,7 +159,7 @@ export function WorkspaceProjectListView({
 									{t("project.noProjects")}
 								</p>
 								<p className="text-sm leading-5 text-muted-foreground">
-									{t("project.createNewProject")}
+									{t("project.emptyDescription")}
 								</p>
 							</div>
 						) : null}

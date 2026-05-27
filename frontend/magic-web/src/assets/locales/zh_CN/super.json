@@ -1717,6 +1717,7 @@
 		"deleteProject": "删除项目",
 		"deleteProjectSuccess": "删除项目成功",
 		"deleteProjectTip": "确定要删除项目 “{{projectName}}” 吗？",
+		"emptyDescription": "点击右上角 + 创建你的第一个项目",
 		"moveProjectSuccess": "项目已移动至新的工作区",
 		"moveProjectTitle": "移动项目",
 		"moveTo": "移动至",
@@ -2782,6 +2783,8 @@
 	},
 	"sharedProjects": {
 		"emptyDescription": "这里会显示他人共享给你或你共享出去的项目",
+		"emptyDescriptionSharedByMe": "这里会显示你共享给他人的项目",
+		"emptyDescriptionSharedWithMe": "这里会显示他人共享给你的项目",
 		"emptySearchDescription": "请调整搜索或筛选条件后重试",
 		"emptyTitle": "暂无共享项目",
 		"filter": {

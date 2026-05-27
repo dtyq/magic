@@ -150,11 +150,18 @@ function SharedProjectSkeletonList() {
 function SharedProjectsEmptyState({
 	isSearchEmpty,
 	keyword,
+	tab,
 }: {
 	isSearchEmpty: boolean
 	keyword: string
+	tab: SharedWorkspaceTab
 }) {
 	const { t } = useTranslation("super")
+
+	const emptyDescription =
+		tab === "sharedWithMe"
+			? t("sharedProjects.emptyDescriptionSharedWithMe")
+			: t("sharedProjects.emptyDescriptionSharedByMe")
 
 	return (
 		<div
@@ -168,9 +175,7 @@ function SharedProjectsEmptyState({
 					: t("sharedProjects.emptyTitle")}
 			</p>
 			<p className="max-w-[260px] text-sm leading-5 text-muted-foreground">
-				{isSearchEmpty
-					? t("sharedProjects.emptySearchDescription")
-					: t("sharedProjects.emptyDescription")}
+				{isSearchEmpty ? t("sharedProjects.emptySearchDescription") : emptyDescription}
 			</p>
 		</div>
 	)
@@ -314,6 +319,7 @@ export function SharedProjectsView({
 							<SharedProjectsEmptyState
 								isSearchEmpty={isSearchEmpty}
 								keyword={debouncedSearchValue}
+								tab={tab}
 							/>
 						) : null}
 
