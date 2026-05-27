@@ -24,7 +24,7 @@ readonly class VideoProviderOperationExecutor implements QueueOperationExecutorI
 
     public function submit(VideoQueueOperationEntity $operation, QueueExecutorConfig $config): string
     {
-        $adapter = $this->resolveAdapter($operation, $config);
+        $adapter = $this->resolveAdapter($operation);
         $operation->setProviderPayload($adapter->buildProviderPayload($operation));
 
         return $adapter->submit($operation, $config);
@@ -32,10 +32,10 @@ readonly class VideoProviderOperationExecutor implements QueueOperationExecutorI
 
     public function query(VideoQueueOperationEntity $operation, QueueExecutorConfig $config, string $providerTaskId): array
     {
-        return $this->resolveAdapter($operation, $config)->query($operation, $config, $providerTaskId);
+        return $this->resolveAdapter($operation)->query($operation, $config, $providerTaskId);
     }
 
-    private function resolveAdapter(VideoQueueOperationEntity $operation, QueueExecutorConfig $config): VideoGenerationProviderAdapterInterface
+    private function resolveAdapter(VideoQueueOperationEntity $operation): VideoGenerationProviderAdapterInterface
     {
         $providerCode = ProviderCode::tryFrom($operation->getProviderCode());
         if (! $providerCode instanceof ProviderCode) {

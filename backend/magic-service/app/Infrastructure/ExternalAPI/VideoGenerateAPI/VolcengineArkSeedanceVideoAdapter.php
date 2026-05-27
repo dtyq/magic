@@ -150,6 +150,11 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
         ]);
     }
 
+    public function resolveHasAudioOutput(string $modelVersion, string $modelId, array $request): bool
+    {
+        return true;
+    }
+
     public function buildProviderPayload(VideoQueueOperationEntity $operation): array
     {
         $request = $operation->getRawRequest();

@@ -19,6 +19,7 @@ readonly class VideoPointEstimateRequest
      * @param int $inputVideoDurationSeconds 参考视频总时长，单位秒；无参考视频时为 0
      * @param bool $hasReferenceVideo 是否包含参考视频，影响部分模型的 token 单价
      * @param array<string, mixed> $businessParams 业务上下文，例如组织、用户、项目和视频任务 ID
+     * @param bool $hasAudioOutput 是否有音频输出
      */
     public function __construct(
         private string $modelId,
@@ -30,6 +31,7 @@ readonly class VideoPointEstimateRequest
         private int $inputVideoDurationSeconds,
         private bool $hasReferenceVideo,
         private array $businessParams = [],
+        private bool $hasAudioOutput = true,
     ) {
     }
 
@@ -97,6 +99,11 @@ readonly class VideoPointEstimateRequest
         return $this->hasReferenceVideo;
     }
 
+    public function hasAudioOutput(): bool
+    {
+        return $this->hasAudioOutput;
+    }
+
     /**
      * 返回业务参数，供计费归属、日志和后续扩展使用。
      *
@@ -129,6 +136,7 @@ readonly class VideoPointEstimateRequest
             'output_height' => $this->outputHeight,
             'input_video_duration_seconds' => $this->inputVideoDurationSeconds,
             'has_reference_video' => $this->hasReferenceVideo,
+            'has_audio_output' => $this->hasAudioOutput,
         ];
     }
 }
