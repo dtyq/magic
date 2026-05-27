@@ -24,6 +24,10 @@ export const MOBILE_SETTINGS_CARD_CLASSNAME = "rounded-xl border border-border b
 /** Root sheet header info button; flip to true when the about entry should be visible again. */
 export const MOBILE_SETTINGS_SHOW_INFO_HEADER = false
 
+/** Temporary mobile root-menu toggle; flip to true when the account security entry should be visible again. */
+// TODO: Re-enable this after mobile account-security access is approved again.
+export const MOBILE_SETTINGS_SHOW_ACCOUNT_SECURITY_ENTRY = false
+
 /**
  * Plan card min-heights for the root settings sheet scroll area.
  * Cards are flex children; shrink-0 + min-h prevents vertical squashing when the sheet is short.
