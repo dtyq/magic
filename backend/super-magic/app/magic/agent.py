@@ -863,7 +863,7 @@ class Agent(BaseAgent):
 
         # 在首次 build_context_update 前设置输出预算，确保 output_size_limit 能写入 initial_context
         # set_output_token_budget 只在首次设置时生效，_handle_agent_loop 里的调用会成为幂等 no-op
-        budget = self.model_config.max_output_tokens
+        budget = self.model_config.max_output_tokens if hasattr(self, "model_config") and self.model_config else 4096
         self.agent_context.horizon.set_output_token_budget(budget)
 
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
