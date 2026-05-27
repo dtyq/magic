@@ -15,6 +15,7 @@ export { default as MobileShellSidebar } from "./MobileShellSidebar"
 export { default as SuperMobileShellAppRouteLayout } from "./SuperMobileShellAppRouteLayout"
 export {
 	SuperMobileShellRouteLayout,
+	useOptionalSuperMobileShellOutlet,
 	useSuperMobileShellOutlet,
 } from "./SuperMobileShellRouteLayout"
 export type {

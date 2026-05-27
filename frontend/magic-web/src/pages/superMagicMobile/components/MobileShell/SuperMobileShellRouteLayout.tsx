@@ -33,8 +33,16 @@ function openNativeRecordingPage() {
 	})
 }
 
+/**
+ * 部分移动端页面在过渡态或独立渲染场景下会先于父级 Shell 挂载；这里提供非抛错探针，
+ * 由页面自行决定是否补一层壳，而保留 useSuperMobileShellOutlet 的严格约束用于常规消费方。
+ */
+export function useOptionalSuperMobileShellOutlet(): SuperMobileShellOutletContext | null {
+	return useContext(SuperMobileShellOutletContext)
+}
+
 export function useSuperMobileShellOutlet(): SuperMobileShellOutletContext {
-	const ctx = useContext(SuperMobileShellOutletContext)
+	const ctx = useOptionalSuperMobileShellOutlet()
 	if (!ctx) {
 		throw new Error("useSuperMobileShellOutlet must be used under SuperMobileShellRouteLayout")
 	}

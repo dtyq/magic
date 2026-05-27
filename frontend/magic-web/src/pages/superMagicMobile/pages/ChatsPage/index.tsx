@@ -2,7 +2,11 @@ import { observer } from "mobx-react-lite"
 import { useMemo, useState } from "react"
 import { useBoolean, useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
-import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
+import {
+	SuperMobileShellRouteLayout,
+	useOptionalSuperMobileShellOutlet,
+	useSuperMobileShellOutlet,
+} from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
 import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import magicToast from "@/components/base/MagicToaster/utils"
 import SuperMagicService from "@/pages/superMagic/services"
@@ -249,9 +253,26 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 })
 
 function ChatsPage() {
+	const shellOutlet = useOptionalSuperMobileShellOutlet()
+	const { t } = useTranslation("super")
+
+	if (shellOutlet) {
+		return (
+			<MobileOnlyRoute>
+				<ChatsPagePanel />
+			</MobileOnlyRoute>
+		)
+	}
+
 	return (
 		<MobileOnlyRoute>
-			<ChatsPagePanel />
+			<SuperMobileShellRouteLayout
+				activeView="chats"
+				testIdPrefix="mobile-chats-page"
+				closeSidebarAriaLabel={t("mobile.shell.closeSidebar")}
+			>
+				<ChatsPagePanel />
+			</SuperMobileShellRouteLayout>
 		</MobileOnlyRoute>
 	)
 }
