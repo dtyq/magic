@@ -207,8 +207,12 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 		toast.info(t("setting.comingSoon"))
 	})
 
-	/** 升级入口统一委托给能力注入层，根面板只保留共享交互。 */
+	/** 升级入口统一委托给能力注入层，根面板只保留共享交互。
+	 * 先关闭 Settings Sheet，释放 vaul 对 document.body 施加的 position:fixed，
+	 * 避免 iOS Safari 在 body fixed 状态下无法识别订阅弹窗内 overflow:auto 滚动容器的问题。
+	 */
 	const handleUpgrade = useMemoizedFn(() => {
+		onClose()
 		openMobileSettingsSubscriptionUpgrade(handleComingSoon)
 	})
 
