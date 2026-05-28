@@ -397,11 +397,31 @@ const { topicId: tid4 } = await window.Magic.project.createTopicAndSend({
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `message` | `string \| TiptapJSONContent` | Plain text message or tiptap JSON document (can contain mention nodes) |
-| `options.agentId` | `string?` | Agent ID (from `getAgents()`) |
-| `options.model` | `string?` | Model ID |
+| `options.agentId` | `string?` | Agent ID (from `getAgents()`). When omitted, defaults to general mode (通用模式) |
+| `options.model` | `string?` | Model ID. Default `"auto"` |
 
 - **Returns**: `Promise<{ topicId: string }>` — the newly created topic ID
 - **Timeout**: auto-rejects after 30 seconds with no response
+
+**Typical use case: Trigger a companion skill stored in `.magic/` directory:**
+```javascript
+// Attach the skill file as @file mention and include the user's task
+const { topicId } = await window.Magic.project.createTopicAndSend({
+  type: "doc",
+  content: [{
+    type: "paragraph",
+    content: [
+      { type: "text", text: "请阅读以下技能文件并按照其中的指引执行任务：" },
+      { type: "mention", attrs: {
+        type: "project_file",
+        data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/report_writer/SKILL.md", file_extension: "md" }
+      }},
+      { type: "text", text: "\n\n用户任务：分析当前数据并生成报告" }
+    ]
+  }]
+}, { model: "auto" });
+// No agentId → general mode; agent reads the SKILL.md as instructions
+```
 
 ### 5.5 Send Message in Current Topic `sendMessage(message, options?)`
 

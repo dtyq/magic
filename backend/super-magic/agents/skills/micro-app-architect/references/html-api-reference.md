@@ -117,9 +117,9 @@ const autoItem = { id: "auto", label: "Auto Select (Recommended)" };
 ## 3. Agent Interaction
 
 ### setInputMessage(msg) → void
-Fills message into input box and auto-sends, triggering Agent to continue.
+Fills message into input box and auto-sends in the **current topic**. Use for simple one-off instructions only — **do NOT use for triggering companion skills** (use `createTopicAndSend` instead).
 ```javascript
-window.Magic.setInputMessage("Analysis complete. Please generate charts based on output/analysis.json");
+window.Magic.setInputMessage("Please summarize the data in data/results.json");
 ```
 
 ### reload() → void

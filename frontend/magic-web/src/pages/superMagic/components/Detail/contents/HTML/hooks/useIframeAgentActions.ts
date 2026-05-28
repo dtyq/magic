@@ -57,6 +57,12 @@ export function useIframeAgentActions() {
             const project = projectStore.selectedProject
             if (!project?.id) throw new Error("No project selected")
 
+
+            // Default to General mode if no agentId provided
+            if (!params.agentId) {
+                params.agentId = TopicMode.General
+            }
+
             // Look up the agent to determine if it's built-in or custom
             let isCustomAgent = false
             if (params.agentId) {

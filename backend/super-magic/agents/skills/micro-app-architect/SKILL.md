@@ -13,7 +13,7 @@ You are a micro-app architect. Your job is to transform user requirements into f
 | Workspace Skill | Backend | Complex business logic, workflow orchestration, multi-step LLM calls |
 | Files (JSON/MD) | Database | Data persistence, state storage |
 
-**Collaboration mechanism**: HTML triggers Agent via `setInputMessage()` → Agent executes workspace skill → skill writes results to files → HTML watches via `watchFile()` and re-renders.
+**Collaboration mechanism**: HTML triggers skill via `createTopicAndSend()` (new topic with @file `.magic/<name>/SKILL.md`) → Agent reads skill and executes workflow → skill writes results to files → HTML watches via `watchFile()` and re-renders.
 
 ---
 
@@ -87,7 +87,7 @@ The HTML layer has access to `window.Magic.*` APIs. Here is a quick categorizati
 | `window.Magic.llm` | getModels, chat, stream | AI-powered features in HTML |
 | `window.Magic.agent` | getAgents, selectAgent | Agent discovery and dispatch |
 | `window.Magic.project` | uploadFiles, downloadFiles, createTopicAndSend, sendMessage, addFilesToMessage | Cross-topic communication, file transfer, multi-agent orchestration |
-| `window.Magic.setInputMessage` | Send message to current Agent | Trigger backend skill execution |
+| `window.Magic.setInputMessage` | Send message to current Agent | Simple instructions (no skill trigger) |
 | `window.Magic.reload` | Refresh current task | Force re-execution |
 
 **For full API signatures, parameters, and constraints** → read [references/html-api-reference.md](references/html-api-reference.md)
@@ -103,9 +103,11 @@ The HTML layer has access to `window.Magic.*` APIs. Here is a quick categorizati
 5. **`model` field is always required** — default to `"auto"` when no model is selected
 6. **Do NOT set `maxTokens` by default** — only specify when explicitly needed
 7. **Prefer tiptap JSON for messages containing file paths** — use `@file` mention nodes in `createTopicAndSend`/`sendMessage`/`setInputMessage` when referencing files
-8. **Single HTML file preferred** — unless the app is genuinely multi-page
+8. **Simple apps may use a single HTML file** — but once complexity grows (multiple features, reusable components, data templates), split into proper directory structure immediately
 9. **Use semantic HTML** — proper structure, accessibility considerations
 10. **Responsive design** — apps should work at various viewport sizes
+11. **Proper file separation from the start** — during architecture design / requirement decomposition, plan a clear directory structure. Do NOT cram all content into a single file. Separate concerns: CSS into dedicated `<style>` or external files, JS modules by feature, data templates into `data/`, configs into their own files. The directory structure must be decided in the Design Phase, not as an afterthought.
+12. **Provide agent selector + model selector UI when dispatching skills** — when the app triggers companion skills via `createTopicAndSend`, provide UI for users to select agent (员工) and model. Defaults: general mode (不选员工) + model `"auto"`. Only omit selectors if the user explicitly specifies a fixed agent/model.
 
 ---
 
@@ -113,47 +115,58 @@ The HTML layer has access to `window.Magic.*` APIs. Here is a quick categorizati
 
 When the architecture decision is "Medium" or "Complex", generate a companion workspace skill.
 
-### Format Rules (from skill-creator standards)
+### Generation Approach
 
-**Directory structure:**
+**Delegate to skill-creator:** Do not write SKILL.md manually. Instead, invoke the `skill-creator` capability to generate the companion skill. Provide it with:
+- The skill name (lowercase + underscores, reflecting the app domain)
+- A clear description of what the skill should do
+- The expected input/output files
+- The workflow steps
+
+The skill-creator will handle format validation, naming rules, and best practices automatically.
+
+### Directory Structure
+
+Companion skills are placed in the `.magic/` directory at the **workspace root** (not inside the app directory):
+
 ```
-<app-directory>/
-├── index.html              (frontend)
-├── data/                   (data layer — JSON files)
-└── skills/
-    └── <skill-name>/
-        └── SKILL.md        (companion skill definition)
+<workspace-root>/
+├── .magic/
+│   └── <skill_name>/
+│       └── SKILL.md            (companion skill definition)
+└── <app-directory>/
+    ├── index.html          (frontend)
+    └── data/               (data layer — JSON files)
 ```
 
-**SKILL.md format:**
-```markdown
----
-name: <skill_name>
-description: "What this skill does. Use when [trigger condition]."
----
+### Runtime Trigger Mechanism
 
-# <Skill Title>
+The companion skill is **not** auto-loaded. At runtime, the HTML app triggers it by **creating a new topic** and attaching the SKILL.md as context:
 
-[Instructions for the Agent when this skill is triggered]
+```javascript
+// Read the skill file content and dispatch via new topic
+const { topicId } = await window.Magic.project.createTopicAndSend({
+  type: "doc",
+  content: [{
+    type: "paragraph",
+    content: [
+      { type: "text", text: "请阅读以下技能文件并按照其中的指引执行任务：" },
+      { type: "mention", attrs: {
+        type: "project_file",
+        data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/report_writer/SKILL.md", file_extension: "md" }
+      }},
+      { type: "text", text: "\n\n用户任务：" + userTaskDescription }
+    ]
+  }]
+}, { model: "auto" });
+// Note: no agentId → defaults to general mode (topic_pattern: "general")
 ```
 
-**Naming rules:**
-- Lowercase letters, digits, underscores only (no hyphens)
-- Must start with a letter
-- No trailing underscore; no consecutive underscores (`__`)
-- Length 2–64 characters
-- Name must match the directory name exactly
-- Name must reflect the app's domain (e.g., `sales_analyzer`, `content_writer`)
-
-**Content guidelines:**
-- Describe what the Agent should do step-by-step when triggered
-- Specify which files to read/write
-- Define expected outputs
-- Keep under 200 lines for companion skills (they're focused, not general-purpose)
-
-### Validation
-
-After generating a companion skill, if the `skill-creator` skill's `scripts/quick_validate.py` is available in the environment, run it to verify format correctness. This is optional but recommended.
+**Key points:**
+- Do NOT pass `agentId` — defaults to general mode (通用模式)
+- Model: always `"auto"` unless user selects otherwise
+- Message format: tiptap JSON with @file mention of `.magic/<name>/SKILL.md` + user task text
+- Each skill invocation creates a **new topic** for isolation
 
 ---
 
@@ -201,38 +214,50 @@ data/
 
 ## Agent Dispatch Patterns
 
-For complex apps that drive multiple agents:
+For apps that need to trigger backend skills or drive multiple agents:
 
-**Important rule:** When sending messages to the editor input that contain file paths, **always prefer tiptap JSON format** with `@file` mention nodes. This gives the Agent precise file context instead of relying on path string parsing.
+**Important rules:**
+- When sending messages that contain file paths, **always use tiptap JSON format** with `@file` mention nodes
+- When triggering a companion skill, **always create a new topic** (`createTopicAndSend`) — do NOT use `setInputMessage`
+- Default: no `agentId` (general mode), model `"auto"`
+- Provide agent selector + model selector UI when user may want to override defaults
 
-### Pattern 1: Topic-per-Task (with file reference)
+### Pattern 1: Skill Dispatch via New Topic (Primary Pattern)
+
+This is the **default pattern for Medium/Complex apps** — triggers the companion skill by creating a new topic with the SKILL.md attached as context:
+
 ```javascript
-// Create a new topic for a specific agent — use tiptap JSON for file mentions
-const { topicId } = await window.Magic.project.createTopicAndSend({
-  type: "doc",
-  content: [{
-    type: "paragraph",
-    content: [
-      { type: "text", text: "Analyze this sales data: " },
-      { type: "mention", attrs: {
-        type: "project_file",
-        data: { file_id: "sales_01", file_name: "sales.csv", file_path: "data/sales.csv", file_extension: "csv" }
-      }},
-      { type: "text", text: " and generate a report" }
-    ]
-  }]
-}, { agentId: "data_analysis", model: "auto" });
+// Trigger companion skill: create new topic, attach SKILL.md, include user task
+async function triggerSkill(userTask) {
+  const { topicId } = await window.Magic.project.createTopicAndSend({
+    type: "doc",
+    content: [{
+      type: "paragraph",
+      content: [
+        { type: "text", text: "请阅读以下技能文件并按照其中的指引执行任务：" },
+        { type: "mention", attrs: {
+          type: "project_file",
+          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/report_writer/SKILL.md", file_extension: "md" }
+        }},
+        { type: "text", text: "\n\n用户任务：" + userTask }
+      ]
+    }]
+  }, { model: "auto" });
+  // No agentId → general mode (通用模式)
+  return topicId;
+}
 ```
 
-### Pattern 2: Sequential Multi-Agent Pipeline
+### Pattern 2: Agent-Specific Task Dispatch
+
+For complex apps that assign tasks to specific agents (research agent, writer agent, etc.):
+
 ```javascript
-// Agent A does research → Agent B writes content → Agent C reviews
+// Dispatch to a specific agent for a specific task
 const agents = await window.Magic.agent.getAgents();
 const researcher = agents.find(a => a.name.includes("Research"));
-const writer = agents.find(a => a.name.includes("Writer"));
 
-// Step 1: Research — use tiptap JSON to reference output file
-await window.Magic.project.createTopicAndSend({
+const { topicId } = await window.Magic.project.createTopicAndSend({
   type: "doc",
   content: [{
     type: "paragraph",
@@ -245,22 +270,57 @@ await window.Magic.project.createTopicAndSend({
     ]
   }]
 }, { agentId: researcher.id, model: "auto" });
-// Watch for research output file, then trigger writer...
 ```
 
-### Pattern 3: Current-Topic Delegation
+### Pattern 3: Sequential Multi-Agent Pipeline
+
+Chain multiple agents where each step depends on previous output:
+
 ```javascript
-// Ask the current agent to execute a skill by describing the task
-// When the message includes file paths, prefer tiptap JSON with @file mentions
-window.Magic.setInputMessage(
-  "Based on data/raw.json, run the analysis workflow and write results to data/results.json"
-);
+async function runPipeline(steps) {
+  // steps = [{ agentId, skillPath, prompt_template }, ...]
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const outputPath = `data/outputs/pipeline-step-${i}.md`;
+    
+    const content = [{ type: "text", text: step.prompt_template }];
+    // Attach skill file if this step has one
+    if (step.skillPath) {
+      content.unshift(
+        { type: "text", text: "请阅读技能文件 " },
+        { type: "mention", attrs: {
+          type: "project_file",
+          data: { file_id: `skill_${i}`, file_name: "SKILL.md", file_path: step.skillPath, file_extension: "md" }
+        }},
+        { type: "text", text: " 并执行：" }
+      );
+    }
+    
+    await window.Magic.project.createTopicAndSend({
+      type: "doc",
+      content: [{ type: "paragraph", content }]
+    }, { agentId: step.agentId, model: "auto" });
+    
+    // Wait for output
+    await waitForFile(outputPath);
+  }
+}
+```
+
+### Pattern 4: Simple Current-Topic Message (No skill, no new topic)
+
+For simple commands in the current conversation that don't require a companion skill:
+
+```javascript
+// Only use for quick, stateless instructions to the current agent
+window.Magic.setInputMessage("Please summarize the data in data/results.json");
 ```
 
 **Choosing a pattern:**
-- Single agent, current conversation → Pattern 3 (`setInputMessage`)
-- Specific agent for a specific task → Pattern 1 (`createTopicAndSend`)
-- Multi-step pipeline across agents → Pattern 2 (sequential topics)
+- Triggering a companion skill → **Pattern 1** (`createTopicAndSend` + @file SKILL.md)
+- Assigning task to a specific agent → **Pattern 2** (`createTopicAndSend` + `agentId`)
+- Multi-step pipeline across agents/skills → **Pattern 3** (sequential topics)
+- Simple one-off instruction, no skill → **Pattern 4** (`setInputMessage`)
 
 ---
 
@@ -272,7 +332,7 @@ This skill generates the following artifacts:
 |----------|----------|-------------------|
 | Main HTML | `<app-dir>/index.html` | Yes |
 | Data files | `<app-dir>/data/*.json` | If app needs persistence |
-| Companion skill | `<app-dir>/skills/<name>/SKILL.md` | If Medium/Complex architecture |
+| Companion skill | `.magic/<name>/SKILL.md` (workspace root) | If Medium/Complex architecture |
 | README | `<app-dir>/README.md` | For Complex apps only |
 
 **Naming the app directory:** Use the user's language for the directory name. If the user says "做一个销售看板", the directory should be named descriptively (e.g., `销售看板/` or `sales-dashboard/`).
@@ -288,16 +348,18 @@ User: "做一个计算器"
 ### Medium App (HTML + Skill)
 User: "做一个能自动分析CSV数据并生成报告的工具"
 → Generate:
-- `data-analyzer/index.html` — upload UI, results display, watch for report
+- `data-analyzer/index.html` — upload UI, results display, watch for report, agent/model selector
 - `data-analyzer/data/` — uploaded data storage
-- `data-analyzer/skills/data_analyzer/SKILL.md` — defines the analysis workflow
+- `.magic/data_analyzer/SKILL.md` — created via skill-creator, defines the analysis workflow
+
+Runtime: HTML references `.magic/data_analyzer/SKILL.md` via @file mention → `createTopicAndSend` → general mode agent reads skill and executes
 
 ### Complex App (Multi-Agent)
 User: "做一个内容创作工作台，能让研究员搜集资料，写手写文章，编辑审核"
 → Generate:
-- `content-studio/index.html` — agent selector, task dispatch UI, status dashboard
+- `content-studio/index.html` — agent selector, model selector, task dispatch UI, status dashboard
 - `content-studio/data/` — tasks, drafts, reviews
-- `content-studio/skills/content_pipeline/SKILL.md` — orchestration workflow
+- `.magic/content_pipeline/SKILL.md` — orchestration workflow
 
 ---
 

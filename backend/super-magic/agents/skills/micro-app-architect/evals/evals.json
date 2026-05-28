@@ -10,13 +10,13 @@
     {
       "id": 2,
       "prompt": "帮我做一个能自动分析CSV数据、生成可视化图表和文字报告的工具",
-      "expected_output": "Generates a Medium architecture: index.html with upload UI and results display, a companion workspace skill (e.g., data-analyzer) that handles multi-step analysis workflow. HTML uses setInputMessage to trigger skill, watchFile to monitor results. Skill writes status.json for progress and report.json for final output.",
+      "expected_output": "Generates a Medium architecture: index.html with upload UI, results display, and agent/model selector. A companion workspace skill (e.g., data_analyzer) in workspace-root .magic/ directory, generated via skill-creator. HTML uses createTopicAndSend with @file mention of .magic/data_analyzer/SKILL.md to trigger skill in a new topic (general mode, model auto). Uses watchFile to monitor results. Skill writes status.json for progress and report.json for final output.",
       "files": []
     },
     {
       "id": 3,
       "prompt": "做一个内容创作工作台，可以让研究员搜集资料、写手写初稿、编辑做审核修改",
-      "expected_output": "Generates a Complex architecture with multi-agent dispatch: index.html as control panel with agent selector and task pipeline UI. Uses window.Magic.agent.getAgents() and window.Magic.project.createTopicAndSend() to dispatch to different agents. Includes companion skill for pipeline orchestration. Data layer tracks tasks, assignments, and outputs.",
+      "expected_output": "Generates a Complex architecture with multi-agent dispatch: index.html as control panel with agent selector, model selector, and task pipeline UI. Uses window.Magic.agent.getAgents() and window.Magic.project.createTopicAndSend() to dispatch to different agents. Companion skill in workspace-root .magic/ for pipeline orchestration, triggered via @file mention in new topics. Data layer tracks tasks, assignments, and outputs.",
       "files": []
     },
     {
@@ -28,7 +28,7 @@
     {
       "id": 5,
       "prompt": "做一个客户管理系统，能录入客户信息、自动生成跟进建议、定期提醒跟进",
-      "expected_output": "Generates a Medium architecture: index.html for CRUD UI and display, companion skill for generating follow-up suggestions using LLM. Data layer includes data/customers.json and data/reminders.json. HTML uses fs APIs for CRUD, setInputMessage to trigger AI-powered suggestion generation.",
+      "expected_output": "Generates a Medium architecture: index.html for CRUD UI and display with agent/model selector, companion skill in workspace-root .magic/suggestion_writer/ for generating follow-up suggestions using LLM (generated via skill-creator). Data layer includes data/customers.json and data/reminders.json. HTML uses fs APIs for CRUD, createTopicAndSend with @file mention of .magic/suggestion_writer/SKILL.md to trigger AI-powered suggestion generation in a new topic.",
       "files": []
     },
     {

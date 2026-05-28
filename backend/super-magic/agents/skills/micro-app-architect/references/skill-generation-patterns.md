@@ -10,7 +10,7 @@ Generate a companion skill when:
 - The app requires multi-step Agent workflows (research → analyze → generate)
 - Backend logic is too complex for inline JavaScript
 - The app needs to leverage Agent capabilities (web search, file processing, code execution)
-- The app dispatches tasks to the current Agent via `setInputMessage()`
+- The app dispatches tasks via `createTopicAndSend()` to a new topic
 
 Do NOT generate a companion skill when:
 - All logic can be handled by `window.Magic.llm` (simple chat, summarization)
@@ -19,136 +19,110 @@ Do NOT generate a companion skill when:
 
 ---
 
+## Generation Approach: Delegate to skill-creator
+
+**Do NOT manually write SKILL.md.** Instead, delegate to the `skill-creator` capability:
+
+1. Describe the skill requirements clearly:
+   - Name (lowercase + underscores, reflects app domain)
+   - Purpose and trigger conditions
+   - Input/output files
+   - Workflow steps
+2. skill-creator generates the SKILL.md with proper format, naming, and validation
+3. The generated skill is placed in `.magic/<skill_name>/SKILL.md` at the workspace root
+
+---
+
 ## Directory Structure
 
+Companion skills are stored at the **workspace root** in `.magic/`, separate from the app directory:
+
 ```
-<app-directory>/
-├── index.html                     (frontend)
-├── data/                          (data layer)
-│   └── *.json
-└── skills/
-    └── <skill_name>/
-        ├── SKILL.md               (required — skill definition)
-        └── references/            (optional — additional docs)
-            └── *.md
-```
-
----
-
-## SKILL.md Template
-
-```markdown
----
-name: <skill_name>
-description: "<Capability summary>. Use when <trigger condition — what the HTML app will ask for>. Also use when user says '<example trigger phrases>'."
----
-
-# <Skill Title>
-
-## Purpose
-
-<1-2 sentences: what this skill enables the Agent to do when triggered by the micro-app>
-
-## Input
-
-The HTML frontend triggers this skill by sending a message via `setInputMessage()`.
-
-**Expected message format:**
-<describe what the HTML will send — could be a command string, JSON instruction, etc.>
-
-## Workflow
-
-<Step-by-step instructions for the Agent:>
-
-1. Read input data from `data/<input-file>.json`
-2. Process/analyze/generate based on the input
-3. Write results to `data/<output-file>.json`
-4. (Optional) Write human-readable output to `output/<name>.md`
-
-## Output
-
-| File | Format | Description |
-|------|--------|-------------|
-| `data/results.json` | JSON | Structured results for HTML to render |
-| `output/report.md` | Markdown | Human-readable report (optional) |
-
-## Constraints
-
-- Always read the latest data from files before processing
-- Write results atomically (complete JSON, not partial)
-- Include `updatedAt` timestamp in output files for watchFile to detect changes
-- Do not modify files outside the app directory
+<workspace-root>/
+├── .magic/
+│   └── <skill_name>/
+│       ├── SKILL.md               (required — skill definition)
+│       └── references/            (optional — additional docs)
+│           └── *.md
+└── <app-directory>/
+    ├── index.html                 (frontend)
+    └── data/                      (data layer)
+        └── *.json
 ```
 
----
-
-## Naming Conventions
+**Naming conventions:**
 
 | Rule | Example |
-|------|---------|  
+|------|---------|
 | Lowercase + underscores only | `sales_analyzer`, `content_writer` |
 | Reflect the app's domain | Not `backend_skill` but `report_generator` |
 | 2–64 characters | Keep it concise |
 | Start with a letter | Not `123_app` |
 | No hyphens, no consecutive underscores | Not `sales-analyzer`, not `sales__analyzer` |
-| Name must exactly match directory name | `skills/sales_analyzer/` → `name: sales_analyzer` |
+| Name must exactly match directory name | `.magic/sales_analyzer/` → `name: sales_analyzer` |
 
 ---
 
-## Trigger Design
+## Runtime Trigger Design
 
-The companion skill is triggered when the HTML sends a message via `setInputMessage()`. Design the trigger carefully:
+The companion skill is triggered at runtime by creating a **new topic** via `createTopicAndSend`, attaching the SKILL.md as an `@file` mention, and including the user's task.
 
-### Simple Trigger (single action)
+### Basic Trigger (most common)
 ```javascript
-// HTML side — plain text is fine when no file paths are referenced
-window.Magic.setInputMessage("Please analyze the sales data and write results to the output file");
+// HTML triggers the companion skill by creating a new topic
+async function triggerSkill(userTask, selectedAgentId, selectedModel) {
+  const { topicId } = await window.Magic.project.createTopicAndSend({
+    type: "doc",
+    content: [{
+      type: "paragraph",
+      content: [
+        { type: "text", text: "请阅读以下技能文件并按照其中的指引执行任务：" },
+        { type: "mention", attrs: {
+          type: "project_file",
+          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/report_writer/SKILL.md", file_extension: "md" }
+        }},
+        { type: "text", text: "\n\n用户任务：" + userTask }
+      ]
+    }]
+  }, {
+    agentId: selectedAgentId || undefined,  // undefined → general mode
+    model: selectedModel || "auto"
+  });
+  return topicId;
+}
 ```
 
-### Structured Trigger with File References (prefer tiptap JSON)
+**Key points:**
+- `agentId`: undefined (不选员工) → defaults to general mode (通用模式, `topic_pattern: "general"`)
+- `model`: `"auto"` unless user selects a specific model
+- The skill file is attached via @file mention so the agent reads it as context/instructions
+- Each invocation creates a new topic — ensures task isolation
+
+### Trigger with Additional Context Files
 ```javascript
-// When the message references specific file paths, use tiptap JSON with @file mentions
-await window.Magic.project.sendMessage({
-  type: "doc",
-  content: [{
-    type: "paragraph",
-    content: [
-      { type: "text", text: "Please analyze " },
-      { type: "mention", attrs: {
-        type: "project_file",
-        data: { file_id: "sales_001", file_name: "sales.json", file_path: "data/sales.json", file_extension: "json" }
-      }},
-      { type: "text", text: " and write results to " },
-      { type: "mention", attrs: {
-        type: "project_file",
-        data: { file_id: "analysis_001", file_name: "analysis.json", file_path: "data/analysis.json", file_extension: "json" }
-      }}
-    ]
-  }]
-});
-```
-
-### Structured Trigger (multiple actions, JSON command)
-```javascript
-// For complex commands with action types, JSON in setInputMessage works well
-window.Magic.setInputMessage(JSON.stringify({
-  action: "analyze",
-  input: "data/sales.json",
-  output: "data/analysis.json",
-  options: { period: "monthly", metrics: ["revenue", "growth"] }
-}));
-```
-
-### In the SKILL.md, describe how to parse:
-```markdown
-## Input Parsing
-
-Messages from the HTML app may be:
-1. **Plain text instructions** — follow them directly
-2. **JSON commands** — parse and execute the specified action:
-   - `action: "analyze"` → run analysis workflow
-   - `action: "generate"` → run generation workflow
-   - `action: "refresh"` → re-read data and update outputs
+// When the skill needs to process specific data files
+async function triggerWithData(userTask, dataFilePath) {
+  const { topicId } = await window.Magic.project.createTopicAndSend({
+    type: "doc",
+    content: [{
+      type: "paragraph",
+      content: [
+        { type: "text", text: "请阅读技能文件 " },
+        { type: "mention", attrs: {
+          type: "project_file",
+          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/data_analyzer/SKILL.md", file_extension: "md" }
+        }},
+        { type: "text", text: " 并处理以下数据文件：" },
+        { type: "mention", attrs: {
+          type: "project_file",
+          data: { file_id: "data_ref", file_name: dataFilePath.split("/").pop(), file_path: dataFilePath, file_extension: dataFilePath.split(".").pop() }
+        }},
+        { type: "text", text: "\n\n" + userTask }
+      ]
+    }]
+  }, { model: "auto" });
+  return topicId;
+}
 ```
 
 ---
@@ -191,12 +165,39 @@ The skill writes final results for HTML to consume:
 
 ---
 
+## UI Requirements for Skill Dispatch
+
+When the HTML app dispatches companion skills, it **must** provide:
+
+1. **Agent selector (员工选择器)** — populated via `getAgents()`, default: none selected (general mode)
+2. **Model selector (模型选择器)** — populated via `getModels()`, default: `"auto"`
+3. **Task input** — user describes what they want done
+
+```javascript
+// Initialize selectors
+async function initSelectors() {
+  const agents = await window.Magic.agent.getAgents();
+  const models = await window.Magic.llm.getModels();
+  
+  // Agent selector: first item is "通用模式 (默认)" with value ""
+  renderAgentSelector([{ id: "", name: "通用模式 (默认)" }, ...agents]);
+  
+  // Model selector: first item is "auto"
+  const autoItem = { id: "auto", label: "自动选择 (推荐)" };
+  renderModelSelector([autoItem, ...models]);
+}
+```
+
+Selectors may be omitted only if the user explicitly specifies a fixed agent or model in the app requirements.
+
+---
+
 ## Validation
 
-After generating a companion skill, verify:
+After skill-creator generates the companion skill, verify:
 
 1. **SKILL.md has valid frontmatter** — `name` and `description` fields present
-2. **Name matches directory** — `skills/sales_analyzer/SKILL.md` has `name: sales_analyzer`
+2. **Name matches directory** — `.magic/sales_analyzer/SKILL.md` has `name: sales_analyzer`
 3. **Description includes trigger conditions** — "Use when..." clause present
 4. **Workflow is concrete** — step-by-step, references specific file paths
 5. **Output is defined** — what files the skill writes, what format
@@ -218,3 +219,4 @@ python <skill-creator-path>/scripts/quick_validate.py <skill-directory-path>
 | Forget timestamps | Include `updatedAt` for watchFile detection |
 | Overly broad scope | Keep each skill focused on one workflow |
 | Mix concerns | Separate data processing skill from report generation skill |
+| Use `setInputMessage` to trigger skills | Use `createTopicAndSend` + @file SKILL.md |

@@ -77,21 +77,22 @@ Detailed architecture patterns with full code examples for Simple, Medium, and C
 
 ## Pattern 2: Medium (HTML + Companion Skill)
 
-**Characteristics:** HTML handles UI, companion skill handles complex backend logic triggered by `setInputMessage()`.
+**Characteristics:** HTML handles UI, companion skill handles complex backend logic triggered via `createTopicAndSend()` (new topic + @file SKILL.md).
 
 ### Example: AI Report Generator
 
 **Architecture:**
 ```
-report-generator/
-├── index.html                    (upload UI, progress, results display)
-├── data/
-│   ├── input.json                (user-uploaded raw data)
-│   ├── status.json               (processing status for progress bar)
-│   └── report.json               (generated report content)
-└── skills/
-    └── report_writer/
-        └── SKILL.md              (multi-step analysis + report generation)
+<workspace-root>/
+├── .magic/
+│   └── report_writer/
+│       └── SKILL.md              (multi-step analysis + report generation)
+└── report-generator/
+    ├── index.html                    (upload UI, progress, results display, agent/model selector)
+    └── data/
+        ├── input.json                (user-uploaded raw data)
+        ├── status.json               (processing status for progress bar)
+        └── report.json               (generated report content)
 ```
 
 **index.html:**
@@ -151,10 +152,24 @@ report-generator/
       progressSection.style.display = "block";
       generateBtn.disabled = true;
 
-      // Trigger the companion skill
-      window.Magic.setInputMessage(
-        "New report request. Read data/input.json, analyze the data, and write the report to data/report.json. Update data/status.json with progress."
-      );
+      // Trigger the companion skill via new topic
+      const agentId = document.getElementById("agent-select").value || undefined;
+      const model = document.getElementById("model-select").value || "auto";
+      
+      await window.Magic.project.createTopicAndSend({
+        type: "doc",
+        content: [{
+          type: "paragraph",
+          content: [
+            { type: "text", text: "请阅读以下技能文件并按照其中的指引执行任务：" },
+            { type: "mention", attrs: {
+              type: "project_file",
+              data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/report_writer/SKILL.md", file_extension: "md" }
+            }},
+            { type: "text", text: "\n\n用户任务：分析 data/input.json 中的数据，生成报告写入 data/report.json，过程中更新 data/status.json" }
+          ]
+        }]
+      }, { agentId, model });
     });
 
     // Watch status for progress updates
@@ -185,7 +200,7 @@ report-generator/
 </html>
 ```
 
-**skills/report_writer/SKILL.md:**
+**.magic/report_writer/SKILL.md:** (generated via skill-creator)
 ```markdown
 ---
 name: report_writer
@@ -235,17 +250,18 @@ Reads raw data uploaded by the user, performs multi-step analysis, and generates
 
 **Architecture:**
 ```
-content-studio/
-├── index.html                    (control panel: task creation, agent dispatch, status)
-├── data/
-│   ├── tasks.json                (task queue with status per task)
-│   ├── agents.json               (cached agent list)
-│   └── outputs/
-│       ├── task-001-research.md
-│       └── task-001-draft.md
-└── skills/
-    └── content_pipeline/
-        └── SKILL.md              (orchestration: assign tasks to agents)
+<workspace-root>/
+├── .magic/
+│   └── content_pipeline/
+│       └── SKILL.md              (orchestration: assign tasks to agents)
+└── content-studio/
+    ├── index.html                    (control panel: task creation, agent/model selector, status)
+    └── data/
+        ├── tasks.json                (task queue with status per task)
+        ├── agents.json               (cached agent list)
+        └── outputs/
+            ├── task-001-research.md
+            └── task-001-draft.md
 ```
 
 **Key HTML patterns for multi-agent:**
@@ -385,8 +401,8 @@ function waitForFile(path) {
 | "做一个计算器" | Simple | (no Magic API needed, pure JS) |
 | "做一个 todolist" | Simple | `fs.readFile`, `fs.writeFile` |
 | "做一个 AI 聊天界面" | Simple | `llm.stream`, `llm.getModels` |
-| "做一个数据分析工具" | Medium | `fs.*`, `setInputMessage`, companion skill |
-| "做一个自动化报告生成器" | Medium | `fs.*`, `setInputMessage`, `llm.*`, companion skill |
+| "做一个数据分析工具" | Medium | `fs.*`, `createTopicAndSend` + @file skill, companion skill |
+| "做一个自动化报告生成器" | Medium | `fs.*`, `createTopicAndSend` + @file skill, `llm.*`, companion skill |
 | "做一个多人协作的内容工作台" | Complex | `project.createTopicAndSend`, `agent.getAgents`, `fs.watchFile` |
 | "做一个项目管理系统，自动分配任务给不同员工" | Complex | Full API suite + multiple companion skills |
 
