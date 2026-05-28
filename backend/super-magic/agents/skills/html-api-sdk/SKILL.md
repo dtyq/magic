@@ -528,6 +528,7 @@ interface TiptapJSONContent {
 #### Mention Node Format
 
 Two mention types are supported: `project_file` (file) and `project_directory` (directory).
+A third type `skill` is available for invoking platform/system built-in skills.
 
 **File mention (`project_file`):**
 
@@ -588,6 +589,38 @@ Two mention types are supported: `project_file` (file) and `project_directory` (
 | `directory_name`     | `string` | Yes      | Directory name                                             |
 | `directory_path`     | `string` | Yes      | Relative path (from workspace root)                        |
 | `directory_metadata` | `object` | Yes      | Directory metadata (contains `version?`, `type?`, `name?`) |
+
+**Skill mention (`skill`):**
+
+```javascript
+{
+  type: "mention",
+  attrs: {
+    type: "skill",
+    data: {
+      id: "skill_unique_id",           // Skill unique identifier (platform-assigned)
+      name: "网页搜索",                  // Skill display name
+      icon: "https://...",              // Skill icon URL
+      description: "搜索互联网获取信息",  // Skill description
+      mention_source: "system",         // Optional: "system" | "agent" | "mine"
+    }
+  }
+}
+```
+
+**`skill` data fields:**
+
+| Field            | Type     | Required | Description                                          |
+| ---------------- | -------- | -------- | ---------------------------------------------------- |
+| `id`             | `string` | Yes      | Skill unique identifier (from platform)              |
+| `name`           | `string` | Yes      | Skill display name                                   |
+| `icon`           | `string` | Yes      | Skill icon URL                                       |
+| `description`    | `string` | Yes      | Skill description text                               |
+| `mention_source` | `string` | No       | Source: `"system"` (built-in), `"agent"` (agent-installed), `"mine"` (user-created) |
+
+**When to use `@skill` vs `@file` with `.magic/SKILL.md`:**
+- `@skill` → invoke a **platform-registered** skill by its `id`; the platform resolves and executes it
+- `@file` with `.magic/<name>/SKILL.md` → invoke a **workspace companion skill**; the agent reads the file as task instructions
 
 ---
 

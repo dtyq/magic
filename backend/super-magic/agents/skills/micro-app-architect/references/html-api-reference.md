@@ -251,6 +251,45 @@ await window.Magic.project.createTopicAndSend({
 **Mention types:**
 - `project_file`: `{ file_id, file_name, file_path, file_extension, file_size? }`
 - `project_directory`: `{ directory_id, directory_name, directory_path, directory_metadata }`
+- `skill`: `{ id, name, icon, description, mention_source? }`
+
+### @skill Mention Structure
+
+When the app wants to invoke a **platform/system built-in skill** (e.g. web search, image generation), use `type: "skill"` mention:
+
+```javascript
+const basePath = await window.Magic.getAppBasePath();
+await window.Magic.project.createTopicAndSend({
+  type: "doc",
+  content: [{
+    type: "paragraph",
+    content: [
+      { type: "mention", attrs: {
+        type: "skill",
+        data: {
+          id: "skill_unique_id",           // skill 唯一标识（从平台获取）
+          name: "网页搜索",                  // skill 显示名称
+          icon: "https://...",              // skill 图标 URL
+          description: "搜索互联网获取信息",  // skill 描述
+          mention_source: "system"          // "system" | "agent" | "mine"
+        }
+      }},
+      { type: "text", text: " 请搜索以下关键词：React 最新版本" }
+    ]
+  }]
+}, { model: "auto" });
+```
+
+**`mention_source` values:**
+| Value | Description |
+|-------|-------------|
+| `"system"` | 平台内置技能（系统级） |
+| `"agent"` | 当前员工（Agent）挂载的技能 |
+| `"mine"` | 用户自己创建/安装的技能 |
+
+**vs `@file` for `.magic/` skills:**
+- `@skill` mention → invoke a **platform-registered** skill by its `id` (the platform resolves it)
+- `@file` mention with `.magic/SKILL.md` → invoke a **workspace companion skill** (agent reads the file as instructions)
 
 ---
 
