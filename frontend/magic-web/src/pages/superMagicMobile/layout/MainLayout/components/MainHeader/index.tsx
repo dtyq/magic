@@ -21,6 +21,7 @@ import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/util
 import {
 	handleProjectTopicBackNavigation,
 	navigateSuperMobileBack,
+	readSuperMobileReturnTo,
 	resolveSuperMobileProjectDetailBackFallback,
 } from "./backNavigation"
 
@@ -42,6 +43,7 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 	const selectedTopic = topicStore.selectedTopic
 	const selectedWorkspace = workspaceStore.selectedWorkspace
 	const navigate = useNavigate()
+	const navigationReturnTo = readSuperMobileReturnTo(location.state)
 
 	const workspaceSelectRef = useRef<WorkspaceSelectRef>(null)
 
@@ -92,6 +94,7 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 							projectTopicCapabilities,
 							setSelectedTopic: topicStore.setSelectedTopic,
 							navigate,
+							returnTo: navigationReturnTo,
 						})
 					) {
 						return
@@ -109,7 +112,11 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 						})
 
 						if (fallback) {
-							navigateSuperMobileBack({ navigate, fallback })
+							navigateSuperMobileBack({
+								navigate,
+								fallback,
+								returnTo: navigationReturnTo,
+							})
 							return
 						}
 					}
