@@ -251,6 +251,7 @@ describe("useProjectShareSheet", () => {
 		expect(mocks.writeText).toHaveBeenCalled()
 		expect(String(mocks.writeText.mock.calls[0]?.[0])).not.toMatch(/^https?:\/\//)
 		expect(result.current.view).toBe("linkDetail")
+		expect(result.current.viewStack).toEqual([])
 	})
 
 	it("指定组织成员后创建分享时提交 designated 范围和目标成员", async () => {

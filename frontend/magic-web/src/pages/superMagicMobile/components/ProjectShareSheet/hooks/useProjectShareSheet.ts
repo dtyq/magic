@@ -615,7 +615,8 @@ export function useProjectShareSheet({
 			setLocalSelectedShare(createdShareForClipboard)
 			setSelectedShareId(resourceId)
 			setView("linkDetail")
-			setViewStack(["create"])
+			// Clear stack so the header close button dismisses the whole sheet instead of returning to create.
+			setViewStack([])
 		} catch (error) {
 			console.error("Failed to create project share:", error)
 			magicToast.error(t("share.createFailed"))
