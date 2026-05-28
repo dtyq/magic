@@ -150,7 +150,7 @@ function LegacyProjectPage() {
 	const {
 		openActionsPopup: openProjectActionsPopup,
 		openManageModal,
-		updateCurrentActionItem,
+		ensureCollaboratorPanelInitialized,
 		projectActionComponents,
 	} = useProjectListActions({
 		actionContext: "project-detail",
@@ -244,7 +244,7 @@ function LegacyProjectPage() {
 	/** Opens collaborator management directly when it is hoisted to the header MORE slot. */
 	const handleOpenProjectCollaborators = useMemoizedFn(() => {
 		if (!selectedProject) return
-		updateCurrentActionItem(selectedProject)
+		ensureCollaboratorPanelInitialized()
 		openManageModal()
 	})
 
@@ -261,7 +261,7 @@ function LegacyProjectPage() {
 						aria-label={t("share.shareTitle")}
 						data-testid="project-detail-header-share-button"
 					>
-						<Share2 className="h-[22px] w-[22px]" />
+						<Share2 className="size-[22px]" />
 					</Button>,
 					sharePortalTarget,
 				)}
@@ -276,7 +276,7 @@ function LegacyProjectPage() {
 						aria-label={t("project.addCollaborators")}
 						data-testid="project-detail-header-collaborators-button"
 					>
-						<UserPlus className="h-[22px] w-[22px]" />
+						<UserPlus className="size-[22px]" />
 					</Button>,
 					morePortalTarget,
 				)}
@@ -294,7 +294,7 @@ function LegacyProjectPage() {
 						aria-label={t("projectDetail.moreAria")}
 						data-testid="project-detail-header-more-button"
 					>
-						<Ellipsis className="h-[22px] w-[22px]" />
+						<Ellipsis className="size-[22px]" />
 					</Button>,
 					morePortalTarget,
 				)}

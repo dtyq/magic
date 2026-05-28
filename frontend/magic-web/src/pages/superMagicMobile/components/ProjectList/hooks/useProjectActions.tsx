@@ -1,4 +1,4 @@
-import { useBoolean, useMemoizedFn } from "ahooks"
+import { useBoolean, useMemoizedFn, useMount } from "ahooks"
 import { useMemo, useState } from "react"
 import { ActionsPopup } from "../../ActionsPopup/types"
 import { useTranslation } from "react-i18next"
@@ -98,31 +98,62 @@ export function useProjectListActions({
 	const [moveProjectModalVisible, setMoveProjectModalVisible] = useState(false)
 	/** 是否移动项目中 */
 	const [isMoveProjectLoading, setIsMoveProjectLoading] = useState(false)
+	/** Pre-mount collaborator panel on project detail (ChatPage-style idle init) to avoid first-open flicker. */
+	const [isCollaboratorPanelInitialized, setIsCollaboratorPanelInitialized] = useState(false)
+
+	// On project detail, keep panel bound to the route project so lazy chunk can load before first open.
+	const collaboratorPanelProject = isProjectDetailActionContext
+		? (currentActionItem ?? projectStore.selectedProject)
+		: currentActionItem
 
 	const { openManageModal, CollaboratorUpdatePanel, canManageCollaborators } =
 		useCollaboratorUpdatePanel({
-			selectedProject: currentActionItem,
+			selectedProject: collaboratorPanelProject,
 		})
+
+	/** Ensures collaborator lazy subtree is mounted before openManageModal (click-time fallback). */
+	const ensureCollaboratorPanelInitialized = useMemoizedFn(() => {
+		setIsCollaboratorPanelInitialized((initialized) => initialized || true)
+	})
+
+	useMount(() => {
+		if (!isProjectDetailActionContext) return
+
+		const initializeCollaboratorPanel = () => {
+			ensureCollaboratorPanelInitialized()
+		}
+
+		if ("requestIdleCallback" in window) {
+			requestIdleCallback(() => {
+				initializeCollaboratorPanel()
+			})
+			return
+		}
+
+		setTimeout(initializeCollaboratorPanel, 0)
+	})
 
 	/**
 	 * 项目详情页转让成功后退回工作区项目列表，与删除/移动详情页退出逻辑一致。
 	 */
-	const handleProjectTransferSuccess = useMemoizedFn(async (transferredProject: ProjectListItem) => {
-		const shouldExitProjectDetailPage = shouldExitDetailPageAfterTransfer({
-			deletedProjectId: transferredProject.id,
-			selectedProjectId: projectStore.selectedProject?.id,
-			isProjectDetailActionContext,
-		})
-		const workspaceId = transferredProject.workspace_id
-		if (!shouldExitProjectDetailPage || !workspaceId) return
+	const handleProjectTransferSuccess = useMemoizedFn(
+		async (transferredProject: ProjectListItem) => {
+			const shouldExitProjectDetailPage = shouldExitDetailPageAfterTransfer({
+				deletedProjectId: transferredProject.id,
+				selectedProjectId: projectStore.selectedProject?.id,
+				isProjectDetailActionContext,
+			})
+			const workspaceId = transferredProject.workspace_id
+			if (!shouldExitProjectDetailPage || !workspaceId) return
 
-		closeActionsPopup()
-		await applyProjectDetailExitNavigation({
-			workspaceId,
-			project: transferredProject,
-			navigate,
-		})
-	})
+			closeActionsPopup()
+			await applyProjectDetailExitNavigation({
+				workspaceId,
+				project: transferredProject,
+				navigate,
+			})
+		},
+	)
 
 	// 转让弹层由 hook 决定是否提供真实交互，列表层只消费稳定接口。
 	const { openTransferModal, TransferModalComponent, canTransferProject } =
@@ -453,7 +484,7 @@ export function useProjectListActions({
 		const deletedProject = currentActionItem
 		const deleteWorkspaceId = isOtherCollaborationProject(deletedProject)
 			? SHARE_WORKSPACE_ID
-			: selectedWorkspace?.id ?? deletedProject.workspace_id
+			: (selectedWorkspace?.id ?? deletedProject.workspace_id)
 		const shouldExitProjectDetailPage = shouldExitDetailPageAfterDelete({
 			deletedProjectId: deletedProject.id,
 			selectedProjectId: projectStore.selectedProject?.id,
@@ -570,11 +601,7 @@ export function useProjectListActions({
 		// Shared grouping keys for both default and project-detail contexts.
 		// rename + move/saveAsProject + enterWorkspace (detail only) share one card per prototype.
 		const groupedKeys = [
-			[
-				"rename",
-				shouldShowSaveAsProject ? "saveAsProject" : "move",
-				"enterWorkspace",
-			],
+			["rename", shouldShowSaveAsProject ? "saveAsProject" : "move", "enterWorkspace"],
 			["setCollaborators", "copyCollaborationLink"],
 			["cancelWorkspaceShortcut"],
 			["transfer"],
@@ -722,7 +749,8 @@ export function useProjectListActions({
 				)}
 			/>
 
-			{CollaboratorUpdatePanel}
+			{(!isProjectDetailActionContext || isCollaboratorPanelInitialized) &&
+				CollaboratorUpdatePanel}
 			{TransferModalComponent}
 		</>
 	)
@@ -739,6 +767,7 @@ export function useProjectListActions({
 		openProjectDeleteConfirm,
 		closeActionsPopup,
 		openManageModal,
+		ensureCollaboratorPanelInitialized,
 		renameModalVisible,
 		setRenameModalVisible,
 		handlePinProject,
