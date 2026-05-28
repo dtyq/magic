@@ -174,6 +174,8 @@ const SheetContent = Object.assign(
 								"inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
 							side === "bottom" &&
 								"inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+							// Lucide stroke scope for mobile bottom sheets (see lucide.css).
+							side === "bottom" && "mobile-popup-action-header",
 							className,
 						)}
 						style={resolvedContentStyle}

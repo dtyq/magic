@@ -8,7 +8,7 @@
 	stroke-width: 2px;
 }
 
-/* Mobile popup / sheet action headers (MagicPopup actionHeader and aligned custom headers). */
+/* Mobile popup / bottom Sheet action headers (MagicPopup + SheetContent side=bottom). */
 .mobile-popup-action-header .lucide {
 	stroke-width: 2px;
 }

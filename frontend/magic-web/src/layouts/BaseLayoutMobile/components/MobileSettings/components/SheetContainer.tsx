@@ -110,14 +110,14 @@ export function MobileSettingsSheetContainer(props: {
 			withSafeBottom={false}
 		>
 			<div className="flex min-h-0 flex-1 flex-col" data-testid={dataTestId}>
-				<div className="relative flex h-12 w-full shrink-0 items-center justify-center px-16">
+				<div className="mobile-popup-action-header relative flex h-12 w-full shrink-0 items-center justify-center px-16">
 					{hideCloseButton ? null : (
 						<MobileSettingsHeaderIconButton
 							side="left"
 							onClick={onCloseClick ?? (() => onOpenChange(false))}
 							ariaLabel={t("button.close")}
 						>
-							<X className="size-[22px]" strokeWidth={2} />
+							<X className="size-[22px]" />
 						</MobileSettingsHeaderIconButton>
 					)}
 
@@ -135,7 +135,7 @@ export function MobileSettingsSheetContainer(props: {
 							ariaLabel={confirmAriaLabel ?? t("button.confirm")}
 							disabled={confirmDisabled}
 						>
-							<Check className="h-5 w-5" strokeWidth={2.5} />
+							<Check className="h-5 w-5" />
 						</MobileSettingsHeaderIconButton>
 					) : null}
 				</div>

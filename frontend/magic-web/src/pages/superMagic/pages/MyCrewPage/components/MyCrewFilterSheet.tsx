@@ -99,7 +99,7 @@ export default function MyCrewFilterSheet({
 						aria-label={t("myCrewPage.filterSheet.closeAria")}
 						data-testid="my-crew-filter-sheet-close"
 					>
-						<X className="h-[22px] w-[22px] text-foreground" />
+						<X className="size-[22px] text-foreground" />
 					</Button>
 
 					<SheetTitle className="max-w-[247px] truncate text-center font-poppins text-[18px] font-medium leading-6 text-foreground">
@@ -115,7 +115,7 @@ export default function MyCrewFilterSheet({
 						aria-label={t("myCrewPage.filterSheet.resetAria")}
 						data-testid="my-crew-filter-sheet-reset"
 					>
-						<RotateCcw className="h-5 w-5 text-foreground" strokeWidth={2} />
+						<RotateCcw className="size-[22px] text-foreground" strokeWidth={2} />
 					</Button>
 				</div>
 
