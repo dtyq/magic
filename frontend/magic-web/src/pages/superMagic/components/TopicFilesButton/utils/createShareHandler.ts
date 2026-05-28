@@ -1,5 +1,5 @@
 import type { AttachmentItem } from "../hooks/types"
-import { collectSelectedItemIds } from "./collectSelectedItemIds"
+import { normalizeSelectionIdsForShare } from "./normalizeSelectionIdsForShare"
 import { SuperMagicApi } from "@/apis"
 import { isAppEntryFile, findParentFolder } from "./collectFolderFiles"
 import { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
@@ -71,14 +71,13 @@ export async function createShareHandler(options: CreateShareHandlerOptions): Pr
 
 	const clickedItemId = item.file_id || ""
 
-	// 如果有选中的文件，只收集被直接选中的项目ID（包括文件夹），不递归展开
+	// 如果有选中的文件，将移动端级联选择折叠为文件夹 ID（整夹）或文件 ID（部分选择）
 	if (selectedItems.size > 0 && allFiles) {
-		const selectedFileIds = collectSelectedItemIds(allFiles, selectedItems, getItemId)
-
-		// 确保被右键的文件也在列表中
-		if (clickedItemId && !selectedFileIds.includes(clickedItemId)) {
-			selectedFileIds.push(clickedItemId)
+		const selectionForShare = new Set(selectedItems)
+		if (clickedItemId) {
+			selectionForShare.add(clickedItemId)
 		}
+		const selectedFileIds = normalizeSelectionIdsForShare(allFiles, selectionForShare)
 
 		// 检查选中的文件中是否包含入口文件，如果是则替换为父文件夹ID
 		const finalFileIds: string[] = []

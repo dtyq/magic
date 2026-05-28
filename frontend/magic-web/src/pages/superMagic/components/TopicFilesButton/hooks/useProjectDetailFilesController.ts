@@ -14,6 +14,7 @@ import { useMoveFile } from "./useMoveFile"
 import { collectFileIds } from "../utils/collectFileIds"
 import { getAttachmentKey } from "../utils/getAttachmentKey"
 import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
+import { normalizeSelectionIdsForShare } from "../utils/normalizeSelectionIdsForShare"
 import { buildDeleteConfirmHierarchyFromAttachments } from "../utils/mobileAttachmentTreeSelection"
 import { resolveMagicDeleteWarningVariant } from "../utils/magic-system-folder"
 
@@ -176,7 +177,7 @@ export function useProjectDetailFilesController({
 	}
 
 	const batchShare = (selectedKeys: Set<string>) => {
-		const fileIds = collectSelectedFileIds(selectedKeys)
+		const fileIds = normalizeSelectionIdsForShare(attachments, selectedKeys)
 		if (fileIds.length === 0) return
 		setShareFileIds(fileIds)
 		setShareModalVisible(true)

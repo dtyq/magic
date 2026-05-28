@@ -3,6 +3,7 @@ import type { AttachmentItem } from "./types"
 import { MenuProps } from "antd"
 import { collectFileIds } from "../utils/collectFileIds"
 import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
+import { normalizeSelectionIdsForShare } from "../utils/normalizeSelectionIdsForShare"
 import {
 	hasMagicSystemFolderInDeletionSelection,
 	resolveBatchDeleteConfirmContentKey,
@@ -467,9 +468,8 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	const handleBatchShare = () => {
 		if (selectedItems.size === 0 || !onBatchShareClick) return
 
-		// 只收集直接选中的项目ID（包括文件夹），不递归展开子文件
-		// 遵循"在外边勾选了谁，那么文件分享弹层就默认显示谁"的原则
-		const selectedFileIds = collectSelectedItemIds(filteredFiles, selectedItems, getItemId)
+		// Collapse fully selected folders to folder IDs so the share sheet shows folder rows, not flat files.
+		const selectedFileIds = normalizeSelectionIdsForShare(filteredFiles, selectedItems)
 
 		if (selectedFileIds.length > 0) {
 			onBatchShareClick(selectedFileIds)
