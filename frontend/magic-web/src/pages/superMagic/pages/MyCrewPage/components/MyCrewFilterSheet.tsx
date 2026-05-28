@@ -14,8 +14,6 @@ interface MyCrewFilterSheetProps {
 	onOpenChange: (open: boolean) => void
 	filter: MyCrewMobileFilterState
 	onChange: (nextFilter: MyCrewMobileFilterState) => void
-	/** Hide "Team Shared" option for personal organizations */
-	includeTeamShared: boolean
 }
 
 /** Single-select row with check indicator. */
@@ -44,15 +42,13 @@ function SelectRow(props: {
 
 /**
  * Filter + sort sheet for mobile My Crew page.
- * Type section: tap to select, tap again to deselect (returns to "all").
- * Sort section: two exclusive options.
+ * Sort section first (prototype order); type section supports tap-to-deselect back to "all".
  */
 export default function MyCrewFilterSheet({
 	open,
 	onOpenChange,
 	filter,
 	onChange,
-	includeTeamShared,
 }: MyCrewFilterSheetProps) {
 	const { t } = useTranslation("crew/market")
 
@@ -119,43 +115,13 @@ export default function MyCrewFilterSheet({
 					</Button>
 				</div>
 
-				{/* Body: type section + sort section */}
+				{/* Body: sort section first, then type (prototype order) */}
 				<div className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto px-[10px] pb-5 pt-2">
-					{/* Type filter section */}
-					<div className="flex flex-col gap-2">
-						<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
-							{t("myCrewPage.filterSheet.typeLabel")}
-						</p>
-						<div className="w-full overflow-hidden rounded-lg bg-card">
-							<SelectRow
-								label={t("myCrewPage.filterSheet.type.created")}
-								selected={filter.type === "created"}
-								onSelect={() => handleTypeChange("created")}
-								dataTestId="my-crew-filter-type-created"
-							/>
-							{includeTeamShared ? (
-								<>
-									<div className="h-px w-full bg-border" />
-									<SelectRow
-										label={t("myCrewPage.filterSheet.type.teamShared")}
-										selected={filter.type === "teamShared"}
-										onSelect={() => handleTypeChange("teamShared")}
-										dataTestId="my-crew-filter-type-team-shared"
-									/>
-								</>
-							) : null}
-							<div className="h-px w-full bg-border" />
-							<SelectRow
-								label={t("myCrewPage.filterSheet.type.fromMarket")}
-								selected={filter.type === "fromMarket"}
-								onSelect={() => handleTypeChange("fromMarket")}
-								dataTestId="my-crew-filter-type-from-market"
-							/>
-						</div>
-					</div>
-
 					{/* Sort section */}
-					<div className="flex flex-col gap-2">
+					<div
+						className="flex flex-col gap-2"
+						data-testid="my-crew-filter-sort-section"
+					>
 						<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
 							{t("myCrewPage.filterSheet.sortLabel")}
 						</p>
@@ -172,6 +138,38 @@ export default function MyCrewFilterSheet({
 								selected={filter.sort === "created_at"}
 								onSelect={() => handleSortChange("created_at")}
 								dataTestId="my-crew-filter-sort-created-at"
+							/>
+						</div>
+					</div>
+
+					{/* Type filter section — always shows all three scope options including team shared */}
+					<div
+						className="flex flex-col gap-2"
+						data-testid="my-crew-filter-type-section"
+					>
+						<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
+							{t("myCrewPage.filterSheet.typeLabel")}
+						</p>
+						<div className="w-full overflow-hidden rounded-lg bg-card">
+							<SelectRow
+								label={t("myCrewPage.filterSheet.type.created")}
+								selected={filter.type === "created"}
+								onSelect={() => handleTypeChange("created")}
+								dataTestId="my-crew-filter-type-created"
+							/>
+							<div className="h-px w-full bg-border" />
+							<SelectRow
+								label={t("myCrewPage.filterSheet.type.teamShared")}
+								selected={filter.type === "teamShared"}
+								onSelect={() => handleTypeChange("teamShared")}
+								dataTestId="my-crew-filter-type-team-shared"
+							/>
+							<div className="h-px w-full bg-border" />
+							<SelectRow
+								label={t("myCrewPage.filterSheet.type.fromMarket")}
+								selected={filter.type === "fromMarket"}
+								onSelect={() => handleTypeChange("fromMarket")}
+								dataTestId="my-crew-filter-type-from-market"
 							/>
 						</div>
 					</div>

@@ -60,8 +60,6 @@ function MyCrewPageMobilePanelBase() {
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(true)
 
-	const isPersonalOrganization = userStore.user.isPersonalOrganization
-
 	const visibleList = store.list
 	const loading = store.loading
 	const hasMore = store.hasMore
@@ -235,7 +233,6 @@ function MyCrewPageMobilePanelBase() {
 				onOpenChange={setFilterSheetOpen}
 				filter={filter}
 				onChange={handleFilterChange}
-				includeTeamShared={!isPersonalOrganization}
 			/>
 
 			<div className="flex h-full flex-col" data-testid="my-crew-page-mobile">

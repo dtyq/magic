@@ -1,5 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import {
+	MY_CREW_MOBILE_FILTER_DEFAULT,
+	type MyCrewMobileFilterState,
+} from "../my-crew-mobile-shared"
 import MyCrewFilterSheet from "../MyCrewFilterSheet"
 
 vi.mock("react-i18next", () => ({
@@ -21,23 +25,27 @@ vi.mock("@/components/shadcn-ui/sheet", () => ({
 	SheetTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+const createdFilter: MyCrewMobileFilterState = {
+	type: "created",
+	sort: "updated_at",
+}
+
 describe("MyCrewFilterSheet", () => {
-	it("keeps reset visible on the default created filter", () => {
+	it("resets filter to defaults when reset is tapped", () => {
 		const onChange = vi.fn()
 
 		render(
 			<MyCrewFilterSheet
 				open
 				onOpenChange={vi.fn()}
-				filter={{ type: "created" }}
+				filter={createdFilter}
 				onChange={onChange}
-				includeTeamShared
 			/>,
 		)
 
 		fireEvent.click(screen.getByTestId("my-crew-filter-sheet-reset"))
 
-		expect(onChange).toHaveBeenCalledWith({ type: "created" })
+		expect(onChange).toHaveBeenCalledWith(MY_CREW_MOBILE_FILTER_DEFAULT)
 	})
 
 	it("only switches the classification value without carrying sort state", () => {
@@ -47,14 +55,44 @@ describe("MyCrewFilterSheet", () => {
 			<MyCrewFilterSheet
 				open
 				onOpenChange={vi.fn()}
-				filter={{ type: "created" }}
+				filter={createdFilter}
 				onChange={onChange}
-				includeTeamShared
 			/>,
 		)
 
 		fireEvent.click(screen.getByTestId("my-crew-filter-type-team-shared"))
 
-		expect(onChange).toHaveBeenCalledWith({ type: "teamShared" })
+		expect(onChange).toHaveBeenCalledWith({ type: "teamShared", sort: "updated_at" })
+	})
+
+	it("always renders team shared type option", () => {
+		render(
+			<MyCrewFilterSheet
+				open
+				onOpenChange={vi.fn()}
+				filter={MY_CREW_MOBILE_FILTER_DEFAULT}
+				onChange={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByTestId("my-crew-filter-type-team-shared")).toBeInTheDocument()
+	})
+
+	it("renders sort section before type section", () => {
+		render(
+			<MyCrewFilterSheet
+				open
+				onOpenChange={vi.fn()}
+				filter={MY_CREW_MOBILE_FILTER_DEFAULT}
+				onChange={vi.fn()}
+			/>,
+		)
+
+		const sortSection = screen.getByTestId("my-crew-filter-sort-section")
+		const typeSection = screen.getByTestId("my-crew-filter-type-section")
+
+		expect(
+			sortSection.compareDocumentPosition(typeSection) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy()
 	})
 })

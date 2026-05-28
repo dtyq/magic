@@ -220,10 +220,10 @@
 			"title": "Filter",
 			"type": {
 				"created": "Created by Me",
-				"fromMarket": "From Market",
+				"fromMarket": "From Marketplace",
 				"teamShared": "Shared by Team"
 			},
-			"typeLabel": "Type"
+			"typeLabel": "By Type"
 		},
 		"footerPoweredByBrand": "MagiCrew",
 		"footerPoweredByLead": "Powered by",

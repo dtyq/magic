@@ -219,10 +219,10 @@
 			"title": "筛选",
 			"type": {
 				"created": "我创建的",
-				"fromMarket": "市场的",
+				"fromMarket": "来自市场的",
 				"teamShared": "团队共享的"
 			},
-			"typeLabel": "类型"
+			"typeLabel": "按类型"
 		},
 		"footerPoweredByBrand": "MagiCrew",
 		"footerPoweredByLead": "由 ",
