@@ -5,13 +5,13 @@ import { useTranslation } from "react-i18next"
 import { useTopicActions } from "../../../../components/HierarchicalWorkspacePopup/hooks"
 import { SuperMagicApi } from "@/apis"
 import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
-import MagicModal from "@/components/base/MagicModal"
 import { Input } from "@/components/shadcn-ui/input"
 import ShareModel from "@/pages/superMagic/components/Share/Modal"
 import { ShareType, ResourceType } from "@/pages/superMagic/components/Share/types"
-import ActionsPopupComponent from "../../../../components/ActionsPopup"
+import ConversationActionsPopup from "@/pages/superMagicMobile/components/ConversationActionsPopup"
+import { buildTopicActionGroups } from "./buildTopicActionGroups"
 import { FetchTopicsParams } from "@/pages/superMagic/hooks/useTopics"
-import { workspaceStore, projectStore, topicStore } from "@/pages/superMagic/stores/core"
+import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
 import SuperMagicService from "@/pages/superMagic/services"
 import recordSummaryStore from "@/stores/recordingSummary"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -181,6 +181,10 @@ export function useTopicListActions({
 		return actions
 	}, [closeActionsPopup, currentTopics.length, handleDelete, t])
 
+	const topicActionGroups = useMemo(() => buildTopicActionGroups(topicActions), [topicActions])
+
+	const topicActionPopupTitle = currentActionItem?.topic?.topic_name || t("topic.unnamedTopic")
+
 	const handleDeleteConfirm = useMemoizedFn(async () => {
 		const topic = currentActionItem?.topic
 		const project = currentActionItem?.project
@@ -212,11 +216,7 @@ export function useTopicListActions({
 			return
 		}
 
-		topicHandlers.handleDeleteTopic(
-			currentActionItem.workspace.id,
-			topic.id,
-			selectedTopic?.id,
-		)
+		topicHandlers.handleDeleteTopic(currentActionItem.workspace.id, topic.id, selectedTopic?.id)
 	})
 
 	/**
@@ -289,37 +289,64 @@ export function useTopicListActions({
 
 	const topicActionComponents = (
 		<>
-			<ActionsPopupComponent
-				title={currentActionItem?.topic?.topic_name || t("topic.unnamedTopic")}
+			<ConversationActionsPopup
 				visible={actionsPopupVisible}
+				title={topicActionPopupTitle}
+				subtitle={currentActionItem?.project?.project_name}
+				actionGroups={topicActionGroups}
 				onClose={closeActionsPopup}
-				actions={topicActions}
 			/>
-			<MagicModal
+			<MagicPopup
+				visible={renameModalVisible}
+				onClose={() => setRenameModalVisible(false)}
+				position="bottom"
 				title={t("hierarchicalWorkspacePopup.topicRename")}
-				onCancel={() => setRenameModalVisible(false)}
-				onOk={handleRename}
-				open={renameModalVisible}
+				headerVariant="actionHeader"
+				headerTitle={t("hierarchicalWorkspacePopup.topicRename")}
+				headerLeadingAction={{
+					icon: <X />,
+					ariaLabel: t("common.cancel"),
+					onClick: () => setRenameModalVisible(false),
+					testId: "topic-rename-popup-close",
+				}}
+				headerTrailingAction={{
+					icon: <Check />,
+					ariaLabel: t("common.confirm"),
+					onClick: () => {
+						void handleRename()
+					},
+					disabled: !currentActionItem?.topic?.topic_name?.trim(),
+					tone: "primary",
+					testId: "topic-rename-popup-confirm",
+				}}
+				bodyClassName="max-h-[80dvh] p-0"
 				zIndex={1021}
-				centered
 			>
-				<Input
-					placeholder={t("hierarchicalWorkspacePopup.inputTopicName")}
-					value={currentActionItem?.topic?.topic_name}
-					onChange={(val) => {
-						updateCurrentActionItem((pre) => ({
-							...pre,
-							topic: pre.topic
-								? {
-										...pre.topic,
-										topic_name: val.target.value,
-									}
-								: null,
-						}))
-					}}
-					autoFocus
-				/>
-			</MagicModal>
+				<div className="scrollbar-y-thin flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-[max(var(--safe-area-inset-bottom),16px)] pt-2">
+					<div className="flex flex-col gap-2.5">
+						<div className="text-sm font-normal leading-5 text-foreground">
+							{t("hierarchicalWorkspacePopup.newName")}
+						</div>
+						<Input
+							className="bg-white"
+							placeholder={t("hierarchicalWorkspacePopup.inputTopicName")}
+							value={currentActionItem?.topic?.topic_name}
+							onChange={(e) => {
+								updateCurrentActionItem((pre) => ({
+									...pre,
+									topic: pre.topic
+										? {
+												...pre.topic,
+												topic_name: e.target.value,
+											}
+										: null,
+								}))
+							}}
+							autoFocus
+						/>
+					</div>
+				</div>
+			</MagicPopup>
 
 			<MagicPopup
 				visible={deleteModalVisible}
