@@ -16,6 +16,9 @@ This skill guides the correct usage of `window.Magic.*` APIs when developing HTM
 3. `window.Magic.llm` tokens are managed by the host; you cannot directly obtain an `api_key` in HTML — just call the methods directly.
 4. **Inline event handlers are forbidden** (`onclick` attributes, etc.). All event bindings must use `addEventListener` in JS.
 5. **When generating code that calls LLM APIs (`stream` / `chat`), must also provide a model selector UI in the interface**, unless the user explicitly specifies a particular `model_id`. The selector should call `getModels()` to populate options, default to `"auto"`, and display model `icon` + `label` when available.
+6. **File-based AI analysis: prefer topic + skill for complex tasks** — when the app needs users to upload/select files and perform AI analysis on file contents, choose the approach based on task complexity:
+    - **Simple** (short content, single-pass extraction/summarization within a few thousand tokens): `readFile` + `window.Magic.llm.chat/stream` directly is acceptable.
+    - **Complex** (long documents, multi-step analysis, cross-file reasoning, report generation, tool-use required): use `createTopicAndSend` with `@file` mentions + `@skill` or companion skill (`@file .magic/SKILL.md`). The agent has longer context, file parsing tools, and richer orchestration capabilities. HTML handles only UI (file picker, progress, result display) and watches output via `watchFile`.
 
 ---
 
