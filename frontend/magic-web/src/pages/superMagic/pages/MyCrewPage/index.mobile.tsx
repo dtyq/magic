@@ -10,8 +10,10 @@ import PcOnlyNoticeDialog from "@/pages/superMagic/components/PcOnlyNoticeDialog
 import ActionsPopupComponent from "@/pages/superMagicMobile/components/ActionsPopup"
 import type { ActionsPopup } from "@/pages/superMagicMobile/components/ActionsPopup/types"
 import useNavigate from "@/routes/hooks/useNavigate"
+import { RouteName } from "@/routes/constants"
 import { RoutePath } from "@/constants/routes"
 import { configStore } from "@/models/config"
+import { userStore } from "@/models/user"
 import { defaultClusterCode } from "@/routes/helpers"
 import { fillRoute } from "@/routes/history/helpers"
 import { ViewTransitionPresets } from "@/types/viewTransition"
@@ -19,10 +21,15 @@ import { FUNCTION_PERMISSION_CODE } from "@/apis"
 import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import { useAutoLoadMoreSentinel } from "@/pages/superMagic/hooks/useAutoLoadMoreSentinel"
 import { useDelayedVisibility } from "@/pages/superMagic/hooks/useDelayedVisibility"
+import {
+	UserWorkspaceMapCache,
+	WorkspaceStateCache,
+} from "@/pages/superMagic/utils/superMagicCache"
 import MyCrewCardMobile from "./components/MyCrewCardMobile"
 import MyCrewCrewTypeTabs from "./components/MyCrewCrewTypeTabs"
 import { MyCrewStore } from "./stores/my-crew"
 import type { MyCrewView } from "@/services/crew/CrewService"
+import { crewService } from "@/services/crew/CrewService"
 import {
 	resolveMyCrewDisableActionDisabled,
 	resolveMyCrewDisableActionLabel,
@@ -179,6 +186,28 @@ function MyCrewPageMobile() {
 		setSelectedActionAgent(employee)
 	}, [])
 
+	const handleOpenConversation = useCallback(
+		async (agentCode: string) => {
+			await crewService.pinFeaturedFrequentForConversation(agentCode)
+			const userInfo = userStore.user.userInfo
+			const cachedWorkspaceState = WorkspaceStateCache.get(userInfo)
+			const fallbackWorkspaceId =
+				cachedWorkspaceState.workspaceId || UserWorkspaceMapCache.get(userInfo)
+			navigate({
+				name: fallbackWorkspaceId ? RouteName.SuperWorkspaceState : RouteName.Super,
+				params: fallbackWorkspaceId
+					? {
+							workspaceId: fallbackWorkspaceId,
+						}
+					: undefined,
+				query: {
+					agentCode,
+				},
+			})
+		},
+		[navigate],
+	)
+
 	const handleBack = useCallback(() => {
 		navigate({
 			delta: -1,
@@ -194,6 +223,19 @@ function MyCrewPageMobile() {
 			selectedActionAgent.userRole,
 		)
 		const isTeamSharedActionAgent = crewTypeTab === "team-shared"
+		const canOpenConversation = Boolean(selectedActionAgent.latestPublishedAt?.trim())
+
+		if (!isTeamSharedActionAgent && canOpenConversation) {
+			actions.push({
+				key: "conversation",
+				label: t("myCrewPage.openConversation"),
+				onClick: () => {
+					setSelectedActionAgent(null)
+					void handleOpenConversation(selectedActionAgent.agentCode)
+				},
+				"data-testid": "my-crew-mobile-action-conversation",
+			})
+		}
 
 		if (!isTeamSharedActionAgent && selectedActionAgent.needUpgrade) {
 			actions.push({
@@ -236,6 +278,7 @@ function MyCrewPageMobile() {
 	}, [
 		crewTypeTab,
 		handleDeleteCreatedCrew,
+		handleOpenConversation,
 		handleUpgrade,
 		selectedActionAgent,
 		showPcOnlyNotice,
