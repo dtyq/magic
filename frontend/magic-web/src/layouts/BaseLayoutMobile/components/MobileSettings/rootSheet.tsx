@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo } from "react"
 import { useMemoizedFn } from "ahooks"
 import { observer } from "mobx-react-lite"
 import {
@@ -33,14 +33,11 @@ import { getMobileSettingsConfig } from "./config"
 import {
 	MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
 	MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME,
-	MOBILE_SETTINGS_SHOW_INFO_HEADER,
 } from "./constants"
-import { MobileSettingsInfoPopover } from "./components/InfoPopover"
 import { MobileSettingsMenuSection } from "./components/MenuSection"
 import { MobileSettingsFreePlanCard, MobileSettingsPaidPlanCard } from "./components/PlanCards"
 import { MobileSettingsSheetContainer } from "./components/SheetContainer"
 import type {
-	InfoPopoverState,
 	MobileSettingsMenuItemConfig,
 	MobileSettingsMenuSectionConfig,
 	MobileSettingsRootItemAction,
@@ -192,8 +189,6 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 	const { open, onClose, onSelectItem } = props
 	const { t } = useTranslation("interface")
 	const { userInfo } = useUserInfo()
-	const infoButtonRef = useRef<HTMLButtonElement | null>(null)
-	const [infoState, setInfoState] = useState<InfoPopoverState | null>(null)
 
 	const displayName = userInfo?.nickname?.trim() || t("sider.userAccount")
 	const phoneLine = userInfo?.phone
@@ -222,33 +217,11 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 		GlobalSidebarStore.openOrganizationSwitch()
 	})
 
-	/** 信息弹层保持为根面板内部交互，不进入配置层。 */
-	const handleOpenInfoPopover = useMemoizedFn(() => {
-		const rect = infoButtonRef.current?.getBoundingClientRect()
-		if (!rect) return
-
-		setInfoState({
-			top: rect.bottom + 8,
-			right: window.innerWidth - rect.right,
-		})
+	/** Magic App 内右上角 About 入口：先关 Sheet，再通过深链打开原生 About 页。 */
+	const handleOpenAboutUs = useMemoizedFn(() => {
+		onClose()
+		toAboutUs()
 	})
-
-	/** 当前只接 About 入口，其余协议类页面统一走占位提示。 */
-	const handleSelectInfoItem = useMemoizedFn((key: string) => {
-		if (key === "aboutMagic" && isMagicApp) {
-			onClose()
-			toAboutUs()
-			return
-		}
-
-		handleComingSoon()
-	})
-
-	useEffect(() => {
-		if (!open) {
-			setInfoState(null)
-		}
-	}, [open])
 
 	const menuSections = useMemo(
 		() =>
@@ -263,106 +236,96 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 	)
 
 	return (
-		<>
-			<MobileSettingsSheetContainer
-				open={open}
-				title={t("sider.settings")}
-				sheetClassName={MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME}
-				onOpenChange={(nextOpen) => {
-					if (!nextOpen) onClose()
-				}}
-				headerAction={
-					MOBILE_SETTINGS_SHOW_INFO_HEADER ? (
-						<Button
-							ref={infoButtonRef}
-							type="button"
-							variant="ghost"
-							size="icon"
-							onClick={handleOpenInfoPopover}
-							className={cn(
-								MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
-								"right-2.5 bg-card text-foreground",
-							)}
-							aria-label={t("setting.infoAria")}
-						>
-							<Info className="h-5 w-5" />
-						</Button>
-					) : undefined
-				}
-				// 底部显式预留安全区与额外滚动留白，避免最后一组菜单被 home indicator 视觉裁切。
-				contentClassName="gap-2 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1.75rem)] pt-0"
-				dataTestId="mobile-settings-root-sheet"
-			>
-				<div className="flex flex-col items-center gap-1 pt-0">
-					<MagicAvatar
-						src={userInfo?.avatar}
-						size={80}
-						style={{ borderRadius: 9999 }}
-						className="shadow-sm"
-					>
-						{displayName}
-					</MagicAvatar>
-					<div className="flex flex-col items-center">
-						<div className="text-center text-2xl font-semibold leading-tight text-foreground">
-							{displayName}
-						</div>
-						<div className="mt-1.5 flex flex-col items-center gap-0.5">
-							{phoneLine ? (
-								<div className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground">
-									<Smartphone className="h-3.5 w-3.5 shrink-0" />
-									<span className="tabular-nums">{phoneLine}</span>
-								</div>
-							) : null}
-							{emailLine ? (
-								<div className="flex max-w-64 items-center gap-1.5 text-xs leading-4 text-muted-foreground">
-									<Mail className="h-3.5 w-3.5 shrink-0" />
-									<span className="truncate">{emailLine}</span>
-								</div>
-							) : null}
-						</div>
-					</div>
-					<button
+		<MobileSettingsSheetContainer
+			open={open}
+			title={t("sider.settings")}
+			sheetClassName={MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME}
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) onClose()
+			}}
+			headerAction={
+				isMagicApp ? (
+					<Button
 						type="button"
-						onClick={handleOpenOrganizationSwitch}
-						className="mb-4 mt-2 inline-flex h-8 max-w-full items-center gap-1.5 self-center rounded-full border border-border bg-transparent pl-2.5 pr-3 text-foreground transition-colors active:bg-card"
-						data-testid="mobile-settings-organization-switch"
+						variant="ghost"
+						size="icon"
+						onClick={handleOpenAboutUs}
+						className={cn(
+							MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
+							"right-2.5 bg-card text-foreground",
+						)}
+						aria-label={t("setting.aboutUs")}
+						data-testid="mobile-settings-header-about"
 					>
-						{isPersonalOrganization ? (
-							<CircleUserRound className="h-3.5 w-3.5 shrink-0" />
-						) : (
-							<Building2 className="h-3.5 w-3.5 shrink-0" />
-						)}
-						<span className="max-w-48 truncate text-sm leading-4">
-							{currentOrganization?.organization_name ||
-								userInfo?.organization_code ||
-								t("bonusPointsModal.personalVersion")}
-						</span>
-						<ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-					</button>
-				</div>
-
-				{!isPrivateDeployment() ? (
-					<div className="shrink-0">
-						{isPaidPlan ? (
-							<MobileSettingsPaidPlanCard onUpgrade={handleUpgrade} />
-						) : (
-							<MobileSettingsFreePlanCard onUpgrade={handleUpgrade} />
-						)}
+						<Info className="h-5 w-5" />
+					</Button>
+				) : undefined
+			}
+			// 底部显式预留安全区与额外滚动留白，避免最后一组菜单被 home indicator 视觉裁切。
+			contentClassName="gap-2 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1.75rem)] pt-0"
+			dataTestId="mobile-settings-root-sheet"
+		>
+			<div className="flex flex-col items-center gap-1 pt-0">
+				<MagicAvatar
+					src={userInfo?.avatar}
+					size={80}
+					style={{ borderRadius: 9999 }}
+					className="shadow-sm"
+				>
+					{displayName}
+				</MagicAvatar>
+				<div className="flex flex-col items-center">
+					<div className="text-center text-2xl font-semibold leading-tight text-foreground">
+						{displayName}
 					</div>
-				) : null}
+					<div className="mt-1.5 flex flex-col items-center gap-0.5">
+						{phoneLine ? (
+							<div className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground">
+								<Smartphone className="h-3.5 w-3.5 shrink-0" />
+								<span className="tabular-nums">{phoneLine}</span>
+							</div>
+						) : null}
+						{emailLine ? (
+							<div className="flex max-w-64 items-center gap-1.5 text-xs leading-4 text-muted-foreground">
+								<Mail className="h-3.5 w-3.5 shrink-0" />
+								<span className="truncate">{emailLine}</span>
+							</div>
+						) : null}
+					</div>
+				</div>
+				<button
+					type="button"
+					onClick={handleOpenOrganizationSwitch}
+					className="mb-4 mt-2 inline-flex h-8 max-w-full items-center gap-1.5 self-center rounded-full border border-border bg-transparent pl-2.5 pr-3 text-foreground transition-colors active:bg-card"
+					data-testid="mobile-settings-organization-switch"
+				>
+					{isPersonalOrganization ? (
+						<CircleUserRound className="h-3.5 w-3.5 shrink-0" />
+					) : (
+						<Building2 className="h-3.5 w-3.5 shrink-0" />
+					)}
+					<span className="max-w-48 truncate text-sm leading-4">
+						{currentOrganization?.organization_name ||
+							userInfo?.organization_code ||
+							t("bonusPointsModal.personalVersion")}
+					</span>
+					<ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+				</button>
+			</div>
 
-				{menuSections.map((section) => (
-					<MobileSettingsMenuSection key={section.key} items={section.items} />
-				))}
-			</MobileSettingsSheetContainer>
-
-			{MOBILE_SETTINGS_SHOW_INFO_HEADER && infoState ? (
-				<MobileSettingsInfoPopover
-					state={infoState}
-					onClose={() => setInfoState(null)}
-					onSelect={handleSelectInfoItem}
-				/>
+			{!isPrivateDeployment() ? (
+				<div className="shrink-0">
+					{isPaidPlan ? (
+						<MobileSettingsPaidPlanCard onUpgrade={handleUpgrade} />
+					) : (
+						<MobileSettingsFreePlanCard onUpgrade={handleUpgrade} />
+					)}
+				</div>
 			) : null}
-		</>
+
+			{menuSections.map((section) => (
+				<MobileSettingsMenuSection key={section.key} items={section.items} />
+			))}
+		</MobileSettingsSheetContainer>
 	)
 })
