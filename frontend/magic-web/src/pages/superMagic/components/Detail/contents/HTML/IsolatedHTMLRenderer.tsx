@@ -536,6 +536,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			attachmentList,
 			filePathMapping,
 			uploadImageFileToProject,
+			targetOrigin: renderSiteOrigin || "*",
 			onUploadSuccess: () => {
 				pubsub.publish(PubSubEvents.Update_Attachments)
 			},

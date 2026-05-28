@@ -82,6 +82,8 @@ interface UseImageDropOptions {
         parentId?: string
     }) => Promise<{ storedRelativeFilePath: string }>
     onUploadSuccess?: () => void
+    /** Target origin for postMessage to iframe. Use specific origin for cross-origin sandbox, "*" for same-origin. */
+    targetOrigin?: string
 }
 
 interface UseImageDropReturn {
@@ -105,6 +107,7 @@ export function useImageDrop(options: UseImageDropOptions): UseImageDropReturn {
         filePathMapping,
         uploadImageFileToProject,
         onUploadSuccess,
+        targetOrigin = "*",
     } = options
 
     const { t } = useTranslation("super")
@@ -269,7 +272,7 @@ export function useImageDrop(options: UseImageDropOptions): UseImageDropReturn {
                 type: "DRAG_OVER_IMAGE",
                 data: { x, y },
             },
-            "*",
+            targetOrigin,
         )
     })
 
@@ -285,7 +288,7 @@ export function useImageDrop(options: UseImageDropOptions): UseImageDropReturn {
                 type: "DRAG_LEAVE_IMAGE",
                 data: {},
             },
-            "*",
+            targetOrigin,
         )
     })
 
@@ -392,7 +395,7 @@ export function useImageDrop(options: UseImageDropOptions): UseImageDropReturn {
                         y,
                     },
                 },
-                "*",
+                targetOrigin,
             )
 
             sendDragLeaveToIframe()
@@ -435,7 +438,7 @@ export function useImageDrop(options: UseImageDropOptions): UseImageDropReturn {
                             y,
                         },
                     },
-                    "*",
+                    targetOrigin,
                 )
 
                 magicToast.destroy()

@@ -11,6 +11,7 @@ import { DragDropManager } from "../managers/DragDropManager"
 import { StyleManager } from "../managers/StyleManager"
 import { TextStyleManager } from "../managers/TextStyleManager"
 import { EditorLogger } from "../utils/EditorLogger"
+import { isFromTrustedParent, getParentOrigin } from "../utils/parentOrigin"
 import {
 	registerRequestHandlers,
 	registerCommandHandlers,
@@ -223,7 +224,7 @@ export class EditorRuntime {
 
 	private setupImageUploadResultHandler(): void {
 		this.imageUploadResultHandler = (event: MessageEvent) => {
-			if (event.source !== window.parent) return
+			if (!isFromTrustedParent(event)) return
 			if (!event.data || event.data.type !== "IMAGE_UPLOAD_RESULT") return
 			if (!event.data.data) return
 
@@ -239,7 +240,7 @@ export class EditorRuntime {
 	 */
 	private setupDragDropMessageHandler(): void {
 		this.dragDropMessageHandler = (event: MessageEvent) => {
-			if (event.source !== window.parent) return
+			if (!isFromTrustedParent(event)) return
 			if (!event.data || !event.data.type) return
 
 			switch (event.data.type) {
@@ -254,7 +255,7 @@ export class EditorRuntime {
 							type: "DRAG_POSITION_RESPONSE",
 							data: result,
 						},
-						"*",
+						getParentOrigin(),
 					)
 					break
 				}
