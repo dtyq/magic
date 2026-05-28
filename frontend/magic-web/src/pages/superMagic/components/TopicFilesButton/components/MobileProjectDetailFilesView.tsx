@@ -984,7 +984,7 @@ function MobileProjectDetailFilesView({
 				)}
 			</div>
 
-			<div className="relative shrink-0">
+			<div className="relative shrink-0 bg-mobile-background">
 				{hasSelection ? (
 					<MobileFilesSelectionBar
 						isAllSelected={isAllSelected}
@@ -1002,7 +1002,11 @@ function MobileProjectDetailFilesView({
 						clearAriaLabel={t("projectDetail.clearSearch")}
 						onValueChange={setSearchValue}
 						testIdPrefix="project-detail-files-search"
-						className={isChatSheetVariant ? "px-[10px] pb-4 pt-2.5" : undefined}
+						className={
+							isChatSheetVariant
+								? "px-[10px] pb-[max(var(--safe-area-inset-bottom),24px)] pt-2.5"
+								: undefined
+						}
 					/>
 				)}
 			</div>

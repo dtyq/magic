@@ -276,7 +276,7 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 	const passwordText = isPasswordVisible ? extraData?.password || "" : "• • • • • •"
 
 	return (
-		<div className="flex flex-col gap-2.5 bg-muted/30 px-3.5 py-2.5">
+		<div className="flex flex-col gap-2.5 bg-muted/30 px-3.5 pb-[max(var(--safe-area-inset-bottom),24px)] pt-2.5">
 			<CardGroup testId="mobile-topic-share-toggle-card">
 				<div
 					role="button"

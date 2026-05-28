@@ -112,11 +112,11 @@ function TopicFilesPopupComponent({
 					onClick: () => onOpenChange(false),
 					testId: "topic-page-files-popup-close-button",
 				}}
-				className="rounded-t-[24px] border-0 bg-[#F6F6F3]"
+				className="rounded-t-[24px] border-0 bg-mobile-background"
 				bodyClassName="flex h-[90dvh] max-h-[calc(100dvh-8px)] flex-col overflow-hidden"
 			>
 				<div
-					className="flex h-full min-h-0 flex-col bg-[#F6F6F3]"
+					className="flex h-full min-h-0 flex-col bg-mobile-background"
 					data-testid="topic-page-files-popup-root"
 				>
 					{/* 文件树区域必须使用 flex-1/min-h-0，避免头部把底部搜索栏和添加按钮挤出可视区。 */}
