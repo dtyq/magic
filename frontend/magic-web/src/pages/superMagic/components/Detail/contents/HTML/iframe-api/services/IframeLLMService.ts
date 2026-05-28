@@ -235,6 +235,13 @@ export class IframeLLMService {
 				id: string
 				object?: string
 				owned_by?: string
+				owner_by?: string
+				info?: Record<string, unknown> & {
+					attributes?: {
+						label?: string
+						icon?: string
+					}
+				}
 			}>
 
 			this.send({
@@ -242,7 +249,14 @@ export class IframeLLMService {
 				requestId,
 				success: true,
 				models: Array.isArray(models)
-					? models.map((m) => ({ id: m.id, object: m.object, owned_by: m.owned_by }))
+					? models.map((m) => ({
+							id: m.id,
+							object: m.object,
+							owned_by: m.owned_by || m.owner_by,
+							icon: m.info?.attributes?.icon,
+							label: m.info?.attributes?.label,
+							info: m.info,
+						}))
 					: [],
 			})
 		} catch (err) {

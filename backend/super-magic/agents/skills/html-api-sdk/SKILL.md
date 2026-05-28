@@ -119,11 +119,20 @@ const [users, orders, settings] = await Promise.all([
 
 ```javascript
 const models = await window.Magic.llm.getModels();
-// → [{ id: "gpt-4o", object: "model", owned_by: "openai" }, ...]
+// → [{ id: "gpt-4o", object: "model", owned_by: "openai", icon: "https://...", label: "GPT-4o", info: {...} }, ...]
 const modelIds = models.map((m) => m.id);
 ```
 
-- **Returns**: `Promise<Array<{ id: string; object?: string; owned_by?: string }>>`
+- **Returns**: `Promise<Array<{ id: string; object?: string; owned_by?: string; icon?: string; label?: string; info?: object }>>`
+
+| Field      | Type     | Description                          |
+| ---------- | -------- | ------------------------------------ |
+| `id`       | `string` | Model unique identifier              |
+| `object`   | `string?`| Object type (usually "model")        |
+| `owned_by` | `string?`| Model provider                       |
+| `icon`     | `string?`| Model icon URL                       |
+| `label`    | `string?`| Model display name (may differ from id) |
+| `info`     | `object?`| Raw model metadata (attributes + options), contains capabilities and token limits. Use `info.options.chat`, `info.options.multi_modal` etc. to filter models by capability |
 
 > **⚠️ The `model` field is required — default to `"auto"`**
 >
@@ -145,7 +154,7 @@ const modelIds = models.map((m) => m.id);
 > ```javascript
 > // After loading model list, insert default option at top
 > const autoItem = { id: "auto", label: "Auto Select (Recommended)" };
-> [autoItem, ...models].forEach((m) => renderModelItem(m.id, m.label || m.id));
+> [autoItem, ...models].forEach((m) => renderModelItem(m.id, m.label || m.id, m.icon));
 > // Ensure select initial value is "auto"
 > document.getElementById("model-select").value = "auto";
 > ```
@@ -744,7 +753,7 @@ window.Magic.llm.stream(messages, (delta, done) => {
 | `window.Magic.fs.writeFile(path, content)`            | Write/create file (content: string/Blob/ArrayBuffer, max 500 MB) | `Promise<void>`          |
 | `window.Magic.fs.listFiles(dir?)`                     | List directory files                                             | `Promise<string[]>`      |
 | `window.Magic.fs.watchFile(path, cb)`                 | Watch file changes                                               | `() => void` (cancel fn) |
-| `window.Magic.llm.getModels()`                        | Get available models                                             | `Promise<Model[]>`       |
+| `window.Magic.llm.getModels()`                        | Get available models (with icon/label)                           | `Promise<Model[]>`       |
 | `window.Magic.llm.chat(msgs, opts?)`                  | Single chat                                                      | `Promise<string>`        |
 | `window.Magic.llm.stream(msgs, onChunk, opts?)`       | Streaming chat                                                   | `() => void` (cancel fn) |
 | `window.Magic.setInputMessage(msg)`                   | Send message to Agent                                            | `void`                   |

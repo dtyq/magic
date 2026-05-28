@@ -38,7 +38,7 @@ skills:
     - name: user-info
     - name: lark-cli
     - name: dingtalk-cli
-    - name: html-api-sdk
+    - name: micro-app-architect
   workspace_skills: "*"
 ---
 

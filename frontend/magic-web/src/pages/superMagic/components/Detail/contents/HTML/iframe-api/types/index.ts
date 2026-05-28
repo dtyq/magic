@@ -145,6 +145,10 @@ export interface LLMModelInfo {
 	id: string
 	object?: string
 	owned_by?: string
+	icon?: string
+	label?: string
+	/** Raw model info from the API, containing attributes and options */
+	info?: Record<string, unknown>
 }
 
 export interface LLMGetModelsRequest {
