@@ -98,7 +98,7 @@ export function WorkspaceProjectListView({
 
 	return (
 		<div
-			className="flex h-full min-h-0 flex-col bg-background"
+			className="flex h-full min-h-0 flex-col bg-mobile-background"
 			data-testid="workspace-project-page-root"
 		>
 			{/* 顶栏采用原型的左右操作胶囊布局，让标题保持绝对居中。 */}

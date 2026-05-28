@@ -12,7 +12,7 @@ export function ChatProjectHeader({ projectName, onBackClick }: ChatProjectHeade
 
 	return (
 		<div
-			className="mobile-floating-page-header flex h-[50px] items-center gap-2 rounded-b-xl border-b bg-background p-2.5"
+			className="mobile-floating-page-header flex h-[50px] items-center gap-2 rounded-b-xl border-b bg-mobile-background p-2.5"
 			data-testid="chat-project-header-root"
 		>
 			<button

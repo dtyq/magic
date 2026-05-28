@@ -52,7 +52,7 @@ function ChatProjectDetailLayoutComponent() {
 	return (
 		<>
 			<div
-				className="flex h-full min-h-0 w-full flex-col bg-background"
+				className="flex h-full min-h-0 w-full flex-col bg-mobile-background"
 				data-testid="chat-project-detail-layout"
 			>
 				<ChatProjectMessagePanel onOpenActions={openConversationActionSheet} />

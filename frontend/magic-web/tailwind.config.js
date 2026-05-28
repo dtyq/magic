@@ -142,6 +142,8 @@ const config = {
 				xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
 				/** Mobile floating round buttons — see --magic-floating-action-shadow in index.css */
 				"magic-floating-action": "var(--magic-floating-action-shadow)",
+				/** Bottom-docked cards (composer) — upward-biased; see --magic-mobile-dock-surface-shadow */
+				"mobile-dock-surface": "var(--magic-mobile-dock-surface-shadow)",
 			},
 			borderRadius: {
 				lg: "var(--radius-lg)",

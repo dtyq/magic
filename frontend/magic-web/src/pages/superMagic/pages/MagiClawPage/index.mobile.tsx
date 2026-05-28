@@ -63,7 +63,7 @@ function MagiClawMobilePanel() {
 		<>
 			{dialog}
 			<div
-				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background"
+				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-mobile-background"
 				data-testid="magi-claw-page-mobile"
 			>
 				<MagiClawMobileHeader
@@ -116,7 +116,7 @@ function MagiClawMobilePanel() {
 						className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
 						style={{
 							background:
-								"linear-gradient(to bottom, rgb(var(--background-rgb)) 0%, transparent 100%)",
+								"linear-gradient(to bottom, rgb(var(--mobile-background-rgb)) 0%, transparent 100%)",
 							opacity: showTopMask ? 1 : 0,
 						}}
 					/>
@@ -124,7 +124,7 @@ function MagiClawMobilePanel() {
 						className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
 						style={{
 							background:
-								"linear-gradient(to top, rgb(var(--background-rgb)) 0%, transparent 100%)",
+								"linear-gradient(to top, rgb(var(--mobile-background-rgb)) 0%, transparent 100%)",
 							opacity: showBottomMask ? 1 : 0,
 						}}
 					/>

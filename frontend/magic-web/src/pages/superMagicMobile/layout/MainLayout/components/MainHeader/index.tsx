@@ -121,7 +121,7 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 	}
 
 	return (
-		<div className="mobile-floating-page-header flex h-[50px] items-center gap-2 rounded-b-xl border-b bg-background p-2.5">
+		<div className="mobile-floating-page-header flex h-[50px] items-center gap-2 rounded-b-xl border-b bg-mobile-background p-2.5">
 			{onProjectPage ? (
 				<ChevronLeft
 					size={32}

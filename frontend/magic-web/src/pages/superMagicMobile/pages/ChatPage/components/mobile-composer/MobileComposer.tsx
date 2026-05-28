@@ -31,7 +31,7 @@ interface MobileComposerProps {
 }
 
 const mobileComposerEditorClassName = cn(
-	"max-h-[100px] min-h-0 overflow-hidden text-sm text-foreground",
+	"text-foreground max-h-[100px] min-h-0 overflow-hidden text-sm",
 	"[&_.ProseMirror]:m-0 [&_.ProseMirror]:max-h-[100px] [&_.ProseMirror]:overflow-y-auto",
 	"[&_.ProseMirror]:break-words [&_.ProseMirror]:text-sm [&_.ProseMirror]:outline-none",
 	"[&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:break-all [&_.ProseMirror_p]:p-0",
@@ -158,7 +158,7 @@ function MobileComposerComponent({
 					{logic.selectedPluginCount > 0 && (
 						<span
 							className={cn(
-								"flex h-6 shrink-0 items-center justify-center rounded-full bg-foreground px-2 text-sm font-semibold leading-none text-background",
+								"bg-foreground text-background flex h-6 shrink-0 items-center justify-center rounded-full px-2 text-sm font-semibold leading-none",
 								logic.selectedPluginCount < 10 && "w-6 px-0",
 							)}
 							data-testid="mobile-composer-open-sheet-plugin-count"
@@ -185,7 +185,7 @@ function MobileComposerComponent({
 						type="button"
 						size="icon"
 						className={cn(
-							"size-10 rounded-full bg-primary text-background shadow-none",
+							"bg-primary text-background size-10 rounded-full shadow-none",
 							sendButtonDisabled && "opacity-60",
 						)}
 						disabled={sendButtonDisabled}
@@ -228,7 +228,7 @@ function MobileComposerComponent({
 		</>
 	) : (
 		<div
-			className="flex w-full shrink-0 flex-col gap-1.5 px-2 pb-3 pt-1.5"
+			className="flex w-full shrink-0 flex-col gap-1.5 bg-mobile-background px-2 pb-3 pt-1.5"
 			data-testid="mobile-composer"
 		>
 			{taskAndQueueNodes}
@@ -247,12 +247,12 @@ function MobileComposerComponent({
 
 			<div
 				className={cn(
-					"overflow-hidden rounded-2xl bg-background shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] transition-colors",
-					logic.isComposerFocused && "ring-1 ring-primary/20",
+					"overflow-hidden rounded-2xl bg-card shadow-mobile-dock-surface transition-colors",
+					logic.isComposerFocused && "ring-primary/20 ring-1",
 				)}
 				data-testid="mobile-composer-card"
 			>
-				<div className="border-b border-border px-3 pb-2 pt-2 [&:empty]:hidden">
+				<div className="border-border border-b px-3 pb-2 pt-2 [&:empty]:hidden">
 					{shouldRenderPanelsInHeader ? null : (
 						<MobileScenePanels editorContext={editorContext} />
 					)}

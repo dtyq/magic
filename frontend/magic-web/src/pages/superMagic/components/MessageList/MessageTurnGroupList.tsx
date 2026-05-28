@@ -15,7 +15,7 @@ export const USER_MESSAGE_STICKY_OVERLAY_CLASS = cn(
 /**
  * 移动端移除 .after:bg-gradient-to-b:after 这个样式，只覆盖该属性，保留其他 after 样式
  */
-export const USER_MESSAGE_STICKY_OVERLAY_CLASS_MOBILE = cn("before:bg-[#fafafa]", "after:bg-none", "!-top-[2px]")
+export const USER_MESSAGE_STICKY_OVERLAY_CLASS_MOBILE = cn("before:bg-[rgb(var(--mobile-background-rgb))]", "after:bg-none", "!-top-[2px]")
 
 export function getUserMessageStickyTopClass(isMobile: boolean): "top-[10px]" | "top-[40px]" {
 	return isMobile ? "top-[10px]" : "top-[40px]"

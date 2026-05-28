@@ -109,7 +109,7 @@ export function ChatConversationListView({
 
 	return (
 		<div
-			className="flex h-full min-h-0 flex-col bg-background"
+			className="flex h-full min-h-0 flex-col bg-mobile-background"
 			data-testid="mobile-chats-page-root"
 		>
 			{/* 顶部用绝对居中的标题布局，避免左右操作按钮变化时标题发生肉眼可见的偏移。 */}
@@ -215,7 +215,7 @@ export function ChatConversationListView({
 					className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
 					style={{
 						background:
-							"linear-gradient(to bottom, var(--color-background) 0%, transparent 100%)",
+							"linear-gradient(to bottom, var(--mobile-background) 0%, transparent 100%)",
 						opacity: showTopMask ? 1 : 0,
 					}}
 				/>
@@ -223,7 +223,7 @@ export function ChatConversationListView({
 					className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
 					style={{
 						background:
-							"linear-gradient(to top, var(--color-background) 0%, transparent 100%)",
+							"linear-gradient(to top, var(--mobile-background) 0%, transparent 100%)",
 						opacity: showBottomMask ? 1 : 0,
 					}}
 				/>

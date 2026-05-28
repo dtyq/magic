@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { observer } from "mobx-react-lite"
 import { InfiniteScroll } from "antd-mobile"
 import { X, Check } from "lucide-react"
@@ -68,6 +69,10 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	} = useMobileRecycleBinSelection(filteredItems)
 
 	const isAllSelected = selectedCount === filteredItems.length && filteredItems.length > 0
+	const selectionBarMount =
+		typeof document !== "undefined"
+			? document.getElementById("mobile-recycle-bin-selection-mount")
+			: null
 
 	useEffect(() => {
 		onSelectionStateChange?.(selectedCount > 0)
@@ -251,9 +256,8 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 				<InfiniteScroll hasMore={hasMore} loadMore={loadMore} />
 			</div>
 
-			<div className="pointer-events-none fixed bottom-0 left-0 right-0 z-[60]">
-				{selectedCount > 0 && (
-					<div className="pointer-events-auto">
+			{selectedCount > 0 && selectionBarMount
+				? createPortal(
 						<TrashSelectionBar
 							visibleTotal={filteredItems.length}
 							isAllSelected={isAllSelected}
@@ -262,10 +266,10 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 							}
 							onRestore={() => void restoreFlow.requestRestoreSelection()}
 							onPurge={restoreFlow.requestPermanentDelete}
-						/>
-					</div>
-				)}
-			</div>
+						/>,
+						selectionBarMount,
+					)
+				: null}
 
 			{/* 彻底删除确认 Sheet */}
 			<Sheet

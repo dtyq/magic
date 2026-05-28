@@ -208,7 +208,7 @@ function WorkspaceListViewInner({
 	}, [updateMasks, workspaces.length])
 
 	return (
-		<div className="flex h-full min-h-0 flex-col bg-background">
+		<div className="flex h-full min-h-0 flex-col bg-mobile-background">
 			{/* Header */}
 			<div className="mobile-page-header">
 				<MobileShellIconButton
@@ -343,7 +343,7 @@ function WorkspaceListViewInner({
 					className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
 					style={{
 						background:
-							"linear-gradient(to bottom, var(--background) 0%, transparent 100%)",
+							"linear-gradient(to bottom, var(--mobile-background) 0%, transparent 100%)",
 						opacity: showTopMask ? 1 : 0,
 					}}
 				/>
@@ -352,7 +352,7 @@ function WorkspaceListViewInner({
 					className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
 					style={{
 						background:
-							"linear-gradient(to top, var(--background) 0%, transparent 100%)",
+							"linear-gradient(to top, var(--mobile-background) 0%, transparent 100%)",
 						opacity: showBottomMask ? 1 : 0,
 					}}
 				/>

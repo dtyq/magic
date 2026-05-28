@@ -157,7 +157,7 @@ export function AppsPageView(props: AppsPageViewProps) {
 
 	return (
 		<div
-			className="absolute inset-0 flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background"
+			className="absolute inset-0 flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-mobile-background"
 			data-testid="super-apps-page-mobile"
 		>
 			<header className="mobile-page-header" data-testid="super-apps-top-bar">
@@ -245,7 +245,7 @@ export function AppsPageView(props: AppsPageViewProps) {
 					className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
 					style={{
 						background:
-							"linear-gradient(to bottom, var(--color-background) 0%, transparent 100%)",
+							"linear-gradient(to bottom, rgb(var(--mobile-background-rgb)) 0%, transparent 100%)",
 						opacity: showTopMask ? 1 : 0,
 					}}
 				/>
@@ -253,7 +253,7 @@ export function AppsPageView(props: AppsPageViewProps) {
 					className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
 					style={{
 						background:
-							"linear-gradient(to top, var(--color-background) 0%, transparent 100%)",
+							"linear-gradient(to top, rgb(var(--mobile-background-rgb)) 0%, transparent 100%)",
 						opacity: showBottomMask ? 1 : 0,
 					}}
 				/>

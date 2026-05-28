@@ -162,6 +162,10 @@
 		--magic-floating-action-shadow:
 			0px 0px 1px 0px rgba(0, 0, 0, 0.08), 0px 8px 25px 0px rgba(0, 0, 0, 0.1);
 
+		/* Bottom-docked surfaces (composer, etc.): bias shadow upward so diffuse light does not wash out the home-indicator gutter on mobile-background. */
+		--magic-mobile-dock-surface-shadow:
+			0px 0px 1px 0px rgba(0, 0, 0, 0.08), 0px -4px 20px 0px rgba(0, 0, 0, 0.08);
+
 		/* z-index：所有悬浮层的 z-index 都基于1000，业务中普通场景不需要自己控制 z-index
 		*/
 		--z-index-detail-fullscreen: 999;
@@ -370,6 +374,9 @@
 	.dark {
 		--magic-floating-action-shadow:
 			0px 0px 1px 0px rgba(0, 0, 0, 0.24), 0px 8px 25px 0px rgba(0, 0, 0, 0.32);
+
+		--magic-mobile-dock-surface-shadow:
+			0px 0px 1px 0px rgba(0, 0, 0, 0.24), 0px -4px 20px 0px rgba(0, 0, 0, 0.2);
 
 		--background: 0.145 0 0;
 		--background-rgb: 10 10 10;

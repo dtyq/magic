@@ -2,8 +2,6 @@ import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { Check, Trash2, RotateCcw, type LucideIcon } from "lucide-react"
 
-const SELECTION_BAR_SHADOW = "0px 8px 25px 0px rgba(0,0,0,0.10)" as const
-
 interface TrashSelectionBarProps {
 	/** 当前 Tab + 搜索过滤后的条数（预留与文案扩展一致） */
 	visibleTotal: number
@@ -48,15 +46,14 @@ function TrashSelectionBar(props: TrashSelectionBarProps) {
 
 	return (
 		<div
-			className="shrink-0 px-[10px] pb-3 pt-2"
+			className="shrink-0 bg-mobile-background px-[10px] pb-[max(var(--safe-area-inset-bottom),12px)] pt-2"
 			data-testid="mobile-recycle-bin-trash-selection-bar"
 		>
 			<div className="flex h-[44px] items-center gap-2">
 				<button
 					type="button"
 					onClick={onToggleAll}
-					className="flex h-full shrink-0 items-center gap-2 rounded-full bg-card px-4 active:opacity-70"
-					style={{ boxShadow: SELECTION_BAR_SHADOW }}
+					className="flex h-full shrink-0 items-center gap-2 rounded-full bg-card px-4 shadow-mobile-dock-surface active:opacity-70"
 					data-testid="mobile-recycle-bin-select-all-toggle"
 				>
 					<div
@@ -73,10 +70,7 @@ function TrashSelectionBar(props: TrashSelectionBarProps) {
 					</span>
 				</button>
 
-				<div
-					className="flex h-full flex-1 items-center overflow-hidden rounded-full bg-card"
-					style={{ boxShadow: SELECTION_BAR_SHADOW }}
-				>
+				<div className="flex h-full flex-1 items-center overflow-hidden rounded-full bg-card shadow-mobile-dock-surface">
 					<ActionIconBtn
 						icon={RotateCcw}
 						label={t("mobile.recycleBin.selection.restore")}

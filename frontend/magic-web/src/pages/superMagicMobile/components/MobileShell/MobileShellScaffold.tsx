@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react"
+import { useEffect, useRef } from "react"
 
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/models/config/hooks"
@@ -41,21 +41,18 @@ export default function MobileShellScaffold({
 	panelClassName,
 }: MobileShellScaffoldProps) {
 	const transitionMs = 350
-	const rootRef = useRef<HTMLDivElement>(null)
+	const panelRef = useRef<HTMLDivElement>(null)
 	const { prefersColorScheme } = useTheme()
-	const panelSurfaceVars = {
-		"--background": "var(--mobile-background)",
-		"--background-rgb": "var(--mobile-background-rgb)",
-	} as CSSProperties
 
 	useEffect(() => {
-		if (!syncDocumentTheme || !rootRef.current) return
+		if (!syncDocumentTheme || !panelRef.current) return
 
 		const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
 		const previousThemeColor = themeMeta?.getAttribute("content")
 		const previousHtmlBackground = document.documentElement.style.background
 		const previousBodyBackground = document.body.style.background
-		const nextThemeColor = getComputedStyle(rootRef.current).backgroundColor
+		// Match panel surface (mobile-background) so viewport-fit=cover gaps align with page chrome.
+		const nextThemeColor = getComputedStyle(panelRef.current).backgroundColor
 
 		themeMeta?.setAttribute("content", nextThemeColor)
 		document.documentElement.style.background = nextThemeColor
@@ -72,7 +69,6 @@ export default function MobileShellScaffold({
 
 	return (
 		<div
-			ref={rootRef}
 			data-sidebar-open={isSidebarOpen}
 			className={cn(
 				"relative h-full w-full overflow-hidden [--mobile-shell-sidebar-width:80vw]",
@@ -104,6 +100,7 @@ export default function MobileShellScaffold({
 				)}
 
 				<div
+					ref={panelRef}
 					className={cn(
 						// 共享 panel 容器默认铺一层不透明背景，避免业务页忘记设置背景时透出后侧栏内容。
 						"ease-[cubic-bezier(0.4,0,0.2,1)] absolute inset-0 z-30 overflow-hidden bg-mobile-background",
@@ -115,7 +112,6 @@ export default function MobileShellScaffold({
 						panelClassName,
 					)}
 					style={{
-						...panelSurfaceVars,
 						transitionDuration: `${transitionMs}ms`,
 					}}
 					data-testid={`${testIdPrefix}-panel`}

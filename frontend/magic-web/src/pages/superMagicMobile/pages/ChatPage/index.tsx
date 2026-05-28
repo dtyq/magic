@@ -16,7 +16,6 @@ import MobileInputContainer, {
 	type MobileInputContainerRef,
 } from "./components/MobileInputContainer"
 import { MOBILE_LAYOUT_CONFIG } from "@/pages/superMagic/components/MainInputContainer/components/editors/constant"
-import { INPUT_CONTAINER_MIN_HEIGHT } from "@/pages/superMagic/components/MainInputContainer/constants"
 import { topicStore, projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
@@ -35,7 +34,6 @@ import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { routesPathMatch } from "@/routes/history/helpers"
 import { RouteName } from "@/routes/constants"
 import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
-import { interfaceStore } from "@/stores/interface"
 import { shouldClearResolvedAgentCodeFromUrl } from "./agentCodeRoutePolicy"
 import { resolveHomepageDisplayTopicMode } from "./homepageModeState"
 
@@ -210,11 +208,6 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 		chatTopicId != null ? (superMagicStore.messages?.get(chatTopicId) ?? []).length : 0
 	const userId = userStore.user.userInfo?.user_id
 	const isTaskRunning = selectedTopic?.task_status === TaskStatus.RUNNING
-	const mobileInputBottomOffset = interfaceStore.mobileTabBarVisible
-		? "calc(12px + var(--mobile-tabbar-height, 60px) + 8px)"
-		: "12px"
-	// 欢迎区与真实输入区共享同一套底部留白来源，避免出现固定像素的视觉断层。
-	const welcomeSectionBottomSpacing = `calc(${mobileInputBottomOffset} + ${INPUT_CONTAINER_MIN_HEIGHT.HomePage}px)`
 
 	const { handleInterrupt } = useTaskInterrupt({
 		selectedTopic,
@@ -279,32 +272,23 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 
 	return (
 		<>
-			<div className="relative flex size-full flex-col overflow-hidden bg-background">
+			<div className="relative flex size-full flex-col overflow-hidden bg-mobile-background">
 				<ChatPageHeader
 					onMenuClick={openSidebar}
 					onPrimaryAction={handleCreateEmptyChat}
 					isPrimaryActionLoading={isCreatingEmptyChat}
 				/>
 
-				<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-					{/* 中部欢迎区沿用原型的居中节奏，底部预留真实输入区高度，避免视觉重心被输入条打断。 */}
-					<div
-						className="flex min-h-0 flex-1 items-center justify-center px-4"
-						style={{ paddingBottom: welcomeSectionBottomSpacing }}
-					>
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+					{/* Flow layout: bottom inset is owned by GlobalSafeArea, not absolute bottom-0. */}
+					<div className="flex min-h-0 flex-1 items-center justify-center px-4">
 						<SloganSection />
 					</div>
-					{/* 底部真实输入区继续复用现有 MobileInputContainer，不额外造首页输入状态。 */}
-					<div
-						className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-card"
-						style={{ paddingBottom: "max(var(--safe-area-inset-bottom), 0px)" }}
-					>
-						<div className="pointer-events-auto">
-							<MobileInputContainer
-								ref={mobileInputContainerRef}
-								editorContext={editorContext}
-							/>
-						</div>
+					<div className="shrink-0 bg-mobile-background">
+						<MobileInputContainer
+							ref={mobileInputContainerRef}
+							editorContext={editorContext}
+						/>
 					</div>
 				</div>
 			</div>

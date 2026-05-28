@@ -36,7 +36,7 @@ function ChatHeader({
 	const currentTopic = selectedTopic || lastSelectedTopic.current
 
 	return (
-		<header className="border-b border-border bg-background">
+		<header className="border-b border-border bg-mobile-background">
 			{/* Navigation Bar */}
 			<div className="flex h-12 items-center justify-between gap-2 p-2.5">
 				{/* Left: Back Button + Topic Info */}

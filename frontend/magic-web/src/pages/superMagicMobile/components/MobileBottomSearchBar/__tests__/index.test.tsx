@@ -75,7 +75,7 @@ describe("MobileBottomSearchBar", () => {
 		expect(handleValueChange).toHaveBeenCalledWith("")
 	})
 
-	it("始终使用固定 pb-3，由 GlobalSafeArea spacer 统一处理底部安全区", () => {
+	it("根节点铺满 mobile-background 与安全区内边距，搜索条使用贴底向上阴影避免洗白底部", () => {
 		render(
 			<MobileBottomSearchBar
 				value=""
@@ -86,9 +86,14 @@ describe("MobileBottomSearchBar", () => {
 			/>,
 		)
 
-		expect(screen.getByTestId("safe-area-search-root").className).toContain("pb-3")
-		expect(screen.getByTestId("safe-area-search-root").className).not.toContain(
+		expect(screen.getByTestId("safe-area-search-root").className).toContain(
 			"safe-area-inset-bottom",
+		)
+		expect(screen.getByTestId("safe-area-search-root").className).toContain(
+			"bg-mobile-background",
+		)
+		expect(screen.getByTestId("safe-area-search-field").className).toContain(
+			"shadow-mobile-dock-surface",
 		)
 	})
 
@@ -104,7 +109,9 @@ describe("MobileBottomSearchBar", () => {
 			/>,
 		)
 
-		expect(screen.getByTestId("plain-search-root").className).toContain("pb-3")
 		expect(screen.getByTestId("plain-search-root").className).toContain("mt-2")
+		expect(screen.getByTestId("plain-search-root").className).toContain(
+			"safe-area-inset-bottom",
+		)
 	})
 })

@@ -736,7 +736,7 @@ function ClawPlaygroundMobile() {
 	if (store.error || !selectedProject) {
 		return (
 			<div
-				className={`flex h-full w-full flex-col items-center justify-center gap-4 bg-background ${CLAW_MOBILE_VIEWPORT_MIN_HEIGHT_CLASS}`}
+				className={`flex h-full w-full flex-col items-center justify-center gap-4 bg-mobile-background ${CLAW_MOBILE_VIEWPORT_MIN_HEIGHT_CLASS}`}
 				data-testid="claw-playground-error"
 			>
 				<p className="text-sm text-muted-foreground">
@@ -756,7 +756,7 @@ function ClawPlaygroundMobile() {
 
 	return (
 		<div
-			className={`flex h-full min-h-0 w-full flex-col bg-sidebar ${CLAW_MOBILE_VIEWPORT_MIN_HEIGHT_CLASS}`}
+			className={`flex h-full min-h-0 w-full flex-col bg-mobile-background ${CLAW_MOBILE_VIEWPORT_MIN_HEIGHT_CLASS}`}
 			data-testid="claw-playground-mobile-root"
 		>
 			{dialog}

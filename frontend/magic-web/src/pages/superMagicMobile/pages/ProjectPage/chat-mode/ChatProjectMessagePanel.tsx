@@ -179,7 +179,7 @@ export const ChatProjectMessagePanel = observer(function ChatProjectMessagePanel
 
 	return (
 		<div
-			className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
+			className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-mobile-background"
 			data-testid="chat-project-message-panel"
 		>
 			<ChatProjectHeroHeader

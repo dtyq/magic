@@ -6,8 +6,6 @@ import { cn } from "@/lib/utils"
 
 import type { MobileBottomSearchBarProps } from "./types"
 
-const SEARCH_BAR_SHADOW = "0px 8px 25px 0px rgba(0,0,0,0.10)"
-
 /**
  * 根据页面期望的交互模式决定是否展示清除按钮，避免不同列表页重复维护同一套焦点逻辑。
  */
@@ -74,13 +72,16 @@ const MobileBottomSearchBar = memo(function MobileBottomSearchBar({
 
 	return (
 		<div
-			className={cn("shrink-0 px-[10px] pb-3 pt-2", className)}
+			className={cn(
+				// Full-width shell fill so padding below the card pills matches page + GlobalSafeArea.
+				"shrink-0 bg-mobile-background px-[10px] pb-3 pt-2",
+				className,
+			)}
 			data-testid={`${testIdPrefix}-root`}
 		>
 			<div className="flex items-center gap-2">
 				<div
-					className="flex h-[44px] min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-card px-3"
-					style={{ boxShadow: SEARCH_BAR_SHADOW }}
+					className="flex h-[44px] min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-card px-3 shadow-mobile-dock-surface"
 					data-testid={`${testIdPrefix}-field`}
 				>
 					<Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
@@ -102,8 +103,7 @@ const MobileBottomSearchBar = memo(function MobileBottomSearchBar({
 					<button
 						type="button"
 						onMouseDown={handleClearMouseDown}
-						className="flex size-[44px] shrink-0 items-center justify-center rounded-full border border-border bg-card"
-						style={{ boxShadow: SEARCH_BAR_SHADOW }}
+						className="flex size-[44px] shrink-0 items-center justify-center rounded-full border border-border bg-card shadow-mobile-dock-surface"
 						aria-label={clearAriaLabel}
 						data-testid={`${testIdPrefix}-clear`}
 					>

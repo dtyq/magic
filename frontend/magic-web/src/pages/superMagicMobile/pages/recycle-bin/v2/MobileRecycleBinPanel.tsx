@@ -7,7 +7,6 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
-import { cn } from "@/lib/utils"
 import { useRecycleBinTabSearchParamsSync } from "@/pages/recycleBin/hooks/useRecycleBinTabSearchParamsSync"
 import {
 	RECYCLE_BIN_TABS_CONFIG,
@@ -72,7 +71,7 @@ function MobileRecycleBinPanel() {
 
 	return (
 		<div
-			className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background"
+			className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-mobile-background"
 			data-testid="mobile-recycle-bin-page"
 		>
 			<RecycleBinHeader
@@ -93,13 +92,7 @@ function MobileRecycleBinPanel() {
 					showSuccessMessage={false}
 					containerClassName="relative min-h-0 flex-1"
 				>
-					<div
-						className={cn(
-							"min-h-full px-3 pt-2",
-							// 多选底栏 fixed 覆盖时预留空隙，避免「没有更多数据」贴底栏（对齐原型 TrashSelectionBar 外留白）
-							hasSelection ? "pb-28" : "pb-4",
-						)}
-					>
+					<div className="min-h-full px-3 pb-4 pt-2">
 						<RecycleBinContent
 							activeTab={activeTab}
 							searchValue={searchValue}
@@ -115,7 +108,7 @@ function MobileRecycleBinPanel() {
 					className="pointer-events-none absolute left-0 right-0 top-0 h-8 transition-opacity duration-200"
 					style={{
 						background:
-							"linear-gradient(to bottom, var(--background) 0%, transparent 100%)",
+							"linear-gradient(to bottom, var(--mobile-background) 0%, transparent 100%)",
 						opacity: showTopMask ? 1 : 0,
 					}}
 				/>
@@ -123,14 +116,21 @@ function MobileRecycleBinPanel() {
 					className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 transition-opacity duration-200"
 					style={{
 						background:
-							"linear-gradient(to top, var(--background) 0%, transparent 100%)",
+							"linear-gradient(to top, var(--mobile-background) 0%, transparent 100%)",
 						opacity: showBottomMask ? 1 : 0,
 					}}
 				/>
 			</div>
 
+			{/* 多选底栏通过 Portal 挂载到流式底部，避免 fixed 压到 Home Indicator 区域 */}
+			<div
+				id="mobile-recycle-bin-selection-mount"
+				className="shrink-0"
+				data-testid="mobile-recycle-bin-selection-mount"
+			/>
+
 			{/* 对齐原型 BottomSearchBar + FloatingSearchBar：流式底栏、全圆角输入条、独立清除按钮 */}
-			{!hasSelection && (
+			{!hasSelection ? (
 				<MobileBottomSearchBar
 					value={searchValue}
 					placeholder={t("mobile.recycleBin.search.placeholder")}
@@ -139,7 +139,7 @@ function MobileRecycleBinPanel() {
 					clearButtonVisibility="focus-or-value"
 					testIdPrefix="mobile-recycle-bin-bottom-search"
 				/>
-			)}
+			) : null}
 
 			<MagicPopup
 				visible={filterSheetOpen}
