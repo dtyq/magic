@@ -45,7 +45,7 @@ export class EditorRuntime {
 		this.textStyleManager = new TextStyleManager(this.commandHistory, this.bridge)
 		this.elementSelector = new ElementSelector(this.bridge)
 		this.imageManager = new ImageManager(this.commandHistory, this.elementSelector)
-		this.dragDropManager = new DragDropManager(this.commandHistory)
+		this.dragDropManager = new DragDropManager(this.commandHistory, this.elementSelector)
 
 		// Connect styleManager with elementSelector for undo/redo refresh
 		this.styleManager.setElementSelector(this.elementSelector)

@@ -215,3 +215,51 @@ export function cleanPath(path: string): string {
 
 	return cleaned
 }
+
+/**
+ * 在附件列表中检查目标路径是否已存在同名文件，若存在则生成去重文件名。
+ * 规则：原名+(1)、+(2)… 直到不冲突为止。
+ * @param targetPath - 待上传的项目相对路径（如 "reports/images/photo.png"）
+ * @param attachments - 附件树
+ * @returns 去重后的路径
+ */
+export function deduplicateFilePath(
+	targetPath: string,
+	attachments: ProjectAttachmentNode[] | undefined,
+): string {
+	if (!attachments || attachments.length === 0) return targetPath
+
+	// 收集所有已有的 relative_file_path
+	const existingPaths = new Set<string>()
+	const collect = (nodes: ProjectAttachmentNode[]) => {
+		for (const node of nodes) {
+			if (node.relative_file_path) {
+				existingPaths.add(normalizeProjectPath(node.relative_file_path))
+			}
+			if (node.children?.length) collect(node.children)
+		}
+	}
+	collect(attachments)
+
+	const normalized = normalizeProjectPath(targetPath)
+	if (!existingPaths.has(normalized)) return targetPath
+
+	// 拆分目录和文件名
+	const lastSlash = normalized.lastIndexOf("/")
+	const dir = lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : ""
+	const fileName = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized
+
+	// 拆分文件名和扩展名
+	const dotIndex = fileName.lastIndexOf(".")
+	const baseName = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
+	const ext = dotIndex > 0 ? fileName.slice(dotIndex) : ""
+
+	let counter = 1
+	let candidate: string
+	do {
+		candidate = `${dir}${baseName}(${counter})${ext}`
+		counter++
+	} while (existingPaths.has(candidate))
+
+	return candidate
+}

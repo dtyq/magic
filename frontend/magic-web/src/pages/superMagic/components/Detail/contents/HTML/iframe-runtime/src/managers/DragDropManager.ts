@@ -7,6 +7,7 @@
 
 import type { CommandHistory } from "../core/CommandHistory"
 import type { CommandRecord } from "../core/types"
+import type { ElementSelector } from "../features/ElementSelector"
 import { EditorLogger } from "../utils/EditorLogger"
 import { getElementSelector } from "../utils/dom"
 
@@ -25,6 +26,7 @@ const DRAG_DROP_COMMAND_TYPE = "DROP_INSERT_IMAGE"
 
 export class DragDropManager {
     private commandHistory: CommandHistory
+    private elementSelector: ElementSelector | null = null
     private indicatorElement: HTMLElement | null = null
     private currentInsertionPoint: {
         referenceElement: Element
@@ -32,8 +34,9 @@ export class DragDropManager {
         axis: InsertionAxis
     } | null = null
 
-    constructor(commandHistory: CommandHistory) {
+    constructor(commandHistory: CommandHistory, elementSelector?: ElementSelector) {
         this.commandHistory = commandHistory
+        this.elementSelector = elementSelector ?? null
     }
 
     /**
@@ -174,6 +177,7 @@ export class DragDropManager {
             const img = document.querySelector(state.imgSelector)
             if (img) {
                 img.remove()
+                this.elementSelector?.clearSelection()
                 return true
             }
             return false

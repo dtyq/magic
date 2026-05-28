@@ -81,6 +81,7 @@ import {
 	findAttachmentByFileId,
 	findDirectoryByRelativePath,
 	normalizeProjectPath,
+	deduplicateFilePath,
 	type ProjectAttachmentNode,
 } from "./utils/file-utils"
 import { logger as Logger } from "@/utils/log"
@@ -475,7 +476,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					throw new Error("No project selected")
 				}
 
-				const resolvedPath = resolveUploadPath(path, currentHtmlFilePath)
+				const resolvedPath = deduplicateFilePath(
+					resolveUploadPath(path, currentHtmlFilePath),
+					attachmentList as ProjectAttachmentNode[] | undefined,
+				)
 				const cleanPathValue = cleanPath(resolvedPath)
 				const resolvedParentId =
 					parentId ??
@@ -495,11 +499,16 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				// 避免 file_key 与 OSS 实际对象路径不一致导致后端访问 404。
 				const uploadedKey = fullfilled[0].value.key
 
+				// 从去重后的路径中提取实际文件名
+				const deduplicatedFileName = resolvedPath.includes("/")
+					? resolvedPath.slice(resolvedPath.lastIndexOf("/") + 1)
+					: resolvedPath
+
 				const saveRes = await superMagicUploadTokenService.saveFileToProject({
 					project_id: selectedProject.id,
 					parent_id: resolvedParentId,
 					file_key: uploadedKey,
-					file_name: file.name,
+					file_name: deduplicatedFileName || file.name,
 					file_size: fileSize || file.size,
 					file_type: "user_upload",
 					source: 2,
