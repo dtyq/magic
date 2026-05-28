@@ -27,7 +27,7 @@ export function useClawPlaygroundMessageListContextValue(
 
 	return useMemo(
 		() => ({
-			allowRevoke: false,
+			allowRevoke: true,
 			allowUserMessageCopy: true,
 			allowScheduleTaskCreate: false,
 			allowMessageTooltip: true,

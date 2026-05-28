@@ -503,9 +503,26 @@ function ClawPlaygroundMobile() {
 	const syncMobileDetailRef = useMemoizedFn(() => {
 		mobileDetailRef.current.openFileTab = (fileItem?: unknown) => {
 			setTimeout(() => {
-				const fileId = (fileItem as { file_id?: string })?.file_id
+				const item = fileItem as Record<string, any> | undefined
+				if (!item) return
+
+				// 支持两种格式：
+				// 1. detail-like: { type, data: { file_id, file_name, ... }, currentFileId }（来自消息附件点击）
+				// 2. file item: { file_id, file_name, ... }（来自附件列表点击）
+				const fileId = item.file_id || item.data?.file_id || item.currentFileId
 				if (!fileId) return
-				const fileAttachment = attachmentList.find((item) => item.file_id === fileId)
+
+				// 如果是 detail-like 对象且已包含 type，直接打开预览
+				if (item.type && item.data && item.currentFileId) {
+					previewDetailPopupRef.current?.open(
+						item as PreviewDetail,
+						attachments,
+						attachmentList,
+					)
+					return
+				}
+
+				const fileAttachment = attachmentList.find((f) => f.file_id === fileId)
 				if (!fileAttachment) return
 				const fileExtension = fileAttachment.file_extension ?? ""
 				const type = getFileType(fileExtension)
@@ -515,7 +532,7 @@ function ClawPlaygroundMobile() {
 						data: {
 							file_id: fileId,
 							file_name:
-								(fileItem as { file_name?: string })?.file_name ||
+								(item as { file_name?: string })?.file_name ||
 								fileAttachment.file_name,
 						},
 						currentFileId: fileId,

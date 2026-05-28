@@ -76,6 +76,7 @@ function IsolatedHTMLRenderer({
 	}, [renderSiteUrl])
 
 	const loadedRef = useRef(false)
+	const lastInjectedContentRef = useRef<string>("")
 	const iframeRef = useRef<HTMLIFrameElement>(null)
 	const dashboardCards = useRef<DashboardCard[]>([])
 	const hasDashboardCardsSnapshot = useRef(false)
@@ -174,16 +175,19 @@ function IsolatedHTMLRenderer({
 			}
 			setIframeLoaded(false)
 			loadedRef.current = false
+			lastInjectedContentRef.current = ""
 			return
 		}
 
 		const doc = iframe.contentDocument
-		if (!doc || loadedRef.current || !dashboardContent) return
+		if (!doc || !dashboardContent) return
+		if (loadedRef.current && lastInjectedContentRef.current === dashboardContent) return
 
 		doc.open()
 		doc.write(dashboardContent)
 		doc.close()
 		loadedRef.current = true
+		lastInjectedContentRef.current = dashboardContent
 		setIframeLoaded(true)
 	}, [dashboardContent, renderSiteUrl])
 

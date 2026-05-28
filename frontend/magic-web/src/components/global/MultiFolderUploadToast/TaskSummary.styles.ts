@@ -19,7 +19,7 @@ export const useTaskSummaryStyles = createStyles(({ token, css }) => ({
 		top: 0;
 		left: 0;
 		height: 100%;
-		background: ${token.colorPrimaryBg};
+		background: #ebf2fe;
 		z-index: 1;
 		transition: width 0.3s ease;
 	`,
