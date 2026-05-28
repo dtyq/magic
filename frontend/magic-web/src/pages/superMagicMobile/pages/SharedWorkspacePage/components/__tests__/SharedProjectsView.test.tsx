@@ -158,6 +158,28 @@ describe("SharedProjectsView", () => {
 		)
 	})
 
+	it("renders the generic list empty icon when there are no shared projects", () => {
+		render(<SharedProjectsView {...defaultProps} isEmpty />)
+
+		expect(
+			screen.getByTestId("shared-projects-empty").querySelector(
+				'[data-testid="mobile-list-empty-icon"]',
+			),
+		).not.toBeNull()
+	})
+
+	it("does not render the generic list empty icon for search-empty state", () => {
+		render(
+			<SharedProjectsView
+				{...defaultProps}
+				isSearchEmpty
+				debouncedSearchValue="missing"
+			/>,
+		)
+
+		expect(screen.queryByTestId("mobile-list-empty-icon")).toBeNull()
+	})
+
 	it("renders shared-member count, topic count and fallback time for shared-by-me rows", () => {
 		render(
 			<SharedProjectsView

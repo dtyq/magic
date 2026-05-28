@@ -116,6 +116,16 @@ describe("WorkspaceProjectListView", () => {
 		expect(emptyState.className).toContain("min-h-0")
 	})
 
+	it("renders the generic list empty icon for the no-projects state", () => {
+		renderWorkspaceProjectListView({ isProjectEmpty: true, isSearchEmpty: false })
+
+		expect(
+			screen.getByTestId("workspace-project-page-empty").querySelector(
+				'[data-testid="mobile-list-empty-icon"]',
+			),
+		).not.toBeNull()
+	})
+
 	it("renders search empty state with flex centering classes for vertical alignment", () => {
 		renderWorkspaceProjectListView({
 			isProjectEmpty: false,

@@ -112,6 +112,16 @@ describe("WorkspaceListView", () => {
 		expect(screen.queryByPlaceholderText("搜索工作区")).toBeNull()
 	})
 
+	it("renders the generic list empty icon for the no-workspaces state", () => {
+		render(<WorkspaceListView {...defaultProps} />)
+
+		expect(
+			screen.getByTestId("workspaces-list-empty").querySelector(
+				'[data-testid="mobile-list-empty-icon"]',
+			),
+		).not.toBeNull()
+	})
+
 	it("renders pin swipe action and pinned badge for pinned workspaces", () => {
 		render(
 			<WorkspaceListView

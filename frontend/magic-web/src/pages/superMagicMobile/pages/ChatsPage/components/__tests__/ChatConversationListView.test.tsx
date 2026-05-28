@@ -49,4 +49,40 @@ describe("ChatConversationListView", () => {
 
 		expect(screen.getByTestId("mobile-chats-page-search-clear")).toBeInTheDocument()
 	})
+
+	it("renders the generic list empty icon for the no-chats state", () => {
+		render(
+			<ChatConversationListView
+				items={[]}
+				isLoading={false}
+				searchValue=""
+				debouncedSearchValue=""
+				isEmpty
+				isSearchEmpty={false}
+				hasMore={false}
+				onSearchValueChange={vi.fn()}
+				onOpenSidebar={vi.fn()}
+				onCreateChat={vi.fn()}
+				onOpenConversation={vi.fn()}
+				onMore={vi.fn()}
+				onPin={vi.fn()}
+				onDelete={vi.fn()}
+				onRefresh={vi.fn(async () => {})}
+				loadMore={vi.fn(async () => {})}
+				title="对话"
+				searchPlaceholder="搜索"
+				clearSearchAriaLabel="取消"
+				emptyTitle="暂无对话"
+				emptyDescription="去新建一个对话"
+				newChatAriaLabel="新建对话"
+				menuAriaLabel="菜单"
+			/>,
+		)
+
+		expect(
+			screen.getByTestId("mobile-chats-page-empty").querySelector(
+				'[data-testid="mobile-list-empty-icon"]',
+			),
+		).not.toBeNull()
+	})
 })

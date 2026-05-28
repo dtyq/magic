@@ -3,6 +3,7 @@ import { Loader2, Menu, MessageCirclePlus, Search } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { cn } from "@/lib/utils"
+import { MobileListEmptyIcon } from "@/pages/superMagicMobile/components/icons/mobile-list-empty-icon"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { ChatConversationListItem } from "./ChatConversationListItem"
 import type { ChatConversationListItem as ChatConversationListItemData } from "../hooks/useChatConversationList"
@@ -166,7 +167,7 @@ export function ChatConversationListView({
 								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="mobile-chats-page-empty"
 							>
-								<Search className="size-10 text-muted-foreground/50" />
+								<MobileListEmptyIcon />
 								<p className="text-[16px] font-semibold leading-6 text-foreground">
 									{emptyTitle}
 								</p>

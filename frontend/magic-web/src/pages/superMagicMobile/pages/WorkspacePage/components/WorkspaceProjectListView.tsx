@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useId, useState } from "react"
-import { Box, ChevronLeft, Ellipsis, Plus, Search } from "lucide-react"
+import { ChevronLeft, Ellipsis, Plus, Search } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { cn } from "@/lib/utils"
 import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import { MobileListEmptyIcon } from "@/pages/superMagicMobile/components/icons/mobile-list-empty-icon"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import ProjectList from "@/pages/superMagicMobile/components/ProjectList"
 
@@ -166,7 +167,7 @@ export function WorkspaceProjectListView({
 								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="workspace-project-page-empty"
 							>
-								<Box className="size-10 text-muted-foreground/50" />
+								<MobileListEmptyIcon />
 								<p className="text-[15px] font-medium leading-6 text-foreground">
 									{t("project.noProjects")}
 								</p>
