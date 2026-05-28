@@ -234,6 +234,7 @@
 		"workspaceSwitcherRefresh": "Refresh Workspace List"
 	},
 	"chat": {
+		"backToChatList": "Back to chat list",
 		"confirmSaveAsProject": "Confirm Save as Project",
 		"deleteChat": "Delete",
 		"deleteChatConfirm": "Are you sure you want to delete the conversation \"{{name}}\"?",
@@ -1842,6 +1843,7 @@
 		"manageOrganizationMembersAndDepartments": "{{userCount}} members, {{departmentCount}} departments",
 		"manageOrganizationMembersOnly": "{{userCount}} members",
 		"manageOrganizationSummary": "Organization members can access",
+		"shareScopeAllMembers": "All members",
 		"managePasswordSummary": "Password required",
 		"managePermanent": "Permanent",
 		"managePublicSummary": "Anyone with the link can access",

@@ -5,6 +5,8 @@ import type { ActionGroup } from "@/pages/superMagicMobile/components/ActionShee
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
 import { useTopicListActions } from "@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/hooks"
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import useNavigate from "@/routes/hooks/useNavigate"
+import { RouteName } from "@/routes/constants"
 
 interface UseChatConversationActionsParams {
 	selectedProject: ProjectListItem | null
@@ -22,6 +24,7 @@ export function useChatConversationActions({
 	onOpenConversationFeedback,
 }: UseChatConversationActionsParams) {
 	const { t } = useTranslation("super")
+	const navigate = useNavigate()
 	const [actionSheetVisible, { setTrue: showActionSheet, setFalse: hideActionSheet }] =
 		useBoolean(false)
 	const [filesDrawerOpen, setFilesDrawerOpen] = useState(false)
@@ -81,6 +84,16 @@ export function useChatConversationActions({
 		openShareModal(selectedTopic, selectedProject)
 	})
 
+	/** Replace current chat detail with the chats list route. */
+	const openChatListFromSheet = useMemoizedFn(() => {
+		hideActionSheet()
+		navigate({
+			name: RouteName.SuperChatsList,
+			replace: true,
+			viewTransition: false,
+		})
+	})
+
 	const conversationActionGroups = useMemo<ActionGroup[]>(
 		() => [
 			{
@@ -104,6 +117,11 @@ export function useChatConversationActions({
 						label: t("share.shareTopic"),
 						onClick: openTopicShareFromSheet,
 						disabled: !selectedTopic || !selectedProject,
+					},
+					{
+						key: "back-to-chat-list",
+						label: t("chat.backToChatList"),
+						onClick: openChatListFromSheet,
 					},
 				],
 			},
@@ -145,6 +163,7 @@ export function useChatConversationActions({
 		],
 		[
 			onOpenConversationFeedback,
+			openChatListFromSheet,
 			openConversationFeedbackFromSheet,
 			openFilesDrawerFromSheet,
 			openTopicShareFromSheet,

@@ -4,6 +4,12 @@ import { useTranslation } from "react-i18next"
 import type { ActionGroup } from "@/pages/superMagicMobile/components/ActionSheet"
 import { useTopicListActions } from "@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/hooks"
 import type { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import useNavigate from "@/routes/hooks/useNavigate"
+import { RouteName } from "@/routes/constants"
+import { topicStore } from "@/pages/superMagic/stores/core"
+import { isCollaborationProject } from "@/pages/superMagic/constants"
+import { buildSuperMobileNavigationState } from "@/pages/superMagicMobile/layout/MainLayout/components/MainHeader/backNavigation"
+import { resolveSuperMobileProjectDetailBackFallback } from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 
 interface UseProjectTopicConversationActionsParams {
 	selectedProject: ProjectListItem | null
@@ -19,6 +25,7 @@ export function useProjectTopicConversationActions({
 	onOpenConversationFeedback,
 }: UseProjectTopicConversationActionsParams) {
 	const { t } = useTranslation("super")
+	const navigate = useNavigate()
 	const [actionSheetVisible, { setTrue: showActionSheet, setFalse: hideActionSheet }] =
 		useBoolean(false)
 	const [filesDrawerOpen, setFilesDrawerOpen] = useState(false)
@@ -76,6 +83,29 @@ export function useProjectTopicConversationActions({
 		await toggleTopicPin(selectedTopic)
 	})
 
+	/**
+	 * Leave the topic conversation and open project entry; back from project detail returns to workspace project list.
+	 */
+	const openProjectEntryFromSheet = useMemoizedFn(() => {
+		if (!selectedProject?.id) return
+
+		const isSharedProjectDetail = isCollaborationProject(selectedProject)
+		const returnTo = resolveSuperMobileProjectDetailBackFallback({
+			workspaceId: selectedProject.workspace_id,
+			isSharedProjectDetail,
+		})
+		if (!returnTo) return
+
+		hideActionSheet()
+		topicStore.setSelectedTopic(null)
+		navigate({
+			name: RouteName.SuperWorkspaceProjectState,
+			params: { projectId: selectedProject.id },
+			state: buildSuperMobileNavigationState(returnTo),
+			viewTransition: false,
+		})
+	})
+
 	const conversationActionGroups = useMemo<ActionGroup[]>(() => {
 		const groups: ActionGroup[] = [
 			{
@@ -119,6 +149,12 @@ export function useProjectTopicConversationActions({
 						onClick: () => runTopicAction("rename"),
 						disabled: !selectedTopic || !selectedProject,
 					},
+					{
+						key: "enter-project",
+						label: t("share.enterProject"),
+						onClick: openProjectEntryFromSheet,
+						disabled: !selectedProject,
+					},
 				],
 			},
 			{
@@ -154,6 +190,7 @@ export function useProjectTopicConversationActions({
 		onOpenConversationFeedback,
 		openConversationFeedbackFromSheet,
 		openFilesDrawerFromSheet,
+		openProjectEntryFromSheet,
 		runTopicAction,
 		selectedProject,
 		selectedTopic,

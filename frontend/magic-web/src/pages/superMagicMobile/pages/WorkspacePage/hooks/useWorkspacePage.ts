@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useDebounce, useMemoizedFn, useRequest } from "ahooks"
 import { runInAction } from "mobx"
 import { useTranslation } from "react-i18next"
-import { useParams } from "react-router"
+import { useLocation, useParams } from "react-router"
 import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import SuperMagicService from "@/pages/superMagic/services"
 import { SuperMagicApi } from "@/apis"
@@ -10,7 +10,10 @@ import { projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import magicToast from "@/components/base/MagicToaster/utils"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
-import { navigateSuperMobileBack } from "@/pages/superMagicMobile/layout/MainLayout/components/MainHeader/backNavigation"
+import {
+	navigateSuperMobileBack,
+	readSuperMobileReturnTo,
+} from "@/pages/superMagicMobile/layout/MainLayout/components/MainHeader/backNavigation"
 import { resolveWorkspaceDetailDeleteFallback } from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { formatRelativeTime } from "@/utils/string"
@@ -64,6 +67,7 @@ export interface UseWorkspacePageReturn {
 export function useWorkspacePage(): UseWorkspacePageReturn {
 	const { t, i18n } = useTranslation("super")
 	const navigate = useNavigate()
+	const location = useLocation()
 	const { workspaceId } = useParams<{ workspaceId: string }>()
 	const selectedWorkspace =
 		workspaceId && workspaceStore.selectedWorkspace?.id !== workspaceId
@@ -185,10 +189,10 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	 * Prefer history back; when opened via deep link without history, fall back to workspace list.
 	 */
 	const handleBack = useMemoizedFn(() => {
-		navigate({
-			delta: -1,
-			name: RouteName.SuperWorkspacesList,
-			viewTransition: false,
+		navigateSuperMobileBack({
+			navigate,
+			fallback: { name: RouteName.SuperWorkspacesList },
+			returnTo: readSuperMobileReturnTo(location.state),
 		})
 	})
 

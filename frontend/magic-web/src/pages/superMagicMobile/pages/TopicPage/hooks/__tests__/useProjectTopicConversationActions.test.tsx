@@ -62,7 +62,7 @@ describe("useProjectTopicConversationActions", () => {
 		).toEqual([
 			["view-files"],
 			["pin-topic", "share-topic"],
-			["rename-topic"],
+			["rename-topic", "enter-project"],
 			["feedback-conversation"],
 			["delete-topic"],
 		])

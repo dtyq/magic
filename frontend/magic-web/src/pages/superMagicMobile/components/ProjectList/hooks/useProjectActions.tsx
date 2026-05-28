@@ -27,7 +27,10 @@ import {
 	shouldShowProjectCollaboratorAction,
 	shouldShowProjectTransferAction,
 } from "@/pages/superMagicMobile/utils/projectActionVisibility"
-import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
+import {
+	resolveProjectDetailHeaderActions,
+	type SharedProjectVisibleActionKey,
+} from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
 import {
 	applyProjectDetailExitNavigation,
 	applySuperMobileDetailExitNavigation,
@@ -39,6 +42,8 @@ import {
 	resolvePostMoveBackFallback,
 	shouldExitDetailPageAfterDelete,
 } from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
+import { RouteName } from "@/routes/constants"
+import { buildSuperMobileNavigationState } from "@/pages/superMagicMobile/layout/MainLayout/components/MainHeader/backNavigation"
 
 interface UseProjectListActionsOptions {
 	onProjectChanged?: () => Promise<void> | void
@@ -55,6 +60,7 @@ export type ProjectActionKey =
 	| "pinProject"
 	| "rename"
 	| "move"
+	| "enterWorkspace"
 	| "saveAsProject"
 	| "copyCollaborationLink"
 	| "setCollaborators"
@@ -185,6 +191,38 @@ export function useProjectListActions({
 		}
 	})
 
+	/**
+	 * Open workspace project list from project detail; back on that page returns to workspace list.
+	 */
+	const handleEnterWorkspace = useMemoizedFn((project?: ProjectListItem | null) => {
+		if (!project) return
+
+		const isSharedProject = isCollaborationProject(project)
+		const workspaceId = isOtherCollaborationProject(project)
+			? SHARE_WORKSPACE_ID
+			: project.workspace_id
+		if (!workspaceId) return
+
+		const returnTo = { name: RouteName.SuperWorkspacesList }
+		const navigationState = buildSuperMobileNavigationState(returnTo)
+
+		if (isSharedProject) {
+			navigate({
+				name: RouteName.SuperSharedWorkspace,
+				state: navigationState,
+				viewTransition: false,
+			})
+			return
+		}
+
+		navigate({
+			name: RouteName.SuperWorkspaceProjects,
+			params: { workspaceId },
+			state: navigationState,
+			viewTransition: false,
+		})
+	})
+
 	const handlePinProject = useMemoizedFn(async (project?: ProjectListItem | null) => {
 		if (!project) return
 		try {
@@ -273,6 +311,17 @@ export function useProjectListActions({
 					: "project-actions-move-project",
 			},
 			{
+				key: "enterWorkspace",
+				label: t("share.enterWorkspace"),
+				onClick: () => {
+					handleEnterWorkspace(currentActionItem)
+					closeActionsPopup()
+				},
+				variant: "default",
+				visible: isProjectDetailActionContext && !isWorkspaceShortcutProjectStatus,
+				"data-testid": "project-actions-enter-workspace",
+			},
+			{
 				key: "copyCollaborationLink",
 				label: t("hierarchicalWorkspacePopup.copyCollaborationLink"),
 				onClick: () => {
@@ -349,7 +398,7 @@ export function useProjectListActions({
 		return actions.filter((action) => {
 			if (!action.visible) return false
 			if (simplifiedActionKeySet) {
-				return simplifiedActionKeySet.has(action.key)
+				return simplifiedActionKeySet.has(action.key as SharedProjectVisibleActionKey)
 			}
 			if (!visibleActionKeySet) return true
 			return visibleActionKeySet.has(action.key)
@@ -362,6 +411,7 @@ export function useProjectListActions({
 		handlePinProject,
 		closeActionsPopup,
 		handleCopyCollaborationLink,
+		handleEnterWorkspace,
 		openManageModal,
 		canManageCollaborators,
 		cancelWorkspaceShortcut,
@@ -495,10 +545,13 @@ export function useProjectListActions({
 	/** 原型把重命名/移动合并为一张卡片，其余操作各自独立成组。 */
 	const projectActionGroups = useMemo(() => {
 		// Shared grouping keys for both default and project-detail contexts.
-		// rename + move/saveAsProject are always a single card (no gap between them),
-		// matching the prototype's MenuGroup layout.
+		// rename + move/saveAsProject + enterWorkspace (detail only) share one card per prototype.
 		const groupedKeys = [
-			["rename", shouldShowSaveAsProject ? "saveAsProject" : "move"],
+			[
+				"rename",
+				shouldShowSaveAsProject ? "saveAsProject" : "move",
+				"enterWorkspace",
+			],
 			["setCollaborators", "copyCollaborationLink"],
 			["cancelWorkspaceShortcut"],
 			["transfer"],
