@@ -114,7 +114,7 @@ export function useChatConversationActions({
 					},
 					{
 						key: "share-topic",
-						label: t("share.shareTopic"),
+						label: t("share.shareConversation"),
 						onClick: openTopicShareFromSheet,
 						disabled: !selectedTopic || !selectedProject,
 					},
