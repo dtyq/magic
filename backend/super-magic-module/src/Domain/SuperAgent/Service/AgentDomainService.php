@@ -347,10 +347,12 @@ class AgentDomainService
                 $sandboxId = $warmSandboxId;
             } else {
                 // Step 3: Create sandbox container (cold path)
+                // 冷启动一律使用 topic_id 作为 sandbox_id，让沙箱与话题一一对应，
+                // 便于排障与去重；调用方即便显式传了 sandbox_id 也以话题为准。
                 $sandboxId = $this->createSandbox(
                     dataIsolation: $dataIsolation,
                     projectId: (string) $agentContext->getProjectEntity()->getId(),
-                    sandboxID: $agentContext->getSandboxId(),
+                    sandboxID: (string) $topicEntity->getId(),
                     workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
                     projectSpaceRootFileId: $projectSpaceRootFileId,
                     userSpaceRootFileId: $userSpaceRootFileId,
