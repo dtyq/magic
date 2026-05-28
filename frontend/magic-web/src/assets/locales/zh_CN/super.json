@@ -2671,7 +2671,7 @@
 		"insertImage": "新增图片",
 		"inspector": {
 			"agentPromptPlaceholder": "在此描述你遇到的问题",
-			"agentPromptSuffix": "请描述你遇到的问题：",
+			"agentPromptSuffix": "请对选中元素进行处理：",
 			"agentPromptTitle": "[HTML 元素检查] 我选中了页面中的一个元素，其详细信息如下：",
 			"computedStyles": "计算样式",
 			"copySelector": "复制选择器",
@@ -2886,6 +2886,8 @@
 	},
 	"topicFiles": {
 		"AIOptimization": "AI 编辑",
+		"aiPick": "AI 选取",
+		"aiPickTooltip": "点击后选取页面元素，让 AI 对其进行修改",
 		"addFile": "添加文件",
 		"addFolder": "添加文件夹",
 		"batchExportingPdf": "批量导出 PDF 中",

@@ -60,6 +60,8 @@ export interface IsolatedHTMLRendererRef {
 	toggleDevConsole: () => void
 	/** Start element inspector in toolbar mode (no info card; selection creates new topic) */
 	startInspector: () => void
+	/** Start element inspector in append mode (selection appends element info to current editor) */
+	startInspectorAppend: () => void
 }
 //HTML预览增强组件 iframe里面的内容尺寸，用于计算缩放比例
 export interface IsolatedHTMLRendererContentMetrics {
@@ -139,6 +141,8 @@ interface IsolatedHTMLRendererProps {
 	onInterrupt?: () => void //新增：中断回调
 	/** 调试控制台关闭时回调（用于同步父组件状态）*/
 	onDevConsoleClose?: () => void
+	/** AI 选取（appendToEditor）状态变化回调 */
+	onAppendPickingChange?: (picking: boolean) => void
 }
 
 function isHtmlImagesUploadPath(path: string): boolean {
@@ -230,6 +234,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			onRenderReady,
 			onContentMetrics,
 			onDevConsoleClose,
+			onAppendPickingChange,
 		} = props
 		const renderSiteUrl = useMemo(() => env("MAGIC_HTML_SANDBOX_URL"), [])
 		const renderSiteOrigin = useMemo(() => {
@@ -403,11 +408,16 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			if (!file?.file_name) return undefined
 			return { fileId, fileName: file.file_name, filePath: file.relative_file_path ?? "" }
 		}, [fileId, attachmentList])
-		const { hideInfoCard: inspectorHideInfoCard, startInToolbarMode } = useInspectorToolbarMode(
-			elementInspector,
-			t,
-			inspectorFileInfo,
-		)
+		const {
+			hideInfoCard: inspectorHideInfoCard,
+			startInToolbarMode,
+			startInAppendMode,
+			isAppendPicking,
+		} = useInspectorToolbarMode(elementInspector, t, inspectorFileInfo)
+
+		useEffect(() => {
+			onAppendPickingChange?.(isAppendPicking)
+		}, [isAppendPicking, onAppendPickingChange])
 
 		const { upload } = useUpload<any>({
 			url: superMagicUploadTokenService.getUploadTokenUrl,
@@ -856,6 +866,9 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				toggleDevConsole: devConsole.toggle,
 				startInspector: () => {
 					startInToolbarMode()
+				},
+				startInspectorAppend: () => {
+					startInAppendMode()
 				},
 			}),
 			[

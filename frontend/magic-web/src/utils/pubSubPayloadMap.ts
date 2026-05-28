@@ -175,8 +175,8 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Refresh_Share_List]: SuperMagicRefreshShareListArgs
 	/** 详情页刷新：无参数。 */
 	[PubSubEvents.Super_Magic_Detail_Refresh]: []
-	/** 追加建议文本到输入框末尾：传入建议文本。 */
-	[PubSubEvents.Append_Suggestion_To_Editor]: [text: string]
+	/** 追加建议内容到输入框末尾：传入文本字符串或 JSONContent。 */
+	[PubSubEvents.Append_Suggestion_To_Editor]: [content: string | import("@tiptap/core").JSONContent]
 	/** 幻灯片添加后设置编辑器内容。 */
 	[PubSubEvents.Set_Content_When_Slide_Added]: SuperMagicSetContentWhenSlideAddedArgs
 	/** 设置 demo 文本到输入框：传入字符串文本。 */
