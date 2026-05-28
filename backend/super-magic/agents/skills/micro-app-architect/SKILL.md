@@ -25,7 +25,8 @@ Every micro-app request follows this sequence:
 1. Requirement Decomposition
    ├─ What features does the user need?
    ├─ What data needs to be stored/processed?
-   └─ What interactions are required?
+   ├─ What interactions are required?
+   └─ ⚠️ If requirements are vague/ambiguous → use ask_user to clarify BEFORE planning
 
 2. Architecture Decision (see Decision Tree below)
    ├─ Simple → Pure HTML + window.Magic API
@@ -47,6 +48,16 @@ Every micro-app request follows this sequence:
 5. Delivery
    └─ Present the complete micro-app to user
 ```
+
+### When to Clarify with User (ask_user)
+
+Before diving into architecture design and code generation, **use `ask_user` to confirm with the user** when:
+- The requirement is a single vague sentence (e.g. "做一个管理系统") without specifying what to manage, what fields, what workflows
+- Key functional scope is unclear — you cannot determine the feature list or data model confidently
+- Interaction flow is ambiguous — unclear whether the user wants a simple CRUD or a complex multi-step pipeline
+- Target audience or usage scenario is not specified and would significantly affect the design
+
+**Do NOT over-ask** — if the requirement is clear enough to decompose (e.g. "做一个待办事项应用，支持添加、完成、删除"), proceed directly. Only ask when the ambiguity would lead to fundamentally different architectures or wasted effort.
 
 ---
 
