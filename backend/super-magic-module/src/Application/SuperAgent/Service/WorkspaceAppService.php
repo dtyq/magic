@@ -151,7 +151,7 @@ class WorkspaceAppService extends AbstractAppService
         // 批量获取工作区项目数量（性能优化：单次 GROUP BY 查询）
         $projectCountMap = $this->projectDomainService->getProjectCountByWorkspaceIds($workspaceIds, $dataIsolation);
 
-        // 批量获取绑定到工作区的协同项目数量（复用参与项目的组织权限过滤口径）
+        // 批量获取参与项目数量（与 participated 接口 show_collaboration=1 的 total 口径一致）
         $collaborationPaidOrganizationCodes = $this->projectMemberAppService->getUserCollaborationPaidOrganizationCodes($requestContext);
         $paidOrganizationCodes = array_unique(array_merge($collaborationPaidOrganizationCodes, [$dataIsolation->getCurrentOrganizationCode()]));
         $cooperateProjectCountMap = $this->projectMemberDomainService->countCooperateProjectsByWorkspaceIds(

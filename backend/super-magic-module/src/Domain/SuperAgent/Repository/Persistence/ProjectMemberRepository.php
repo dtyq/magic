@@ -546,9 +546,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
 
         $query = $this->buildCooperateProjectCountQuery($userId, $workspaceIds, $organizationCodes, $showHidden);
 
-        $rows = $query
-            ->selectRaw('pms.bind_workspace_id as workspace_id, COUNT(DISTINCT p.id) as cooperate_project_count')
-            ->get();
+        $rows = $query->get();
 
         return $this->buildCooperateProjectCountMap($workspaceIds, $rows);
     }
@@ -902,15 +900,60 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         ?array $organizationCodes,
         bool $showHidden
     ): QueryBuilder {
+        $ownedProjectQuery = $this->buildOwnedParticipatedProjectCountSubQuery(
+            $userId,
+            $workspaceIds,
+            $organizationCodes,
+            $showHidden
+        );
+        $collaborationProjectQuery = $this->buildBoundCollaborationProjectCountSubQuery(
+            $userId,
+            $workspaceIds,
+            $organizationCodes,
+            $showHidden
+        );
+
+        $participatedProjectQuery = $ownedProjectQuery->unionAll($collaborationProjectQuery);
+
+        return Db::table('participated_projects')
+            ->fromSub($participatedProjectQuery, 'participated_projects')
+            ->selectRaw('workspace_id, COUNT(DISTINCT project_id) as cooperate_project_count')
+            ->groupBy('workspace_id');
+    }
+
+    private function buildOwnedParticipatedProjectCountSubQuery(
+        string $userId,
+        array $workspaceIds,
+        ?array $organizationCodes,
+        bool $showHidden
+    ): QueryBuilder {
+        $query = Db::table('magic_super_agent_project as p')
+            ->join('magic_super_agent_project_members as pm', 'pm.project_id', '=', 'p.id')
+            ->selectRaw('p.workspace_id as workspace_id, p.id as project_id')
+            ->where('p.user_id', $userId)
+            ->whereIn('p.workspace_id', $workspaceIds);
+
+        $this->applyParticipatedMemberFilters($query, $userId);
+        $this->applyProjectListBaseFilters($query, $organizationCodes, $showHidden);
+
+        return $query;
+    }
+
+    private function buildBoundCollaborationProjectCountSubQuery(
+        string $userId,
+        array $workspaceIds,
+        ?array $organizationCodes,
+        bool $showHidden
+    ): QueryBuilder {
         $query = Db::table(Db::raw('magic_super_agent_project_member_settings as pms FORCE INDEX (idx_user_bind_workspace_project)'))
             ->join('magic_super_agent_project_members as pm', 'pm.project_id', '=', 'pms.project_id')
             ->join('magic_super_agent_project as p', 'p.id', '=', 'pms.project_id')
+            ->selectRaw('pms.bind_workspace_id as workspace_id, p.id as project_id')
             ->where('pms.user_id', $userId)
             ->where('pms.is_bind_workspace', 1)
             ->whereIn('pms.bind_workspace_id', $workspaceIds)
             ->where('p.user_id', '<>', $userId)
-            ->where('p.is_collaboration_enabled', 1)
-            ->groupBy('pms.bind_workspace_id');
+            ->where('p.is_collaboration_enabled', 1);
 
         $this->applyParticipatedMemberFilters($query, $userId);
         $this->applyProjectListBaseFilters($query, $organizationCodes, $showHidden);

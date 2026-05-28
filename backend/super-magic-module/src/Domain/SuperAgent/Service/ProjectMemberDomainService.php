@@ -129,7 +129,10 @@ class ProjectMemberDomainService
     }
 
     /**
-     * Batch count collaboration projects bound to workspaces.
+     * Batch count participated projects by workspace.
+     *
+     * The count uses the same semantics as participated projects with show_collaboration=1:
+     * owned projects in the workspace plus collaboration projects bound to the workspace.
      *
      * @return array<int, int> [workspace_id => count]
      */

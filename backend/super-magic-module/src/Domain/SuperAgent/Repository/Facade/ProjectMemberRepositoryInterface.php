@@ -183,7 +183,10 @@ interface ProjectMemberRepositoryInterface
     ): array;
 
     /**
-     * Batch count collaboration projects bound to workspace shortcuts.
+     * Batch count participated projects by workspace.
+     *
+     * The count uses the same semantics as participated projects with show_collaboration=1:
+     * owned projects in the workspace plus collaboration projects bound to the workspace.
      *
      * @param string $userId Current user ID
      * @param array $workspaceIds Workspace ID array
