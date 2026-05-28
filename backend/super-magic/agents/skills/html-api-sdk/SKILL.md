@@ -1,6 +1,6 @@
 ---
 name: html-api-sdk
-description: "Guide for using window.Magic.* APIs in SuperMagic HTML micro-apps (HTML 微应用). Use this skill whenever the user wants to build ANY application, system, tool, page, or interactive experience that will run as HTML in the workspace — regardless of domain or complexity. Also use when user needs to read/write workspace files from HTML, call LLM models, stream AI responses, listen for file changes, communicate with the Agent, upload/download files, create topics, send messages to agents, or select agents programmatically. Covers: file system API (fs 文件系统读写), LLM calls (llm 大模型调用 单次/流式), Agent interaction (Agent 交互), project/topic management (项目与话题管理), and agent dispatch (员工调度). Trigger phrases: 'make an app', 'build a tool', 'create a system', 'develop an application', 'create a dashboard', 'write a page', 'make an HTML app', 'build a web tool', 'develop a micro-app', 'write an interactive page', 'build a form app', 'create a chat interface', 'read workspace files in HTML', 'call LLM from HTML', 'stream AI output', 'notify Agent from HTML', '做一个应用', '做一个系统', '做一个工具', '做一个页面', '创建HTML微应用', '开发网页工具', '数据看板', '交互式页面', '读写工作区文件', '调用大模型', '流式输出', '上传下载文件', '新建话题', '选择员工'."
+description: "Complete API reference for window.Magic.* in SuperMagic HTML micro-apps (HTML 微应用). Read this skill when you need exact method signatures, parameters, return types, or usage examples for: fs (readFile/writeFile/listFiles/watchFile), llm (chat/stream/getModels), agent (getAgents/selectAgent), project (createTopicAndSend/sendMessage/uploadFiles/downloadFiles), getAppBasePath, setInputMessage, reload. Also covers tiptap JSON message format, @file and @skill mention structures, model selector UI rules, error handling patterns, and backward compatibility table. Trigger phrases: 'window.Magic API', 'readFile writeFile', 'watchFile callback', 'llm.stream', 'llm.chat', 'createTopicAndSend format', 'tiptap JSON mention', '@file mention structure', '@skill mention', 'getAppBasePath usage', 'model selector UI', 'Magic API 用法', 'fs 读写文件 API', '流式调用参数', '文件监听回调', '话题消息格式', 'mention 结构', '模型选择器'."
 ---
 
 # window.Magic API — HTML Micro-App Development Guide
@@ -11,7 +11,7 @@ This skill guides the correct usage of `window.Magic.*` APIs when developing HTM
 
 ## Important Constraints (Must Follow)
 
-1. These APIs are **only available inside HTML files opened in a SuperMagic workspace**; no external scripts need to be imported.
+1. All `window.Magic.*` APIs are **pre-injected** inside HTML files opened in a SuperMagic workspace — no script imports needed for these APIs. External libraries (CDN) are allowed when the app requires them (e.g. charting, 3D rendering, Markdown parsing).
 2. All file paths are relative to the **app root directory** (the directory containing `index.html`). **Using `../` to traverse to parent directories is forbidden**.
 3. `window.Magic.llm` tokens are managed by the host; you cannot directly obtain an `api_key` in HTML — just call the methods directly.
 4. **Inline event handlers are forbidden** (`onclick` attributes, etc.). All event bindings must use `addEventListener` in JS.
