@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { getAvatarUrl } from "@/utils/avatar"
 import { formatRelativeTime } from "@/utils/string"
 
+import { MobileListEmptyIcon } from "@/pages/superMagicMobile/components/icons/mobile-list-empty-icon"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import type { SharedWorkspaceProject, SharedWorkspaceTab } from "../types"
 
@@ -214,7 +215,11 @@ function SharedProjectsEmptyState({
 			className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 			data-testid={isSearchEmpty ? "shared-projects-search-empty" : "shared-projects-empty"}
 		>
-			<Search className="size-10 text-muted-foreground/50" />
+			{isSearchEmpty ? (
+				<Search className="size-10 text-muted-foreground/50" />
+			) : (
+				<MobileListEmptyIcon />
+			)}
 			<p className="text-[15px] font-medium leading-6 text-foreground">
 				{isSearchEmpty
 					? t("workspace.searchNoResults", { keyword })

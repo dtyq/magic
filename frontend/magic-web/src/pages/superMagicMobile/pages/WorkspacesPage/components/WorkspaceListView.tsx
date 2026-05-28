@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import {
-	Box,
 	ChevronRight,
 	Ellipsis,
 	Menu,
@@ -18,6 +17,7 @@ import { useTranslation } from "react-i18next"
 
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
+import { MobileListEmptyIcon } from "@/pages/superMagicMobile/components/icons/mobile-list-empty-icon"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { MobileShellIconButton } from "@/pages/superMagicMobile/components/MobileShell"
@@ -289,7 +289,7 @@ function WorkspaceListViewInner({
 								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="workspaces-list-empty"
 							>
-								<Box className="size-10 text-muted-foreground/40" />
+								<MobileListEmptyIcon />
 								<p className="text-sm text-muted-foreground">
 									{t("workspace.noWorkspaces")}
 								</p>
