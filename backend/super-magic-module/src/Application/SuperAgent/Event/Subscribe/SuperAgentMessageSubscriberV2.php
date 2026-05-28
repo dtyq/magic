@@ -80,16 +80,16 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
     private function handlerSuperMagicMessage(UserCallAgentEvent $userCallAgentEvent): void
     {
         try {
-            // 将本次链路（含下游沙箱创建/网关请求）的 request_id 统一到聊天消息的 magic_message_id，
+            // 将本次链路（含下游沙箱创建/网关请求）的 request_id 统一到聊天消息的 app_message_id，
             // 便于通过同一个 id 在日志中串起 聊天 → Agent 处理 → 沙箱创建 全链路。
             // 与 MagicChatWebSocketApi::relationAppMsgIdAndRequestId、AbstractSeqConsumer::setRequestId 保持一致。
-            $magicMessageId = $userCallAgentEvent->messageEntity?->getMagicMessageId();
-            if (! empty($magicMessageId)) {
-                CoContext::setRequestId($magicMessageId);
+            $appMessageId = $userCallAgentEvent->seqEntity->getAppMessageId();
+            if (! empty($appMessageId)) {
+                CoContext::setRequestId($appMessageId);
             }
 
             $this->logger->info('Received super agent message', [
-                'magic_message_id' => $magicMessageId,
+                'app_message_id' => $userCallAgentEvent->seqEntity->getAppMessageId(),
                 'seq_id' => $userCallAgentEvent->seqEntity->getId(),
                 'conversation_id' => $userCallAgentEvent->seqEntity->getConversationId(),
                 'topic_id' => $userCallAgentEvent->seqEntity->getExtra()?->getTopicId(),
@@ -218,7 +218,7 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 'error_message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'magic_message_id' => $userCallAgentEvent->messageEntity?->getMagicMessageId(),
+                'app_message_id' => $userCallAgentEvent->seqEntity->getAppMessageId(),
                 'seq_id' => $userCallAgentEvent->seqEntity->getId(),
                 'conversation_id' => $userCallAgentEvent->seqEntity->getConversationId(),
                 'topic_id' => $userCallAgentEvent->seqEntity->getExtra()?->getTopicId(),
