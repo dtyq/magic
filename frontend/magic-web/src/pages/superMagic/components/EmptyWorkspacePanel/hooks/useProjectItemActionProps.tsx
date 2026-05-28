@@ -35,11 +35,11 @@ function useProjectItemActionProps({ selectedWorkspace }: UseProjectItemActionPr
 		if (!moveProjectId || isMoveProjectLoading || !selectedWorkspace?.id) return
 		setIsMoveProjectLoading(true)
 		try {
-			await SuperMagicService.project.moveProjectAndRefresh(
-				moveProjectId,
-				workspaceId,
-				selectedWorkspace.id,
-			)
+			await SuperMagicService.project.moveProjectAndRefresh({
+				projectId: moveProjectId,
+				targetWorkspaceId: workspaceId,
+				sourceWorkspaceId: selectedWorkspace.id,
+			})
 			magicToast.success(t("project.moveProjectSuccess"))
 			setMoveProjectId(null)
 		} catch (error) {

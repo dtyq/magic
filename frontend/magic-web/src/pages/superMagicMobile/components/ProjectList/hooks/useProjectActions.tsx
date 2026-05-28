@@ -113,7 +113,7 @@ export function useProjectListActions({
 
 	/**
 	 * 统一处理普通移动与“另存为项目”的确认提交。
-	 * 这里把原型里的项目名作为可选参数透传给移动接口，后端若暂未支持会按 API_LIMITATIONS 降级。
+	 * 另存为场景将用户输入的项目名写入 move 接口的 target_project_name。
 	 */
 	const handleMoveProject = useMemoizedFn(
 		async ({ workspaceId, projectName }: { workspaceId: string; projectName?: string }) => {
@@ -132,12 +132,14 @@ export function useProjectListActions({
 			})
 			setIsMoveProjectLoading(true)
 			try {
-				await SuperMagicService.project.moveProject(
-					movedProject.id,
-					workspaceId,
+				await SuperMagicService.project.moveProject({
+					projectId: movedProject.id,
+					targetWorkspaceId: workspaceId,
 					sourceWorkspaceId,
-					projectName,
-				)
+					targetProjectName: shouldShowSaveAsProject
+						? projectName?.trim() || undefined
+						: undefined,
+				})
 				if (shouldExitAfterMove) {
 					await applyProjectDetailExitNavigation({
 						workspaceId,

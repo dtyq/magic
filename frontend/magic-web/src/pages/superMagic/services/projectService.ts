@@ -49,6 +49,17 @@ export interface HandleCreateProjectParams {
 	projectName?: string
 }
 
+/** Parameters for moving a project to another workspace (maps to projects/move API). */
+export interface MoveProjectParams {
+	projectId: string
+	targetWorkspaceId: string
+	sourceWorkspaceId: string
+	/** Optional; resolved from workspace list when omitted. */
+	targetWorkspaceName?: string
+	/** Optional; used by save-as-project flow as API `target_project_name`. */
+	targetProjectName?: string
+}
+
 // Request deduplication key generator
 type RequestKey = string
 
@@ -381,19 +392,15 @@ class ProjectService {
 	}
 
 	/**
-	 * Move project to new workspace
-	 * @param projectId Project ID to move
-	 * @param targetWorkspaceId Target workspace ID
-	 * @param sourceWorkspaceId Source workspace ID (for refreshing project list)
-	 * @returns Success status
+	 * Move project to new workspace; optional targetProjectName is sent as `target_project_name`.
 	 */
-	moveProject = async (
-		projectId: string,
-		targetWorkspaceId: string,
-		sourceWorkspaceId: string,
-		targetWorkspaceName?: string,
-		targetProjectName?: string,
-	): Promise<boolean> => {
+	moveProject = async ({
+		projectId,
+		targetWorkspaceId,
+		sourceWorkspaceId,
+		targetWorkspaceName,
+		targetProjectName,
+	}: MoveProjectParams): Promise<boolean> => {
 		const operationId = `move_${projectId}_${Date.now()}`
 		const resolvedTargetWorkspaceName =
 			targetWorkspaceName?.trim() ||
@@ -443,19 +450,11 @@ class ProjectService {
 	}
 
 	/**
-	 * Move project to new workspace and refresh project list
-	 * @param projectId Project ID to move
-	 * @param targetWorkspaceId Target workspace ID
-	 * @param sourceWorkspaceId Source workspace ID (for refreshing project list)
-	 * @returns Promise that resolves when operation completes
+	 * Move project to new workspace and refresh source/target workspace project lists.
 	 */
-	moveProjectAndRefresh = async (
-		projectId: string,
-		targetWorkspaceId: string,
-		sourceWorkspaceId: string,
-		targetWorkspaceName?: string,
-	): Promise<void> => {
-		await this.moveProject(projectId, targetWorkspaceId, sourceWorkspaceId, targetWorkspaceName)
+	moveProjectAndRefresh = async (params: MoveProjectParams): Promise<void> => {
+		const { sourceWorkspaceId, targetWorkspaceId } = params
+		await this.moveProject(params)
 
 		await Promise.all([
 			this.fetchProjects({
