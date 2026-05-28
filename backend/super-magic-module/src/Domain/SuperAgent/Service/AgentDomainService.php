@@ -1424,6 +1424,20 @@ class AgentDomainService
             return null;
         }
 
+        // Optional per-user allowlist kill switch. When set (non-empty), only
+        // the listed user ids are routed through the warm pool; everyone else
+        // falls back to the cold create path. Empty list means no restriction.
+        $allowedUserIds = (array) config('super-magic.warm_pool.allowed_user_ids', []);
+        if (! empty($allowedUserIds)
+            && ! in_array($dataIsolation->getCurrentUserId(), $allowedUserIds, true)
+        ) {
+            $this->logger->info('[Sandbox][WarmPath] Skipping warm pool: user not in allowlist', [
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'topic_id' => $topicEntity->getId(),
+            ]);
+            return null;
+        }
+
         // If the caller pinned a specific sandbox id (e.g. reconnect into an
         // already-existing pod) we must respect that — the warm pool only
         // serves the "create me anything that runs the latest image" case.
