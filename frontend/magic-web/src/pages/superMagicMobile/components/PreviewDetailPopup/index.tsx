@@ -448,7 +448,7 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 					onMaskClick: () => {
 						setVisible(false)
 					},
-					className: "h-[90%]",
+					className: "h-[100%]",
 				}}
 			>
 				<div className={cx(styles.body)}>

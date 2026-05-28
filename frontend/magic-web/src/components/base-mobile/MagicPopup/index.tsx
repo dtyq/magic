@@ -125,7 +125,7 @@ const MagicPopup = memo(
 							"z-popup",
 							"mt-safe-top",
 							withSafeBottom && "pb-safe-bottom",
-							"max-h-[calc(100%_-_var(--safe-area-inset-top)_-_var(--safe-area-inset-bottom)-44px)]",
+							"max-h-[calc(100%_-_var(--safe-area-inset-top))]",
 							className,
 						)}
 						style={{
