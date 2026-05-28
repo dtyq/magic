@@ -108,18 +108,18 @@ The HTML layer has access to `window.Magic.*` APIs. Here is a quick categorizati
 ## HTML Generation Constraints (Must Follow)
 
 1. **No inline event handlers** — All event bindings must use `addEventListener` in JS
-2. **No external script imports** — `window.Magic.*` APIs are injected by the host environment
-3. **File paths are relative to app root** (the directory containing `index.html`)
-4. **Using `../` to traverse parent directories is forbidden**
-5. **`model` field is always required** — default to `"auto"` when no model is selected
-6. **Do NOT set `maxTokens` by default** — only specify when explicitly needed
-7. **Prefer tiptap JSON for messages containing file paths** — use `@file` mention nodes in `createTopicAndSend`/`sendMessage`/`setInputMessage` when referencing files
-8. **Simple apps may use a single HTML file** — but once complexity grows (multiple features, reusable components, data templates), split into proper directory structure immediately
-9. **Use semantic HTML** — proper structure, accessibility considerations
-10. **Responsive design** — apps should work at various viewport sizes
-11. **Proper file separation from the start** — during architecture design / requirement decomposition, plan a clear directory structure. Do NOT cram all content into a single file. Separate concerns: CSS into dedicated `<style>` or external files, JS modules by feature, data templates into `data/`, configs into their own files. The directory structure must be decided in the Design Phase, not as an afterthought.
-12. **Provide agent selector + model selector UI when dispatching skills** — when the app triggers companion skills via `createTopicAndSend`, provide UI for users to select agent (员工) and model. Defaults: general mode (不选员工) + model `"auto"`. Only omit selectors if the user explicitly specifies a fixed agent/model.
-13. **Use `getAppBasePath()` for workspace-relative paths in mentions** — `window.Magic.fs.*` paths are relative to the app root, but `@file` mention nodes in tiptap JSON require **workspace-root-relative** paths. Always call `const basePath = await window.Magic.getAppBasePath()` and prefix data file paths: `file_path: basePath + "data/file.json"`. The `.magic/` directory is already at workspace root, so `.magic/` paths need no prefix.
+2. **File paths are relative to app root** (the directory containing `index.html`)
+3. **Using `../` to traverse parent directories is forbidden**
+4. **`model` field is always required** — default to `"auto"` when no model is selected
+5. **Do NOT set `maxTokens` by default** — only specify when explicitly needed
+6. **Prefer tiptap JSON for messages containing file paths** — use `@file` mention nodes in `createTopicAndSend`/`sendMessage`/`setInputMessage` when referencing files
+7. **Simple apps may use a single HTML file** — but once complexity grows (multiple features, reusable components, data templates), split into proper directory structure immediately
+8. **Use semantic HTML** — proper structure, accessibility considerations
+9. **Responsive design** — apps should work at various viewport sizes
+10. **Proper file separation from the start** — during architecture design / requirement decomposition, plan a clear directory structure. Do NOT cram all content into a single file. Separate concerns: CSS into dedicated `<style>` or external files, JS modules by feature, data templates into `data/`, configs into their own files. The directory structure must be decided in the Design Phase, not as an afterthought.
+11. **Provide agent selector + model selector UI when dispatching skills** — when the app triggers companion skills via `createTopicAndSend`, provide UI for users to select agent (员工) and model. Defaults: general mode (不选员工) + model `"auto"`. Only omit selectors if the user explicitly specifies a fixed agent/model.
+12. **Use `getAppBasePath()` for workspace-relative paths in mentions** — `window.Magic.fs.*` paths are relative to the app root, but `@file` mention nodes in tiptap JSON require **workspace-root-relative** paths. Always call `const basePath = await window.Magic.getAppBasePath()` and prefix data file paths: `file_path: basePath + "data/file.json"`. The `.magic/` directory is already at workspace root, so `.magic/` paths need no prefix.
+13. **Data storage: files first, localStorage only for preferences** — app data (records, state, user content) must be stored in workspace files via `window.Magic.fs` (JSON/MD). `localStorage` is only for UI preferences (theme, language, collapsed state, etc.) that don't need to be shared or persisted across workspaces.
 14. **File-based AI analysis: prefer topic + skill pattern for complex tasks** — when the app requires users to upload/select files and perform AI analysis on file contents, evaluate task complexity to choose the right approach:
     - **Simple tasks** (short text extraction, single-field parsing, brief summarization where file content fits in a few thousand tokens): acceptable to `readFile` + `window.Magic.llm.chat/stream` directly in HTML.
     - **Complex tasks** (long documents, multi-step analysis, cross-file reasoning, structured report generation, tasks needing tool use): strongly prefer the topic + skill pattern — (1) save file to workspace via `writeFile`/`uploadFiles`, (2) `createTopicAndSend` with `@file` mentions + `@skill` or `@file .magic/SKILL.md`. The agent has longer context, file parsing tools, and can orchestrate multi-step workflows. HTML app handles UI only (file picker, progress, result display) and watches output via `watchFile`.
