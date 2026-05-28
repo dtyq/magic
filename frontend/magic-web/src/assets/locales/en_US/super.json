@@ -1390,6 +1390,118 @@
 			"openInNewWindowHint": "Open app in a new window",
 			"retry": "Reload"
 		},
+		"emptyState": {
+			"variants": {
+				"generic": {
+					"title": "Nothing here yet",
+					"description": "Content will appear here when it is available."
+				},
+				"search": {
+					"title": "No results",
+					"description": "Try a different keyword or adjust your filters."
+				},
+				"chat": {
+					"title": "No conversations yet",
+					"description": "Start a new chat from the button in the header."
+				},
+				"workspace": {
+					"title": "No workspaces yet",
+					"description": "Create a workspace to organize your projects."
+				},
+				"project": {
+					"title": "No projects yet",
+					"description": "Create a project to start collaborating."
+				},
+				"sharedProject": {
+					"title": "No shared projects",
+					"description": "Nothing matches the current filters."
+				},
+				"topic": {
+					"title": "No topics yet",
+					"description": "Start a new topic from the composer below."
+				},
+				"crew": {
+					"title": "No crew here",
+					"description": "Change filters or add agents with the plus button."
+				},
+				"orgMembers": {
+					"title": "No people found",
+					"description": "Try another name or clear the search."
+				},
+				"orgDept": {
+					"title": "Nothing in this department",
+					"description": "There are no sub-departments or members here."
+				},
+				"files": {
+					"title": "No files",
+					"description": "Upload or create files to see them here."
+				},
+				"chatFilesSearch": {
+					"title": "No matching files",
+					"description": "Try a different search term."
+				},
+				"chatFilesFolder": {
+					"title": "This folder is empty",
+					"description": "Add files or folders to get started."
+				},
+				"plugin": {
+					"title": "No plugins found",
+					"description": "Try another search keyword."
+				},
+				"model": {
+					"title": "No models found",
+					"description": "Try another search keyword."
+				},
+				"skill": {
+					"title": "No skills found",
+					"description": "Try another search keyword."
+				},
+				"mention": {
+					"title": "No matches",
+					"description": "Nothing in this category matches your search."
+				},
+				"mentionSelected": {
+					"title": "No items selected yet",
+					"description": "Go back and pick people, files, or tools to mention."
+				},
+				"shareLink": {
+					"title": "No share links yet",
+					"description": "Go back to create your first share link."
+				},
+				"collaborator": {
+					"title": "No collaborators yet",
+					"description": "Tap Add to invite people or departments."
+				},
+				"apps": {
+					"title": "No apps available",
+					"description": "Apps will appear here once enabled or you have access."
+				},
+				"trash": {
+					"title": "Trash is empty",
+					"description": "Deleted items will show up here for 180 days."
+				},
+				"loginDevice": {
+					"title": "No other active devices",
+					"description": "You're only signed in on this device."
+				},
+				"loginActivity": {
+					"title": "No login activity",
+					"description": "No recent login attempts."
+				},
+				"feedback": {
+					"title": "No feedback yet",
+					"description": "Have a question or suggestion? Tap + to send us a message."
+				},
+				"recording": {
+					"title": "No recordings yet",
+					"description": "Tap + to start a new recording or import a file."
+				},
+				"recordingGroup": {
+					"title": "Nothing in this group",
+					"description": "Move recordings here from the more menu."
+				}
+			}
+		},
 		"my": {
 			"aboutUs": "About Us",
 			"available": "Available",

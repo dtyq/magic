@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react"
-import { Users } from "lucide-react"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { AgentType, type CrewItem } from "@/pages/superMagic/pages/Workspace/types"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/shadcn-ui/empty"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 
 import CrewListItem from "./CrewListItem"
 
@@ -112,16 +111,7 @@ export default function CrewSelectModal({
 					className="no-scrollbar h-[520px] overflow-y-auto px-4 pb-4"
 				>
 					{filteredCrews.length === 0 ? (
-						<Empty className="h-full gap-2 border-0 text-center">
-							<EmptyMedia variant="icon">
-								<Users />
-							</EmptyMedia>
-							<EmptyTitle className="text-sm text-muted-foreground">
-								{activeTab === TabType.Official
-									? t("crewSelectModal.empty.official")
-									: t("crewSelectModal.empty.my")}
-							</EmptyTitle>
-						</Empty>
+						<DataEmptyState variant="crew" compact className="h-full py-8" />
 					) : (
 						<div className="flex flex-col gap-3">
 							{filteredCrews.map((crew) => {

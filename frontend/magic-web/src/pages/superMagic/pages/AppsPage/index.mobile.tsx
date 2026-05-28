@@ -5,6 +5,7 @@ import { userStore } from "@/models/user"
 import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell"
 import { Navigate } from "@/routes/components/Navigate"
 import { RouteName } from "@/routes/constants"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import { AppsPageView } from "./components/AppsPageView"
 import { useAppsPage } from "./hooks/useAppsPage"
 
@@ -32,6 +33,7 @@ const AppsPageMobilePanel = observer(function AppsPageMobilePanel() {
 			errorDescription={t("mobile.apps.errorDescription")}
 			emptyTitle={t("mobile.apps.emptyTitle")}
 			emptyDescription={t("mobile.apps.emptyDescription")}
+			emptyContent={<DataEmptyState variant="apps" className="py-12" />}
 			retryLabel={t("mobile.apps.retry")}
 			loading={loading}
 			hasError={error != null}

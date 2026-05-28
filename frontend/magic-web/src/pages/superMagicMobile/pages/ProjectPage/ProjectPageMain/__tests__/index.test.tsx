@@ -15,7 +15,13 @@ const { mockNavigate, mockSetSelectedTopic, topicStoreMock } = vi.hoisted(() => 
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string) => key,
+		t: (key: string) => {
+			if (key === "mobile.emptyState.variants.topic.title") return "暂无话题"
+			if (key === "mobile.emptyState.variants.topic.description") {
+				return "在下方输入区创建新话题。"
+			}
+			return key
+		},
 		i18n: { language: "zh_CN" },
 	}),
 }))
@@ -113,8 +119,8 @@ describe("ProjectPageMain", () => {
 		)
 
 		const emptyState = screen.getByTestId("project-topics-empty-state")
-		expect(emptyState).toHaveTextContent("home.sloganSubtitle")
-		expect(emptyState).toHaveTextContent("home.sloganTitle")
+		expect(emptyState).toHaveTextContent("暂无话题")
+		expect(emptyState).toHaveTextContent("在下方输入区创建新话题。")
 	})
 
 	it("renders pin swipe action and calls onTopicPin with the current topic", () => {

@@ -20,6 +20,14 @@ vi.mock("react-i18next", async (importOriginal) => {
 				if (key === "workspace.sharedWorkspace") return "共享工作区"
 				if (key === "workspace.collaborationProjectsDescV2") return "他人共享的项目"
 				if (key === "workspace.noWorkspaces") return "暂无工作区"
+				if (key === "mobile.emptyState.variants.workspace.title") return "暂无工作空间"
+				if (key === "mobile.emptyState.variants.workspace.description") {
+					return "新建工作空间以整理你的项目。"
+				}
+				if (key === "mobile.emptyState.variants.search.title") return "没有结果"
+				if (key === "mobile.emptyState.variants.search.description") {
+					return "请尝试调整搜索词或筛选条件。"
+				}
 				if (key === "workspace.pinWorkspaceSuccess") return "工作区已置顶"
 				if (key === "workspace.unpinWorkspaceSuccess") return "工作区已取消置顶"
 				if (key === "workspace.searchNoResults") {
@@ -88,7 +96,6 @@ const defaultProps = {
 	workspaces: [],
 	isLoading: false,
 	searchValue: "",
-	debouncedSearchValue: "",
 	isWorkspaceEmpty: true,
 	isSearchEmpty: false,
 	hasMore: false,
@@ -112,14 +119,12 @@ describe("WorkspaceListView", () => {
 		expect(screen.queryByPlaceholderText("搜索工作区")).toBeNull()
 	})
 
-	it("renders the generic list empty icon for the no-workspaces state", () => {
+	it("renders prototype-aligned empty state for the no-workspaces state", () => {
 		render(<WorkspaceListView {...defaultProps} />)
 
-		expect(
-			screen.getByTestId("workspaces-list-empty").querySelector(
-				'[data-testid="mobile-list-empty-icon"]',
-			),
-		).not.toBeNull()
+		const emptyState = screen.getByTestId("workspaces-list-empty")
+		expect(emptyState).toHaveTextContent("暂无工作空间")
+		expect(emptyState).toHaveTextContent("新建工作空间以整理你的项目。")
 	})
 
 	it("renders pin swipe action and pinned badge for pinned workspaces", () => {

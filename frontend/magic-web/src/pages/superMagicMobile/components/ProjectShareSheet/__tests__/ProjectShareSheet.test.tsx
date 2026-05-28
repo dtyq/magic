@@ -117,18 +117,26 @@ vi.mock("../hooks/useProjectShareSheet", () => ({
 	}),
 }))
 
-vi.mock("react-i18next", () => ({
-	useTranslation: () => ({
-		t: (key: string) => {
-			const labels: Record<string, string> = {
-				"projectShare.empty": "暂无分享链接",
-				"projectShare.manageTitle": "分享管理",
-				"common.close": "关闭",
-			}
-			return labels[key] || key
-		},
-	}),
-}))
+vi.mock("react-i18next", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("react-i18next")>()
+
+	return {
+		...actual,
+		useTranslation: () => ({
+			t: (key: string) => {
+				const labels: Record<string, string> = {
+					"projectShare.empty": "暂无分享链接",
+					"mobile.emptyState.variants.shareLink.title": "还没有分享链接",
+					"mobile.emptyState.variants.shareLink.description":
+						"返回上一页创建第一个分享链接。",
+					"projectShare.manageTitle": "分享管理",
+					"common.close": "关闭",
+				}
+				return labels[key] || key
+			},
+		}),
+	}
+})
 
 function renderProjectShareSheet() {
 	return render(
@@ -175,7 +183,7 @@ describe("ProjectShareSheet", () => {
 			"#F7F7F6",
 		)
 		expect(screen.getByTestId("project-share-sheet-manage-empty")).toHaveTextContent(
-			"暂无分享链接",
+			"还没有分享链接",
 		)
 	})
 })

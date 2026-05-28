@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useId, useState } from "react"
-import { Loader2, Menu, MessageCirclePlus, Search } from "lucide-react"
+import { Loader2, Menu, MessageCirclePlus } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { cn } from "@/lib/utils"
-import { MobileListEmptyIcon } from "@/pages/superMagicMobile/components/icons/mobile-list-empty-icon"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { ChatConversationListItem } from "./ChatConversationListItem"
 import type { ChatConversationListItem as ChatConversationListItemData } from "../hooks/useChatConversationList"
@@ -12,7 +12,6 @@ interface ChatConversationListViewProps {
 	items: ChatConversationListItemData[]
 	isLoading: boolean
 	searchValue: string
-	debouncedSearchValue: string
 	isEmpty: boolean
 	isSearchEmpty: boolean
 	/** 是否还有更多分页数据，传给 InfiniteScroll */
@@ -31,8 +30,6 @@ interface ChatConversationListViewProps {
 	title: string
 	searchPlaceholder: string
 	clearSearchAriaLabel: string
-	emptyTitle: string
-	emptyDescription: string
 	newChatAriaLabel: string
 	menuAriaLabel: string
 }
@@ -44,7 +41,6 @@ export function ChatConversationListView({
 	items,
 	isLoading,
 	searchValue,
-	debouncedSearchValue,
 	isEmpty,
 	isSearchEmpty,
 	hasMore,
@@ -60,8 +56,6 @@ export function ChatConversationListView({
 	title,
 	searchPlaceholder,
 	clearSearchAriaLabel,
-	emptyTitle,
-	emptyDescription,
 	newChatAriaLabel,
 	menuAriaLabel,
 }: ChatConversationListViewProps) {
@@ -163,30 +157,19 @@ export function ChatConversationListView({
 						) : null}
 
 						{!showInitialLoading && isEmpty ? (
-							<div
-								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
-								data-testid="mobile-chats-page-empty"
-							>
-								<MobileListEmptyIcon />
-								<p className="text-[16px] font-semibold leading-6 text-foreground">
-									{emptyTitle}
-								</p>
-								<p className="text-sm leading-5 text-muted-foreground">
-									{emptyDescription}
-								</p>
-							</div>
+							<DataEmptyState
+								variant="chat"
+								className="min-h-0 flex-1 py-12"
+								testId="mobile-chats-page-empty"
+							/>
 						) : null}
 
 						{!showInitialLoading && isSearchEmpty ? (
-							<div
-								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
-								data-testid="mobile-chats-page-search-empty"
-							>
-								<Search className="size-10 text-muted-foreground/50" />
-								<p className="text-[16px] font-semibold leading-6 text-foreground">
-									{`"${debouncedSearchValue}"`}
-								</p>
-							</div>
+							<DataEmptyState
+								variant="search"
+								className="min-h-0 flex-1 py-12"
+								testId="mobile-chats-page-search-empty"
+							/>
 						) : null}
 
 						{!showInitialLoading && !isEmpty && !isSearchEmpty

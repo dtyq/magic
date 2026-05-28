@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import type { ShareScopeInfo } from "@/pages/superMagic/components/ShareManagement/types"
 import { formatOrganizationShareScopeSummary } from "@/pages/superMagic/components/ShareManagement/utils/shareScopeSummary"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
@@ -81,10 +82,10 @@ export default function ProjectShareManageView({ controller }: ProjectShareManag
 	if (controller.filteredShareItems.length === 0) {
 		return (
 			<div
-				className="min-h-70 flex items-center justify-center text-sm text-muted-foreground"
+				className="min-h-70 flex items-center justify-center"
 				data-testid="project-share-sheet-manage-empty"
 			>
-				{t("projectShare.empty")}
+				<DataEmptyState variant="shareLink" compact className="py-8" />
 			</div>
 		)
 	}

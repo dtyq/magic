@@ -13,7 +13,6 @@ const SharedWorkspacePagePanel = observer(function SharedWorkspacePagePanel() {
 		tab,
 		searchValue,
 		setSearchValue,
-		debouncedSearchValue,
 		projects,
 		isLoading,
 		isEmpty,
@@ -45,7 +44,6 @@ const SharedWorkspacePagePanel = observer(function SharedWorkspacePagePanel() {
 				isEmpty={isEmpty}
 				isSearchEmpty={isSearchEmpty}
 				searchValue={searchValue}
-				debouncedSearchValue={debouncedSearchValue}
 				canShowFilter={canShowFilter}
 				activeFilterCount={activeFilterCount}
 				hasMore={hasMore}

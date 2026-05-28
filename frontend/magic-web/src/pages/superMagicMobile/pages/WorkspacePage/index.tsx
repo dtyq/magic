@@ -16,7 +16,6 @@ const WorkspacePagePanel = observer(function WorkspacePagePanel() {
 		isLoading,
 		searchValue,
 		setSearchValue,
-		debouncedSearchValue,
 		projectTimeLabels,
 		createProjectSheetOpen,
 		moreSheetOpen,
@@ -52,7 +51,6 @@ const WorkspacePagePanel = observer(function WorkspacePagePanel() {
 				projects={filteredProjects}
 				isLoading={isLoading}
 				searchValue={searchValue}
-				debouncedSearchValue={debouncedSearchValue}
 				setSearchValue={setSearchValue}
 				projectTimeLabels={projectTimeLabels}
 				isProjectEmpty={isProjectEmpty}

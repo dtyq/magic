@@ -199,6 +199,13 @@
 			"description": "Are you sure you want to dismiss this Digital Crew member? You can rehire them later.",
 			"title": "Dismiss \"{{name}}\""
 		},
+		"dismissSheet": {
+			"cancelAria": "Cancel",
+			"confirmAria": "Confirm dismiss",
+			"crewLabel": "Crew",
+			"description": "You can re-hire {{name}} anytime in the Crew Market.",
+			"title": "Dismiss this employee"
+		},
 		"edit": "Edit",
 		"empty": "No crew yet. Create your first Crew now.",
 		"filterSheet": {

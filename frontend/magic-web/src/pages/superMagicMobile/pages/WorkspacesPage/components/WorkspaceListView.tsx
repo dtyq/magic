@@ -7,7 +7,6 @@ import {
 	Pin,
 	PinOff,
 	Plus,
-	Search,
 	Share2,
 	Loader,
 	Trash2,
@@ -18,7 +17,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
-import { MobileListEmptyIcon } from "@/pages/superMagicMobile/components/icons/mobile-list-empty-icon"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { MobileShellIconButton } from "@/pages/superMagicMobile/components/MobileShell"
@@ -146,7 +145,6 @@ interface WorkspaceListViewProps {
 	workspaces: Workspace[]
 	isLoading: boolean
 	searchValue: string
-	debouncedSearchValue: string
 	isWorkspaceEmpty: boolean
 	isSearchEmpty: boolean
 	/** 是否还有更多分页数据，传给 InfiniteScroll */
@@ -172,7 +170,6 @@ function WorkspaceListViewInner({
 	workspaces,
 	isLoading,
 	searchValue,
-	debouncedSearchValue,
 	isWorkspaceEmpty,
 	isSearchEmpty,
 	hasMore,
@@ -253,7 +250,8 @@ function WorkspaceListViewInner({
 					showSuccessMessage={false}
 					containerClassName={cn(
 						"relative min-h-0 flex-1",
-						shouldStretchPullToRefresh && cn("!overflow-hidden", pullToRefreshStretchClassName),
+						shouldStretchPullToRefresh &&
+							cn("!overflow-hidden", pullToRefreshStretchClassName),
 					)}
 				>
 					<div
@@ -294,33 +292,21 @@ function WorkspaceListViewInner({
 							</div>
 						)}
 
-						{/* Empty state */}
-						{isWorkspaceEmpty && (
-							<div
-								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
-								data-testid="workspaces-list-empty"
-							>
-								<MobileListEmptyIcon />
-								<p className="text-sm text-muted-foreground">
-									{t("workspace.noWorkspaces")}
-								</p>
-							</div>
-						)}
+						{isWorkspaceEmpty ? (
+							<DataEmptyState
+								variant="workspace"
+								className="min-h-0 flex-1 py-12"
+								testId="workspaces-list-empty"
+							/>
+						) : null}
 
-						{/* Search empty state */}
-						{isSearchEmpty && (
-							<div
-								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
-								data-testid="workspaces-list-search-empty"
-							>
-								<Search className="size-10 text-muted-foreground/40" />
-								<p className="text-sm text-muted-foreground">
-									{t("workspace.searchNoResults", {
-										keyword: debouncedSearchValue,
-									})}
-								</p>
-							</div>
-						)}
+						{isSearchEmpty ? (
+							<DataEmptyState
+								variant="search"
+								className="min-h-0 flex-1 py-12"
+								testId="workspaces-list-search-empty"
+							/>
+						) : null}
 
 						{/* Workspace list */}
 						{!isWorkspaceEmpty && !isSearchEmpty

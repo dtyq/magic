@@ -26,12 +26,9 @@ vi.mock("react-i18next", async (importOriginal) => {
 					return `已共享给 ${options?.count ?? 0} 人`
 				}
 				if (key === "sharedProjects.searchPlaceholder") return "搜索"
-				if (key === "sharedProjects.emptyTitle") return "暂无共享项目"
-				if (key === "sharedProjects.emptySearchDescription") return "未找到结果"
-				if (key === "sharedProjects.emptyDescriptionSharedWithMe") return "empty-with-me"
-				if (key === "sharedProjects.emptyDescriptionSharedByMe") return "empty-by-me"
-				if (key === "workspace.searchNoResults") {
-					return `未找到 ${options?.keyword ?? ""}`.trim()
+				if (key === "mobile.emptyState.variants.sharedProject.title") return "暂无共享项目"
+				if (key === "mobile.emptyState.variants.sharedProject.description") {
+					return "当前筛选条件下没有匹配项。"
 				}
 
 				return key
@@ -75,7 +72,6 @@ const defaultProps = {
 	isEmpty: false,
 	isSearchEmpty: false,
 	searchValue: "",
-	debouncedSearchValue: "",
 	canShowFilter: true,
 	activeFilterCount: 0,
 	hasMore: false,
@@ -158,26 +154,20 @@ describe("SharedProjectsView", () => {
 		)
 	})
 
-	it("renders the generic list empty icon when there are no shared projects", () => {
+	it("renders prototype-aligned empty state when there are no shared projects", () => {
 		render(<SharedProjectsView {...defaultProps} isEmpty />)
 
-		expect(
-			screen.getByTestId("shared-projects-empty").querySelector(
-				'[data-testid="mobile-list-empty-icon"]',
-			),
-		).not.toBeNull()
+		const emptyState = screen.getByTestId("shared-projects-empty")
+		expect(emptyState).toHaveTextContent("暂无共享项目")
+		expect(emptyState).toHaveTextContent("当前筛选条件下没有匹配项。")
 	})
 
-	it("does not render the generic list empty icon for search-empty state", () => {
-		render(
-			<SharedProjectsView
-				{...defaultProps}
-				isSearchEmpty
-				debouncedSearchValue="missing"
-			/>,
-		)
+	it("uses the same shared-project empty copy for search-empty state", () => {
+		render(<SharedProjectsView {...defaultProps} isSearchEmpty />)
 
-		expect(screen.queryByTestId("mobile-list-empty-icon")).toBeNull()
+		const emptyState = screen.getByTestId("shared-projects-search-empty")
+		expect(emptyState).toHaveTextContent("暂无共享项目")
+		expect(emptyState).toHaveTextContent("当前筛选条件下没有匹配项。")
 	})
 
 	it("renders shared-member count, topic count and fallback time for shared-by-me rows", () => {

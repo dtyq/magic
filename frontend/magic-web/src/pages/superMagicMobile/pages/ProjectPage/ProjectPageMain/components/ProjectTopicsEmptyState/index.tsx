@@ -1,20 +1,20 @@
 import { memo } from "react"
 import { cn } from "@/lib/utils"
-import MobileBrandHero from "@/pages/superMagicMobile/components/MobileBrandHero"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 
 interface ProjectTopicsEmptyStateProps {
 	className?: string
 }
 
 /**
- * 话题空态与移动端对话空态复用同一品牌欢迎区，避免首页/对话/话题三处长期分叉。
+ * Topic list empty state aligned with prototype: icon, title, and composer hint (not brand hero).
  */
 function ProjectTopicsEmptyState({ className }: ProjectTopicsEmptyStateProps) {
 	return (
-		<MobileBrandHero
-			className={cn("px-6", className)}
-			imageClassName="size-[76px] rounded-[26px]"
-			dataTestId="project-topics-empty-state"
+		<DataEmptyState
+			variant="topic"
+			className={cn("flex-1 px-6", className)}
+			testId="project-topics-empty-state"
 		/>
 	)
 }

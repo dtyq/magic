@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, ListFilter, Search, Users } from "lucide-react"
+import { ChevronLeft, ChevronRight, ListFilter, Users } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { getAvatarUrl } from "@/utils/avatar"
 import { formatRelativeTime } from "@/utils/string"
 
-import { MobileListEmptyIcon } from "@/pages/superMagicMobile/components/icons/mobile-list-empty-icon"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import type { SharedWorkspaceProject, SharedWorkspaceTab } from "../types"
 
@@ -20,7 +20,6 @@ interface SharedProjectsViewProps {
 	isEmpty: boolean
 	isSearchEmpty: boolean
 	searchValue: string
-	debouncedSearchValue: string
 	canShowFilter: boolean
 	activeFilterCount: number
 	/** 是否还有更多分页数据，传给 InfiniteScroll */
@@ -192,47 +191,6 @@ function SharedProjectSkeletonList() {
 }
 
 /**
- * 空态根据搜索/筛选状态切换文案，避免用户误以为没有任何共享项目。
- */
-function SharedProjectsEmptyState({
-	isSearchEmpty,
-	keyword,
-	tab,
-}: {
-	isSearchEmpty: boolean
-	keyword: string
-	tab: SharedWorkspaceTab
-}) {
-	const { t } = useTranslation("super")
-
-	const emptyDescription =
-		tab === "sharedWithMe"
-			? t("sharedProjects.emptyDescriptionSharedWithMe")
-			: t("sharedProjects.emptyDescriptionSharedByMe")
-
-	return (
-		<div
-			className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
-			data-testid={isSearchEmpty ? "shared-projects-search-empty" : "shared-projects-empty"}
-		>
-			{isSearchEmpty ? (
-				<Search className="size-10 text-muted-foreground/50" />
-			) : (
-				<MobileListEmptyIcon />
-			)}
-			<p className="text-[15px] font-medium leading-6 text-foreground">
-				{isSearchEmpty
-					? t("workspace.searchNoResults", { keyword })
-					: t("sharedProjects.emptyTitle")}
-			</p>
-			<p className="max-w-[260px] text-sm leading-5 text-muted-foreground">
-				{isSearchEmpty ? t("sharedProjects.emptySearchDescription") : emptyDescription}
-			</p>
-		</div>
-	)
-}
-
-/**
  * 共享项目页展示层，承接新 UI 的头部、双 Tab、列表、底部搜索与筛选入口。
  */
 export function SharedProjectsView({
@@ -242,7 +200,6 @@ export function SharedProjectsView({
 	isEmpty,
 	isSearchEmpty,
 	searchValue,
-	debouncedSearchValue,
 	canShowFilter,
 	activeFilterCount,
 	hasMore,
@@ -367,7 +324,8 @@ export function SharedProjectsView({
 					showSuccessMessage={false}
 					containerClassName={cn(
 						"relative min-h-0 flex-1",
-						shouldStretchPullToRefresh && cn("!overflow-hidden", pullToRefreshStretchClassName),
+						shouldStretchPullToRefresh &&
+							cn("!overflow-hidden", pullToRefreshStretchClassName),
 					)}
 				>
 					<div
@@ -377,11 +335,14 @@ export function SharedProjectsView({
 						{isLoading && projects.length === 0 ? <SharedProjectSkeletonList /> : null}
 
 						{isEmpty || isSearchEmpty ? (
-							/* 顶部是固定头部+Tab，底部有搜索栏，使用视口比例 mt 让空态更接近可视内容区的视觉中心。 */
-							<SharedProjectsEmptyState
-								isSearchEmpty={isSearchEmpty}
-								keyword={debouncedSearchValue}
-								tab={tab}
+							<DataEmptyState
+								variant="sharedProject"
+								className="min-h-0 flex-1 py-12"
+								testId={
+									isSearchEmpty
+										? "shared-projects-search-empty"
+										: "shared-projects-empty"
+								}
 							/>
 						) : null}
 

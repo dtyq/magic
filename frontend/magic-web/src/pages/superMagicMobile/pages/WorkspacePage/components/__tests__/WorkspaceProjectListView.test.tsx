@@ -25,6 +25,14 @@ vi.mock("react-i18next", async (importOriginal) => {
 				if (key === "project.searchNoResults") {
 					return `未找到 ${options?.keyword || ""}`.trim()
 				}
+				if (key === "mobile.emptyState.variants.project.title") return "暂无项目"
+				if (key === "mobile.emptyState.variants.project.description") {
+					return "创建一个项目开始协作。"
+				}
+				if (key === "mobile.emptyState.variants.search.title") return "没有结果"
+				if (key === "mobile.emptyState.variants.search.description") {
+					return "请尝试调整搜索词或筛选条件。"
+				}
 
 				return key
 			},
@@ -62,7 +70,6 @@ function renderWorkspaceProjectListView(
 		projects: [],
 		isLoading: false,
 		searchValue: "",
-		debouncedSearchValue: "",
 		setSearchValue: vi.fn(),
 		projectTimeLabels: {},
 		isProjectEmpty: true,
@@ -116,21 +123,18 @@ describe("WorkspaceProjectListView", () => {
 		expect(emptyState.className).toContain("min-h-0")
 	})
 
-	it("renders the generic list empty icon for the no-projects state", () => {
+	it("renders prototype-aligned empty state for the no-projects state", () => {
 		renderWorkspaceProjectListView({ isProjectEmpty: true, isSearchEmpty: false })
 
-		expect(
-			screen.getByTestId("workspace-project-page-empty").querySelector(
-				'[data-testid="mobile-list-empty-icon"]',
-			),
-		).not.toBeNull()
+		const emptyState = screen.getByTestId("workspace-project-page-empty")
+		expect(emptyState).toHaveTextContent("暂无项目")
+		expect(emptyState).toHaveTextContent("创建一个项目开始协作。")
 	})
 
 	it("renders search empty state with flex centering classes for vertical alignment", () => {
 		renderWorkspaceProjectListView({
 			isProjectEmpty: false,
 			isSearchEmpty: true,
-			debouncedSearchValue: "test",
 		})
 
 		const searchEmptyState = screen.getByTestId("workspace-project-page-search-empty")

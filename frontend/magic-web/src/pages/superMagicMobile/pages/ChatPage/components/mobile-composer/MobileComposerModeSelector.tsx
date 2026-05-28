@@ -8,20 +8,18 @@ import {
 	ImageIcon,
 	MessageSquareText,
 	Search,
-	Users,
 	Video,
 	X,
 } from "lucide-react"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/shadcn-ui/empty"
 import { cn } from "@/lib/utils"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import { Trans, useTranslation } from "react-i18next"
 import { useFeaturedModeListRefreshOnFirstOpen } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
 import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
 import ModelIcon from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelIcon"
 import { ModelListContent } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelListContent"
 import { ModelTabSwitcher } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelTabSwitcher"
-import { ModelEmptyState } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelEmptyState"
 import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/useTopicModel"
 import { useOptionalMessageEditorStore } from "@/pages/superMagic/components/MessageEditor/stores"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
@@ -346,18 +344,6 @@ function MobileComposerModeSelectorComponent({
 	const isCurrentTabEmpty =
 		(activeModelTab === "image" && !hasImageModels) ||
 		(activeModelTab === "video" && !hasVideoModels)
-	const currentEmptyState =
-		activeModelTab === "video"
-			? {
-					icon: Video,
-					title: tSuper("messageEditor.modelSwitch.noVideoModels"),
-					description: tSuper("messageEditor.modelSwitch.noVideoModelsDesc"),
-				}
-			: {
-					icon: ImageIcon,
-					title: tSuper("messageEditor.modelSwitch.noImageModels"),
-					description: tSuper("messageEditor.modelSwitch.noImageModelsDesc"),
-				}
 
 	const clawStackModels = useMemo(() => {
 		const candidates = [
@@ -419,7 +405,7 @@ function MobileComposerModeSelectorComponent({
 										className="shrink-0 rounded-full"
 									/>
 								</div>
-								<span className="max-w-[80px] truncate text-md text-foreground">
+								<span className="text-md max-w-[80px] truncate text-foreground">
 									{clawStackModels[0].model_name}
 								</span>
 							</>
@@ -514,11 +500,10 @@ function MobileComposerModeSelectorComponent({
 							data-testid="mobile-composer-mode-selector-model-list"
 						>
 							{isCurrentTabEmpty ? (
-								<ModelEmptyState
-									icon={currentEmptyState.icon}
-									title={currentEmptyState.title}
-									description={currentEmptyState.description}
-									className="min-h-0 border-0 bg-transparent py-8"
+								<DataEmptyState
+									variant="model"
+									compact
+									className="min-h-0 py-8"
 									testId="mobile-composer-mode-selector-model-empty"
 								/>
 							) : (
@@ -607,14 +592,11 @@ function MobileComposerModeSelectorComponent({
 									data-testid="mobile-composer-mode-selector-list"
 								>
 									{modeList.length === 0 ? (
-										<Empty className="h-full gap-2 border-0 text-center">
-											<EmptyMedia variant="icon">
-												<Users />
-											</EmptyMedia>
-											<EmptyTitle className="text-sm text-muted-foreground">
-												{tMainInput("crewSelectModal.empty.all")}
-											</EmptyTitle>
-										</Empty>
+										<DataEmptyState
+											variant="crew"
+											compact
+											className="h-full py-8"
+										/>
 									) : (
 										<div className="flex flex-col gap-1.5">
 											{modeList.map((crew) => {

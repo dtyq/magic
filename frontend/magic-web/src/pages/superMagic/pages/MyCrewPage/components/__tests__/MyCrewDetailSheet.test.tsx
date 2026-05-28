@@ -66,4 +66,78 @@ describe("MyCrewDetailSheet", () => {
 
 		expect(onChat).not.toHaveBeenCalled()
 	})
+
+	it("renders dismiss and chat buttons when primary and secondary actions are provided", () => {
+		const onDismiss = vi.fn()
+		const onChat = vi.fn()
+
+		render(
+			<MyCrewDetailSheet
+				employee={createEmployee({
+					scope: "market_installed",
+					allowDelete: true,
+				})}
+				open
+				onOpenChange={vi.fn()}
+				onChat={onChat}
+				primaryAction={{
+					label: "myCrewPage.detailSheet.startChat",
+					onClick: onChat,
+					testId: "my-crew-detail-sheet-chat-button",
+				}}
+				secondaryAction={{
+					label: "dismiss",
+					onClick: onDismiss,
+					testId: "my-crew-detail-sheet-dismiss-button",
+				}}
+			/>,
+		)
+
+		expect(screen.getByTestId("my-crew-detail-sheet-dismiss-button")).toBeInTheDocument()
+		expect(screen.getByTestId("my-crew-detail-sheet-chat-button")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByTestId("my-crew-detail-sheet-dismiss-button"))
+		expect(onDismiss).toHaveBeenCalledTimes(1)
+	})
+
+	it("shows only default chat button for team-shared agents without custom actions", () => {
+		const onChat = vi.fn()
+
+		render(
+			<MyCrewDetailSheet
+				employee={createEmployee({
+					scope: "team_shared",
+					allowDelete: false,
+				})}
+				open
+				onOpenChange={vi.fn()}
+				onChat={onChat}
+			/>,
+		)
+
+		expect(screen.getByTestId("my-crew-detail-sheet-chat-button")).toBeInTheDocument()
+		expect(screen.queryByTestId("my-crew-detail-sheet-dismiss-button")).not.toBeInTheDocument()
+	})
+
+	it("does not render dismiss when only secondaryAction is passed without primaryAction", () => {
+		render(
+			<MyCrewDetailSheet
+				employee={createEmployee({
+					scope: "market_installed",
+					allowDelete: true,
+				})}
+				open
+				onOpenChange={vi.fn()}
+				onChat={vi.fn()}
+				secondaryAction={{
+					label: "dismiss",
+					onClick: vi.fn(),
+					testId: "my-crew-detail-sheet-dismiss-button",
+				}}
+			/>,
+		)
+
+		expect(screen.queryByTestId("my-crew-detail-sheet-dismiss-button")).not.toBeInTheDocument()
+		expect(screen.getByTestId("my-crew-detail-sheet-chat-button")).toBeInTheDocument()
+	})
 })

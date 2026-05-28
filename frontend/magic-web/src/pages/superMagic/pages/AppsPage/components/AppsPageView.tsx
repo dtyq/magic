@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { ChevronRight, Menu, RefreshCw } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { AppMenuIconType } from "@/apis/types"
@@ -13,6 +13,8 @@ interface AppsPageViewProps {
 	errorDescription: string
 	emptyTitle: string
 	emptyDescription: string
+	/** When set, replaces the default title/description empty block (e.g. mobile DataEmptyState). */
+	emptyContent?: ReactNode
 	retryLabel: string
 	loading: boolean
 	hasError: boolean
@@ -129,6 +131,7 @@ export function AppsPageView(props: AppsPageViewProps) {
 		errorDescription,
 		emptyTitle,
 		emptyDescription,
+		emptyContent,
 		retryLabel,
 		loading,
 		hasError,
@@ -224,11 +227,19 @@ export function AppsPageView(props: AppsPageViewProps) {
 
 					{!loading && !hasError && entries.length === 0 ? (
 						<div
-							className="flex min-h-full flex-col items-center justify-center gap-2 px-6 py-16 text-center"
+							className="flex min-h-full flex-col items-center justify-center px-6 py-16 text-center"
 							data-testid="super-apps-empty"
 						>
-							<p className="text-base font-medium text-foreground">{emptyTitle}</p>
-							<p className="text-sm text-muted-foreground">{emptyDescription}</p>
+							{emptyContent ?? (
+								<>
+									<p className="text-base font-medium text-foreground">
+										{emptyTitle}
+									</p>
+									<p className="text-sm text-muted-foreground">
+										{emptyDescription}
+									</p>
+								</>
+							)}
 						</div>
 					) : null}
 

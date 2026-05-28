@@ -10,6 +10,8 @@ vi.mock("react-i18next", () => ({
 		t: (key: string, values?: Record<string, unknown>) => {
 			const labels: Record<string, string> = {
 				"projectShare.empty": "暂无分享链接",
+				"mobile.emptyState.variants.shareLink.title": "还没有分享链接",
+				"mobile.emptyState.variants.shareLink.description": "返回上一页创建第一个分享链接。",
 				"projectShare.defaultNameOrganization": "组织分享",
 				"projectShare.defaultNamePassword": "密码链接",
 				"projectShare.defaultNamePublic": "公开链接",

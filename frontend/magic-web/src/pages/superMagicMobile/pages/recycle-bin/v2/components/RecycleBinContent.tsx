@@ -14,7 +14,7 @@ import SuperMagicService from "@/pages/superMagic/services"
 import RecycleBinItem from "./RecycleBinItem"
 import RecycleBinOrphanWarnSheet from "./RecycleBinOrphanWarnSheet"
 import MobileTrashRestorePickerSheet from "./MobileTrashRestorePickerSheet"
-import emptyStateIcon from "../../assets/svg/empty-state-icon.svg"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import { useMobileRecycleBinList } from "../hooks/useMobileRecycleBinList"
 import { useMobileRecycleBinSelection } from "../hooks/useMobileRecycleBinSelection"
 import { useMobileRecycleBinRestoreFlow } from "../hooks/useMobileRecycleBinRestoreFlow"
@@ -141,8 +141,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	const hasItems = filteredItems.length > 0
 	const isSearchActive = debouncedSearchValue.length > 0
 	const shouldStretchEmptyState =
-		!loading &&
-		((items.length === 0 && isSearchActive) || items.length === 0 || !hasItems)
+		!loading && ((items.length === 0 && isSearchActive) || items.length === 0 || !hasItems)
 
 	useEffect(() => {
 		onEmptyStateChange?.(shouldStretchEmptyState)
@@ -180,20 +179,14 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	if (!loading && items.length === 0 && isSearchActive) {
 		return (
 			<div
-				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center"
+				className="flex min-h-0 flex-1 flex-col items-center justify-center"
 				data-testid="mobile-recycle-bin-content"
 			>
-				<div
-					className="flex flex-col items-center justify-center gap-4"
-					data-testid="mobile-recycle-bin-search-empty"
-				>
-					<div className="text-[18px] font-medium leading-7 text-foreground">
-						{t("mobile.recycleBin.searchEmpty.title")}
-					</div>
-					<div className="text-[14px] font-light leading-5 text-muted-foreground">
-						{t("mobile.recycleBin.searchEmpty.description")}
-					</div>
-				</div>
+				<DataEmptyState
+					variant="search"
+					className="flex-1"
+					testId="mobile-recycle-bin-search-empty"
+				/>
 			</div>
 		)
 	}
@@ -201,28 +194,14 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	if (!loading && items.length === 0) {
 		return (
 			<div
-				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center"
+				className="flex min-h-0 flex-1 flex-col items-center justify-center"
 				data-testid="mobile-recycle-bin-content"
 			>
-				<div
-					className="flex flex-col items-center justify-center gap-6"
-					data-testid="mobile-recycle-bin-empty"
-				>
-					<img
-						className="empty-state-icon h-12 w-12 opacity-50"
-						alt=""
-						aria-hidden
-						src={emptyStateIcon}
-					/>
-					<div className="flex w-full flex-col items-center gap-2">
-						<div className="text-[18px] font-medium leading-7 text-foreground">
-							{t("mobile.recycleBin.empty.title")}
-						</div>
-						<div className="text-[14px] font-light leading-5 text-muted-foreground">
-							{t("mobile.recycleBin.empty.description")}
-						</div>
-					</div>
-				</div>
+				<DataEmptyState
+					variant="trash"
+					className="flex-1"
+					testId="mobile-recycle-bin-empty"
+				/>
 			</div>
 		)
 	}
@@ -230,20 +209,14 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	if (!hasItems) {
 		return (
 			<div
-				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center"
+				className="flex min-h-0 flex-1 flex-col items-center justify-center"
 				data-testid="mobile-recycle-bin-content"
 			>
-				<div
-					className="flex flex-col items-center justify-center gap-4"
-					data-testid="mobile-recycle-bin-tab-empty"
-				>
-					<div className="text-[18px] font-medium leading-7 text-foreground">
-						{t("mobile.recycleBin.tabEmpty.title")}
-					</div>
-					<div className="text-[14px] font-light leading-5 text-muted-foreground">
-						{t("mobile.recycleBin.tabEmpty.description")}
-					</div>
-				</div>
+				<DataEmptyState
+					variant="search"
+					className="flex-1"
+					testId="mobile-recycle-bin-tab-empty"
+				/>
 			</div>
 		)
 	}

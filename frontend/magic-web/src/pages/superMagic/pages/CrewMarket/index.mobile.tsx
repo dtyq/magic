@@ -3,11 +3,9 @@ import { useDebounce } from "ahooks"
 import { InfiniteScroll } from "antd-mobile"
 import { reaction } from "mobx"
 import { configStore } from "@/models/config"
-import { ChevronLeft, Check, MessageCircle, Trash2 } from "lucide-react"
-import { IconX } from "@tabler/icons-react"
+import { ChevronLeft, MessageCircle, Trash2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
-import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { Skeleton } from "@/components/shadcn-ui/skeleton"
 import { userStore } from "@/models/user"
@@ -24,6 +22,7 @@ import EmployeeCardMobile from "./employee-market/components/EmployeeCardMobile"
 import { StoreCrewStore } from "./employee-market/stores/store-crew"
 import { crewService, type StoreAgentView } from "@/services/crew/CrewService"
 import CrewMarketMobileSkeleton from "./components/CrewMarketMobileSkeleton"
+import DismissCrewConfirmSheet from "@/pages/superMagic/pages/MyCrewPage/components/DismissCrewConfirmSheet"
 import MyCrewDetailSheet from "@/pages/superMagic/pages/MyCrewPage/components/MyCrewDetailSheet"
 
 const HEADER_SHADOW = "0px 8px 25px 0px rgba(0,0,0,0.10)"
@@ -189,53 +188,20 @@ function CrewMarketMobilePanelBase() {
 						: undefined
 				}
 			/>
-			{/* 解雇二次确认弹窗 — 使用 MagicPopup 渲染，层级由 useOverlayZIndex 自动高于底部 Sheet */}
-			{dismissConfirmAgent && (
-				<MagicPopup
-					visible={dismissConfirmAgent != null}
-					onClose={() => setDismissConfirmAgent(null)}
-					position="bottom"
-					title={t("myCrewPage.dismissConfirm.title", {
-						name:
-							dismissConfirmAgent.name?.trim() ||
-							t("crew/create:untitledCrew") ||
-							dismissConfirmAgent.agentCode,
-					})}
-					headerVariant="actionHeader"
-					headerTitle={t("myCrewPage.dismissConfirm.title", {
-						name:
-							dismissConfirmAgent.name?.trim() ||
-							t("crew/create:untitledCrew") ||
-							dismissConfirmAgent.agentCode,
-					})}
-					headerLeadingAction={{
-						icon: <IconX />,
-						ariaLabel: t("cancel"),
-						onClick: () => setDismissConfirmAgent(null),
-						testId: "crew-dismiss-confirm-cancel",
-					}}
-					headerTrailingAction={{
-						icon: <Check />,
-						ariaLabel: t("myCrewPage.dismissConfirm.confirm"),
-						tone: "destructive",
-						onClick: () => {
-							const agent = dismissConfirmAgent
-							setDismissConfirmAgent(null)
-							// 关闭详情 Sheet，再执行解雇
-							if (selectedAgent?.id === agent.id) setSelectedAgent(null)
-							store.dismissAgent(agent.id)
-						},
-						testId: "crew-dismiss-confirm-submit",
-					}}
-					bodyClassName="p-0"
-				>
-					<div className="px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
-						<p className="text-[16px] leading-6 text-muted-foreground">
-							{t("myCrewPage.dismissConfirm.description")}
-						</p>
-					</div>
-				</MagicPopup>
-			)}
+			<DismissCrewConfirmSheet
+				open={dismissConfirmAgent != null}
+				onOpenChange={(open) => {
+					if (!open) setDismissConfirmAgent(null)
+				}}
+				target={dismissConfirmAgent}
+				onConfirm={() => {
+					const agent = dismissConfirmAgent
+					if (!agent) return
+					setDismissConfirmAgent(null)
+					if (selectedAgent?.id === agent.id) setSelectedAgent(null)
+					store.dismissAgent(agent.id)
+				}}
+			/>
 
 			<div
 				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-mobile-background"

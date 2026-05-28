@@ -33,7 +33,6 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		isLoading,
 		searchValue,
 		setSearchValue,
-		debouncedSearchValue,
 		isEmpty,
 		isSearchEmpty,
 		hasMore,
@@ -217,7 +216,6 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 				items={items}
 				isLoading={isLoading}
 				searchValue={searchValue}
-				debouncedSearchValue={debouncedSearchValue}
 				isEmpty={isEmpty}
 				isSearchEmpty={isSearchEmpty}
 				hasMore={hasMore}
@@ -233,8 +231,6 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 				title={t("super:chatList.title")}
 				searchPlaceholder={t("super:chatList.searchPlaceholder")}
 				clearSearchAriaLabel={t("super:common.cancel")}
-				emptyTitle={t("super:chatList.emptyTitle")}
-				emptyDescription={t("super:chatList.emptyDescription")}
 				newChatAriaLabel={t("super:chatList.newChat")}
 				menuAriaLabel={t("sidebar:appsMenu.more")}
 			/>

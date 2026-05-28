@@ -14,7 +14,6 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 		isLoading,
 		searchValue,
 		setSearchValue,
-		debouncedSearchValue,
 		filteredWorkspaces,
 		isWorkspaceEmpty,
 		isSearchEmpty,
@@ -46,7 +45,6 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 				workspaces={filteredWorkspaces}
 				isLoading={isLoading}
 				searchValue={searchValue}
-				debouncedSearchValue={debouncedSearchValue}
 				isWorkspaceEmpty={isWorkspaceEmpty}
 				isSearchEmpty={isSearchEmpty}
 				hasMore={hasMore}

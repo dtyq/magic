@@ -198,6 +198,13 @@
 			"description": "确定要解雇该数字员工吗？之后仍可重新雇佣。",
 			"title": "解雇「{{name}}」"
 		},
+		"dismissSheet": {
+			"cancelAria": "取消",
+			"confirmAria": "确认解雇",
+			"crewLabel": "员工",
+			"description": "你随时可以在员工市场重新雇佣 {{name}}。",
+			"title": "解雇该员工"
+		},
 		"edit": "编辑",
 		"empty": "暂无员工，快来创建你的第一个员工吧。",
 		"filterSheet": {

@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import { ListFilter, Loader2, Menu, MessageCircleOff, Plus } from "lucide-react"
+import {
+	ListFilter,
+	Loader2,
+	Menu,
+	MessageCircle,
+	MessageCircleOff,
+	Plus,
+	Trash2,
+} from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { InfiniteScroll } from "antd-mobile"
-import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
 import { Button } from "@/components/shadcn-ui/button"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { userStore } from "@/models/user"
@@ -15,11 +22,13 @@ import {
 	SuperMobileShellRouteLayout,
 	useSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell"
+import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { crewService, type MyCrewView } from "@/services/crew/CrewService"
 import MyCrewAddSheet from "./components/MyCrewAddSheet"
 import MyCrewCardMobile from "./components/MyCrewCardMobile"
+import DismissCrewConfirmSheet from "./components/DismissCrewConfirmSheet"
 import MyCrewDetailSheet from "./components/MyCrewDetailSheet"
 import MyCrewFilterSheet from "./components/MyCrewFilterSheet"
 import { isUnpublishedCreatedCrew } from "./components/my-crew-card-shared"
@@ -44,6 +53,7 @@ function MyCrewPageMobilePanelBase() {
 	const store = storeRef.current
 	const scrollContainerId = useId()
 	const [selectedAgent, setSelectedAgent] = useState<MyCrewView | null>(null)
+	const [dismissConfirmAgent, setDismissConfirmAgent] = useState<MyCrewView | null>(null)
 	const [addSheetOpen, setAddSheetOpen] = useState(false)
 	const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 	const [filter, setFilter] = useState<MyCrewMobileFilterState>(MY_CREW_MOBILE_FILTER_DEFAULT)
@@ -51,7 +61,6 @@ function MyCrewPageMobilePanelBase() {
 	const [showBottomMask, setShowBottomMask] = useState(true)
 
 	const isPersonalOrganization = userStore.user.isPersonalOrganization
-	const { confirm, dialog } = useConfirmDialog()
 
 	const visibleList = store.list
 	const loading = store.loading
@@ -137,26 +146,14 @@ function MyCrewPageMobilePanelBase() {
 		await store.loadMore()
 	}, [store])
 
-	/** Dismiss a market-installed agent with confirmation dialog. */
+	/** Open prototype-aligned dismiss confirmation sheet for a market-installed agent. */
 	const handleDismissAgent = useCallback(
 		(agentCode: string) => {
 			const employee = store.list.find((item) => item.agentCode === agentCode)
 			if (!employee) return
-			const displayName = employee.name?.trim() || t("crew/create:untitledCrew") || agentCode
-			confirm({
-				title: t("myCrewPage.dismissConfirm.title", { name: displayName }),
-				description: t("myCrewPage.dismissConfirm.description"),
-				confirmText: t("myCrewPage.dismissConfirm.confirm"),
-				variant: "destructive",
-				destructivePresentation: "soft",
-				dialogSize: "sm",
-				onConfirm: () => {
-					void store.dismissAgent(agentCode)
-					setSelectedAgent(null)
-				},
-			})
+			setDismissConfirmAgent(employee)
 		},
-		[confirm, store, t],
+		[store],
 	)
 
 	/** Build detail sheet actions based on the selected agent's scope. */
@@ -173,27 +170,52 @@ function MyCrewPageMobilePanelBase() {
 				},
 			}
 		}
-		// Market-installed agents get a "Dismiss" secondary action alongside "Chat"
+		// Market-installed agents: dismiss + chat side-by-side (prototype: market + hired only).
 		if (selectedAgent.scope === "market_installed" && selectedAgent.allowDelete) {
+			const agentCode = selectedAgent.agentCode
 			return {
+				primaryAction: {
+					label: t("myCrewPage.detailSheet.startChat"),
+					icon: <MessageCircle className="h-5 w-5 text-white" />,
+					testId: "my-crew-detail-sheet-chat-button",
+					onClick: () => {
+						setSelectedAgent(null)
+						void handleOpenConversation(agentCode)
+					},
+				},
 				secondaryAction: {
-					label: t("myCrewPage.dismissConfirm.confirm"),
-					onClick: () => handleDismissAgent(selectedAgent.agentCode),
+					label: t("dismiss"),
+					icon: <Trash2 className="h-4 w-4" />,
+					onClick: () => handleDismissAgent(agentCode),
 					testId: "my-crew-detail-sheet-dismiss-button",
 				},
 			}
 		}
 		return {}
-	}, [selectedAgent, handleDismissAgent, t])
+	}, [selectedAgent, handleDismissAgent, handleOpenConversation, t])
 
-	// Whether the current filter matches defaults — used for empty-state create button visibility
+	// Whether the current filter matches defaults — drives crew vs search empty-state copy
 	const isDefaultFilter =
 		filter.type === MY_CREW_MOBILE_FILTER_DEFAULT.type &&
 		filter.sort === MY_CREW_MOBILE_FILTER_DEFAULT.sort
 
 	return (
 		<>
-			{dialog}
+			<DismissCrewConfirmSheet
+				open={dismissConfirmAgent != null}
+				onOpenChange={(open) => {
+					if (!open) setDismissConfirmAgent(null)
+				}}
+				target={dismissConfirmAgent}
+				onConfirm={() => {
+					const employee = dismissConfirmAgent
+					if (!employee) return
+					const agentCode = employee.agentCode
+					setDismissConfirmAgent(null)
+					setSelectedAgent(null)
+					void store.dismissAgent(agentCode)
+				}}
+			/>
 			<MyCrewDetailSheet
 				employee={selectedAgent}
 				open={selectedAgent != null}
@@ -300,29 +322,13 @@ function MyCrewPageMobilePanelBase() {
 									</div>
 								) : null}
 
-								{/* Empty state */}
+								{/* Empty state: crew variant by default, search variant when filters are active */}
 								{!loading && visibleList.length === 0 ? (
-									<div
-										className="flex flex-col items-center justify-center gap-3 py-16 text-center"
-										data-testid="my-crew-empty"
-									>
-										<p className="text-sm text-muted-foreground">
-											{t("myCrewPage.empty")}
-										</p>
-										{isDefaultFilter ? (
-											<Button
-												type="button"
-												variant="outline"
-												size="sm"
-												onClick={() => setAddSheetOpen(true)}
-												className="gap-2"
-												data-testid="my-crew-empty-create-button"
-											>
-												<Plus className="h-4 w-4" />
-												{t("createCrew")}
-											</Button>
-										) : null}
-									</div>
+									<DataEmptyState
+										variant={isDefaultFilter ? "crew" : "search"}
+										className="min-h-0 flex-1 py-12"
+										testId="my-crew-empty"
+									/>
 								) : null}
 
 								{/* Card grid */}

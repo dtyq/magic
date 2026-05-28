@@ -15,6 +15,16 @@ vi.mock("../ChatConversationListItem", () => ({
 	ChatConversationListItem: () => <div data-testid="mobile-chats-page-item" />,
 }))
 
+vi.mock("react-i18next", () => ({
+	useTranslation: () => ({
+		t: (key: string) => {
+			if (key === "mobile.emptyState.variants.chat.title") return "暂无对话"
+			if (key === "mobile.emptyState.variants.chat.description") return "新建对话引导"
+			return key
+		},
+	}),
+}))
+
 describe("ChatConversationListView", () => {
 	it("shows the clear button when the search input receives focus", () => {
 		render(
@@ -22,7 +32,6 @@ describe("ChatConversationListView", () => {
 				items={[]}
 				isLoading={false}
 				searchValue=""
-				debouncedSearchValue=""
 				isEmpty={true}
 				isSearchEmpty={false}
 				hasMore={false}
@@ -38,8 +47,6 @@ describe("ChatConversationListView", () => {
 				title="对话"
 				searchPlaceholder="搜索"
 				clearSearchAriaLabel="取消"
-				emptyTitle="暂无对话"
-				emptyDescription="去新建一个对话"
 				newChatAriaLabel="新建对话"
 				menuAriaLabel="菜单"
 			/>,
@@ -50,13 +57,12 @@ describe("ChatConversationListView", () => {
 		expect(screen.getByTestId("mobile-chats-page-search-clear")).toBeInTheDocument()
 	})
 
-	it("renders the generic list empty icon for the no-chats state", () => {
+	it("renders prototype-aligned empty state for the no-chats state", () => {
 		render(
 			<ChatConversationListView
 				items={[]}
 				isLoading={false}
 				searchValue=""
-				debouncedSearchValue=""
 				isEmpty
 				isSearchEmpty={false}
 				hasMore={false}
@@ -72,17 +78,13 @@ describe("ChatConversationListView", () => {
 				title="对话"
 				searchPlaceholder="搜索"
 				clearSearchAriaLabel="取消"
-				emptyTitle="暂无对话"
-				emptyDescription="去新建一个对话"
 				newChatAriaLabel="新建对话"
 				menuAriaLabel="菜单"
 			/>,
 		)
 
-		expect(
-			screen.getByTestId("mobile-chats-page-empty").querySelector(
-				'[data-testid="mobile-list-empty-icon"]',
-			),
-		).not.toBeNull()
+		const emptyState = screen.getByTestId("mobile-chats-page-empty")
+		expect(emptyState).toHaveTextContent("暂无对话")
+		expect(emptyState).toHaveTextContent("新建对话引导")
 	})
 })
