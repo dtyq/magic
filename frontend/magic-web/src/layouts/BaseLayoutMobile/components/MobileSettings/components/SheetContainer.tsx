@@ -98,7 +98,7 @@ export function MobileSettingsSheetContainer(props: {
 			onClose={() => onOpenChange(false)}
 			/* 不传 title 给 MagicPopup，避免 sr-only DrawerTitle 与下方可见标题文字重复。 */
 			/* 覆盖 MagicPopup 默认的圆角和背景色，保持设置浮层原有的视觉风格。 */
-			className={cn("rounded-t-2xl bg-muted shadow-2xl shadow-black/10", sheetClassName)}
+			className={cn("bg-muted rounded-t-2xl shadow-2xl shadow-black/10", sheetClassName)}
 			overlayClassName={cn("bg-black/20 backdrop-blur-sm", overlayClassName)}
 			/* 关闭 body 区域自身的滚动，改由内部 content 区域独立控制滚动行为。 */
 			bodyClassName="flex max-h-none min-h-0 flex-1 flex-col overflow-hidden p-0"
@@ -110,7 +110,7 @@ export function MobileSettingsSheetContainer(props: {
 			withSafeBottom={false}
 		>
 			<div className="flex min-h-0 flex-1 flex-col" data-testid={dataTestId}>
-				<div className="mobile-popup-action-header relative flex h-12 w-full shrink-0 items-center justify-center px-16">
+				<div className="mobile-popup-action-header relative flex h-14 w-full shrink-0 items-center justify-center px-16 mb-1">
 					{hideCloseButton ? null : (
 						<MobileSettingsHeaderIconButton
 							side="left"
@@ -121,7 +121,7 @@ export function MobileSettingsSheetContainer(props: {
 						</MobileSettingsHeaderIconButton>
 					)}
 
-					<span className="max-w-56 truncate text-center text-lg font-semibold leading-6 text-foreground">
+					<span className="text-foreground max-w-56 truncate text-center text-lg font-semibold leading-6">
 						{title}
 					</span>
 
