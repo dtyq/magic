@@ -1,5 +1,6 @@
 import { Moon, Sun } from "lucide-react"
 
+import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { cn } from "@/lib/utils"
 
 export interface MobileShellThemeToggleProps {
@@ -23,6 +24,8 @@ export function MobileShellThemeToggle({
 	testId = "mobile-shell-theme-toggle",
 	buttonClassName,
 }: MobileShellThemeToggleProps) {
+	if (IS_DARK_MODE_DISABLED) return null
+
 	return (
 		<button
 			type="button"

@@ -1,6 +1,7 @@
 import { useMemoizedFn } from "ahooks"
 import type { ThemeMode } from "antd-style"
 
+import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { magic } from "@/enhance/magicElectron"
 import { useTheme } from "@/models/config/hooks"
 
@@ -12,6 +13,7 @@ export function useMobileAppearanceToggle() {
 	const { prefersColorScheme, setTheme } = useTheme()
 
 	const toggleAppearance = useMemoizedFn(() => {
+		if (IS_DARK_MODE_DISABLED) return
 		const next: ThemeMode = prefersColorScheme === "dark" ? "light" : "dark"
 		setTheme(next)
 		magic?.theme?.setTheme?.(next)
@@ -19,7 +21,7 @@ export function useMobileAppearanceToggle() {
 
 	return {
 		prefersColorScheme,
-		isToggleDisabled: false,
+		isToggleDisabled: IS_DARK_MODE_DISABLED,
 		toggleAppearance,
 		isDarkAppearance: prefersColorScheme === "dark",
 	}

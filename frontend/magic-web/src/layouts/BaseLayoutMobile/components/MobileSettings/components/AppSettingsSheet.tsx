@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next"
 
 import { Switch } from "@/components/shadcn-ui/switch"
 import { useGlobalSuggestion } from "@/components/settings/FollowUpSuggestionItems/hooks"
+import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { useGlobalLanguage, useSupportLanguageOptions, useTheme } from "@/models/config/hooks"
 import { useTimezone, useTimezoneList } from "@/providers/TimezoneProvider/hooks"
 import { cn } from "@/lib/utils"
@@ -23,10 +24,10 @@ function MobileSettingsThemePreview(props: { mode: ThemeOption }) {
 		return (
 			<div className="grid h-full w-full grid-cols-2 overflow-hidden rounded-md border border-border/70 bg-card">
 				<div className="flex flex-col gap-1.5 bg-[#FBFBF9] px-2 py-2">
-					<div className="bg-black/8 h-2.5 w-2.5 rounded-full" />
-					<div className="bg-black/8 h-2 w-8 rounded-full" />
-					<div className="bg-black/8 mt-1.5 h-2 w-10 rounded-full" />
-					<div className="bg-black/8 h-2 w-8 rounded-full" />
+					<div className="h-2.5 w-2.5 rounded-full bg-black/8" />
+					<div className="h-2 w-8 rounded-full bg-black/8" />
+					<div className="mt-1.5 h-2 w-10 rounded-full bg-black/8" />
+					<div className="h-2 w-8 rounded-full bg-black/8" />
 				</div>
 				<div className="flex flex-col gap-1.5 bg-[#1F1F21] px-2 py-2">
 					<div className="h-2.5 w-2.5 rounded-full bg-white/10" />
@@ -51,10 +52,10 @@ function MobileSettingsThemePreview(props: { mode: ThemeOption }) {
 
 	return (
 		<div className="flex h-full w-full flex-col gap-1.5 overflow-hidden rounded-md border border-border/70 bg-[#FBFBF9] px-2 py-2">
-			<div className="bg-black/8 h-2.5 w-2.5 rounded-full" />
-			<div className="bg-black/8 h-2 w-8 rounded-full" />
-			<div className="bg-black/8 mt-1.5 h-2 w-10 rounded-full" />
-			<div className="bg-black/8 h-2 w-8 rounded-full" />
+			<div className="h-2.5 w-2.5 rounded-full bg-black/8" />
+			<div className="h-2 w-8 rounded-full bg-black/8" />
+			<div className="mt-1.5 h-2 w-10 rounded-full bg-black/8" />
+			<div className="h-2 w-8 rounded-full bg-black/8" />
 		</div>
 	)
 }
@@ -274,32 +275,37 @@ export function MobileSettingsAppSettingsSheet(props: {
 			contentClassName="gap-2.5 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 			dataTestId="mobile-settings-app-settings-sheet"
 		>
-			<div className="flex flex-col gap-2">
-				<MobileSettingsSectionLabel>{t("setting.appearance")}</MobileSettingsSectionLabel>
-				<div role="radiogroup" className="grid grid-cols-3 gap-2">
-					<MobileSettingsThemeTile
-						mode="auto"
-						label={t("setting.languages.auto")}
-						selected={theme === "auto"}
-						onClick={() => handleThemeChange("auto")}
-						dataTestId="mobile-settings-theme-auto"
-					/>
-					<MobileSettingsThemeTile
-						mode="light"
-						label={t("setting.light")}
-						selected={theme === "light"}
-						onClick={() => handleThemeChange("light")}
-						dataTestId="mobile-settings-theme-light"
-					/>
-					<MobileSettingsThemeTile
-						mode="dark"
-						label={t("setting.dark")}
-						selected={theme === "dark"}
-						onClick={() => handleThemeChange("dark")}
-						dataTestId="mobile-settings-theme-dark"
-					/>
+			{/* Mobile theme picker stays hidden until dark mode is enabled product-wide. */}
+			{!IS_DARK_MODE_DISABLED ? (
+				<div className="flex flex-col gap-2">
+					<MobileSettingsSectionLabel>
+						{t("setting.appearance")}
+					</MobileSettingsSectionLabel>
+					<div role="radiogroup" className="grid grid-cols-3 gap-2">
+						<MobileSettingsThemeTile
+							mode="auto"
+							label={t("setting.languages.auto")}
+							selected={theme === "auto"}
+							onClick={() => handleThemeChange("auto")}
+							dataTestId="mobile-settings-theme-auto"
+						/>
+						<MobileSettingsThemeTile
+							mode="light"
+							label={t("setting.light")}
+							selected={theme === "light"}
+							onClick={() => handleThemeChange("light")}
+							dataTestId="mobile-settings-theme-light"
+						/>
+						<MobileSettingsThemeTile
+							mode="dark"
+							label={t("setting.dark")}
+							selected={theme === "dark"}
+							onClick={() => handleThemeChange("dark")}
+							dataTestId="mobile-settings-theme-dark"
+						/>
+					</div>
 				</div>
-			</div>
+			) : null}
 
 			<div className="flex flex-col gap-2">
 				<MobileSettingsSectionLabel>{t("setting.region")}</MobileSettingsSectionLabel>
