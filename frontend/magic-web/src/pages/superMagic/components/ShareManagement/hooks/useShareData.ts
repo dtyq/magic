@@ -94,7 +94,7 @@ export function useShareData({
 					password: item.password,
 					created_at: item.created_at,
 					deleted_at: item.deleted_at,
-					share_extend: item.share_extend,
+					share_scope: item.share_scope,
 				}
 
 				switch (resourceType) {

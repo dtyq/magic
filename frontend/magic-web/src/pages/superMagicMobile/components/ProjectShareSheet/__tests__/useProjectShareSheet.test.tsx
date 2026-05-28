@@ -518,6 +518,44 @@ describe("useProjectShareSheet", () => {
 		})
 	})
 
+	it("打开组织全员分享详情时不会请求成员列表", async () => {
+		mocks.projectShareData = [
+			{
+				resource_id: "org-share-all",
+				title: "全员分享",
+				project_id: "project-1",
+				project_name: "Demo Project",
+				share_type: ShareType.Organization,
+				created_at: "2026-05-05",
+				has_password: false,
+				extend: { file_count: 2 },
+				share_scope: { type: "all" },
+			},
+		]
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.goToLinkDetail("org-share-all")
+		})
+
+		await waitFor(() => {
+			expect(result.current.view).toBe("linkDetail")
+		})
+
+		expect(mocks.getShareResourceMembers).not.toHaveBeenCalled()
+		expect(result.current.detailMemberNodes).toEqual([])
+	})
+
 	it("打开非组织分享详情时不会请求成员列表", async () => {
 		mocks.projectShareData = [
 			{

@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import type { ShareExtendInfo } from "@/pages/superMagic/components/ShareManagement/types"
+import type { ShareScopeInfo } from "@/pages/superMagic/components/ShareManagement/types"
+import { formatOrganizationShareScopeSummary } from "@/pages/superMagic/components/ShareManagement/utils/shareScopeSummary"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
 import { formatRelativeTime } from "@/utils/string"
 import type { ProjectShareSheetController } from "../types"
@@ -27,36 +28,11 @@ function formatManageCreatedAt(value?: string) {
 	return value
 }
 
-function getOrganizationSummary(
-	shareExtend: ShareExtendInfo | undefined,
-	t: (key: string, values?: Record<string, unknown>) => string,
-) {
-	const userCount = shareExtend?.user_count || 0
-	const departmentCount = shareExtend?.department_count || 0
-
-	if (userCount > 0 && departmentCount > 0) {
-		return t("projectShare.manageOrganizationMembersAndDepartments", {
-			userCount,
-			departmentCount,
-		})
-	}
-
-	if (userCount > 0) {
-		return t("projectShare.manageOrganizationMembersOnly", { userCount })
-	}
-
-	if (departmentCount > 0) {
-		return t("projectShare.manageOrganizationDepartmentsOnly", { departmentCount })
-	}
-
-	return t("projectShare.manageOrganizationSummary")
-}
-
 /**
- * 根据分享类型生成列表图标与摘要，管理页只展示入口，不在列表内承载旧操作按钮。
+ * Builds list-row icon and summary from share type; organization rows use share_scope summary.
  */
 function getManageItemMeta(
-	shareExtend: ShareExtendInfo | undefined,
+	shareScope: ShareScopeInfo | undefined,
 	shareType: ShareType,
 	t: (key: string, values?: Record<string, unknown>) => string,
 ) {
@@ -73,7 +49,7 @@ function getManageItemMeta(
 	if (shareType === ShareType.Organization) {
 		return {
 			Icon: visualMeta.Icon,
-			summary: getOrganizationSummary(shareExtend, t),
+			summary: formatOrganizationShareScopeSummary(shareScope, t),
 			className: visualMeta.iconClassName,
 		}
 	}
@@ -86,7 +62,7 @@ function getManageItemMeta(
 }
 
 /**
- * 管理页使用原型的单一卡片列表；复制、编辑、删除等动作统一收敛到详情页。
+ * Manage view shows a single card list; copy/edit/delete actions live on the detail page.
  */
 export default function ProjectShareManageView({ controller }: ProjectShareManageViewProps) {
 	const { t, i18n } = useTranslation("super")
@@ -119,7 +95,7 @@ export default function ProjectShareManageView({ controller }: ProjectShareManag
 			data-testid="project-share-sheet-manage-list"
 		>
 			{controller.filteredShareItems.map((item, index) => {
-				const meta = getManageItemMeta(item.share_extend, item.share_type, t)
+				const meta = getManageItemMeta(item.share_scope, item.share_type, t)
 				const Icon = meta.Icon
 				const createdAt = formatRelativeTime(i18n.language)(
 					formatManageCreatedAt(item.created_at),

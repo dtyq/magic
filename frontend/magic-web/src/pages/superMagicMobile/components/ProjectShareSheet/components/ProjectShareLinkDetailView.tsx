@@ -7,6 +7,7 @@ import { ShareType } from "@/pages/superMagic/components/Share/types"
 import { generateShareUrl } from "@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers"
 import { formatRelativeTime } from "@/utils/string"
 import type { ProjectShareSheetController } from "../types"
+import { isOrganizationShareScopeAll } from "@/pages/superMagic/components/ShareManagement/utils/shareScopeSummary"
 import { isPartialFileShare } from "../utils/shareScope"
 import {
 	buildDetailMetaLabel,
@@ -49,8 +50,10 @@ export default function ProjectShareLinkDetailView({
 	// Show selected files only for partial file shares; hide for whole-project shares even when opened from the file list entry.
 	const shouldShowSelectedFiles = controller.selectedFileCount > 0 && isPartialFileShare(share)
 	const detailMemberNodes = controller.detailMemberNodes || []
+	const isAllOrganizationScope = isOrganizationShareScopeAll(share.share_scope)
 	const shouldShowOrganizationMembers =
-		share.share_type === ShareType.Organization && detailMemberNodes.length > 0
+		share.share_type === ShareType.Organization &&
+		(isAllOrganizationScope || detailMemberNodes.length > 0)
 
 	return (
 		<div className="flex flex-col gap-2" data-testid="project-share-sheet-detail-view">
@@ -99,26 +102,37 @@ export default function ProjectShareLinkDetailView({
 						{t("projectShare.organizationMembersLabel")}
 					</div>
 					<div className="overflow-hidden rounded-lg bg-white">
-						{detailMemberNodes.map((member) => {
-							const isUser =
-								member.type === "User" || member.dataType === NodeType.User
-							const MemberIcon = isUser ? UserRound : Building2
-
-							return (
-								<div
-									key={member.id}
-									className="flex h-12 items-center gap-2.5 border-b border-[#F1F1F1] px-3.5 last:border-b-0"
-									data-testid={`project-share-sheet-detail-member-row-${member.id}`}
-								>
-									<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-										<MemberIcon className="h-4 w-4" strokeWidth={1.8} />
-									</div>
-									<div className="min-w-0 flex-1 truncate text-[16px] leading-5 text-foreground">
-										{member.name}
-									</div>
+						{isAllOrganizationScope ? (
+							<div
+								className="flex h-12 items-center px-3.5"
+								data-testid="project-share-sheet-detail-member-row-all"
+							>
+								<div className="min-w-0 flex-1 truncate text-[16px] leading-5 text-foreground">
+									{t("projectShare.shareScopeAllMembers")}
 								</div>
-							)
-						})}
+							</div>
+						) : (
+							detailMemberNodes.map((member) => {
+								const isUser =
+									member.type === "User" || member.dataType === NodeType.User
+								const MemberIcon = isUser ? UserRound : Building2
+
+								return (
+									<div
+										key={member.id}
+										className="flex h-12 items-center gap-2.5 border-b border-[#F1F1F1] px-3.5 last:border-b-0"
+										data-testid={`project-share-sheet-detail-member-row-${member.id}`}
+									>
+										<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+											<MemberIcon className="h-4 w-4" strokeWidth={1.8} />
+										</div>
+										<div className="min-w-0 flex-1 truncate text-[16px] leading-5 text-foreground">
+											{member.name}
+										</div>
+									</div>
+								)
+							})
+						)}
 					</div>
 				</section>
 			) : null}

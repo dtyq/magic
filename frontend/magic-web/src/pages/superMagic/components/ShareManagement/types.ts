@@ -22,7 +22,11 @@ export enum ShareListRefreshType {
 	Topic = "topic", // 刷新话题分享列表
 }
 
-export interface ShareExtendInfo {
+/** Organization share scope from list/detail APIs (all members vs designated targets). */
+export type ShareScopeType = "all" | "designated"
+
+export interface ShareScopeInfo {
+	type?: ShareScopeType
 	user_count?: number
 	department_count?: number
 }
@@ -45,7 +49,7 @@ export interface ShareResourceApiItem {
 		file_count?: number
 		copy_count?: number // 复制项目次数
 	}
-	share_extend?: ShareExtendInfo
+	share_scope?: ShareScopeInfo
 	expire_days?: number // 有效时间（天数）
 	expire_at?: string // 过期时间（格式：xxxx/xx/xx）
 	has_password?: boolean // 是否开启密码（已废弃，使用is_password_enabled）
@@ -81,7 +85,7 @@ export interface TopicShareItem {
 	expire_at?: string // 过期时间（格式：xxxx/xx/xx）
 	deleted_at?: string // 删除时间（如果存在则表示已删除，不允许操作）
 	share_url?: string // 分享链接
-	share_extend?: ShareExtendInfo
+	share_scope?: ShareScopeInfo
 }
 
 export interface FileShareItem {
@@ -108,7 +112,7 @@ export interface FileShareItem {
 	created_at: string // 创建时间
 	share_project?: boolean
 	deleted_at?: string // 删除时间（如果存在则表示已删除，不允许操作）
-	share_extend?: ShareExtendInfo
+	share_scope?: ShareScopeInfo
 }
 
 export interface ProjectShareItem {
@@ -133,7 +137,7 @@ export interface ProjectShareItem {
 		file_count?: number
 		copy_count?: number // 复制项目次数
 	}
-	share_extend?: ShareExtendInfo
+	share_scope?: ShareScopeInfo
 }
 
 export interface ShareListParams {

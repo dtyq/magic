@@ -29,6 +29,7 @@ import type {
 	SelectedFileHierarchyNode,
 } from "../types"
 import { buildShareClipboardText } from "../utils/buildShareClipboardText"
+import { isOrganizationShareScopeAll } from "@/pages/superMagic/components/ShareManagement/utils/shareScopeSummary"
 import { isPartialFileShare, isWholeProjectShare } from "../utils/shareScope"
 
 /**
@@ -375,7 +376,8 @@ export function useProjectShareSheet({
 			!open ||
 			view !== "linkDetail" ||
 			selectedShare?.share_type !== ShareType.Organization ||
-			!selectedShare.resource_id
+			!selectedShare.resource_id ||
+			isOrganizationShareScopeAll(selectedShare.share_scope)
 		) {
 			setDetailMemberNodes([])
 			setDetailMemberLoading(false)
@@ -414,7 +416,13 @@ export function useProjectShareSheet({
 		return () => {
 			isCancelled = true
 		}
-	}, [open, selectedShare?.resource_id, selectedShare?.share_type, view])
+	}, [
+		open,
+		selectedShare?.resource_id,
+		selectedShare?.share_scope,
+		selectedShare?.share_type,
+		view,
+	])
 
 	const goTo = useMemoizedFn((nextView: ProjectShareSheetView) => {
 		setViewStack((prev) => [...prev, view])

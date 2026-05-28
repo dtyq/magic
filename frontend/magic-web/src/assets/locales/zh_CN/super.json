@@ -233,6 +233,7 @@
 		"workspaceSwitcherRefresh": "刷新工作区列表"
 	},
 	"chat": {
+		"backToChatList": "回到对话列表",
 		"confirmSaveAsProject": "确认另存为项目",
 		"deleteChat": "删除",
 		"deleteChatConfirm": "确定要删除对话「{{name}}」吗？",
@@ -1844,6 +1845,7 @@
 		"manageOrganizationMembersAndDepartments": "{{userCount}} 个成员，{{departmentCount}} 个部门",
 		"manageOrganizationMembersOnly": "{{userCount}} 个成员",
 		"manageOrganizationSummary": "组织成员可访问",
+		"shareScopeAllMembers": "所有成员",
 		"managePasswordSummary": "需要密码访问",
 		"managePermanent": "永久有效",
 		"managePublicSummary": "获得链接的人可访问",

@@ -45,6 +45,7 @@ vi.mock("react-i18next", () => ({
 				"projectShare.expiresPermanent": "永久有效",
 				"projectShare.linkLabel": "分享链接",
 					"projectShare.organizationMembersLabel": "成员 / 部门",
+				"projectShare.shareScopeAllMembers": "所有成员",
 				"projectShare.typePassword": "密码",
 					"projectShare.typeOrganizationDescription": "仅限指定成员或部门访问",
 				"projectShare.typePasswordDescription": "需要正确密码才能访问",
@@ -311,6 +312,34 @@ describe("ProjectShareLinkDetailView", () => {
 		)
 		expect(screen.getByTestId("project-share-sheet-detail-type-card").className).toContain(
 			"bg-info/10",
+		)
+	})
+
+	it("组织分享范围为全部时详情展示「所有成员」", () => {
+		render(
+			<ProjectShareLinkDetailView
+				controller={createController({
+					selectedShare: {
+						resource_id: "org-share-all",
+						title: "全员分享",
+						project_id: "project-1",
+						project_name: "Demo Project",
+						share_type: ShareType.Organization,
+						created_at: "2026-05-05T00:00:00.000Z",
+						has_password: false,
+						extend: { file_count: 3 },
+						share_scope: { type: "all" },
+					},
+					detailMemberNodes: [],
+				})}
+			/>,
+		)
+
+		expect(screen.getByTestId("project-share-sheet-detail-members-section")).toHaveTextContent(
+			"成员 / 部门",
+		)
+		expect(screen.getByTestId("project-share-sheet-detail-member-row-all")).toHaveTextContent(
+			"所有成员",
 		)
 	})
 

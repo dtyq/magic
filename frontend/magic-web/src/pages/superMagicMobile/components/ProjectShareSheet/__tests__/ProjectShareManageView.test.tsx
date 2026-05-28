@@ -19,6 +19,7 @@ vi.mock("react-i18next", () => ({
 				"projectShare.manageOrganizationSummary": "组织成员可访问",
 				"projectShare.managePasswordSummary": "需要密码访问",
 				"projectShare.managePublicSummary": "获得链接的人可访问",
+				"projectShare.shareScopeAllMembers": "所有成员",
 			}
 			if (key === "projectShare.manageOrganizationMembersAndDepartments") {
 				return `${values?.userCount} 个成员，${values?.departmentCount} 个部门`
@@ -135,7 +136,7 @@ describe("ProjectShareManageView", () => {
 		expect(controller.goToLinkDetail).toHaveBeenCalledWith("share-1")
 	})
 
-	it("组织分享优先展示 share_extend 的成员与部门数量", () => {
+	it("组织分享优先展示 share_scope 的成员与部门数量", () => {
 		const controller = createController({
 			filteredShareItems: [
 				{
@@ -146,7 +147,7 @@ describe("ProjectShareManageView", () => {
 					share_type: ShareType.Organization,
 					created_at: "2026-05-05T00:00:00.000Z",
 					has_password: false,
-					share_extend: { user_count: 3, department_count: 2 },
+					share_scope: { type: "designated", user_count: 3, department_count: 2 },
 				},
 			],
 		})
@@ -156,6 +157,27 @@ describe("ProjectShareManageView", () => {
 		expect(screen.getByTestId("project-share-sheet-manage-row")).toHaveTextContent(
 			"3 个成员，2 个部门",
 		)
+	})
+
+	it("组织分享范围为全部时展示「所有成员」", () => {
+		const controller = createController({
+			filteredShareItems: [
+				{
+					resource_id: "share-org-all",
+					title: "全员链接",
+					project_id: "project-1",
+					project_name: "Demo Project",
+					share_type: ShareType.Organization,
+					created_at: "2026-05-05T00:00:00.000Z",
+					has_password: false,
+					share_scope: { type: "all" },
+				},
+			],
+		})
+
+		render(<ProjectShareManageView controller={controller} />)
+
+		expect(screen.getByTestId("project-share-sheet-manage-row")).toHaveTextContent("所有成员")
 	})
 
 	it("未命名分享按分享类型回退默认标题", () => {

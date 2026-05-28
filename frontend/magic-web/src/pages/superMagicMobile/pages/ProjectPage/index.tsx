@@ -258,7 +258,7 @@ function LegacyProjectPage() {
 						variant="ghost"
 						className="h-12 w-12 shrink-0 rounded-full p-0 text-foreground hover:bg-transparent active:opacity-70"
 						onClick={handleOpenProjectShare}
-						aria-label={t("share.share")}
+						aria-label={t("share.shareTitle")}
 						data-testid="project-detail-header-share-button"
 					>
 						<Share2 className="h-[22px] w-[22px]" />
