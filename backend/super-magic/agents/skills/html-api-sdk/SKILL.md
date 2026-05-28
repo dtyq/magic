@@ -15,6 +15,7 @@ This skill guides the correct usage of `window.Magic.*` APIs when developing HTM
 2. All file paths are relative to the **app root directory** (the directory containing `index.html`). **Using `../` to traverse to parent directories is forbidden**.
 3. `window.Magic.llm` tokens are managed by the host; you cannot directly obtain an `api_key` in HTML — just call the methods directly.
 4. **Inline event handlers are forbidden** (`onclick` attributes, etc.). All event bindings must use `addEventListener` in JS.
+5. **When generating code that calls LLM APIs (`stream` / `chat`), must also provide a model selector UI in the interface**, unless the user explicitly specifies a particular `model_id`. The selector should call `getModels()` to populate options, default to `"auto"`, and display model `icon` + `label` when available.
 
 ---
 
