@@ -258,6 +258,13 @@ export function SharedProjectsView({
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(false)
+	const shouldStretchPullToRefresh = !isLoading && (isEmpty || isSearchEmpty)
+	/*
+	 * 共享项目页复用对话页的空态策略：只在空态时拉满 PullToRefresh 高度链。
+	 * 正常列表保留默认滚动结构，避免影响分页滚动和下拉刷新时机。
+	 */
+	const pullToRefreshStretchClassName =
+		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
 
 	/**
 	 * 根据滚动位置更新上下渐变遮罩，让长列表边界反馈与原型一致。
@@ -358,7 +365,10 @@ export function SharedProjectsView({
 				<MagicPullToRefresh
 					onRefresh={onRefresh}
 					showSuccessMessage={false}
-					containerClassName="relative min-h-0 flex-1"
+					containerClassName={cn(
+						"relative min-h-0 flex-1",
+						shouldStretchPullToRefresh && cn("!overflow-hidden", pullToRefreshStretchClassName),
+					)}
 				>
 					<div
 						className="flex min-h-full flex-col gap-1 px-3 pb-4 pt-2"
@@ -367,6 +377,7 @@ export function SharedProjectsView({
 						{isLoading && projects.length === 0 ? <SharedProjectSkeletonList /> : null}
 
 						{isEmpty || isSearchEmpty ? (
+							/* 顶部是固定头部+Tab，底部有搜索栏，使用视口比例 mt 让空态更接近可视内容区的视觉中心。 */
 							<SharedProjectsEmptyState
 								isSearchEmpty={isSearchEmpty}
 								keyword={debouncedSearchValue}

@@ -26,6 +26,7 @@ interface RecycleBinContentProps {
 	order?: "desc" | "asc"
 	onTabCountChange?: (tabId: string, count: number) => void
 	onSelectionStateChange?: (hasSelection: boolean) => void
+	onEmptyStateChange?: (shouldStretch: boolean) => void
 	/** 外部触发刷新的信号计数器，值每次变化时组件重新加载第 1 页数据 */
 	refreshSignal?: number
 }
@@ -37,6 +38,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 		order = "desc",
 		onTabCountChange,
 		onSelectionStateChange,
+		onEmptyStateChange,
 		refreshSignal,
 	} = props
 	const { t } = useTranslation("super")
@@ -138,6 +140,14 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 
 	const hasItems = filteredItems.length > 0
 	const isSearchActive = debouncedSearchValue.length > 0
+	const shouldStretchEmptyState =
+		!loading &&
+		((items.length === 0 && isSearchActive) || items.length === 0 || !hasItems)
+
+	useEffect(() => {
+		onEmptyStateChange?.(shouldStretchEmptyState)
+		return () => onEmptyStateChange?.(false)
+	}, [onEmptyStateChange, shouldStretchEmptyState])
 
 	if (loading && items.length === 0) {
 		return (
@@ -170,7 +180,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	if (!loading && items.length === 0 && isSearchActive) {
 		return (
 			<div
-				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-20 text-center"
+				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center"
 				data-testid="mobile-recycle-bin-content"
 			>
 				<div
@@ -191,7 +201,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	if (!loading && items.length === 0) {
 		return (
 			<div
-				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-20 text-center"
+				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center"
 				data-testid="mobile-recycle-bin-content"
 			>
 				<div
@@ -220,7 +230,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	if (!hasItems) {
 		return (
 			<div
-				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-20 text-center"
+				className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center"
 				data-testid="mobile-recycle-bin-content"
 			>
 				<div

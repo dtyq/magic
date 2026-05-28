@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { cn } from "@/lib/utils"
 import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { useRecycleBinTabSearchParamsSync } from "@/pages/recycleBin/hooks/useRecycleBinTabSearchParamsSync"
@@ -34,12 +35,19 @@ function MobileRecycleBinPanel() {
 	const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 	const [order, setOrder] = useState<"desc" | "asc">("desc")
 	const [hasSelection, setHasSelection] = useState(false)
+	const [shouldStretchPullToRefresh, setShouldStretchPullToRefresh] = useState(false)
 	// 每次下拉刷新时自增，传入 RecycleBinContent 触发重新加载第 1 页
 	const [refreshSignal, setRefreshSignal] = useState(0)
 
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(true)
+	/*
+	 * 回收站页参考对话页，仅在空态时补齐 PullToRefresh 高度链。
+	 * 正常列表保持默认滚动结构，避免影响分页滚动与下拉刷新手势。
+	 */
+	const pullToRefreshStretchClassName =
+		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
 
 	const handleRefresh = useCallback(async () => {
 		setRefreshSignal((prev) => prev + 1)
@@ -90,7 +98,10 @@ function MobileRecycleBinPanel() {
 				<MagicPullToRefresh
 					onRefresh={handleRefresh}
 					showSuccessMessage={false}
-					containerClassName="relative min-h-0 flex-1"
+					containerClassName={cn(
+						"relative min-h-0 flex-1",
+						shouldStretchPullToRefresh && cn("!overflow-hidden", pullToRefreshStretchClassName),
+					)}
 				>
 					<div className="min-h-full px-3 pb-4 pt-2">
 						<RecycleBinContent
@@ -99,6 +110,7 @@ function MobileRecycleBinPanel() {
 							order={order}
 							onTabCountChange={handleTabCountChange}
 							onSelectionStateChange={setHasSelection}
+							onEmptyStateChange={setShouldStretchPullToRefresh}
 							refreshSignal={refreshSignal}
 						/>
 					</div>

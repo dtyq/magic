@@ -15,6 +15,7 @@ import {
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
+import { cn } from "@/lib/utils"
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
 import { MobileListEmptyIcon } from "@/pages/superMagicMobile/components/icons/mobile-list-empty-icon"
@@ -187,6 +188,13 @@ function WorkspaceListViewInner({
 	loadMore,
 }: WorkspaceListViewProps) {
 	const { t } = useTranslation("super")
+	const shouldStretchPullToRefresh = !isLoading && (isWorkspaceEmpty || isSearchEmpty)
+	/*
+	 * 工作区页与对话页保持一致，仅在空态时补齐 PullToRefresh 高度链。
+	 * 正常列表继续使用默认滚动结构，避免影响下拉刷新手势与列表滚动表现。
+	 */
+	const pullToRefreshStretchClassName =
+		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(true)
@@ -243,7 +251,10 @@ function WorkspaceListViewInner({
 				<MagicPullToRefresh
 					onRefresh={onRefresh}
 					showSuccessMessage={false}
-					containerClassName="relative min-h-0 flex-1"
+					containerClassName={cn(
+						"relative min-h-0 flex-1",
+						shouldStretchPullToRefresh && cn("!overflow-hidden", pullToRefreshStretchClassName),
+					)}
 				>
 					<div
 						className="flex min-h-full flex-col gap-1 px-3 pb-4 pt-2"
