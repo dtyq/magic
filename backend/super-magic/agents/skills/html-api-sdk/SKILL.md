@@ -114,6 +114,42 @@ const [users, orders, settings] = await Promise.all([
 
 ---
 
+## 1.5 App Base Path (`window.Magic.getAppBasePath`)
+
+Returns the workspace-relative directory path of the current app (the directory containing `index.html`).
+
+```javascript
+const basePath = await window.Magic.getAppBasePath();
+// e.g. "个人财务记账/" or "" (if app is at workspace root)
+```
+
+- **Returns**: `Promise<string>` — workspace-relative path ending with `/` (empty string if app is at workspace root)
+- **Use case**: Constructing workspace-root-relative paths for `@file` mentions in tiptap JSON messages
+
+**Path rules:**
+- `window.Magic.fs.*` paths are relative to app root → use directly: `"data/file.json"`
+- `@file` mention `file_path` must be workspace-root-relative → prefix with basePath: `basePath + "data/file.json"`
+- `.magic/` paths are already at workspace root → use as-is: `".magic/skill_name/SKILL.md"`
+
+```javascript
+// Example: building a workspace-root-relative path for file mention
+const basePath = await window.Magic.getAppBasePath();
+const mention = {
+  type: "mention",
+  attrs: {
+    type: "project_file",
+    data: {
+      file_id: "ref",
+      file_name: "records.json",
+      file_path: basePath + "data/records.json",  // workspace-root-relative
+      file_extension: "json"
+    }
+  }
+};
+```
+
+---
+
 ## 2. LLM API (`window.Magic.llm`)
 
 ### Get Available Models `getModels()`
@@ -770,6 +806,7 @@ window.Magic.llm.stream(messages, (delta, done) => {
 
 | API                                                   | Description                                                      | Returns                  |
 | ----------------------------------------------------- | ---------------------------------------------------------------- | ------------------------ |
+| `window.Magic.getAppBasePath()`                       | Get app's workspace-relative root directory path                 | `Promise<string>`        |
 | `window.Magic.fs.readFile(path)`                      | Read file text                                                   | `Promise<string>`        |
 | `window.Magic.fs.writeFile(path, content)`            | Write/create file (content: string/Blob/ArrayBuffer, max 500 MB) | `Promise<void>`          |
 | `window.Magic.fs.listFiles(dir?)`                     | List directory files                                             | `Promise<string[]>`      |

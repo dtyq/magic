@@ -5,6 +5,8 @@
  * 提供 readFile / writeFile / listFiles / watchFile，均通过 postMessage
  * 委托给主站（parent window）的 IframeFSService 处理。
  *
+ * 同时注入 window.Magic.getAppBasePath() 返回应用在 workspace 中的根目录路径。
+ *
  * 工作区级文件操作（上传到 OSS、触发下载、附加到消息输入框）由
  * MagicWorkspaceApi 负责，安装到 window.Magic.uploadFiles 等方法上。
  */
@@ -14,6 +16,14 @@ import { MagicBaseApi } from "./MagicBaseApi"
 export class MagicFSApi extends MagicBaseApi {
 	install(): void {
 		if (!window.Magic) window.Magic = {}
+
+		// Install getAppBasePath at top-level
+		if (!window.Magic.getAppBasePath) {
+			window.Magic.getAppBasePath = (): Promise<string> => {
+				return this.request<string>("MAGIC_FS_GET_APP_BASE_PATH_REQUEST", {})
+			}
+		}
+
 		if (window.Magic.fs) return
 
 		window.Magic.fs = {

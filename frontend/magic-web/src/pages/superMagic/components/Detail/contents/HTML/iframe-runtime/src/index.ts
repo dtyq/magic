@@ -484,6 +484,9 @@ declare global {
 					options?: { model?: string },
 				) => Promise<void>
 			}
+			// ─── 顶层 API ────────────────────────────────────────────────
+			/** 返回应用在 workspace 中的根目录路径（例如 "个人财务记账/"） */
+			getAppBasePath?: () => Promise<string>
 			// ─── 向后兼容（deprecated）────────────────────────────────────
 			reload?: () => void
 			setInputMessage?: (message: string) => void

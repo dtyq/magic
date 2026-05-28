@@ -135,6 +135,9 @@ export class IframeFSService {
 			case FS_MESSAGE_TYPES.WATCH_UNREGISTER:
 				this.handleWatchUnregister(payload as FSWatchUnregister)
 				return true
+			case FS_MESSAGE_TYPES.GET_APP_BASE_PATH_REQUEST:
+				this.handleGetAppBasePath(payload as { requestId: string })
+				return true
 			default:
 				return false
 		}
@@ -345,6 +348,15 @@ export class IframeFSService {
 			.map((p) => p.split("/").pop() || p)
 
 		this.send({ type: FS_MESSAGE_TYPES.LIST_RESPONSE, requestId, success: true, files })
+	}
+
+	private handleGetAppBasePath(req: { requestId: string }) {
+		this.send({
+			type: FS_MESSAGE_TYPES.GET_APP_BASE_PATH_RESPONSE,
+			requestId: req.requestId,
+			success: true,
+			content: this.appRootDir,
+		})
 	}
 
 	private handleWatchRegister(req: FSWatchRegister) {

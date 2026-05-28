@@ -108,6 +108,7 @@ The HTML layer has access to `window.Magic.*` APIs. Here is a quick categorizati
 10. **Responsive design** — apps should work at various viewport sizes
 11. **Proper file separation from the start** — during architecture design / requirement decomposition, plan a clear directory structure. Do NOT cram all content into a single file. Separate concerns: CSS into dedicated `<style>` or external files, JS modules by feature, data templates into `data/`, configs into their own files. The directory structure must be decided in the Design Phase, not as an afterthought.
 12. **Provide agent selector + model selector UI when dispatching skills** — when the app triggers companion skills via `createTopicAndSend`, provide UI for users to select agent (员工) and model. Defaults: general mode (不选员工) + model `"auto"`. Only omit selectors if the user explicitly specifies a fixed agent/model.
+13. **Use `getAppBasePath()` for workspace-relative paths in mentions** — `window.Magic.fs.*` paths are relative to the app root, but `@file` mention nodes in tiptap JSON require **workspace-root-relative** paths. Always call `const basePath = await window.Magic.getAppBasePath()` and prefix data file paths: `file_path: basePath + "data/file.json"`. The `.magic/` directory is already at workspace root, so `.magic/` paths need no prefix.
 
 ---
 
@@ -144,7 +145,10 @@ Companion skills are placed in the `.magic/` directory at the **workspace root**
 The companion skill is **not** auto-loaded. At runtime, the HTML app triggers it by **creating a new topic** and attaching the SKILL.md as context:
 
 ```javascript
-// Read the skill file content and dispatch via new topic
+// Get workspace-relative base path for file mentions
+const basePath = await window.Magic.getAppBasePath(); // e.g. "个人财务记账/"
+
+// Trigger companion skill via new topic with @file mentions
 const { topicId } = await window.Magic.project.createTopicAndSend({
   type: "doc",
   content: [{
@@ -154,6 +158,11 @@ const { topicId } = await window.Magic.project.createTopicAndSend({
       { type: "mention", attrs: {
         type: "project_file",
         data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/report_writer/SKILL.md", file_extension: "md" }
+      }},
+      { type: "text", text: "\n\n数据文件：" },
+      { type: "mention", attrs: {
+        type: "project_file",
+        data: { file_id: "data_ref", file_name: "records.json", file_path: basePath + "data/records.json", file_extension: "json" }
       }},
       { type: "text", text: "\n\n用户任务：" + userTaskDescription }
     ]
@@ -166,6 +175,7 @@ const { topicId } = await window.Magic.project.createTopicAndSend({
 - Do NOT pass `agentId` — defaults to general mode (通用模式)
 - Model: always `"auto"` unless user selects otherwise
 - Message format: tiptap JSON with @file mention of `.magic/<name>/SKILL.md` + user task text
+- **Path rules for mentions**: `.magic/` paths stay as-is (already at workspace root); app data file paths must be prefixed with `basePath` from `getAppBasePath()`
 - Each skill invocation creates a **new topic** for isolation
 
 ---

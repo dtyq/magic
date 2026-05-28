@@ -7,9 +7,23 @@ This is a condensed API reference for all `window.Magic.*` APIs available in Sup
 ## Important Constraints (Must Follow)
 
 1. APIs are **only available inside HTML files opened in a SuperMagic workspace**
-2. All file paths are relative to the **app root directory** (containing `index.html`). **`../` traversal is forbidden**
+2. All `window.Magic.fs.*` paths are relative to the **app root directory** (containing `index.html`). **`../` traversal is forbidden**
 3. **Inline event handlers are forbidden** — use `addEventListener` only
 4. **`model` field is always required** in LLM calls — default to `"auto"`
+5. **`@file` mention paths must be workspace-root-relative** — use `getAppBasePath()` to prefix app data file paths
+
+---
+
+## 0. App Base Path (`window.Magic.getAppBasePath`)
+
+### getAppBasePath() → Promise\<string\>
+```javascript
+const basePath = await window.Magic.getAppBasePath();
+// e.g. "个人财务记账/" or "" (if app is at workspace root)
+```
+- Returns the workspace-relative directory path of the current app
+- Use to build `file_path` values for `@file` mentions in tiptap JSON
+- `.magic/` paths need no prefix (already at workspace root)
 
 ---
 

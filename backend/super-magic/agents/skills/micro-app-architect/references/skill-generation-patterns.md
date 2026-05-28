@@ -101,7 +101,13 @@ async function triggerSkill(userTask, selectedAgentId, selectedModel) {
 ### Trigger with Additional Context Files
 ```javascript
 // When the skill needs to process specific data files
-async function triggerWithData(userTask, dataFilePath) {
+// IMPORTANT: data file paths must be workspace-root-relative (use getAppBasePath)
+async function triggerWithData(userTask, relativeDataPath) {
+  const basePath = await window.Magic.getAppBasePath(); // e.g. "个人财务记账/"
+  const fullDataPath = basePath + relativeDataPath;     // workspace-root-relative
+  const fileName = relativeDataPath.split("/").pop();
+  const ext = relativeDataPath.split(".").pop();
+
   const { topicId } = await window.Magic.project.createTopicAndSend({
     type: "doc",
     content: [{
@@ -115,7 +121,7 @@ async function triggerWithData(userTask, dataFilePath) {
         { type: "text", text: " 并处理以下数据文件：" },
         { type: "mention", attrs: {
           type: "project_file",
-          data: { file_id: "data_ref", file_name: dataFilePath.split("/").pop(), file_path: dataFilePath, file_extension: dataFilePath.split(".").pop() }
+          data: { file_id: "data_ref", file_name: fileName, file_path: fullDataPath, file_extension: ext }
         }},
         { type: "text", text: "\n\n" + userTask }
       ]
