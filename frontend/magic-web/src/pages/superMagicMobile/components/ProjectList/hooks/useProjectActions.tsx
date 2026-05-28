@@ -41,6 +41,7 @@ import {
 	resolveChatDetailDeleteFallback,
 	resolvePostMoveBackFallback,
 	shouldExitDetailPageAfterDelete,
+	shouldExitDetailPageAfterTransfer,
 } from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 import { RouteName } from "@/routes/constants"
 import { buildSuperMobileNavigationState } from "@/pages/superMagicMobile/layout/MainLayout/components/MainHeader/backNavigation"
@@ -103,9 +104,31 @@ export function useProjectListActions({
 			selectedProject: currentActionItem,
 		})
 
+	/**
+	 * 项目详情页转让成功后退回工作区项目列表，与删除/移动详情页退出逻辑一致。
+	 */
+	const handleProjectTransferSuccess = useMemoizedFn(async (transferredProject: ProjectListItem) => {
+		const shouldExitProjectDetailPage = shouldExitDetailPageAfterTransfer({
+			deletedProjectId: transferredProject.id,
+			selectedProjectId: projectStore.selectedProject?.id,
+			isProjectDetailActionContext,
+		})
+		const workspaceId = transferredProject.workspace_id
+		if (!shouldExitProjectDetailPage || !workspaceId) return
+
+		closeActionsPopup()
+		await applyProjectDetailExitNavigation({
+			workspaceId,
+			project: transferredProject,
+			navigate,
+		})
+	})
+
 	// 转让弹层由 hook 决定是否提供真实交互，列表层只消费稳定接口。
 	const { openTransferModal, TransferModalComponent, canTransferProject } =
-		useProjectTransferModal(currentActionItem)
+		useProjectTransferModal(currentActionItem, {
+			onTransferSuccess: handleProjectTransferSuccess,
+		})
 
 	const openActionsPopup = useMemoizedFn((project: ProjectListItem) => {
 		const headerPolicy = resolveProjectDetailHeaderActions(project, {

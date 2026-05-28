@@ -6,7 +6,9 @@ import {
 	resolveSuperMobileProjectDetailBackFallback,
 	shouldExitChatDetailAfterDelete,
 	shouldExitDetailPageAfterDelete,
+	shouldExitDetailPageAfterTransfer,
 	shouldExitPageAfterProjectMove,
+	shouldExitWorkspaceDetailAfterTransfer,
 	shouldExitTopicDetailAfterDelete,
 	resolveChatDetailDeleteFallback,
 	resolveWorkspaceDetailDeleteFallback,
@@ -75,6 +77,54 @@ describe("shouldExitDetailPageAfterDelete", () => {
 				deletedProjectId: "p-1",
 				selectedProjectId: "p-1",
 				isProjectDetailActionContext: false,
+			}),
+		).toBe(false)
+	})
+})
+
+describe("shouldExitDetailPageAfterTransfer", () => {
+	it("mirrors delete guard for project-detail transfer", () => {
+		expect(
+			shouldExitDetailPageAfterTransfer({
+				deletedProjectId: "p-1",
+				selectedProjectId: "p-1",
+				isProjectDetailActionContext: true,
+			}),
+		).toBe(true)
+		expect(
+			shouldExitDetailPageAfterTransfer({
+				deletedProjectId: "p-1",
+				selectedProjectId: "p-1",
+				isProjectDetailActionContext: false,
+			}),
+		).toBe(false)
+	})
+})
+
+describe("shouldExitWorkspaceDetailAfterTransfer", () => {
+	it("returns true only on workspace detail route for the transferred workspace", () => {
+		expect(
+			shouldExitWorkspaceDetailAfterTransfer({
+				routeWorkspaceId: "ws-1",
+				transferredWorkspaceId: "ws-1",
+			}),
+		).toBe(true)
+	})
+
+	it("returns false on workspaces list without route workspace id", () => {
+		expect(
+			shouldExitWorkspaceDetailAfterTransfer({
+				routeWorkspaceId: undefined,
+				transferredWorkspaceId: "ws-1",
+			}),
+		).toBe(false)
+	})
+
+	it("returns false when route workspace differs from transferred workspace", () => {
+		expect(
+			shouldExitWorkspaceDetailAfterTransfer({
+				routeWorkspaceId: "ws-1",
+				transferredWorkspaceId: "ws-2",
 			}),
 		).toBe(false)
 	})

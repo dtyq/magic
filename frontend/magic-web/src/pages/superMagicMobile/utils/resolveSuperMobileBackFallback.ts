@@ -100,6 +100,13 @@ export function shouldExitDetailPageAfterDelete({
 	return selectedProjectId === deletedProjectId
 }
 
+/** Same guard as delete: leave project detail when the viewed project was transferred. */
+export function shouldExitDetailPageAfterTransfer(
+	params: ShouldExitDetailPageAfterDeleteParams,
+): boolean {
+	return shouldExitDetailPageAfterDelete(params)
+}
+
 interface ShouldExitChatDetailAfterDeleteParams {
 	deletedProjectId: string
 	selectedProjectId: string | undefined
@@ -145,6 +152,23 @@ export function shouldExitTopicDetailAfterDelete({
  */
 export function resolveWorkspaceDetailDeleteFallback(): SuperMobileBackFallbackTarget {
 	return { name: RouteName.SuperWorkspacesList }
+}
+
+interface ShouldExitWorkspaceDetailAfterTransferParams {
+	routeWorkspaceId: string | undefined
+	transferredWorkspaceId: string
+}
+
+/**
+ * True when transfer happens on the workspace detail route for the workspace being transferred.
+ */
+export function shouldExitWorkspaceDetailAfterTransfer({
+	routeWorkspaceId,
+	transferredWorkspaceId,
+}: ShouldExitWorkspaceDetailAfterTransferParams): boolean {
+	if (!routeWorkspaceId || !transferredWorkspaceId) return false
+
+	return routeWorkspaceId === transferredWorkspaceId
 }
 
 /**
