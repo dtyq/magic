@@ -19,6 +19,7 @@ use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Event\Agent\UserCallAgentEvent;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
@@ -79,6 +80,14 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
     private function handlerSuperMagicMessage(UserCallAgentEvent $userCallAgentEvent): void
     {
         try {
+            // 将本次链路（含下游沙箱创建/网关请求）的 request_id 统一到聊天消息的 app_message_id，
+            // 便于通过同一个 id 在日志中串起 聊天 → Agent 处理 → 沙箱创建 全链路。
+            // 与 MagicChatWebSocketApi::relationAppMsgIdAndRequestId、AbstractSeqConsumer::setRequestId 保持一致。
+            $appMessageId = $userCallAgentEvent->seqEntity->getAppMessageId();
+            if (! empty($appMessageId)) {
+                CoContext::setRequestId($appMessageId);
+            }
+
             $this->logger->info('Received super agent message', [
                 'app_message_id' => $userCallAgentEvent->seqEntity->getAppMessageId(),
                 'seq_id' => $userCallAgentEvent->seqEntity->getId(),
