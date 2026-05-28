@@ -242,6 +242,97 @@ class KelingOmniVideoAdapterTest extends TestCase
         $this->assertSame('off', $payload['sound']);
     }
 
+    public function testResolveHasAudioOutputTurnsOffWhenReferenceVideoExists(): void
+    {
+        $adapter = $this->createAdapter();
+
+        $this->assertFalse($adapter->resolveHasAudioOutput('kling-v3-omni', 'keling-video', [
+            'task' => 'generate',
+            'prompt' => '参考视频动作',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => 'https://localhost/reference.mp4'],
+                ],
+            ],
+            'generation' => [
+                'generate_audio' => true,
+            ],
+        ]));
+    }
+
+    public function testResolveHasAudioOutputTurnsOnWithoutReferenceVideo(): void
+    {
+        $adapter = $this->createAdapter();
+
+        $this->assertTrue($adapter->resolveHasAudioOutput('kling-v3-omni', 'keling-video', [
+            'task' => 'generate',
+            'prompt' => '无参考视频',
+            'generation' => [
+                'generate_audio' => true,
+            ],
+        ]));
+        $this->assertTrue($adapter->resolveHasAudioOutput('kling-v3-omni', 'keling-video', [
+            'task' => 'generate',
+            'prompt' => '无参考视频时忽略 generate_audio=false',
+            'generation' => [
+                'generate_audio' => false,
+            ],
+        ]));
+        $this->assertTrue($adapter->resolveHasAudioOutput('kling-v3-omni', 'keling-video', [
+            'task' => 'generate',
+            'prompt' => '无参考视频且未传音频参数',
+            'generation' => [],
+        ]));
+    }
+
+    public function testResolveHasAudioOutputIgnoresGenerateAudioWhenNoReferenceVideo(): void
+    {
+        $adapter = $this->createAdapter();
+
+        $this->assertTrue($adapter->resolveHasAudioOutput('kling-v3-omni', 'keling-video', [
+            'task' => 'generate',
+            'prompt' => '无参考视频时只按 sound on 判断',
+            'generation' => [
+                'generate_audio' => 'invalid',
+            ],
+        ]));
+    }
+
+    public function testBuildProviderPayloadIgnoresInternalHasAudioOutputField(): void
+    {
+        $adapter = $this->createAdapter();
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-keling-audio-1',
+            endpoint: 'video:keling-video',
+            model: 'keling-video',
+            modelVersion: 'kling-v3-omni',
+            providerModelId: 'provider-model-keling',
+            providerCode: 'Keling',
+            providerName: 'keling',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'prompt' => '内部音频输出字段不进入 provider payload',
+                'generation' => [
+                    'generate_audio' => true,
+                    'has_audio_output' => false,
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $payload = $adapter->buildProviderPayload($operation);
+
+        $this->assertSame('on', $payload['sound']);
+        $this->assertContains('generation.generate_audio', $operation->getIgnoredParams());
+        $this->assertNotContains('generation.generate_audio', $operation->getAcceptedParams());
+        $this->assertNotContains('sound', $operation->getAcceptedParams());
+        $this->assertNotContains('generation.has_audio_output', $operation->getAcceptedParams());
+    }
+
     private function createAdapter(): KelingOmniVideoAdapter
     {
         return new KelingOmniVideoAdapter(

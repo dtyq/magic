@@ -35,12 +35,22 @@ readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterI
         return $this->capabilityProvider->resolveGenerationConfig($modelVersion, $modelId);
     }
 
+    public function resolveHasAudioOutput(string $modelVersion, string $modelId, array $request): bool
+    {
+        $task = $this->normalizeTask($request['task'] ?? null);
+        $inputs = is_array($request['inputs'] ?? null) ? $request['inputs'] : [];
+        $sound = $this->resolveSound($this->buildVideoList($inputs, $task));
+
+        return $sound === 'on';
+    }
+
     public function buildProviderPayload(VideoQueueOperationEntity $operation): array
     {
         $request = $operation->getRawRequest();
         $task = $this->normalizeTask($request['task'] ?? null);
         $inputs = is_array($request['inputs'] ?? null) ? $request['inputs'] : [];
         $generation = is_array($request['generation'] ?? null) ? $request['generation'] : [];
+        $ignoredParams = [];
         $extensions = is_array($request['extensions']['keling']['omni_video'] ?? null)
             ? $request['extensions']['keling']['omni_video']
             : [];
@@ -60,10 +70,7 @@ readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterI
             'external_task_id' => $this->normalizeOptionalString($extensions['external_task_id'] ?? null),
         ], static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []);
 
-        $sound = $this->resolveSound($generation, $payload['video_list'] ?? []);
-        if ($sound !== null) {
-            $payload['sound'] = $sound;
-        }
+        $payload['sound'] = $this->resolveSound($payload['video_list'] ?? []);
 
         if (array_key_exists('watermark', $generation)) {
             $payload['watermark_info'] = ['enabled' => (bool) $generation['watermark']];
@@ -73,9 +80,12 @@ readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterI
         if ($negativePrompt !== null) {
             $payload['prompt'] = trim(((string) ($payload['prompt'] ?? '')) . "\n\n负向约束：" . $negativePrompt);
         }
+        if (array_key_exists('generate_audio', $generation)) {
+            $ignoredParams[] = 'generation.generate_audio';
+        }
 
         $operation->setAcceptedParams($this->acceptedParamsFromPayload($payload));
-        $operation->setIgnoredParams([]);
+        $operation->setIgnoredParams($ignoredParams);
 
         return $payload;
     }
@@ -221,18 +231,9 @@ readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterI
         return $task === VideoTaskType::Edit->value ? VideoTaskType::Edit->value : VideoTaskType::Generate->value;
     }
 
-    private function resolveSound(array $generation, array $videoList): ?string
+    private function resolveSound(array $videoList): string
     {
-        if ($videoList !== []) {
-            return 'off';
-        }
-
-        $generateAudio = $this->normalizeOptionalBool($generation['generate_audio'] ?? true);
-        if ($generateAudio === null) {
-            return null;
-        }
-
-        return $generateAudio ? 'on' : 'off';
+        return $videoList === [] ? 'on' : 'off';
     }
 
     private function normalizeOptionalString(mixed $value): ?string
@@ -270,6 +271,10 @@ readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterI
     {
         $accepted = [];
         foreach (array_keys($payload) as $key) {
+            if ($key === 'sound') {
+                continue;
+            }
+
             $accepted[] = match ($key) {
                 'prompt' => 'prompt',
                 'image_list' => 'inputs.reference_images',
@@ -277,7 +282,6 @@ readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterI
                 'mode' => 'generation.mode',
                 'aspect_ratio' => 'generation.aspect_ratio',
                 'duration' => 'generation.duration_seconds',
-                'sound' => 'generation.generate_audio',
                 'watermark_info' => 'generation.watermark',
                 'multi_shot' => 'extensions.keling.omni_video.multi_shot',
                 'shot_type' => 'extensions.keling.omni_video.shot_type',

@@ -61,7 +61,7 @@ class ImageGenerateFactory
 
     public static function createRequestType(ImageGenerateModelType $imageGenerateType, string $modelVersion, ?string $modelId, array $data): ImageGenerateRequest
     {
-        return match ($imageGenerateType) {
+        $request = match ($imageGenerateType) {
             ImageGenerateModelType::Official => self::createOfficialProxyRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::Volcengine => self::createVolcengineRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::VolcengineImageGenerateV3 => self::createVolcengineRequest($modelVersion, $modelId, $data),
@@ -76,11 +76,14 @@ class ImageGenerateFactory
             ImageGenerateModelType::AzureOpenAIImageGenerate => self::createAzureOpenAIImageRequest($modelVersion, $modelId, $data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
+
+        self::ensureResolution($request);
+        return $request;
     }
 
     private static function createOfficialProxyRequest(string $modelVersion, ?string $modelId, array $data): OfficialProxyRequest
     {
-        return new OfficialProxyRequest([
+        $request = new OfficialProxyRequest([
             'prompt' => $data['user_prompt'] ?? '',
             'model' => $data['model'] ?? '',
             'n' => $data['generate_num'] ?? 1,
@@ -88,6 +91,9 @@ class ImageGenerateFactory
             'size' => $data['size'] ?? '1024x1024',
             'images' => $data['reference_images'] ?? [],
         ]);
+
+        $request->setSize((string) ($data['size'] ?? '1024x1024'));
+        return $request;
     }
 
     private static function createGPT4oRequest(string $modelVersion, ?string $modelId, array $data): GPT4oModelRequest
@@ -263,12 +269,7 @@ class ImageGenerateFactory
 
         // 设置宽高比和尺寸
         $request->setRatio($ratio);
-        $request->setSize($width . 'x' . $height);
-
-        // 设置分辨率预设（用于 Nano Banana / Nano Banana Pro 模型）
-        if (! empty($scale)) {
-            $request->setResolutionPreset($scale);
-        }
+        $request->setResolution($scale);
 
         // 生成图片数量
         if (isset($data['generate_num'])) {
@@ -348,14 +349,15 @@ class ImageGenerateFactory
         ];
 
         $request = new OpenRouterRequest(
+            (string) $width,
+            (string) $height,
             $data['model'] ?? $modelVersion,
             $data['user_prompt'] ?? '',
             $imageConfig
         );
-        $request->setWidth((string) $width);
-        $request->setHeight((string) $height);
-        $request->setSize($width . 'x' . $height);
+
         $request->setRatio($ratio);
+        $request->setResolution($scale);
 
         if (isset($data['generate_num'])) {
             $request->setGenerateNum((int) $data['generate_num']);
@@ -386,6 +388,29 @@ class ImageGenerateFactory
         $maxLimit = $imageConfig['max_reference_images'] ?? $defaultMaxLimit;
         if (count($referenceImages) > $maxLimit) {
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, __('image_generate.too_many_reference_images_limit', ['limit' => $maxLimit]));
+        }
+    }
+
+    /**
+     * 仅为未显式设置 resolution 的请求补充分辨率，用于事件计费等内部链路兜底。
+     */
+    private static function ensureResolution(ImageGenerateRequest $request): void
+    {
+        if (! empty($request->getResolution())) {
+            return;
+        }
+
+        if ($request->getWidth() !== '' && $request->getHeight() !== '') {
+            $request->setResolution(
+                SizeManager::resolveResolutionByPixels((int) $request->getWidth(), (int) $request->getHeight())
+            );
+            return;
+        }
+
+        $size = trim($request->getSize());
+        if ($size !== '') {
+            [$width, $height] = SizeManager::parseToWidthHeight($size);
+            $request->setResolution(SizeManager::resolveResolutionByPixels((int) $width, (int) $height));
         }
     }
 }

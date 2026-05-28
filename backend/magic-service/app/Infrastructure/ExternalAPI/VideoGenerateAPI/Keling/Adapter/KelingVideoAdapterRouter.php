@@ -33,6 +33,11 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
         return $this->resolveAdapter($modelVersion, $modelId)?->resolveGenerationConfig($modelVersion, $modelId);
     }
 
+    public function resolveHasAudioOutput(string $modelVersion, string $modelId, array $request): bool
+    {
+        return $this->resolveAdapter($modelVersion, $modelId)?->resolveHasAudioOutput($modelVersion, $modelId, $request) ?? true;
+    }
+
     public function buildProviderPayload(VideoQueueOperationEntity $operation): array
     {
         $adapter = $this->resolveOperationAdapter($operation);

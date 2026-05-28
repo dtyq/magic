@@ -20,7 +20,7 @@ class GoogleGeminiRequestTest extends TestCase
     {
         $request = new GoogleGeminiRequest('1792', '2400', '小猫在喝水', '', 'gemini-3.1-flash-image-preview');
         $request->setRatio('3:4');
-        $request->setResolutionPreset('2K');
+        $request->setResolution('2K');
 
         $generationConfig = $request->getGenerationConfig();
 

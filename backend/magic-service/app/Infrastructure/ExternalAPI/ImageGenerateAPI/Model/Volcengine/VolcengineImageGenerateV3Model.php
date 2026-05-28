@@ -460,9 +460,14 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
 
             // 累计usage信息（如果有的话）
             if (! empty($volcengineResult['usage']) && is_array($volcengineResult['usage'])) {
-                $currentUsage->addGeneratedImages($volcengineResult['usage']['generated_images'] ?? 1);
-                $currentUsage->completionTokens += $volcengineResult['usage']['output_tokens'] ?? 0;
-                $currentUsage->totalTokens += $volcengineResult['usage']['total_tokens'] ?? 0;
+                $tokenUsage = $this->extractTokenUsage($volcengineResult['usage']);
+                $currentUsage->addTokenUsage(
+                    $tokenUsage['prompt_tokens'],
+                    $tokenUsage['completion_tokens'],
+                    $tokenUsage['thoughts_tokens'],
+                    $tokenUsage['total_tokens']
+                );
+                $currentUsage->addGeneratedImages($this->resolveGeneratedImages($volcengineResult['usage'], 1));
             } else {
                 // 如果没有usage信息，默认增加1张图片
                 $currentUsage->addGeneratedImages(1);
@@ -475,6 +480,24 @@ class VolcengineImageGenerateV3Model extends AbstractImageGenerate
             // 确保锁一定会被释放
             $this->unlockResponse($response, $lockOwner);
         }
+    }
+
+    /**
+     * @return array{prompt_tokens: int, completion_tokens: int, thoughts_tokens: int, total_tokens: int}
+     */
+    private function extractTokenUsage(array $usage): array
+    {
+        return [
+            'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? $usage['input_tokens'] ?? 0),
+            'completion_tokens' => (int) ($usage['completion_tokens'] ?? $usage['output_tokens'] ?? 0),
+            'thoughts_tokens' => (int) ($usage['thoughts_tokens'] ?? 0),
+            'total_tokens' => (int) ($usage['total_tokens'] ?? 0),
+        ];
+    }
+
+    private function resolveGeneratedImages(array $usage, int $fallbackGeneratedImages): int
+    {
+        return (int) ($usage['generated_images'] ?? $usage['image_count'] ?? $fallbackGeneratedImages);
     }
 
     /**

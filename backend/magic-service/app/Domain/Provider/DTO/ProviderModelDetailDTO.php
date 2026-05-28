@@ -24,6 +24,8 @@ class ProviderModelDetailDTO extends AbstractDTO
 
     protected string $serviceProviderConfigId; // 服务商配置ID
 
+    protected string $providerCode = ''; // 服务商编码
+
     protected string $modelId = ''; // 模型真实ID
 
     protected string $name;
@@ -260,6 +262,20 @@ class ProviderModelDetailDTO extends AbstractDTO
             $this->serviceProviderConfigId = '';
         } else {
             $this->serviceProviderConfigId = (string) $serviceProviderConfigId;
+        }
+    }
+
+    public function getProviderCode(): string
+    {
+        return $this->providerCode;
+    }
+
+    public function setProviderCode(null|int|string $providerCode): void
+    {
+        if ($providerCode === null) {
+            $this->providerCode = '';
+        } else {
+            $this->providerCode = (string) $providerCode;
         }
     }
 

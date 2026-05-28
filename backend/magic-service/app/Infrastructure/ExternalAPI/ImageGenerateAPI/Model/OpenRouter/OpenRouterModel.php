@@ -337,10 +337,13 @@ class OpenRouterModel extends AbstractImageGenerate
 
             // 累计usage信息 - 从响应中提取
             if (! empty($responseData['usage']) && is_array($responseData['usage'])) {
-                $usageData = $responseData['usage'];
-                $currentUsage->promptTokens += $usageData['prompt_tokens'] ?? 0;
-                $currentUsage->completionTokens += $usageData['completion_tokens'] ?? 0;
-                $currentUsage->totalTokens += $usageData['total_tokens'] ?? 0;
+                $tokenUsage = $this->extractTokenUsage($responseData['usage']);
+                $currentUsage->addTokenUsage(
+                    $tokenUsage['prompt_tokens'],
+                    $tokenUsage['completion_tokens'],
+                    $tokenUsage['thoughts_tokens'],
+                    $tokenUsage['total_tokens']
+                );
             }
             // 累计生成的图片数量
             $currentUsage->addGeneratedImages(count($images));
@@ -352,6 +355,19 @@ class OpenRouterModel extends AbstractImageGenerate
             // 确保锁一定会被释放
             $this->unlockResponse($response, $lockOwner);
         }
+    }
+
+    /**
+     * @return array{prompt_tokens: int, completion_tokens: int, thoughts_tokens: int, total_tokens: int}
+     */
+    private function extractTokenUsage(array $usage): array
+    {
+        return [
+            'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
+            'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
+            'thoughts_tokens' => (int) ($usage['thoughts_tokens'] ?? 0),
+            'total_tokens' => (int) ($usage['total_tokens'] ?? 0),
+        ];
     }
 
     private function shouldRetry(Throwable $e, int $retryCount, int $maxRetries): bool
