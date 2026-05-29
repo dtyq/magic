@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useDebounce, useMemoizedFn, useRequest } from "ahooks"
 import { runInAction } from "mobx"
 import { useTranslation } from "react-i18next"
@@ -73,7 +73,12 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 		workspaceId && workspaceStore.selectedWorkspace?.id !== workspaceId
 			? workspaceStore.getWorkspaceById(workspaceId)
 			: workspaceStore.selectedWorkspace
-	const projects = projectStore.projects
+	/** Route workspace id is the source of truth for list scoping and fetch triggers. */
+	const activeWorkspaceId = workspaceId ?? selectedWorkspace?.id ?? null
+	const activeWorkspaceIdRef = useRef(activeWorkspaceId)
+	activeWorkspaceIdRef.current = activeWorkspaceId
+	/** Last workspace whose project list finished loading and matches the active route. */
+	const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(null)
 
 	const [searchValue, setSearchValue] = useState("")
 	// 输入框展示保持实时，项目过滤只消费防抖后的关键字，避免频繁重算列表。
@@ -115,44 +120,68 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 
 	/**
 	 * 拉取工作区第 1 页项目并写回 store，供 useRequest 与静默刷新共用，避免重复拼装请求逻辑。
+	 * 响应返回后校验 activeWorkspaceIdRef，丢弃过期工作区的结果，防止快速切换时写错列表。
 	 */
-	const fetchProjectsForWorkspace = useMemoizedFn(async (workspaceId: string) => {
-		const res = await SuperMagicApi.getProjectsWithCollaboration({
-			workspace_id: workspaceId,
-			page: 1,
-			page_size: PROJECT_PAGE_SIZE,
-		})
-		runInAction(() => {
-			projectStore.setProjects(res.list)
-			projectStore.setProjectsForWorkspace(workspaceId, res.list)
-		})
-		setProjectsTotal(res.total ?? res.list.length)
-		setCurrentPage(1)
-		return res.list
+	const fetchProjectsForWorkspace = useMemoizedFn(async (targetWorkspaceId: string) => {
+		try {
+			const res = await SuperMagicApi.getProjectsWithCollaboration({
+				workspace_id: targetWorkspaceId,
+				page: 1,
+				page_size: PROJECT_PAGE_SIZE,
+			})
+
+			if (activeWorkspaceIdRef.current !== targetWorkspaceId) {
+				return []
+			}
+
+			runInAction(() => {
+				projectStore.setProjects(res.list)
+				projectStore.setProjectsForWorkspace(targetWorkspaceId, res.list)
+			})
+			setProjectsTotal(res.total ?? res.list.length)
+			setCurrentPage(1)
+			setLoadedWorkspaceId(targetWorkspaceId)
+			return res.list
+		} catch (error) {
+			if (activeWorkspaceIdRef.current === targetWorkspaceId) {
+				setLoadedWorkspaceId(targetWorkspaceId)
+			}
+			throw error
+		}
 	})
 
 	/**
 	 * 进入页面或切换工作区后刷新项目列表，直接调 API 以便同时拿到 total，避免二次请求。
 	 */
 	const { loading: isLoading, run: fetchProjects } = useRequest(
-		async (workspaceId?: string) => {
-			if (!workspaceId) return []
-			return fetchProjectsForWorkspace(workspaceId)
+		async (targetWorkspaceId?: string) => {
+			if (!targetWorkspaceId) return []
+			return fetchProjectsForWorkspace(targetWorkspaceId)
 		},
 		{
 			manual: true,
-			refreshDeps: [selectedWorkspace?.id],
-			ready: Boolean(selectedWorkspace?.id),
+			refreshDeps: [activeWorkspaceId],
+			ready: Boolean(activeWorkspaceId),
 		},
 	)
 
 	/**
-	 * 当前工作区变化时主动回补一次项目列表，确保路由直达场景也能拿到数据。
+	 * 工作区切换时清空展示门控并重新拉取，避免短暂展示上一工作区的全局 projects。
 	 */
 	useEffect(() => {
-		if (!selectedWorkspace?.id) return
-		void fetchProjects(selectedWorkspace.id)
-	}, [fetchProjects, selectedWorkspace?.id])
+		if (!activeWorkspaceId) return
+
+		setLoadedWorkspaceId(null)
+		setPendingRemoveIds(new Set())
+		setProjectsTotal(0)
+		setCurrentPage(1)
+		void fetchProjects(activeWorkspaceId)
+	}, [activeWorkspaceId, fetchProjects])
+
+	const isListReady = Boolean(activeWorkspaceId) && loadedWorkspaceId === activeWorkspaceId
+	/** Gate list to the active workspace; parent observer re-renders when MobX projects update. */
+	const displayProjects = isListReady ? projectStore.projects.slice() : []
+	const isListLoading = Boolean(activeWorkspaceId) && (!isListReady || isLoading)
 
 	/**
 	 * 工作区项目搜索按当前 API 口径保持前端本地过滤，不发明服务端搜索协议。
@@ -161,12 +190,16 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	const filteredProjects = useMemo(() => {
 		const keyword = debouncedSearchValue.toLowerCase()
 
-		return projects
+		const sourceProjects = isListReady ? projectStore.projects : []
+
+		return sourceProjects
 			.filter((project) => !pendingRemoveIds.has(project.id))
 			.filter((project) =>
 				keyword ? (project.project_name ?? "").toLowerCase().includes(keyword) : true,
 			)
-	}, [debouncedSearchValue, pendingRemoveIds, projects])
+		// MobX store updates replace projects array; WorkspacePagePanel observer triggers re-render.
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- projectStore.projects
+	}, [debouncedSearchValue, isListReady, pendingRemoveIds, projectStore.projects])
 
 	/**
 	 * 项目列表副标题统一复用相对时间格式，避免不同移动端入口各自维护一套时间展示文案。
@@ -202,12 +235,12 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	 */
 	const handleRefreshProjects = useMemoizedFn(
 		async (options?: RefreshWorkspaceProjectsOptions) => {
-			if (!selectedWorkspace?.id) return
+			if (!activeWorkspaceId) return
 
 			const silent = options?.silent ?? false
 			const latestProjects = silent
-				? await fetchProjectsForWorkspace(selectedWorkspace.id)
-				: await fetchProjects(selectedWorkspace.id)
+				? await fetchProjectsForWorkspace(activeWorkspaceId)
+				: await fetchProjects(activeWorkspaceId)
 
 			if (silent) {
 				const latestProjectIds = new Set(latestProjects.map((project) => project.id))
@@ -388,22 +421,22 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 		openProjectDeleteConfirm(project)
 	})
 
-	const isProjectEmpty = !isLoading && !debouncedSearchValue && projectStore.projects.length === 0
+	const isProjectEmpty = !isListLoading && !debouncedSearchValue && displayProjects.length === 0
 	const isSearchEmpty =
-		!isLoading && Boolean(debouncedSearchValue) && filteredProjects.length === 0
+		!isListLoading && Boolean(debouncedSearchValue) && filteredProjects.length === 0
 
 	/**
 	 * 加载更多项目：请求下一页并追加到 store。
 	 * 搜索态下禁止加载更多，保持一次性全量本地过滤行为。
 	 */
 	const loadMore = useMemoizedFn(async () => {
-		if (!selectedWorkspace?.id) return
+		if (!activeWorkspaceId || !isListReady) return
 		// 搜索态不加载更多，保持一次性全量本地过滤行为
 		if (debouncedSearchValue) return
 		const nextPage = currentPage + 1
 		try {
 			const res = await SuperMagicApi.getProjectsWithCollaboration({
-				workspace_id: selectedWorkspace.id,
+				workspace_id: activeWorkspaceId,
 				page: nextPage,
 				page_size: PROJECT_PAGE_SIZE,
 			})
@@ -420,12 +453,12 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	})
 
 	// 是否还有更多项目（搜索态禁用加载更多，结果为本地全量过滤）
-	const hasMore = !debouncedSearchValue && projectStore.projects.length < projectsTotal
+	const hasMore = !debouncedSearchValue && displayProjects.length < projectsTotal
 
 	return {
 		selectedWorkspace,
-		projects,
-		isLoading,
+		projects: displayProjects,
+		isLoading: isListLoading,
 		searchValue,
 		setSearchValue,
 		debouncedSearchValue,
