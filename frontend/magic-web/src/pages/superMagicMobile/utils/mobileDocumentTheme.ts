@@ -1,3 +1,7 @@
+import type { CSSProperties } from "react"
+
+import { interfaceStore } from "@/stores/interface"
+
 export type MobileDocumentColorScheme = "light" | "dark"
 
 export interface MobileDocumentThemeOptions {
@@ -71,4 +75,33 @@ export function applyMobileDocumentTheme(options: MobileDocumentThemeOptions): v
 	themeMeta.setAttribute("content", hex)
 	document.documentElement.style.background = background
 	document.body.style.background = background
+}
+
+interface MobileGlobalSafeAreaStyle {
+	top: CSSProperties
+	bottom: CSSProperties
+}
+
+/**
+ * Resolve top/bottom GlobalSafeArea inline styles from sidebar state (shell track vs default token).
+ */
+export function getMobileGlobalSafeAreaStyle(isSidebarOpen: boolean): MobileGlobalSafeAreaStyle {
+	if (!isSidebarOpen) {
+		return { top: {}, bottom: {} }
+	}
+
+	const backgroundColor = getMobileDocumentBackgroundCss(true)
+	return {
+		top: { backgroundColor },
+		bottom: { backgroundColor },
+	}
+}
+
+/**
+ * Sync GlobalSafeArea top/bottom fills with the mobile shell drawer background.
+ */
+export function applyMobileGlobalSafeAreaForSidebar(isSidebarOpen: boolean): void {
+	const { top, bottom } = getMobileGlobalSafeAreaStyle(isSidebarOpen)
+	interfaceStore.setGlobalSafeAreaStyle("top", top)
+	interfaceStore.setGlobalSafeAreaStyle("bottom", bottom)
 }

@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { interfaceStore } from "@/stores/interface"
+
 import {
 	applyMobileDocumentTheme,
+	applyMobileGlobalSafeAreaForSidebar,
 	ensureThemeColorMeta,
 	getMobileDocumentBackgroundCss,
+	getMobileGlobalSafeAreaStyle,
 	getMobileDocumentThemeHex,
 	MOBILE_DOCUMENT_THEME_HEX,
 } from "../mobileDocumentTheme"
@@ -19,6 +23,7 @@ describe("mobileDocumentTheme", () => {
 		document.head.innerHTML = ""
 		document.documentElement.style.background = ""
 		document.body.style.background = ""
+		interfaceStore.resetGlobalSafeAreaStyle()
 	})
 
 	it("maps sidebar + scheme to prototype hex values", () => {
@@ -60,5 +65,24 @@ describe("mobileDocumentTheme", () => {
 		expect(meta?.getAttribute("content")).toBe("#f5f5f5")
 		expect(document.documentElement.style.background).toBe("rgb(var(--mobile-shell-track-rgb))")
 		expect(document.body.style.background).toBe("rgb(var(--mobile-shell-track-rgb))")
+	})
+
+	it("maps sidebar state to GlobalSafeArea shell track background", () => {
+		expect(getMobileGlobalSafeAreaStyle(false)).toEqual({ top: {}, bottom: {} })
+		expect(getMobileGlobalSafeAreaStyle(true)).toEqual({
+			top: { backgroundColor: "rgb(var(--mobile-shell-track-rgb))" },
+			bottom: { backgroundColor: "rgb(var(--mobile-shell-track-rgb))" },
+		})
+	})
+
+	it("applyMobileGlobalSafeAreaForSidebar writes interfaceStore top/bottom styles", () => {
+		applyMobileGlobalSafeAreaForSidebar(true)
+
+		expect(interfaceStore.globalSafeAreaStyle.top).toEqual({
+			backgroundColor: "rgb(var(--mobile-shell-track-rgb))",
+		})
+		expect(interfaceStore.globalSafeAreaStyle.bottom).toEqual({
+			backgroundColor: "rgb(var(--mobile-shell-track-rgb))",
+		})
 	})
 })

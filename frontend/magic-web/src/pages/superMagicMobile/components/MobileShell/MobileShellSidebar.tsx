@@ -30,8 +30,7 @@ export interface MobileShellSidebarProps {
 
 const PRIMARY_NAV_KEYS = new Set(["chats", "workspaces", "recording"])
 
-/** Prototype sidebar account pill elevation (magicrewapp-prototype Sidebar footer). */
-const ACCOUNT_PILL_BOX_SHADOW = "0 25px 50px -12px rgba(0,0,0,0.25)"
+const ACCOUNT_PILL_BOX_SHADOW = "rgb(0 0 0 / 17%) 0px 10px 20px -12px"
 
 /** 统一计算侧栏导航行样式；导航项不展示路由选中高亮，仅保留按压反馈。 */
 function navRowClass() {

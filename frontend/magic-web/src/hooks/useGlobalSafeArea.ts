@@ -1,31 +1,10 @@
 import { useEffect } from "react"
 import { useLocation } from "react-router"
-import { interfaceStore } from "@/stores/interface"
-import { RouteName } from "@/routes/constants"
-import { routesPathMatch } from "../routes/history/helpers"
+import { applyRouteGlobalSafeAreaStyle } from "@/layouts/BaseLayoutMobile/components/GlobalSafeArea/routeStyles"
+import { useMobileDocumentThemeState } from "@/pages/superMagicMobile/components/MobileDocumentTheme"
+import { applyMobileGlobalSafeAreaForSidebar } from "@/pages/superMagicMobile/utils/mobileDocumentTheme"
 
-// 需要自定义安全边距背景色的路由配置
-const SAFE_AREA_STYLE_ROUTES: Record<
-	string,
-	{ top?: { backgroundColor: string }; bottom?: { backgroundColor: string } }
-> = {
-	[RouteName.Profile]: {
-		top: { backgroundColor: "rgba(249,249,249, 1)" },
-		bottom: { backgroundColor: "rgba(249,249,249, 1)" },
-	},
-	[RouteName.MagicApprovalSetting]: {
-		top: { backgroundColor: "rgba(249,249,249, 1)" },
-		bottom: { backgroundColor: "rgba(249,249,249, 1)" },
-	},
-	[RouteName.MagicApprovalList]: {
-		bottom: { backgroundColor: "rgba(249,249,249, 1)" },
-	},
-	[RouteName.MagicApprovalRecord]: {
-		top: { backgroundColor: "rgba(249,249,249, 1)" },
-		bottom: { backgroundColor: "rgba(249,249,249, 1)" },
-	},
-	// ClawPlayground: top matches header bg-background, bottom matches page/input bg-sidebar
-}
+export { applyRouteGlobalSafeAreaStyle } from "@/layouts/BaseLayoutMobile/components/GlobalSafeArea/routeStyles"
 
 /**
  * 根据当前路由自动设置全局安全边距样式
@@ -33,21 +12,14 @@ const SAFE_AREA_STYLE_ROUTES: Record<
  */
 export function useGlobalSafeArea() {
 	const location = useLocation()
-
-	// console.log("interfaceStore.enableGlobalSafeArea", interfaceStore.enableGlobalSafeArea)
+	const { isSidebarOpen } = useMobileDocumentThemeState()
 
 	useEffect(() => {
-		// 检查当前路由是否需要自定义样式
-		const matchedRoute = Object.keys(SAFE_AREA_STYLE_ROUTES).find((route) =>
-			routesPathMatch(route as RouteName, location.pathname),
-		)
-		if (matchedRoute) {
-			const style = SAFE_AREA_STYLE_ROUTES[matchedRoute]
-			interfaceStore.setGlobalSafeAreaStyle("top", style.top || {})
-			interfaceStore.setGlobalSafeAreaStyle("bottom", style.bottom || {})
-		} else {
-			// 重置为默认样式
-			interfaceStore.resetGlobalSafeAreaStyle()
+		if (isSidebarOpen) {
+			applyMobileGlobalSafeAreaForSidebar(true)
+			return
 		}
-	}, [location.pathname])
+
+		applyRouteGlobalSafeAreaStyle(location.pathname)
+	}, [location.pathname, isSidebarOpen])
 }
