@@ -341,7 +341,8 @@ export default memo(function HTML(props: HTMLProps) {
 	 * 代码模式、编辑、回放、PPT 仍用用户仓库 HTML + OSS。
 	 */
 	const htmlPreviewBundledTemplate = useMemo((): HtmlPreviewBundledTemplateKind | undefined => {
-		if (isEditMode || viewMode === "code" || isPlaybackMode || isInPPTMode) return undefined
+		if (viewMode === "code" || isPlaybackMode || isInPPTMode) return undefined
+		if (isEditMode && !isDataAnalysis) return undefined
 		return resolveHtmlPreviewBundledTemplate({
 			fileName: currentAttachmentItem?.file_name || data?.file_name,
 			relativeFilePath: currentAttachmentItem?.relative_file_path,
@@ -351,6 +352,7 @@ export default memo(function HTML(props: HTMLProps) {
 		currentAttachmentItem?.file_name,
 		currentAttachmentItem?.relative_file_path,
 		displayConfig?.type,
+		isDataAnalysis,
 		isEditMode,
 		viewMode,
 		isPlaybackMode,
@@ -646,8 +648,9 @@ export default memo(function HTML(props: HTMLProps) {
 				postMessageTargetStrategy,
 			})
 
-			// 在编辑模式下注入键盘快捷键拦截器
-			if (isEditMode) {
+			// dashboard 通过 postMessage 驱动编辑态，不需要额外注入键盘拦截器；
+			// 否则会导致内容指纹变化并触发 iframe 二次重写。
+			if (isEditMode && !isDataAnalysis) {
 				finalProcessedContent = injectKeyboardInterceptorScript(finalProcessedContent)
 			}
 
@@ -659,6 +662,8 @@ export default memo(function HTML(props: HTMLProps) {
 		}
 	})
 
+	const shouldReprocessOnEditMode = !isDataAnalysis && Boolean(isEditMode)
+
 	useDeepCompareEffect(() => {
 		if (!data?.content) return
 		if (isDataAnalysis && !activeHistory.isPreviewReady) return
@@ -666,7 +671,7 @@ export default memo(function HTML(props: HTMLProps) {
 	}, [
 		data,
 		displayConfig,
-		isEditMode,
+		shouldReprocessOnEditMode,
 		htmlPreviewBundledTemplate,
 		resourceFileVersions,
 		dashboardDataJsContent,
