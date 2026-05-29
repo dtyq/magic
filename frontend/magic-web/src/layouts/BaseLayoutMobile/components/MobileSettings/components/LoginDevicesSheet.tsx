@@ -98,7 +98,7 @@ export function MobileSettingsLoginDevicesSheet({
 						</div>
 					) : (
 						<div
-							className="flex flex-col gap-3"
+							className="flex flex-col gap-3 pb-3"
 							data-testid="mobile-settings-login-devices-list"
 						>
 							{currentDevices.length > 0 ? (

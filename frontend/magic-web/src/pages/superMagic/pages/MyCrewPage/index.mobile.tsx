@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import {
-	ListFilter,
-	Loader2,
-	Menu,
-	MessageCircle,
-	MessageCircleOff,
-	Plus,
-	Trash2,
-} from "lucide-react"
+import { ListFilter, Loader2, MessageCircle, MessageCircleOff, Plus, Trash2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { InfiniteScroll } from "antd-mobile"
-import { Button } from "@/components/shadcn-ui/button"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { userStore } from "@/models/user"
 import {
@@ -19,8 +10,8 @@ import {
 	WorkspaceStateCache,
 } from "@/pages/superMagic/utils/superMagicCache"
 import {
+	MobileShellSidebarToggleButton,
 	SuperMobileShellRouteLayout,
-	useSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import useNavigate from "@/routes/hooks/useNavigate"
@@ -47,7 +38,6 @@ import { MyCrewMobileStore } from "./stores/my-crew-mobile"
  */
 function MyCrewPageMobilePanelBase() {
 	const { t } = useTranslation("crew/market")
-	const { openSidebar } = useSuperMobileShellOutlet()
 	const navigate = useNavigate()
 	const storeRef = useRef(new MyCrewMobileStore())
 	const store = storeRef.current
@@ -241,17 +231,10 @@ function MyCrewPageMobilePanelBase() {
 					className="mobile-page-header relative z-10 flex h-14 shrink-0 items-center gap-2 px-[10px]"
 					data-testid="my-crew-mobile-top-bar"
 				>
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon"
-						onClick={openSidebar}
-						className="h-12 w-12 shrink-0 rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
-						aria-label={t("super:mobile.shell.menuAria")}
-						data-testid="my-crew-menu-button"
-					>
-						<Menu className="size-[22px] text-foreground" strokeWidth={2} />
-					</Button>
+					<MobileShellSidebarToggleButton
+						variant="floating"
+						testId="my-crew-menu-button"
+					/>
 
 					<p
 						className="pointer-events-none absolute inset-x-0 truncate px-[124px] text-center font-poppins text-[18px] font-medium leading-6 text-foreground"

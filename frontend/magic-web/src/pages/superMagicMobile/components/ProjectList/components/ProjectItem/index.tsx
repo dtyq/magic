@@ -46,10 +46,9 @@ function ProjectItem({
 		isRunningLikeStatus(project.project_status)
 	const showCollaborationTag =
 		isWorkspaceShortcutProject(project) || isCollaborationProject(project)
-	const subtitle = [
-		t("sharedProjects.topicCount", { count: getTopicCount(project) }),
-		updatedAtLabel || t("project.unnamedProject"),
-	].join(" · ")
+	const subtitleParts = [t("sharedProjects.topicCount", { count: getTopicCount(project) })]
+	if (updatedAtLabel) subtitleParts.push(updatedAtLabel)
+	const subtitle = subtitleParts.join(" · ")
 
 	const actions: SwipeAction[] = [
 		{
@@ -104,7 +103,7 @@ function ProjectItem({
 				<div className="flex min-w-0 flex-1 flex-col items-start">
 					<div className="flex h-6 w-full min-w-0 items-center gap-1">
 						<p className="min-w-0 shrink truncate text-[16px] font-medium leading-6 text-foreground">
-							{project.project_name || t("project.unnamedProject")}
+							{project.project_name?.trim() || t("project.unnamedProject")}
 						</p>
 						{project.is_pinned ? <MobilePinBadge /> : null}
 						{/* 项目行协作图标与 PC 端保持同口径，且放在标题后侧以对齐当前移动端原型。 */}

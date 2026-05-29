@@ -1,7 +1,9 @@
 import type { ComponentType, SVGProps } from "react"
 import { useTranslation } from "react-i18next"
-import { Globe, Laptop, LogOut, Monitor, MonitorSmartphone, Smartphone, Tablet } from "lucide-react"
+import { Globe, Laptop, Monitor, MonitorSmartphone, Smartphone, Tablet } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
+
+import { LoginDeviceSignOutButton } from "@/layouts/BaseLayoutMobile/components/MobileSettings/components/LoginDeviceSignOutButton"
 
 interface DeviceItemProps {
 	deviceId: string
@@ -82,15 +84,10 @@ function DeviceItem({
 				</div>
 
 				{!isCurrent ? (
-					<Button
-						variant="outline"
+					<LoginDeviceSignOutButton
 						onClick={() => onLogout?.(deviceId)}
-						className="mt-0.5 h-8 shrink-0 rounded-full border-destructive/30 bg-transparent px-3 text-[13px] font-medium leading-5 text-destructive active:bg-destructive/10"
-						data-testid="login-devices-device-logout-button"
-					>
-						<LogOut className="mr-1 size-3.5" aria-hidden />
-						{t("setting.loginDevices.logout")}
-					</Button>
+						dataTestId="login-devices-device-logout-button"
+					/>
 				) : null}
 			</div>
 			{showDivider ? <div className="ml-[14px] h-px w-full bg-border" /> : null}

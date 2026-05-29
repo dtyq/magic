@@ -1,10 +1,12 @@
-import { Loader2, Menu, MessageCirclePlus } from "lucide-react"
+import { Loader2, MessageCirclePlus } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
+import { MobileShellSidebarToggleButton } from "@/pages/superMagicMobile/components/MobileShell"
 import { usePoppinsFont } from "@/styles/font"
 
 interface ChatPageHeaderProps {
-	onMenuClick: () => void
+	/** Open-only fallback when this header renders outside `SuperMobileShellRouteLayout`. */
+	onMenuClick?: () => void
 	onPrimaryAction?: () => void
 	isPrimaryActionLoading?: boolean
 }
@@ -24,15 +26,10 @@ function ChatPageHeader({
 
 	return (
 		<div className="mobile-page-header pb-0" data-testid="chat-page-header-root">
-			<button
-				type="button"
-				className="mobile-page-header-btn transition-transform active:scale-95"
-				onClick={onMenuClick}
-				aria-label={t("mobile.shell.menuAria")}
-				data-testid="chat-page-header-menu-button"
-			>
-				<Menu className="size-[22px] text-foreground" />
-			</button>
+			<MobileShellSidebarToggleButton
+				testId="chat-page-header-menu-button"
+				onFallbackOpen={onMenuClick}
+			/>
 
 			{/* 标题改为绝对居中，避免右侧 loading 与禁用态切换时品牌名左右跳动。 */}
 			<h1 className="mobile-page-header-title">{brandName}</h1>

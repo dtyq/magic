@@ -38,7 +38,7 @@ describe("mobileDocumentTheme", () => {
 
 	it("maps sidebar state to mobile background CSS variables", () => {
 		expect(getMobileDocumentBackgroundCss(false)).toBe("rgb(var(--mobile-background-rgb))")
-		expect(getMobileDocumentBackgroundCss(true)).toBe("rgb(var(--muted-rgb))")
+		expect(getMobileDocumentBackgroundCss(true)).toBe("rgb(var(--mobile-shell-track-rgb))")
 	})
 
 	it("creates theme-color meta when only media-qualified tags exist", () => {
@@ -58,7 +58,7 @@ describe("mobileDocumentTheme", () => {
 
 		const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])')
 		expect(meta?.getAttribute("content")).toBe("#f5f5f5")
-		expect(document.documentElement.style.background).toBe("rgb(var(--muted-rgb))")
-		expect(document.body.style.background).toBe("rgb(var(--muted-rgb))")
+		expect(document.documentElement.style.background).toBe("rgb(var(--mobile-shell-track-rgb))")
+		expect(document.body.style.background).toBe("rgb(var(--mobile-shell-track-rgb))")
 	})
 })

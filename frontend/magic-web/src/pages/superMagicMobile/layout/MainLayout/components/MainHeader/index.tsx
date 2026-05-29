@@ -18,6 +18,7 @@ import {
 import { isCollaborationProject, isCollaborationWorkspace } from "@/pages/superMagic/constants"
 import useCollaboratorUpdatePanel from "@/pages/superMagic/components/WithCollaborators/hooks/useCollaboratorUpdatePanel"
 import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
+import { useTranslation } from "react-i18next"
 import {
 	handleProjectTopicBackNavigation,
 	navigateSuperMobileBack,
@@ -37,6 +38,7 @@ interface MainHeaderProps {
 }
 
 function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
+	const { t } = useTranslation("super")
 	const { projectId } = useParams()
 	const location = useLocation()
 	const selectedProject = projectStore.selectedProject
@@ -72,10 +74,13 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 	}
 
 	if (isProjectDetailPage || isProjectTopicPage) {
+		const unnamedProject = t("project.unnamedProject")
 		// 项目话题子页的壳层头部应展示当前会话名；只有项目入口页才继续展示项目名和右侧动作组。
 		const projectHeaderTitle = isProjectTopicPage
-			? selectedTopic?.topic_name?.trim() || selectedProject?.project_name
-			: selectedProject?.project_name
+			? selectedTopic?.topic_name?.trim() ||
+				selectedProject?.project_name?.trim() ||
+				unnamedProject
+			: selectedProject?.project_name?.trim() || unnamedProject
 		// 项目话题子页只暴露一个“更多”槽位，协作管理仍只属于项目入口页。
 		const projectHeaderActionsLayout = isProjectTopicPage ? "project-topic" : "project-entry"
 

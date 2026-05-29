@@ -1,6 +1,5 @@
 import { observer } from "mobx-react-lite"
 
-import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
 import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import { WorkspaceListView } from "./components/WorkspaceListView"
 import { WorkspaceMoreSheet } from "./components/WorkspaceMoreSheet"
@@ -9,7 +8,6 @@ import { useWorkspacesPage } from "./hooks/useWorkspacesPage"
 import { useWorkspaceDeleteConfirm } from "./hooks/useWorkspaceDeleteConfirm"
 
 const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
-	const { openSidebar } = useSuperMobileShellOutlet()
 	const {
 		isLoading,
 		searchValue,
@@ -52,7 +50,6 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 				onSelectWorkspace={handleSelectWorkspace}
 				onOpenCreateSheet={openCreateSheet}
 				onOpenSharedWorkspace={handleOpenSharedWorkspace}
-				onOpenSidebar={openSidebar}
 				onMoreWorkspace={openMoreSheet}
 				onPinWorkspace={handlePinWorkspace}
 				onDeleteWorkspace={requestDeleteWorkspace}

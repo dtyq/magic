@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react"
-import { Loader2, Menu, MessageCirclePlus } from "lucide-react"
+import { Loader2, MessageCirclePlus } from "lucide-react"
+import { MobileShellSidebarToggleButton } from "@/pages/superMagicMobile/components/MobileShell"
 import { InfiniteScroll } from "antd-mobile"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { cn } from "@/lib/utils"
@@ -17,7 +18,6 @@ interface ChatConversationListViewProps {
 	/** 是否还有更多分页数据，传给 InfiniteScroll */
 	hasMore: boolean
 	onSearchValueChange: (value: string) => void
-	onOpenSidebar: () => void
 	onCreateChat: () => void
 	onOpenConversation: (item: ChatConversationListItemData) => void
 	onMore: (item: ChatConversationListItemData) => void
@@ -31,7 +31,6 @@ interface ChatConversationListViewProps {
 	searchPlaceholder: string
 	clearSearchAriaLabel: string
 	newChatAriaLabel: string
-	menuAriaLabel: string
 }
 
 /**
@@ -45,7 +44,6 @@ export function ChatConversationListView({
 	isSearchEmpty,
 	hasMore,
 	onSearchValueChange,
-	onOpenSidebar,
 	onCreateChat,
 	onOpenConversation,
 	onMore,
@@ -57,7 +55,6 @@ export function ChatConversationListView({
 	searchPlaceholder,
 	clearSearchAriaLabel,
 	newChatAriaLabel,
-	menuAriaLabel,
 }: ChatConversationListViewProps) {
 	/**
 	 * 同时只允许一行处于左滑展开状态。
@@ -109,15 +106,7 @@ export function ChatConversationListView({
 		>
 			{/* 顶部用绝对居中的标题布局，避免左右操作按钮变化时标题发生肉眼可见的偏移。 */}
 			<div className="mobile-page-header">
-				<button
-					type="button"
-					onClick={onOpenSidebar}
-					className="mobile-page-header-btn transition-transform active:scale-95"
-					aria-label={menuAriaLabel}
-					data-testid="mobile-chats-page-menu-button"
-				>
-					<Menu className="size-[22px] text-foreground" />
-				</button>
+				<MobileShellSidebarToggleButton testId="mobile-chats-page-menu-button" />
 
 				<p className="mobile-page-header-title">{title}</p>
 

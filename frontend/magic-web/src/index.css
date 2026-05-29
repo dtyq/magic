@@ -200,6 +200,9 @@
 		--background-rgb: 255 255 255;
 		--mobile-background: 0.985 0 0;
 		--mobile-background-rgb: 250 250 250;
+		/* Mobile shell drawer track — aligned with magicrewapp-prototype :root --muted */
+		--mobile-shell-track: 0.97 0 0;
+		--mobile-shell-track-rgb: 245 245 245;
 		--foreground: 0.145 0 0;
 		--foreground-rgb: 10 10 10;
 		--card: 1 0 0;
@@ -382,6 +385,9 @@
 		--background-rgb: 10 10 10;
 		--mobile-background: 0.145 0 0;
 		--mobile-background-rgb: 10 10 10;
+		/* Mobile shell drawer track — aligned with magicrewapp-prototype .dark --muted */
+		--mobile-shell-track: 0.269 0 0;
+		--mobile-shell-track-rgb: 38 38 38;
 		--foreground: 0.985 0 0;
 		--foreground-rgb: 250 250 250;
 		--card: 0.205 0 0;

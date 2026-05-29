@@ -2,15 +2,21 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { MagiClawMobileHeader } from "../MagiClawMobileHeader"
 
+vi.mock("@/pages/superMagicMobile/components/MobileShell", () => ({
+	MobileShellSidebarToggleButton: () => (
+		<button type="button" data-testid="magi-claw-mobile-menu-button">
+			menu
+		</button>
+	),
+}))
+
 describe("MagiClawMobileHeader", () => {
 	it("disables the create trigger when creation is not allowed", () => {
 		render(
 			<MagiClawMobileHeader
 				title="MagiClaw"
-				menuAriaLabel="open-menu"
 				createAriaLabel="superLobster.created.noCreatePermission"
 				disableCreateTrigger
-				onOpenSidebar={vi.fn()}
 				onOpenCreate={vi.fn()}
 			/>,
 		)

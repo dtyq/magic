@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { MagiClawNavIcon } from "@/pages/superMagicMobile/components/icons/MagiClawNavIcon"
+import { getAvatarColor } from "@/utils/avatar-color"
 import MobileShellSidebar from "../MobileShellSidebar"
 import {
 	MobileShellMenuProvider,
@@ -169,6 +171,34 @@ describe("MobileShellSidebar", () => {
 
 		expect(screen.getByText("Configured Brand")).toBeInTheDocument()
 		expect(screen.getByTestId("brand-logo")).toBeInTheDocument()
+	})
+
+	it("renders account pill with prototype shadow, 24px avatar, and colored fallback", () => {
+		renderSidebar({
+			activeView: "chats",
+			navItems: [],
+			recentItems: [],
+			onNavigate: vi.fn(),
+			onGoHome: vi.fn(),
+			onRecentNavigate: vi.fn(),
+			reloadRecentItems: vi.fn(),
+			hasMore: false,
+			loadMoreRecentItems: vi.fn(),
+		})
+
+		const pill = screen.getByTestId("mobile-super-shell-account-pill")
+		expect(pill.style.boxShadow).toContain("25px 50px -12px")
+		expect(pill).toHaveClass("pl-[6px]", "pr-[10px]", "py-[6px]")
+
+		const avatarRoot = pill.querySelector('[data-slot="avatar"]')
+		expect(avatarRoot).toHaveClass("size-6")
+
+		const fallback = pill.querySelector('[data-slot="avatar-fallback"]')
+		const colors = getAvatarColor("Tester")
+		expect(fallback).toHaveStyle({
+			backgroundColor: colors.bg,
+			color: colors.text,
+		})
 	})
 
 	it("wires shell-recent project whitelist and chat actions without pin", () => {
@@ -418,6 +448,32 @@ describe("MobileShellSidebar", () => {
 
 		expect(chatsButton.parentElement).toBe(workspacesButton.parentElement)
 		expect(myCrewButton.parentElement).not.toBe(chatsButton.parentElement)
+	})
+
+	it("renders primary nav icons at size-4 (16px) to match prototype", () => {
+		renderSidebar({
+			activeView: "chats",
+			navItems: [
+				{ key: "chats", icon: TestIcon, label: "对话" },
+				{ key: "magiClaw", icon: MagiClawNavIcon, label: "超级龙虾" },
+			],
+			recentItems: [],
+			onNavigate: vi.fn(),
+			onGoHome: vi.fn(),
+			onRecentNavigate: vi.fn(),
+			reloadRecentItems: vi.fn(),
+			hasMore: false,
+			loadMoreRecentItems: vi.fn(),
+		})
+
+		const chatsIcon = screen.getByTestId("mobile-super-shell-nav-chats").querySelector("svg")
+		const magiClawIcon = screen
+			.getByTestId("mobile-super-shell-nav-magiClaw")
+			.querySelector("svg")
+
+		expect(chatsIcon).toHaveClass("size-4")
+		expect(magiClawIcon).toHaveClass("size-4")
+		expect(magiClawIcon).toHaveAttribute("viewBox", "0 0 16 16")
 	})
 
 	it("calls reloadRecentItems when recent refresh button is clicked", async () => {

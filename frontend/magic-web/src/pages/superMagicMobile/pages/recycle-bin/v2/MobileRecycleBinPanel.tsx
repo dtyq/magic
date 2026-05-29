@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { cn } from "@/lib/utils"
-import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { useRecycleBinTabSearchParamsSync } from "@/pages/recycleBin/hooks/useRecycleBinTabSearchParamsSync"
 import {
@@ -23,7 +22,6 @@ import RecycleBinHeader from "./components/RecycleBinHeader"
 const INITIAL_TAB_COUNTS = createRecycleBinTabCounts()
 
 function MobileRecycleBinPanel() {
-	const { openSidebar } = useSuperMobileShellOutlet()
 	const [searchParams] = useSearchParams()
 	const { t } = useTranslation("super")
 
@@ -82,10 +80,7 @@ function MobileRecycleBinPanel() {
 			className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-mobile-background"
 			data-testid="mobile-recycle-bin-page"
 		>
-			<RecycleBinHeader
-				onMenuClick={openSidebar}
-				onFilterClick={() => setFilterSheetOpen(true)}
-			/>
+			<RecycleBinHeader onFilterClick={() => setFilterSheetOpen(true)} />
 
 			{/* 与原型 TrashScreen 一致：列表区无顶部大圆角「卡片」，整页统一 background */}
 			<div

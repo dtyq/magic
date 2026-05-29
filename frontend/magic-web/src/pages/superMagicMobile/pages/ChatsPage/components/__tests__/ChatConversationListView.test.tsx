@@ -15,6 +15,14 @@ vi.mock("../ChatConversationListItem", () => ({
 	ChatConversationListItem: () => <div data-testid="mobile-chats-page-item" />,
 }))
 
+vi.mock("@/pages/superMagicMobile/components/MobileShell", () => ({
+	MobileShellSidebarToggleButton: () => (
+		<button type="button" data-testid="mobile-chats-page-menu-button">
+			menu
+		</button>
+	),
+}))
+
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
 		t: (key: string) => {
@@ -36,7 +44,6 @@ describe("ChatConversationListView", () => {
 				isSearchEmpty={false}
 				hasMore={false}
 				onSearchValueChange={vi.fn()}
-				onOpenSidebar={vi.fn()}
 				onCreateChat={vi.fn()}
 				onOpenConversation={vi.fn()}
 				onMore={vi.fn()}
@@ -48,7 +55,6 @@ describe("ChatConversationListView", () => {
 				searchPlaceholder="搜索"
 				clearSearchAriaLabel="取消"
 				newChatAriaLabel="新建对话"
-				menuAriaLabel="菜单"
 			/>,
 		)
 
@@ -67,7 +73,6 @@ describe("ChatConversationListView", () => {
 				isSearchEmpty={false}
 				hasMore={false}
 				onSearchValueChange={vi.fn()}
-				onOpenSidebar={vi.fn()}
 				onCreateChat={vi.fn()}
 				onOpenConversation={vi.fn()}
 				onMore={vi.fn()}
@@ -79,7 +84,6 @@ describe("ChatConversationListView", () => {
 				searchPlaceholder="搜索"
 				clearSearchAriaLabel="取消"
 				newChatAriaLabel="新建对话"
-				menuAriaLabel="菜单"
 			/>,
 		)
 

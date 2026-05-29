@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
-import { ChevronRight, Menu, RefreshCw } from "lucide-react"
+import { ChevronRight, RefreshCw } from "lucide-react"
+import { MobileShellSidebarToggleButton } from "@/pages/superMagicMobile/components/MobileShell"
 import { Button } from "@/components/shadcn-ui/button"
 import { AppMenuIconType } from "@/apis/types"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent"
@@ -8,7 +9,6 @@ import type { AppsPageEntry } from "../hooks/useAppsPage"
 
 interface AppsPageViewProps {
 	title: string
-	menuAriaLabel: string
 	errorTitle: string
 	errorDescription: string
 	emptyTitle: string
@@ -20,7 +20,6 @@ interface AppsPageViewProps {
 	hasError: boolean
 	entries: AppsPageEntry[]
 	onRetry: () => void
-	onOpenSidebar: () => void
 	onOpenEntry: (entry: AppsPageEntry) => void
 }
 
@@ -126,7 +125,6 @@ function AppsPageRow({
 export function AppsPageView(props: AppsPageViewProps) {
 	const {
 		title,
-		menuAriaLabel,
 		errorTitle,
 		errorDescription,
 		emptyTitle,
@@ -137,7 +135,6 @@ export function AppsPageView(props: AppsPageViewProps) {
 		hasError,
 		entries,
 		onRetry,
-		onOpenSidebar,
 		onOpenEntry,
 	} = props
 	const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -164,15 +161,7 @@ export function AppsPageView(props: AppsPageViewProps) {
 			data-testid="super-apps-page-mobile"
 		>
 			<header className="mobile-page-header" data-testid="super-apps-top-bar">
-				<button
-					type="button"
-					onClick={onOpenSidebar}
-					className="mobile-page-header-btn transition-transform active:scale-95"
-					aria-label={menuAriaLabel}
-					data-testid="super-apps-menu-button"
-				>
-					<Menu className="size-[22px] text-foreground" aria-hidden />
-				</button>
+				<MobileShellSidebarToggleButton testId="super-apps-menu-button" />
 				<p
 					className="min-w-0 flex-1 truncate px-2 text-center font-poppins text-[18px] font-medium leading-6 text-foreground"
 					data-testid="super-apps-title"

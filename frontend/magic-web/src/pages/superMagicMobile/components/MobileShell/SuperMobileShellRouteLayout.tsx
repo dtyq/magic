@@ -22,7 +22,9 @@ import type { MobileShellMenuNavItem, MobileShellMenuRecentItem } from "./Mobile
 import { useRecentProjectsForMenu } from "./useRecentProjectsForMenu"
 
 export interface SuperMobileShellOutletContext {
+	isSidebarOpen: boolean
 	openSidebar: () => void
+	closeSidebar: () => void
 }
 
 const SuperMobileShellOutletContext = createContext<SuperMobileShellOutletContext | null>(null)
@@ -103,9 +105,11 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 
 	const shellOutletContext = useMemo<SuperMobileShellOutletContext>(
 		() => ({
+			isSidebarOpen,
 			openSidebar: () => setIsSidebarOpen(true),
+			closeSidebar: () => setIsSidebarOpen(false),
 		}),
-		[],
+		[isSidebarOpen],
 	)
 
 	const navItems = useMemo<MobileShellMenuNavItem[]>(
@@ -194,7 +198,8 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 			onNavigate: handleMenuNavigate,
 			onGoHome: () => {
 				setIsSidebarOpen(false)
-				navigate({ name: RouteName.MobileHome })
+				// Disable page View Transition so shell close animation does not stack with VT snapshots (multi-sidebar flicker).
+				navigate({ name: RouteName.MobileHome, viewTransition: false })
 			},
 			onRecentNavigate: handleRecentNavigate,
 			reloadRecentItems,

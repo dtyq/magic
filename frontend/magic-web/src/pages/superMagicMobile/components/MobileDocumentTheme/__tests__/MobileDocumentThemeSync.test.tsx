@@ -31,7 +31,7 @@ function TestTree({ sidebarOpen }: TestTreeProps) {
 }
 
 describe("MobileDocumentThemeSync", () => {
-	it("syncs closed default then muted when sidebar opens", () => {
+	it("syncs closed default then shell track when sidebar opens", () => {
 		document.head.innerHTML = ""
 		document.documentElement.style.background = ""
 		document.body.style.background = ""
@@ -54,7 +54,7 @@ describe("MobileDocumentThemeSync", () => {
 
 		meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])')
 		expect(meta?.getAttribute("content")).toBe("#f5f5f5")
-		expect(document.documentElement.style.background).toBe("rgb(var(--muted-rgb))")
+		expect(document.documentElement.style.background).toBe("rgb(var(--mobile-shell-track-rgb))")
 
 		document.head.innerHTML = ""
 		document.documentElement.style.background = ""

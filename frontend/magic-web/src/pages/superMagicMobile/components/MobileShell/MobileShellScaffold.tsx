@@ -38,8 +38,8 @@ export default function MobileShellScaffold({
 			data-sidebar-open={isSidebarOpen}
 			className={cn(
 				"relative h-full w-full overflow-hidden [--mobile-shell-sidebar-width:80vw]",
-				// 原型分层：左侧菜单轨道始终使用 muted，主内容面板单独使用 background。
-				"bg-muted",
+				// Prototype HomeScreen root when sidebar is open uses --muted; dedicated token avoids coupling to global bg-muted.
+				"bg-mobile-shell-track",
 				rootClassName,
 			)}
 			data-testid={`${testIdPrefix}-root`}

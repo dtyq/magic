@@ -62,6 +62,7 @@ const config = {
 				ring: rgbColor("--ring"),
 				background: rgbColor("--background"),
 				"mobile-background": rgbColor("--mobile-background"),
+				"mobile-shell-track": rgbColor("--mobile-shell-track"),
 				fill: rgbColor("--fill"),
 				"fill-secondary": rgbColor("--fill-secondary", "var(--fill-secondary-alpha)"),
 				foreground: {

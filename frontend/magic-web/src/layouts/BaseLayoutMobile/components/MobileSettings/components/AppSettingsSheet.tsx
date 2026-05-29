@@ -16,6 +16,9 @@ import { MobileSettingsSheetContainer } from "./SheetContainer"
 
 type ThemeOption = "auto" | "light" | "dark"
 
+const MOBILE_APP_SETTINGS_SWITCH_CLASSNAME =
+	"pointer-events-none mt-0.5 h-[28px] w-[48px] shrink-0 [&_[data-slot=switch-thumb]]:size-6"
+
 /** 原型中的主题卡是 5:3 预览缩略图，这里用纯 CSS 结构模拟，避免再引入额外图片资源。 */
 function MobileSettingsThemePreview(props: { mode: ThemeOption }) {
 	const { mode } = props
@@ -201,7 +204,7 @@ function MobileSettingsAppSettingSwitchRow(props: {
 				<Switch
 					checked={checked}
 					onCheckedChange={onCheckedChange}
-					className="pointer-events-none mt-0.5 shrink-0"
+					className={MOBILE_APP_SETTINGS_SWITCH_CLASSNAME}
 					tabIndex={-1}
 					aria-hidden
 				/>

@@ -39,21 +39,30 @@ vi.mock("react-i18next", async (importOriginal) => {
 	}
 })
 
+const { navigateMock } = vi.hoisted(() => ({
+	navigateMock: vi.fn(),
+}))
+
 vi.mock("@/routes/hooks/useNavigate", () => ({
-	default: () => vi.fn(),
+	default: () => navigateMock,
 }))
 
 vi.mock("./MobileShellAppLayout", () => ({
 	MobileShellAppLayout: ({
 		panel,
 		onCloseSidebar,
+		menuValue,
 	}: {
 		panel: ReactNode
 		onCloseSidebar: () => void
+		menuValue: { onGoHome: () => void }
 	}) => (
 		<div>
 			<button type="button" onClick={onCloseSidebar} data-testid="close-sidebar">
 				close
+			</button>
+			<button type="button" onClick={menuValue.onGoHome} data-testid="go-home">
+				home
 			</button>
 			{panel}
 		</div>
@@ -107,6 +116,7 @@ describe("SuperMobileShellRouteLayout", () => {
 		reloadRecentItemsMock.mockReset()
 		reloadRecentItemsMock.mockResolvedValue(undefined)
 		setDocumentThemeSidebarOpenMock.mockReset()
+		navigateMock.mockReset()
 	})
 
 	it("silently reloads recent items whenever the sidebar opens", async () => {
@@ -129,6 +139,21 @@ describe("SuperMobileShellRouteLayout", () => {
 
 		await waitFor(() => {
 			expect(reloadRecentItemsMock).toHaveBeenCalledTimes(2)
+		})
+	})
+
+	it("navigates home without view transition when brand logo is clicked", () => {
+		render(
+			<SuperMobileShellRouteLayout activeView="chats" closeSidebarAriaLabel="close">
+				<div />
+			</SuperMobileShellRouteLayout>,
+		)
+
+		fireEvent.click(screen.getByTestId("go-home"))
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			name: "MobileHome",
+			viewTransition: false,
 		})
 	})
 })

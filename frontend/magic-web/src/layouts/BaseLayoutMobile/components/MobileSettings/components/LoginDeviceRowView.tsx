@@ -1,9 +1,10 @@
 import type { ComponentType, SVGProps } from "react"
-import { Globe, Laptop, LogOut, MonitorSmartphone, Smartphone, Tablet } from "lucide-react"
+import { Globe, Laptop, MonitorSmartphone, Smartphone, Tablet } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { Button } from "@/components/shadcn-ui/button"
 import type { User } from "@/types/user"
+
+import { LoginDeviceSignOutButton } from "./LoginDeviceSignOutButton"
 
 interface LoginDeviceRowViewProps {
 	device: User.UserDeviceInfo
@@ -31,7 +32,7 @@ export function LoginDeviceRowView({
 	return (
 		<>
 			<div
-				className="flex w-full items-start gap-3 bg-popover px-3.5 py-3"
+				className="flex w-full items-start gap-3 bg-popover px-[14px] py-3"
 				data-testid="mobile-settings-login-device-row"
 			>
 				<div
@@ -57,19 +58,10 @@ export function LoginDeviceRowView({
 					<p className="truncate text-xs leading-4 text-muted-foreground">{timeLabel}</p>
 				</div>
 				{!isCurrent ? (
-					<Button
-						type="button"
-						variant="outline"
-						onClick={() => onLogout(device.id)}
-						className="mt-0.5 h-8 shrink-0 rounded-full border-destructive/30 bg-transparent px-3 text-[13px] font-medium leading-5 text-destructive active:bg-destructive/10"
-						data-testid="mobile-settings-login-device-logout-button"
-					>
-						<LogOut className="mr-1 size-3.5" aria-hidden />
-						{t("setting.loginDevices.logout")}
-					</Button>
+					<LoginDeviceSignOutButton onClick={() => onLogout(device.id)} />
 				) : null}
 			</div>
-			{showDivider ? <div className="ml-3.5 h-px bg-border" aria-hidden /> : null}
+			{showDivider ? <div className="ml-[14px] h-px bg-border" aria-hidden /> : null}
 		</>
 	)
 }

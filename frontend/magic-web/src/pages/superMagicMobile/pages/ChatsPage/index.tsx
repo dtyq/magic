@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next"
 import {
 	SuperMobileShellRouteLayout,
 	useOptionalSuperMobileShellOutlet,
-	useSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
 import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -26,7 +25,6 @@ import { ChatConversationListView } from "./components/ChatConversationListView"
  */
 const ChatsPagePanel = observer(function ChatsPagePanel() {
 	const { t } = useTranslation(["super", "common", "sidebar"])
-	const { openSidebar } = useSuperMobileShellOutlet()
 	const { createProjectInChatWorkspace } = useChatWorkspace()
 	const {
 		items,
@@ -220,7 +218,6 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 				isSearchEmpty={isSearchEmpty}
 				hasMore={hasMore}
 				onSearchValueChange={setSearchValue}
-				onOpenSidebar={openSidebar}
 				onCreateChat={handleCreateChat}
 				onOpenConversation={handleOpenConversation}
 				onMore={handleMoreConversation}
@@ -232,7 +229,6 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 				searchPlaceholder={t("super:chatList.searchPlaceholder")}
 				clearSearchAriaLabel={t("super:common.cancel")}
 				newChatAriaLabel={t("super:chatList.newChat")}
-				menuAriaLabel={t("sidebar:appsMenu.more")}
 			/>
 			{/* 更多操作面板：操作项与对话详情页完全一致（置顶、重命名、另存为项目、删除） */}
 			<ConversationActionsPopup

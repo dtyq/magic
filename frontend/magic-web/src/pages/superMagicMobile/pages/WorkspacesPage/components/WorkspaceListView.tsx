@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
-import {
-	ChevronRight,
-	Ellipsis,
-	Menu,
-	Pin,
-	PinOff,
-	Plus,
-	Share2,
-	Loader,
-	Trash2,
-} from "lucide-react"
+import { ChevronRight, Ellipsis, Pin, PinOff, Plus, Share2, Loader, Trash2 } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
@@ -20,7 +10,10 @@ import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/Mobile
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
-import { MobileShellIconButton } from "@/pages/superMagicMobile/components/MobileShell"
+import {
+	MobileShellIconButton,
+	MobileShellSidebarToggleButton,
+} from "@/pages/superMagicMobile/components/MobileShell"
 import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 
@@ -153,7 +146,6 @@ interface WorkspaceListViewProps {
 	onSelectWorkspace: (workspace: Workspace) => void
 	onOpenCreateSheet: () => void
 	onOpenSharedWorkspace: () => void
-	onOpenSidebar: () => void
 	onMoreWorkspace: (workspace: Workspace) => void
 	onPinWorkspace: (workspace: Workspace) => void
 	onDeleteWorkspace: (workspace: Workspace) => void
@@ -177,7 +169,6 @@ function WorkspaceListViewInner({
 	onSelectWorkspace,
 	onOpenCreateSheet,
 	onOpenSharedWorkspace,
-	onOpenSidebar,
 	onMoreWorkspace,
 	onPinWorkspace,
 	onDeleteWorkspace,
@@ -216,13 +207,10 @@ function WorkspaceListViewInner({
 		<div className="flex h-full min-h-0 flex-col bg-mobile-background">
 			{/* Header */}
 			<div className="mobile-page-header">
-				<MobileShellIconButton
-					label={t("mobile.shell.menuAria")}
-					onClick={onOpenSidebar}
+				<MobileShellSidebarToggleButton
+					variant="icon"
 					testId="workspaces-page-menu-trigger"
-				>
-					<Menu size={22} />
-				</MobileShellIconButton>
+				/>
 
 				<p className="min-w-0 flex-1 truncate text-center text-[18px] font-medium leading-6 text-foreground">
 					{t("workspace.workspace")}

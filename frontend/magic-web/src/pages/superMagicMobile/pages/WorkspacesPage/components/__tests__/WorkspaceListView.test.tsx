@@ -84,6 +84,11 @@ vi.mock("@/pages/superMagicMobile/components/MobileShell", () => ({
 			{children}
 		</button>
 	),
+	MobileShellSidebarToggleButton: ({ testId }: { testId: string }) => (
+		<button type="button" data-testid={testId}>
+			menu
+		</button>
+	),
 }))
 
 vi.mock("@/pages/superMagicMobile/components/icons/MobilePinBadge", () => ({
@@ -103,7 +108,6 @@ const defaultProps = {
 	onSelectWorkspace: vi.fn(),
 	onOpenCreateSheet: vi.fn(),
 	onOpenSharedWorkspace: vi.fn(),
-	onOpenSidebar: vi.fn(),
 	onMoreWorkspace: vi.fn(),
 	onPinWorkspace: vi.fn(),
 	onDeleteWorkspace: vi.fn(),

@@ -17,3 +17,8 @@
 .mobile-floating-page-header .lucide {
 	stroke-width: 2px;
 }
+
+/* Super mobile shell drawer sidebar (prototype nav uses 2px Lucide strokes at 16px). */
+.mobile-shell-sidebar .lucide {
+	stroke-width: 2px;
+}

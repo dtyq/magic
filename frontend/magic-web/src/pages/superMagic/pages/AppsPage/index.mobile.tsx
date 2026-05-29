@@ -2,7 +2,6 @@ import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { hasOrganizationAppsShortcuts } from "@/layouts/BaseLayoutMobile/components/MobileTabBar/constants/tabsConfig.shared"
 import { userStore } from "@/models/user"
-import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell"
 import { Navigate } from "@/routes/components/Navigate"
 import { RouteName } from "@/routes/constants"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
@@ -14,7 +13,6 @@ import { useAppsPage } from "./hooks/useAppsPage"
  */
 const AppsPageMobilePanel = observer(function AppsPageMobilePanel() {
 	const { t } = useTranslation("super")
-	const { openSidebar } = useSuperMobileShellOutlet()
 	const { entries, loading, error, refresh, handleOpenEntry } = useAppsPage()
 	const shouldShowAppsEntry = hasOrganizationAppsShortcuts({
 		isPersonalOrganization: userStore.user.isPersonalOrganization,
@@ -28,7 +26,6 @@ const AppsPageMobilePanel = observer(function AppsPageMobilePanel() {
 	return (
 		<AppsPageView
 			title={t("mobile.shell.navApps")}
-			menuAriaLabel={t("mobile.shell.menuAria")}
 			errorTitle={t("mobile.apps.errorTitle")}
 			errorDescription={t("mobile.apps.errorDescription")}
 			emptyTitle={t("mobile.apps.emptyTitle")}
@@ -39,7 +36,6 @@ const AppsPageMobilePanel = observer(function AppsPageMobilePanel() {
 			hasError={error != null}
 			entries={entries}
 			onRetry={refresh}
-			onOpenSidebar={openSidebar}
 			onOpenEntry={handleOpenEntry}
 		/>
 	)

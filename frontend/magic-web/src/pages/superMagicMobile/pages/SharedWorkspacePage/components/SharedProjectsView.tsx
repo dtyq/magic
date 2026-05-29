@@ -143,6 +143,8 @@ function CreatorAvatar({ project }: { project: SharedWorkspaceProject }) {
  * 共享项目列表行只负责展示项目名称、来源信息和进入详情入口。
  */
 function SharedProjectRow({ project, tab, subtitle, onOpen }: SharedProjectRowProps) {
+	const { t } = useTranslation("super")
+
 	return (
 		<button
 			type="button"
@@ -153,7 +155,7 @@ function SharedProjectRow({ project, tab, subtitle, onOpen }: SharedProjectRowPr
 			<ProjectIcon />
 			<div className="ml-2 flex min-w-0 flex-1 flex-col items-start">
 				<p className="w-full truncate text-[16px] font-medium leading-6 text-foreground">
-					{project.project_name || "-"}
+					{project.project_name?.trim() || t("project.unnamedProject")}
 				</p>
 				<div className="flex w-full min-w-0 items-center gap-1">
 					{tab === "sharedByMe" ? (

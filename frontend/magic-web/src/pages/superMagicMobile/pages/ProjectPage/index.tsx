@@ -410,7 +410,7 @@ function LegacyProjectPage() {
 			<ProjectShareSheet
 				open={projectShareSheetOpen}
 				onClose={() => setProjectShareSheetOpen(false)}
-				projectName={selectedProject?.project_name}
+				projectName={selectedProject?.project_name?.trim() || t("project.unnamedProject")}
 				projectId={selectedProject?.id}
 				attachments={attachmentTree}
 				attachmentList={attachmentFlatList}

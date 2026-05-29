@@ -1,8 +1,5 @@
 import { useTranslation } from "react-i18next"
-import {
-	SuperMobileShellRouteLayout,
-	useSuperMobileShellOutlet,
-} from "@/pages/superMagicMobile/components/MobileShell"
+import { SuperMobileShellRouteLayout } from "@/pages/superMagicMobile/components/MobileShell"
 import { MagiClawCreateDialog } from "./MagiClawCreateDialog"
 import { MagiClawDeleteConfirmSheet } from "./MagiClawDeleteConfirmSheet"
 import { MagiClawEditDialog } from "./MagiClawEditDialog"
@@ -14,8 +11,6 @@ import { useMagiClawMobilePage } from "./useMagiClawMobilePage"
 
 /** 页面面板只负责把移动端壳层、列表视图和页面级浮层状态接起来。 */
 function MagiClawMobilePanel() {
-	const { t } = useTranslation("sidebar")
-	const { openSidebar } = useSuperMobileShellOutlet()
 	const {
 		activeActionClawCode,
 		canCreateMagicClaw,
@@ -68,10 +63,8 @@ function MagiClawMobilePanel() {
 			>
 				<MagiClawMobileHeader
 					title={tSidebar("superLobster.title", clawBrandValues)}
-					menuAriaLabel={t("super:mobile.shell.menuAria")}
 					createAriaLabel={createButtonLabel}
 					disableCreateTrigger={!canCreateMagicClaw}
-					onOpenSidebar={openSidebar}
 					onOpenCreate={handleOpenCreate}
 				/>
 

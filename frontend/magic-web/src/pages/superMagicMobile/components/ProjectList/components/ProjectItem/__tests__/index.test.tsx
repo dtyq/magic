@@ -13,6 +13,7 @@ vi.mock("react-i18next", () => ({
 			if (key === "sharedProjects.topicCount") {
 				return `${options?.count ?? 0} 个话题`
 			}
+			if (key === "project.unnamedProject") return "未命名项目"
 
 			return key
 		},
@@ -200,6 +201,48 @@ describe("ProjectList ProjectItem", () => {
 		)
 
 		expect(screen.getByText("4 个话题 · 11:03")).toBeInTheDocument()
+	})
+
+	it("shows unnamed project label when project name is empty", () => {
+		render(
+			<ProjectItem
+				project={createProject({
+					id: "unnamed-project",
+					project_name: "",
+				})}
+				onOpen={vi.fn()}
+				updatedAtLabel="11:03"
+				isSwipeOpen={false}
+				onSwipeOpen={vi.fn()}
+				onSwipeClose={vi.fn()}
+				onMore={vi.fn()}
+				onPin={vi.fn()}
+				onDelete={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByText("未命名项目")).toBeInTheDocument()
+	})
+
+	it("shows unnamed project label when project name is whitespace only", () => {
+		render(
+			<ProjectItem
+				project={createProject({
+					id: "whitespace-project",
+					project_name: "   ",
+				})}
+				onOpen={vi.fn()}
+				updatedAtLabel="11:03"
+				isSwipeOpen={false}
+				onSwipeOpen={vi.fn()}
+				onSwipeClose={vi.fn()}
+				onMore={vi.fn()}
+				onPin={vi.fn()}
+				onDelete={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByText("未命名项目")).toBeInTheDocument()
 	})
 
 	it("falls back to zero topic count when api value is missing", () => {

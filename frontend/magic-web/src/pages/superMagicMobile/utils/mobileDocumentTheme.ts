@@ -11,6 +11,7 @@ export const MOBILE_DOCUMENT_THEME_HEX = {
 		light: "#fafafa",
 		dark: "#0a0a0a",
 	},
+	/** Matches --mobile-shell-track-rgb (prototype --muted when sidebar is open). */
 	open: {
 		light: "#f5f5f5",
 		dark: "#262626",
@@ -19,7 +20,7 @@ export const MOBILE_DOCUMENT_THEME_HEX = {
 
 const MOBILE_DOCUMENT_BACKGROUND_CSS = {
 	closed: "rgb(var(--mobile-background-rgb))",
-	open: "rgb(var(--muted-rgb))",
+	open: "rgb(var(--mobile-shell-track-rgb))",
 } as const
 
 /**

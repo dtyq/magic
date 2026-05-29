@@ -4,8 +4,10 @@ import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { InfiniteScroll } from "antd-mobile"
 import { RefreshCw } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn-ui/avatar"
 import { cn } from "@/lib/utils"
 import { userStore } from "@/models/user"
+import { getAvatarColor } from "@/utils/avatar-color"
 import { MobileBrandLogo } from "@/pages/superMagicMobile/components/MobileBrandLogo"
 import { useMobileSettingsController } from "@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext"
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
@@ -28,19 +30,22 @@ export interface MobileShellSidebarProps {
 
 const PRIMARY_NAV_KEYS = new Set(["chats", "workspaces", "recording"])
 
-/** 统一计算侧栏导航行样式，避免各页面复制相同的选中态与主题态。 */
-function navRowClass(isActive: boolean) {
+/** Prototype sidebar account pill elevation (magicrewapp-prototype Sidebar footer). */
+const ACCOUNT_PILL_BOX_SHADOW = "0 25px 50px -12px rgba(0,0,0,0.25)"
+
+/** 统一计算侧栏导航行样式；导航项不展示路由选中高亮，仅保留按压反馈。 */
+function navRowClass() {
 	return cn(
-		"flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-base transition-colors",
-		isActive
-			? "dark:ring-white/12 bg-background text-foreground shadow-sm dark:bg-zinc-950 dark:shadow-md dark:ring-1"
-			: "text-foreground active:bg-black/5 dark:active:bg-white/10",
+		"flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-base text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10",
 	)
 }
 
-/** 统一渲染主导航图标，兼容 Lucide 图标与自定义 SVG 图标。 */
+/**
+ * Renders primary sidebar nav icons at a fixed 16px box to match the prototype (`w-4 h-4`).
+ * MagiClaw uses a 16×16 viewBox; do not scale this wrapper larger or its stroke looks too heavy.
+ */
 function NavMenuIcon({ icon: Icon }: { icon: MobileShellMenuNavIcon }) {
-	return <Icon className="size-[18px] shrink-0 text-foreground" aria-hidden />
+	return <Icon className="size-4 shrink-0 text-foreground" aria-hidden />
 }
 
 /** Super 移动端共享侧栏：业务页只传菜单数据，不再各自维护重复的侧栏视图。 */
@@ -51,7 +56,6 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 	const { t: tCommon } = useTranslation("common")
 	const { t: tSidebar } = useTranslation("sidebar")
 	const {
-		activeView,
 		navItems,
 		recentItems,
 		hasMore,
@@ -67,6 +71,7 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 	const displayName = userStore.user.userInfo?.nickname?.trim() || tSidebar("footer.defaultUser")
 	const avatarUrl = userStore.user.userInfo?.avatar?.trim() || ""
 	const initial = displayName.charAt(0).toUpperCase() || "?"
+	const avatarColors = useMemo(() => getAvatarColor(displayName), [displayName])
 	const primaryNavItems = useMemo(
 		() => navItems.filter(({ key }) => PRIMARY_NAV_KEYS.has(key)),
 		[navItems],
@@ -165,8 +170,9 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 		}
 	})
 
+	// Background comes from MobileShellScaffold root (prototype Sidebar has no own fill).
 	return (
-		<div className="flex h-full min-h-0 flex-col bg-muted dark:bg-neutral-800">
+		<div className="mobile-shell-sidebar flex h-full min-h-0 flex-col">
 			<div className="flex shrink-0 items-center justify-between px-2 pb-2 pt-2">
 				<button
 					type="button"
@@ -191,15 +197,13 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 				<div className="flex flex-col gap-2.5">
 					<div className="flex flex-col gap-1">
 						{primaryNavItems.map(({ key, icon: Icon, label }) => {
-							const isActive = activeView === key
-
 							return (
 								<button
 									key={key}
 									type="button"
 									onClick={() => onNavigate(key)}
 									data-testid={`${testIdPrefix}-nav-${key}`}
-									className={navRowClass(isActive)}
+									className={navRowClass()}
 								>
 									<NavMenuIcon icon={Icon} />
 									<span className="leading-6">{label}</span>
@@ -212,15 +216,13 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 
 					<div className="flex flex-col gap-1">
 						{secondaryNavItems.map(({ key, icon: Icon, label }) => {
-							const isActive = activeView === key
-
 							return (
 								<button
 									key={key}
 									type="button"
 									onClick={() => onNavigate(key)}
 									data-testid={`${testIdPrefix}-nav-${key}`}
-									className={navRowClass(isActive)}
+									className={navRowClass()}
 								>
 									<NavMenuIcon icon={Icon} />
 									<span className="leading-6">{label}</span>
@@ -284,33 +286,32 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 				</div>
 			</div>
 
-			<div className="dark:border-white/12 flex shrink-0 items-center justify-between gap-2 px-3 pb-3 pt-3">
+			<div className="dark:border-white/12 flex shrink-0 items-center justify-between gap-2 px-3 pb-3">
 				<div className="flex min-w-0 items-center gap-2">
 					<button
 						type="button"
 						title={displayName}
 						onClick={openSettings}
-						className={cn(
-							"flex min-w-0 max-w-[140px] items-center gap-1.5 rounded-full bg-card py-1.5 pl-1.5 pr-2.5 text-left shadow-lg transition-opacity active:opacity-70",
-							"dark:ring-white/12 dark:bg-black dark:shadow-none dark:ring-1",
-						)}
+						className="flex min-w-0 items-center gap-[6px] rounded-full bg-card py-[6px] pl-[6px] pr-[10px] text-left transition-opacity active:opacity-60"
+						style={{ boxShadow: ACCOUNT_PILL_BOX_SHADOW }}
 						data-testid={`${testIdPrefix}-account-pill`}
 					>
-						{/* 账号入口优先展示真实头像，缺失时再回退到当前首字母占位，避免空头像状态影响识别。 */}
-						{avatarUrl ? (
-							<img
-								src={avatarUrl}
-								alt=""
-								aria-hidden
-								referrerPolicy="no-referrer"
-								className="size-8 shrink-0 rounded-full object-cover"
-							/>
-						) : (
-							<span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+						{/* Prefer real avatar; colored initial fallback matches prototype when image is missing. */}
+						<Avatar className="size-6">
+							{avatarUrl ? (
+								<AvatarImage src={avatarUrl} alt="" referrerPolicy="no-referrer" />
+							) : null}
+							<AvatarFallback
+								className="text-[12px] font-semibold"
+								style={{
+									backgroundColor: avatarColors.bg,
+									color: avatarColors.text,
+								}}
+							>
 								{initial}
-							</span>
-						)}
-						<span className="truncate text-sm font-medium leading-none text-foreground">
+							</AvatarFallback>
+						</Avatar>
+						<span className="truncate text-[14px] font-medium leading-none text-foreground">
 							{displayName}
 						</span>
 					</button>
