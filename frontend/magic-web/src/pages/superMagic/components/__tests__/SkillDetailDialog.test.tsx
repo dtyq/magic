@@ -64,6 +64,16 @@ vi.mock("@/components/shadcn-ui/collapsible", () => ({
 	),
 }))
 
+const useOverlayZIndexMock = vi.fn(() => ({
+	overlayZIndex: 1020,
+	contentZIndex: 1021,
+	releaseOverlayZIndex: vi.fn(),
+}))
+
+vi.mock("@/hooks/useOverlayZIndex", () => ({
+	useOverlayZIndex: (...args: unknown[]) => useOverlayZIndexMock(...args),
+}))
+
 vi.mock("@/components/shadcn-ui/dialog", () => ({
 	Dialog: ({ children, open }: { children: ReactNode; open: boolean }) =>
 		open ? <div>{children}</div> : null,
@@ -71,15 +81,21 @@ vi.mock("@/components/shadcn-ui/dialog", () => ({
 		children,
 		showCloseButton,
 		overlayClassName,
+		style,
 		...props
 	}: ComponentProps<"div"> & {
 		showCloseButton?: boolean
 		overlayClassName?: string
+		style?: React.CSSProperties
 	}) => {
 		void showCloseButton
 		void overlayClassName
 
-		return <div {...props}>{children}</div>
+		return (
+			<div {...props} style={style}>
+				{children}
+			</div>
+		)
 	},
 }))
 
@@ -125,6 +141,38 @@ vi.mock("@/components/tiptap-templates/simple/simple-editor", () => ({
 }))
 
 describe("SkillDetailDialog", () => {
+	it("registers overlay z-index above parent popups when open", async () => {
+		getMarketSkillDetailViewMock.mockResolvedValue({
+			code: "skill.code",
+			name: "Skill Name",
+			description: "Skill description",
+			logo: "",
+			packageName: "skill.package",
+			versionCode: "1.0.0",
+			updatedAt: "2026-04-09 10:00:00",
+			skillFileUrl: undefined,
+			isFeatured: false,
+			publisherType: "OFFICIAL",
+			publisherName: "Magic",
+		})
+
+		const { SkillDetailDialog } = await import("../SkillDetailDialog")
+
+		render(
+			<SkillDetailDialog
+				open={true}
+				onOpenChange={vi.fn()}
+				skillCode="skill.code"
+				detailSource="market"
+			/>,
+		)
+
+		expect(useOverlayZIndexMock).toHaveBeenCalledWith({ open: true })
+
+		const dialog = await screen.findByTestId("skill-detail-dialog")
+		expect(dialog).toHaveStyle({ zIndex: 1021 })
+	})
+
 	it("hides the skill file section when skill markdown is empty", async () => {
 		getMarketSkillDetailViewMock.mockResolvedValue({
 			code: "skill.code",

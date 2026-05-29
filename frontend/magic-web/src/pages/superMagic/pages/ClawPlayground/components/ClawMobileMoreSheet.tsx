@@ -126,7 +126,7 @@ export function ClawMobileMoreSheet({
 					{needUpgrade ? (
 						<button
 							type="button"
-							className="flex h-14 w-full items-center justify-start border-b border-border/50 px-5 text-[16px] text-indigo-500 active:opacity-70 disabled:opacity-40"
+							className="flex h-14 w-full items-center justify-start border-b border-border/50 px-5 text-[16px] text-foreground active:opacity-70 disabled:opacity-40"
 							disabled={isUpgradingSandbox}
 							onClick={() => {
 								if (isUpgradingSandbox) return

@@ -1,6 +1,5 @@
 import { observer } from "mobx-react-lite"
-import { useEffect, useMemo, useState } from "react"
-import type { ReactNode } from "react"
+import { useEffect, useMemo, useState, type AnimationEventHandler, type ReactNode } from "react"
 import {
 	Award,
 	BadgeInfo,
@@ -24,6 +23,7 @@ import {
 	CollapsibleTrigger,
 } from "@/components/shadcn-ui/collapsible"
 import { Dialog, DialogContent } from "@/components/shadcn-ui/dialog"
+import { useOverlayZIndex } from "@/hooks/useOverlayZIndex"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Separator } from "@/components/shadcn-ui/separator"
 import { Skeleton } from "@/components/shadcn-ui/skeleton"
@@ -192,6 +192,8 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 	primaryAction,
 }: SkillDetailDialogProps) {
 	const { t, i18n } = useTranslation("crew/market")
+	// Stack above MagicPopup / Sheet parents (e.g. mobile skills drawer) via global overlay manager.
+	const overlayLayer = useOverlayZIndex({ open })
 	const [detail, setDetail] = useState<SkillDetailView | null>(null)
 	const [skillMarkdown, setSkillMarkdown] = useState("")
 	const [isLoading, setIsLoading] = useState(false)
@@ -322,12 +324,22 @@ export const SkillDetailDialog = observer(function SkillDetailDialog({
 		setReloadNonce((value) => value + 1)
 	}
 
+	/** Release overlay slot after close animation so nested popups do not reuse stale z-index. */
+	const handleContentAnimationEnd: AnimationEventHandler<HTMLDivElement> = (event) => {
+		if (event.target === event.currentTarget && !open) {
+			overlayLayer.releaseOverlayZIndex()
+		}
+	}
+
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				showCloseButton={false}
 				overlayClassName="bg-black/50 backdrop-blur-sm"
 				className="max-h-[calc(100%-3rem)] w-[calc(100%-2rem)] max-w-[680px] gap-0 overflow-hidden rounded-xl border bg-background p-0 shadow-sm"
+				// DialogContent mirrors style.zIndex onto overlay; use contentZIndex so mask sits above parent drawer.
+				style={{ zIndex: overlayLayer.contentZIndex }}
+				onAnimationEnd={handleContentAnimationEnd}
 				data-testid="skill-detail-dialog"
 			>
 				<div className="flex h-full max-h-[90vh] w-full min-w-0 flex-col px-3 pb-3 pt-2">
