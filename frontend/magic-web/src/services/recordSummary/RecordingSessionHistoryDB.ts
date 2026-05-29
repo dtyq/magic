@@ -5,7 +5,7 @@ import { recordingLogger } from "./utils/RecordingLogger"
 const logger = recordingLogger.namespace("History:DB")
 
 // Default retention window for historical sessions (days)
-export const RECORDING_HISTORY_RETENTION_DAYS = 30
+export const RECORDING_HISTORY_RETENTION_DAYS = 7
 
 /**
  * Stored session entity adds lightweight audit timestamps
