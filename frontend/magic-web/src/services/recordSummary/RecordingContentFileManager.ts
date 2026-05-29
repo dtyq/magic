@@ -62,6 +62,10 @@ export class RecordingContentFileManager {
 	private noteFile: ContentFileInfo | null = null
 	private transcriptFile: ContentFileInfo | null = null
 
+	// Cached upload file names (reused across uploads to overwrite the same OSS file)
+	private noteUploadFileName: string | null = null
+	private transcriptUploadFileName: string | null = null
+
 	// Throttle timers
 	private noteThrottleTimer: NodeJS.Timeout | null = null
 	private transcriptThrottleTimer: NodeJS.Timeout | null = null
@@ -349,10 +353,14 @@ export class RecordingContentFileManager {
 		this.noteFile.isUploading = true
 
 		try {
+			if (!this.noteUploadFileName) {
+				this.noteUploadFileName = await getSnowflakeUploadFileName()
+			}
 			const uploadResult = await this.uploadContentFile(
 				this.noteFile.fileName,
 				content,
 				ContentFileType.Note,
+				this.noteUploadFileName,
 			)
 
 			this.noteFile.lastContent = content
@@ -393,10 +401,14 @@ export class RecordingContentFileManager {
 		this.transcriptFile.isUploading = true
 
 		try {
+			if (!this.transcriptUploadFileName) {
+				this.transcriptUploadFileName = await getSnowflakeUploadFileName()
+			}
 			const uploadResult = await this.uploadContentFile(
 				this.transcriptFile.fileName,
 				content,
 				ContentFileType.Transcript,
+				this.transcriptUploadFileName,
 			)
 
 			this.transcriptFile.lastContent = content
@@ -425,6 +437,7 @@ export class RecordingContentFileManager {
 		fileName: string,
 		content: string,
 		fileType: ContentFileType,
+		uploadFileName: string,
 	): Promise<{ fileKey: string; fileSize: number }> {
 		if (!this.sessionId) {
 			throw new Error("Session ID not set")
@@ -459,7 +472,6 @@ export class RecordingContentFileManager {
 		// Create file blob
 		const blob = new Blob([content], { type: "text/markdown;charset=utf-8" })
 		const file = new File([blob], fileName, { type: "text/markdown;charset=utf-8" })
-		const uploadFileName = await getSnowflakeUploadFileName()
 
 		// Modify credentials to use display directory
 		const modifiedCredentials = this.modifyCredentialsDirectory(
@@ -559,6 +571,8 @@ export class RecordingContentFileManager {
 		this.sessionId = null
 		this.topicId = null
 		this.projectId = null
+		this.noteUploadFileName = null
+		this.transcriptUploadFileName = null
 
 		logger.log("Content file manager disposed")
 	}
@@ -625,6 +639,7 @@ export class RecordingContentFileManager {
 			fileName: file.fileName,
 			fileSize: uploadResult.fileSize,
 			...(isHidden ? { isHidden: true } : {}),
+			allowOverwrite: true,
 		})
 	}
 }
