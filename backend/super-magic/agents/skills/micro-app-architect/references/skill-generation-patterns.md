@@ -29,7 +29,7 @@ Do NOT generate a companion skill when:
    - Input/output files
    - Workflow steps
 2. skill-creator generates the SKILL.md with proper format, naming, and validation
-3. The generated skill is placed in `.magic/<skill_name>/SKILL.md` at the workspace root
+3. The generated skill is placed in `.magic/skills/<skill_name>/SKILL.md` at the workspace root
 
 ---
 
@@ -40,10 +40,11 @@ Companion skills are stored at the **workspace root** in `.magic/`, separate fro
 ```
 <workspace-root>/
 ├── .magic/
-│   └── <skill_name>/
-│       ├── SKILL.md               (required — skill definition)
-│       └── references/            (optional — additional docs)
-│           └── *.md
+│   └── skills/
+│       └── <skill_name>/
+│           ├── SKILL.md               (required — skill definition)
+│           └── references/            (optional — additional docs)
+│               └── *.md
 └── <app-directory>/
     ├── index.html                 (frontend)
     └── data/                      (data layer)
@@ -59,7 +60,7 @@ Companion skills are stored at the **workspace root** in `.magic/`, separate fro
 | 2–64 characters | Keep it concise |
 | Start with a letter | Not `123_app` |
 | No hyphens, no consecutive underscores | Not `sales-analyzer`, not `sales__analyzer` |
-| Name must exactly match directory name | `.magic/sales_analyzer/` → `name: sales_analyzer` |
+| Name must exactly match directory name | `.magic/skills/sales_analyzer/` → `name: sales_analyzer` |
 
 ---
 
@@ -79,7 +80,7 @@ async function triggerSkill(userTask, selectedAgentId, selectedModel) {
         { type: "text", text: "请阅读以下技能文件并按照其中的指引执行任务：" },
         { type: "mention", attrs: {
           type: "project_file",
-          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/report_writer/SKILL.md", file_extension: "md" }
+          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/skills/report_writer/SKILL.md", file_extension: "md" }
         }},
         { type: "text", text: "\n\n用户任务：" + userTask }
       ]
@@ -116,7 +117,7 @@ async function triggerWithData(userTask, relativeDataPath) {
         { type: "text", text: "请阅读技能文件 " },
         { type: "mention", attrs: {
           type: "project_file",
-          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/data_analyzer/SKILL.md", file_extension: "md" }
+          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/skills/data_analyzer/SKILL.md", file_extension: "md" }
         }},
         { type: "text", text: " 并处理以下数据文件：" },
         { type: "mention", attrs: {
@@ -203,7 +204,7 @@ Selectors may be omitted only if the user explicitly specifies a fixed agent or 
 After skill-creator generates the companion skill, verify:
 
 1. **SKILL.md has valid frontmatter** — `name` and `description` fields present
-2. **Name matches directory** — `.magic/sales_analyzer/SKILL.md` has `name: sales_analyzer`
+2. **Name matches directory** — `.magic/skills/sales_analyzer/SKILL.md` has `name: sales_analyzer`
 3. **Description includes trigger conditions** — "Use when..." clause present
 4. **Workflow is concrete** — step-by-step, references specific file paths
 5. **Output is defined** — what files the skill writes, what format
