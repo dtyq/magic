@@ -543,10 +543,10 @@ export class RecorderCoreAdapter {
 			state: this.state,
 			session: this.sessionId
 				? {
-						sessionId: this.sessionId,
-						chunkIndex: this.chunkIndex,
-						startTime: Date.now(), // Simplified, should track actual start time
-					}
+					sessionId: this.sessionId,
+					chunkIndex: this.chunkIndex,
+					startTime: Date.now(), // Simplified, should track actual start time
+				}
 				: null,
 			bufferDuration: this.bufferManager?.getDuration() || 0,
 			isPaused: this.state === "paused",
@@ -795,7 +795,11 @@ export class RecorderCoreAdapter {
 		if (preferWorklet && workletSupported) {
 			try {
 				await this.setupAudioWorkletProcessing()
-				this.audioRecorder.processingMode = "worklet"
+				// Re-check after async operation — audioRecorder may have been
+				// nullified by a concurrent cleanup (e.g. error handler)
+				if (this.audioRecorder) {
+					this.audioRecorder.processingMode = "worklet"
+				}
 				this.dependencies.logger.log("Using AudioWorklet for audio processing")
 				return
 			} catch (error) {
@@ -809,8 +813,16 @@ export class RecorderCoreAdapter {
 		// Fallback to ScriptProcessor
 		// 降级到 ScriptProcessor
 		this.setupScriptProcessorProcessing()
-		this.audioRecorder.processingMode = "script-processor"
-		this.dependencies.logger.log("Using ScriptProcessor for audio processing")
+		// Re-check after potential async cleanup — audioRecorder may be null
+		// if a concurrent error handler triggered cleanup during worklet setup
+		if (this.audioRecorder) {
+			this.audioRecorder.processingMode = "script-processor"
+			this.dependencies.logger.log("Using ScriptProcessor for audio processing")
+		} else {
+			this.dependencies.logger.warn(
+				"audioRecorder became null during setup, skipping processingMode assignment",
+			)
+		}
 	}
 
 	/**
@@ -1260,10 +1272,12 @@ export class RecorderCoreAdapter {
 				return false
 			}
 
-			// // Check if audioWorklet property exists on AudioContext prototype
-			// if (typeof AudioContext.prototype.audioWorklet === "undefined") {
-			// 	return false
-			// }
+			// Check if audioWorklet property exists on AudioContext prototype
+			// Safari 16.x defines AudioContext/AudioWorkletNode but may not
+			// expose audioWorklet on the prototype, causing runtime failures.
+			if (typeof AudioContext.prototype.audioWorklet === "undefined") {
+				return false
+			}
 
 			// Check for AudioWorkletNode support
 			if (typeof AudioWorkletNode === "undefined") {
