@@ -1829,6 +1829,9 @@
 			},
 			"title": "Recording"
 		},
+		"chunkProduction": {
+			"failed": "Recording error: No audio data detected"
+		},
 		"network": {
 			"max_retries_reached": "Some audio chunks failed to upload. Please check your network connection and retry",
 			"offline_notification": "Network disconnected. Recording data saved locally. Will auto-upload when network recovers",

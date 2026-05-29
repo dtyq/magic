@@ -67,8 +67,8 @@ export class ChunkUploader {
 			{},
 			events.onTaskEnd
 				? (sessionId: string) => {
-						events.onTaskEnd?.(sessionId)
-					}
+					events.onTaskEnd?.(sessionId)
+				}
 				: undefined,
 		)
 		this.audioChunkDB = new AudioChunkDB()
@@ -452,11 +452,15 @@ export class ChunkUploader {
 
 		await this.reportUploadedChunk(chunk, uploadUrl)
 
-		// Sampling: log every 10 chunks
+		// Sampling: log every 10 chunks for upload progress monitoring
+		// Full traceability is handled by BatchSaveReporter's report log
 		if (chunk.index % 10 === 0) {
 			logger.report("分片上传成功", {
+				chunkId: chunk.id,
 				chunkIndex: chunk.index,
+				chunkSize: chunk.size,
 				uploadUrl,
+				sessionId: chunk.sessionId,
 			})
 		}
 

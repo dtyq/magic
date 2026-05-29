@@ -1831,6 +1831,9 @@
 			},
 			"title": "录音总结"
 		},
+		"chunkProduction": {
+			"failed": "录音异常：未检测到音频数据，请停止并重新开始"
+		},
 		"network": {
 			"max_retries_reached": "部分音频分片上传失败，请检查网络连接",
 			"offline_notification": "网络已断开，录音数据已保存在本地，网络恢复后将自动上传",

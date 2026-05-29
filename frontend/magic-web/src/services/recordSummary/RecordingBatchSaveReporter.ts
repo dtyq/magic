@@ -81,9 +81,13 @@ export class RecordingBatchSaveReporter {
 				],
 			})
 
-			logger.log("Batch save reported", {
+			logger.report("Batch save reported", {
 				sessionId: file.sessionId,
 				fileKey: file.fileKey,
+				fileName: file.fileName,
+				fileSize: file.fileSize,
+				projectId: file.projectId,
+				topicId: file.topicId,
 				parentId: file.parentId,
 			})
 			this.markFileAsSaved(file.sessionId, file.fileKey)
@@ -91,6 +95,11 @@ export class RecordingBatchSaveReporter {
 			logger.error("Batch save failed", {
 				sessionId: file.sessionId,
 				fileKey: file.fileKey,
+				fileName: file.fileName,
+				fileSize: file.fileSize,
+				projectId: file.projectId,
+				topicId: file.topicId,
+				parentId: file.parentId,
 				error: error instanceof Error ? error.message : String(error),
 			})
 		}
