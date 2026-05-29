@@ -12,7 +12,6 @@ const APP_SERVICE_WORKER_URL = "/sw.js"
 const APP_SERVICE_WORKER_SCOPE = "/"
 const SW_MODE_ENV_KEY = "MAGIC_SW_MODE"
 const SW_MODE_ON = "on"
-const SW_MODE_OFF = "off"
 const SW_MODE_KILL = "kill"
 const SW_MODE_NONE = "none"
 // Wait briefly for controllerchange after posting SKIP_WAITING; then fallback to a plain reload.
@@ -46,7 +45,11 @@ function shouldRegisterAppServiceWorker(): boolean {
 	const serviceWorkerMode = getServiceWorkerMode()
 	if (serviceWorkerMode === SW_MODE_NONE) return false
 
-	return [SW_MODE_ON, SW_MODE_OFF, SW_MODE_KILL].includes(serviceWorkerMode)
+	return [SW_MODE_ON, SW_MODE_KILL].includes(serviceWorkerMode)
+}
+
+function shouldAutoActivateWaitingWorkerOnReload(): boolean {
+	return getServiceWorkerMode() === SW_MODE_ON
 }
 
 function isAppServiceWorkerWorker(
@@ -272,14 +275,16 @@ export function registerAppServiceWorker(): void {
 
 			// Cover timing gap: register() may return before waiting is available.
 			// We listen for installing/updatefound and also perform an immediate waiting check.
-			watchInstallingWorkerForReloadActivation(
-				appServiceWorkerRegistration,
-				reloadActivationContext,
-			)
-			tryAutoActivateWaitingServiceWorkerOnReload(
-				appServiceWorkerRegistration,
-				reloadActivationContext,
-			)
+			if (shouldAutoActivateWaitingWorkerOnReload()) {
+				watchInstallingWorkerForReloadActivation(
+					appServiceWorkerRegistration,
+					reloadActivationContext,
+				)
+				tryAutoActivateWaitingServiceWorkerOnReload(
+					appServiceWorkerRegistration,
+					reloadActivationContext,
+				)
+			}
 			void triggerWarmUpWhenIdle()
 		} catch {
 			appServiceWorkerRegistration = null

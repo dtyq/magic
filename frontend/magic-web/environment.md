@@ -168,7 +168,7 @@ MAGIC_CDNHOST = "https://cdn.letsmagic.cn/__assets__/packages"
 |:---:|:---|:---:|
 | `on` | 显式开启 App Service Worker 缓存能力，使用构建产物中的正常 `/sw.js` | 是 |
 | `none` | 显式关闭，不注册 App Service Worker；若浏览器中已有旧的 app SW，会在页面启动时主动注销 | 否 |
-| `off` | 注册一个仅用于注销的 SW，不清理缓存桶 | 是 |
+| `off` | 显式退场，不注册新的 SW；若浏览器中已有旧的 app SW，会在页面启动时主动注销（不清理缓存桶） | 否 |
 | `kill` | 注册一个用于清理缓存并注销的 SW；需配合 `MAGIC_SW_CLEAR_CACHES`，缺失时自动降级为 `off` | 是 |
 | 空值/不配置/其他值 | 默认行为，等同 `none`。仅在特定环境显式配置 `on` 时才开启缓存能力 | 否 |
 

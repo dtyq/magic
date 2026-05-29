@@ -70,8 +70,10 @@ function createAppCacheFeature(
 				return true
 			}
 			if (event.data?.type === "START_WARMUP") {
-				const assets = event.data?.assets
-				void warmUpStaticAssetsOnIdle(assets)
+					const assets = Array.isArray(event.data?.assets)
+						? event.data.assets.filter((item): item is string => typeof item === "string")
+						: undefined
+					event.waitUntil(warmUpStaticAssetsOnIdle(assets))
 				return true
 			}
 			return false

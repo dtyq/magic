@@ -74,11 +74,7 @@ self.addEventListener("activate", (event) => {
 			// 仅删除当前配置命中的缓存桶，随后主动注销自身，恢复到无 SW 状态。
 			await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
 		}
-		const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
 		await self.registration.unregister();
-		for (const client of clients) {
-			client.navigate(client.url);
-		}
 	})());
 });
 
@@ -95,11 +91,7 @@ function buildOffModeServiceWorkerSource() {
 
 self.addEventListener("activate", (event) => {
 	event.waitUntil((async () => {
-		const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
 		await self.registration.unregister();
-		for (const client of clients) {
-			client.navigate(client.url);
-		}
 	})());
 });
 

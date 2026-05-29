@@ -106,7 +106,7 @@ describe("registerAppServiceWorker", () => {
 
 		expect(resolvedUrl.pathname).toBe("/sw.js")
 		expect(resolvedUrl.searchParams.get("workboxCdnUrl")).toBe(
-			"https://cdn.jsdelivr.net/npm/workbox-sw@7.4.1/build/workbox-sw.js",
+			"https://public-cdn.example.com/workbox/7.4.1/workbox-sw.js",
 		)
 		expect(resolvedUrl.searchParams.get("vendorCacheHosts")).toBe(
 			"public-cdn.example.com,assets.example.com,cdn.jsdelivr.net",
@@ -173,6 +173,40 @@ describe("registerAppServiceWorker", () => {
 		expect(unregister).toHaveBeenCalledTimes(1)
 	})
 
+	it("does not register in off mode and unregisters existing app service workers", async () => {
+		const register = vi.fn()
+		const unregister = vi.fn().mockResolvedValue(true)
+		vi.stubEnv("MAGIC_SW_MODE", "off")
+
+		Object.defineProperty(document, "readyState", {
+			configurable: true,
+			value: "complete",
+		})
+
+		Object.defineProperty(navigator, "serviceWorker", {
+			configurable: true,
+			value: {
+				register,
+				getRegistrations: vi.fn().mockResolvedValue([
+					{
+						active: {
+							scriptURL: `${window.location.origin}/sw.js`,
+						},
+						waiting: null,
+						installing: null,
+						unregister,
+					},
+				]),
+			},
+		})
+
+		registerAppServiceWorker()
+		await flushMicrotasks()
+
+		expect(register).not.toHaveBeenCalled()
+		expect(unregister).toHaveBeenCalledTimes(1)
+	})
+
 	it("auto activates waiting worker on browser reload", async () => {
 		const postMessage = vi.fn()
 		const register = vi.fn().mockResolvedValue({
@@ -206,6 +240,42 @@ describe("registerAppServiceWorker", () => {
 		await flushMicrotasks()
 
 		expect(postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" })
+	})
+
+	it("does not auto activate waiting worker on reload in kill mode", async () => {
+		const postMessage = vi.fn()
+		const register = vi.fn().mockResolvedValue({
+			waiting: { postMessage },
+			addEventListener: vi.fn(),
+			installing: null,
+		})
+		vi.stubEnv("MAGIC_SW_MODE", "kill")
+
+		vi.spyOn(window.performance, "getEntriesByType").mockImplementation((entryType: string) => {
+			if (entryType === "navigation") {
+				return [{ type: "reload" }] as unknown as PerformanceEntry[]
+			}
+			return []
+		})
+
+		Object.defineProperty(document, "readyState", {
+			configurable: true,
+			value: "complete",
+		})
+
+		Object.defineProperty(navigator, "serviceWorker", {
+			configurable: true,
+			value: {
+				register,
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+			},
+		})
+
+		registerAppServiceWorker()
+		await flushMicrotasks()
+
+		expect(postMessage).not.toHaveBeenCalled()
 	})
 
 	it("auto activates waiting worker when installing transitions to installed on reload", async () => {

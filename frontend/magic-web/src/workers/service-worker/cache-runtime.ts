@@ -116,6 +116,27 @@ export function loadWorkboxRuntime(runtimeUrl: string): boolean {
 	}
 }
 
+export function getWorkboxModulePathPrefix(
+	runtimeUrl: string,
+	baseUrl?: string,
+): string | null {
+	const normalizedRuntimeUrl = runtimeUrl.trim()
+	if (!normalizedRuntimeUrl) return null
+
+	try {
+		const resolvedRuntimeUrl = baseUrl
+			? new URL(normalizedRuntimeUrl, baseUrl)
+			: new URL(normalizedRuntimeUrl)
+		const lastSlashIndex = resolvedRuntimeUrl.pathname.lastIndexOf("/")
+		if (lastSlashIndex < 0) return null
+
+		const modulePathname = resolvedRuntimeUrl.pathname.slice(0, lastSlashIndex)
+		return `${resolvedRuntimeUrl.origin}${modulePathname}`
+	} catch {
+		return null
+	}
+}
+
 /**
  * Resolves Workbox CDN URL, loads runtime, and registers all CacheFirst buckets.
  */
@@ -143,7 +164,11 @@ export function bootstrapWorkboxCacheRuntime(sw: ServiceWorkerGlobalScope): Work
 	}
 
 	const vendorCacheableHosts = getConfiguredVendorCacheableHosts(sw)
-	const registration = registerAppCacheRoutes(sw, vendorCacheableHosts)
+	const registration = registerAppCacheRoutes(
+		sw,
+		vendorCacheableHosts,
+		resolvedWorkboxRuntimeUrl,
+	)
 	return {
 		configuredWorkboxRuntimeUrl,
 		resolvedWorkboxRuntimeUrl,
@@ -158,8 +183,10 @@ export function bootstrapWorkboxCacheRuntime(sw: ServiceWorkerGlobalScope): Work
 function registerAppCacheRoutes(
 	sw: ServiceWorkerGlobalScope,
 	vendorCacheableHosts: readonly string[],
+	workboxRuntimeUrl: string,
 ): CacheRuntimeRegistration {
-	workbox.setConfig?.({ debug: false })
+	const modulePathPrefix = getWorkboxModulePathPrefix(workboxRuntimeUrl, sw.location.origin)
+	workbox.setConfig?.({ modulePathPrefix: modulePathPrefix || undefined, debug: false })
 
 	const { registerRoute } = workbox.routing
 	const { CacheFirst, StaleWhileRevalidate } = workbox.strategies
@@ -332,54 +359,95 @@ export async function precacheStaticAssetsOnInstall(): Promise<void> {
 }
 
 let lastWarmedUpAssetsSerialized = ""
+let inFlightWarmUpSerialized = ""
+let inFlightWarmUpPromise: Promise<void> | null = null
 const activeWarmUpUrls = new Set<string>()
+
+function normalizeWarmUpAssets(assets?: readonly string[]): string[] {
+	const sourceAssets = assets?.length ? assets : WARMUP_ASSETS
+	const normalizedAssets = sourceAssets
+		.map((assetPath) => assetPath.trim())
+		.filter((assetPath) => Boolean(assetPath))
+
+	return Array.from(new Set(normalizedAssets)).sort()
+}
+
+function toWarmUpCacheKey(assetPath: string): string {
+	return new URL(assetPath, self.location.origin).toString()
+}
 
 /**
  * Populates static assets list during browser idle phase.
  * Uses concurrent batches of 10 and 200ms delay between intervals.
  */
 export async function warmUpStaticAssetsOnIdle(assets?: string[]): Promise<void> {
-	const assetsToWarm = assets || WARMUP_ASSETS
+	const assetsToWarm = normalizeWarmUpAssets(assets)
 	if (!assetsToWarm.length) return
 
 	const serialized = assetsToWarm.join(",")
 	if (lastWarmedUpAssetsSerialized === serialized) return
-	lastWarmedUpAssetsSerialized = serialized
 
-	const cache = await caches.open(APP_STATIC_CACHE_NAME)
-	const batchSize = 10
-	const intervalMs = 200
+	if (inFlightWarmUpPromise && inFlightWarmUpSerialized === serialized) {
+		try {
+			await inFlightWarmUpPromise
+		} catch {
+			// The owner invocation logs overall failure details.
+		}
+		return
+	}
 
-	for (let index = 0; index < assetsToWarm.length; index += batchSize) {
-		const batch = assetsToWarm.slice(index, index + batchSize)
-		let fetchedInBatch = false
+	inFlightWarmUpSerialized = serialized
+	inFlightWarmUpPromise = (async () => {
+		const cache = await caches.open(APP_STATIC_CACHE_NAME)
+		const batchSize = 10
+		const intervalMs = 200
 
-		await Promise.allSettled(
-			batch.map(async (assetPath) => {
-				if (activeWarmUpUrls.has(assetPath)) return
-				activeWarmUpUrls.add(assetPath)
+		for (let index = 0; index < assetsToWarm.length; index += batchSize) {
+			const batch = assetsToWarm.slice(index, index + batchSize)
+			let fetchedInBatch = false
 
-				try {
-					const request = new Request(assetPath, { credentials: "same-origin" })
-					// Skip if already in cache (e.g. cached via regular HTTP dynamic request)
-					const existing = await cache.match(request)
-					if (existing) return
+			await Promise.allSettled(
+				batch.map(async (assetPath) => {
+					const cacheKey = toWarmUpCacheKey(assetPath)
+					if (activeWarmUpUrls.has(cacheKey)) return
+					activeWarmUpUrls.add(cacheKey)
 
-					fetchedInBatch = true
-					const response = await fetch(request)
-					if (response.ok) {
-						await cache.put(request, response)
+					try {
+						const request = new Request(cacheKey, { credentials: "same-origin" })
+						// Skip if already in cache (e.g. cached via regular HTTP dynamic request)
+						const existing = await cache.match(request)
+						if (existing) return
+
+						fetchedInBatch = true
+						const response = await fetch(request)
+						if (response.ok) {
+							await cache.put(request, response)
+						}
+					} catch {
+						// Ignored single request failure.
+					} finally {
+						activeWarmUpUrls.delete(cacheKey)
 					}
-				} catch {
-					// Ignored single request failure.
-				} finally {
-					activeWarmUpUrls.delete(assetPath)
-				}
-			}),
-		)
+				}),
+			)
 
-		if (fetchedInBatch) {
-			await new Promise((resolve) => setTimeout(resolve, intervalMs))
+			if (fetchedInBatch) {
+				await new Promise((resolve) => setTimeout(resolve, intervalMs))
+			}
+		}
+
+		// Mark as completed only after all batches are processed.
+		lastWarmedUpAssetsSerialized = serialized
+	})()
+
+	try {
+		await inFlightWarmUpPromise
+	} catch (error) {
+		console.warn("[sw] Warm-up overall failure", { error })
+	} finally {
+		if (inFlightWarmUpSerialized === serialized) {
+			inFlightWarmUpSerialized = ""
+			inFlightWarmUpPromise = null
 		}
 	}
 }
