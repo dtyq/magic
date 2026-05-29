@@ -36,7 +36,7 @@ import { UploadSource } from "@/pages/superMagic/components/MessageEditor/hooks/
 import RecordStatusChecker from "./RecordStatusChecker"
 import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { userStore } from "@/models/user"
-import { StoredAudioChunk } from "./MediaRecorderService/AudioChunkDB"
+import { StoredAudioChunk, AudioChunkDB } from "./MediaRecorderService/AudioChunkDB"
 import { formatDuration } from "./utils/format"
 import { createRecordingLogger } from "./utils/RecordingLogger"
 import { DEFAULT_RECORDING_CONFIG } from "./utils/config"
@@ -156,11 +156,22 @@ class RecordSummaryService {
 		this.sessionManager = new RecordingSessionManager(DEFAULT_RECORDING_CONFIG.sessionRestore)
 
 		// Fire-and-forget cleanup of expired session history (30 days retention)
+		// 过期会话清理后，同步清理对应的音频分片
 		void this.sessionManager
 			.getHistoryDB()
 			.cleanupExpired()
+			.then(async (expiredSessionIds) => {
+				if (expiredSessionIds.length === 0) return
+				const chunkDB = new AudioChunkDB()
+				for (const sessionId of expiredSessionIds) {
+					await chunkDB.deleteAllSessionChunks(sessionId)
+				}
+				logger.log("已清理过期会话关联的音频分片", {
+					sessionCount: expiredSessionIds.length,
+				})
+			})
 			.catch((error) => {
-				logger.error("清理过期会话历史失败", {
+				logger.error("清理过期会话历史或音频分片失败", {
 					error: error instanceof Error ? error.message : String(error),
 				})
 			})

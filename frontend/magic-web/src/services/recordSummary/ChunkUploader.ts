@@ -431,14 +431,11 @@ export class ChunkUploader {
 	 * 处理上传成功
 	 */
 	private async handleUploadSuccess(chunk: StoredAudioChunk, uploadUrl: string): Promise<void> {
-		// // Update chunk status in IndexedDB
-		// await this.audioChunkDB.updateChunkUploadStatus(chunk.id, "uploaded")
-
+		// Mark chunk as uploaded (keep data in IndexedDB for export)
 		try {
-			// Delete chunk from IndexedDB
-			await this.audioChunkDB.deleteChunk(chunk.id)
+			await this.audioChunkDB.updateChunkUploadStatus(chunk.id, "uploaded")
 		} catch (error) {
-			logger.error(`Failed to delete chunk ${chunk.id}:`, error)
+			logger.error(`Failed to update chunk status ${chunk.id}:`, error)
 		}
 
 		// Remove from active uploads
@@ -812,7 +809,7 @@ export class ChunkUploader {
 		// Clear topic mapping
 		this.sessionTopicMap.delete(sessionId)
 		this.sessionProjectMap.delete(sessionId)
-		return this.audioChunkDB.deleteSessionChunks(sessionId)
+		return this.audioChunkDB.deletePendingSessionChunks(sessionId)
 	}
 
 	/**

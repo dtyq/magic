@@ -1153,6 +1153,7 @@ export class RecorderCoreAdapter {
 				index: this.chunkIndex++,
 				timestamp: Date.now(),
 				size: blob.size,
+				mimeType: encodedChunk.mimeType,
 				uploadStatus: "pending",
 			}
 
