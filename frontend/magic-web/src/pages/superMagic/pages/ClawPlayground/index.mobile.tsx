@@ -821,6 +821,7 @@ function ClawPlaygroundMobile() {
 			<ClawMobileSkillsDrawer
 				open={skillsDrawerOpen}
 				onClose={() => setSkillsDrawerOpen(false)}
+				headerSubtitle={clawDisplayName}
 				overrideInstall={async ({ content }) => {
 					conversationPanelRef.current?.sendSkillInstallPrompt(content)
 				}}

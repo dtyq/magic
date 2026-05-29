@@ -33,6 +33,8 @@ export interface ClawSkillsPanelProps {
 	onClose: () => void
 	/** Hide shell top border when shown inside mobile drawer (avoids double edge). */
 	hideShellTopBorder?: boolean
+	/** Hide shell title/close when parent MagicPopup renders actionHeader. */
+	hideShellHeader?: boolean
 	/** Close panel after a successful install action. */
 	closeAfterInstall?: boolean
 	/** Optional full install override (see useSkillsPanel.overrideInstall). */
@@ -50,6 +52,7 @@ export interface ClawSkillsPanelProps {
 export function ClawSkillsPanel({
 	onClose,
 	hideShellTopBorder = false,
+	hideShellHeader = false,
 	closeAfterInstall = false,
 	overrideInstall: overrideInstallProp,
 	overrideUninstall: overrideUninstallProp,
@@ -144,6 +147,7 @@ export function ClawSkillsPanel({
 			showCreateButton={showSkillCreateButton}
 			testIdPrefix="claw-skills-panel"
 			hideTopBorder={hideShellTopBorder}
+			hideShellHeader={hideShellHeader}
 		/>
 	)
 }

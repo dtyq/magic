@@ -203,6 +203,8 @@ export interface SkillsPanelShellProps {
 	testIdPrefix?: string
 	/** Remove top border/radius when nested under another chrome (e.g. mobile drawer). */
 	hideTopBorder?: boolean
+	/** Hide title/close row when parent popup already renders actionHeader chrome. */
+	hideShellHeader?: boolean
 }
 
 export function SkillsPanelShell({
@@ -229,6 +231,7 @@ export function SkillsPanelShell({
 	showCreateButton = true,
 	testIdPrefix = "skills-panel",
 	hideTopBorder = false,
+	hideShellHeader = false,
 }: SkillsPanelShellProps) {
 	const { t } = useTranslation("crew/create")
 	const { isAllowed: canCreateSkill } = useFunctionPermission(
@@ -297,6 +300,7 @@ export function SkillsPanelShell({
 			className={cn(
 				"flex h-full flex-col overflow-hidden rounded-lg border border-border bg-background",
 				hideTopBorder && "rounded-t-none border-t-0",
+				hideShellHeader && "rounded-none border-0 bg-mobile-background",
 			)}
 			data-testid={testIdPrefix}
 		>
@@ -311,23 +315,32 @@ export function SkillsPanelShell({
 				skillSummary={detailSummary}
 				primaryAction={detailPrimaryAction}
 			/>
-			<div className="flex shrink-0 flex-col gap-3 px-3.5 pt-3.5">
-				<div className="flex items-center gap-2">
-					<h2 className="flex-1 truncate text-2xl font-medium leading-8 text-foreground">
-						{t("skills.title")}
-					</h2>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="size-9 shrink-0"
-						onClick={onClose}
-						data-testid={`${testIdPrefix}-close`}
-					>
-						<X className="size-5" />
-					</Button>
-				</div>
+			<div
+				className={cn(
+					"flex shrink-0 flex-col gap-3 px-3.5",
+					hideShellHeader ? "pt-0" : "pt-3.5",
+				)}
+			>
+				{!hideShellHeader ? (
+					<>
+						<div className="flex items-center gap-2">
+							<h2 className="flex-1 truncate text-2xl font-medium leading-8 text-foreground">
+								{t("skills.title")}
+							</h2>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="size-9 shrink-0"
+								onClick={onClose}
+								data-testid={`${testIdPrefix}-close`}
+							>
+								<X className="size-5" />
+							</Button>
+						</div>
 
-				<Separator />
+						<Separator />
+					</>
+				) : null}
 
 				<div className="flex items-center justify-between gap-3">
 					<SmoothTabs
