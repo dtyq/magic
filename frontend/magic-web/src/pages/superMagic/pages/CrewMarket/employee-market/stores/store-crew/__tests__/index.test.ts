@@ -95,6 +95,26 @@ describe("StoreCrewStore", () => {
 		})
 	})
 
+	it("hides category filter when fetchCategories returns an empty list", async () => {
+		const store = createStore()
+		vi.mocked(crewService.getStoreCategories).mockResolvedValueOnce([])
+
+		await store.fetchCategories()
+
+		expect(store.shouldShowCategoryFilter).toBe(false)
+	})
+
+	it("shows category filter when fetchCategories returns categories", async () => {
+		const store = createStore()
+		vi.mocked(crewService.getStoreCategories).mockResolvedValueOnce([
+			{ id: "cat-1", name: "Analytics", logo: null },
+		])
+
+		await store.fetchCategories()
+
+		expect(store.shouldShowCategoryFilter).toBe(true)
+	})
+
 	it("clears keyword when search input is emptied", async () => {
 		const store = createStore()
 		vi.mocked(crewService.getStoreAgents).mockResolvedValueOnce({

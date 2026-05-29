@@ -39,6 +39,11 @@ export class StoreCrewStore {
 		return !this.loading && this.list.length === 0
 	}
 
+	/** True when the market has real category tabs beyond the synthetic "all" option. */
+	get shouldShowCategoryFilter(): boolean {
+		return this.categories.length > 0
+	}
+
 	async fetchCategories() {
 		if (this.categoriesLoaded || this.categoriesLoading) return
 		this.categoriesLoading = true

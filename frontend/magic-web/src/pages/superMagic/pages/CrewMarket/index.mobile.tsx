@@ -7,7 +7,6 @@ import { ChevronLeft, MessageCircle, Trash2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
-import { Skeleton } from "@/components/shadcn-ui/skeleton"
 import { userStore } from "@/models/user"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
@@ -236,23 +235,16 @@ function CrewMarketMobilePanelBase() {
 					<div className="size-11 shrink-0" aria-hidden />
 				</header>
 
-				{/* Category filter — outside scroll area so it stays visible while cards scroll */}
-				<div className="shrink-0 px-3" data-testid="crew-market-mobile-filter">
-					{/* Only skeleton while categories are loading — keep filter mounted during agent fetch */}
-					{store.categoriesLoading && !store.categoriesLoaded ? (
-						<div className="flex gap-2 overflow-hidden py-3">
-							{Array.from({ length: 5 }).map((_, i) => (
-								<Skeleton key={i} className="h-8 w-[88px] shrink-0 rounded-full" />
-							))}
-						</div>
-					) : (
+				{/* Hide filter when API returns no categories (only synthetic "all" would remain). */}
+				{store.shouldShowCategoryFilter ? (
+					<div className="shrink-0 px-3" data-testid="crew-market-mobile-filter">
 						<CategoryFilterMobile
 							categories={store.categories}
 							activeCategoryId={activeCategoryId}
 							onCategoryChange={handleCategoryChange}
 						/>
-					)}
-				</div>
+					</div>
+				) : null}
 
 				{/*
 				 * 真实滚动容器：MagicPullToRefresh 放在内部，PullToRefresh 会在
