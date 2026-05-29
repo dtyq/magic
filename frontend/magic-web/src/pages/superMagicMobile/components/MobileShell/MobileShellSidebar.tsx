@@ -5,7 +5,7 @@ import { InfiniteScroll } from "antd-mobile"
 import { Ellipsis, Loader } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { userStore } from "@/models/user"
-import { MobileBrandLogoIcon } from "@/pages/superMagicMobile/components/icons/MobileBrandLogoIcon"
+import { MobileBrandLogo } from "@/pages/superMagicMobile/components/MobileBrandLogo"
 import { useMobileSettingsController } from "@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext"
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
 
@@ -100,6 +100,7 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 	testIdPrefix = "mobile-super-shell",
 }: MobileShellSidebarProps) {
 	const { t } = useTranslation("super")
+	const { t: tCommon } = useTranslation("common")
 	const { t: tSidebar } = useTranslation("sidebar")
 	const {
 		activeView,
@@ -113,7 +114,8 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 		loadMoreRecentItems,
 	} = useMobileShellMenu()
 
-	const appName = useMemo(() => t("mobile.shell.brandName"), [t])
+	// Same source as PC: initGlobalConfig injects platform_settings.name_i18n into common:platform.name.
+	const appName = tCommon("platform.name") || t("mobile.shell.brandName")
 	const displayName = userStore.user.userInfo?.nickname?.trim() || tSidebar("footer.defaultUser")
 	const avatarUrl = userStore.user.userInfo?.avatar?.trim() || ""
 	const initial = displayName.charAt(0).toUpperCase() || "?"
@@ -156,7 +158,7 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 					data-testid={`${testIdPrefix}-brand-button`}
 				>
 					<div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-						<MobileBrandLogoIcon className="h-9 w-9 shrink-0" />
+						<MobileBrandLogo className="h-9 w-9 shrink-0 mt-[-6px]" logoPixelSize={36} />
 					</div>
 					<span className="text-[20px] font-medium leading-none text-foreground">
 						{appName}

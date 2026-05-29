@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import MobileShellSidebar from "../MobileShellSidebar"
-import { MobileShellMenuProvider, type MobileShellMenuContextValue } from "../MobileShellMenuContext"
+import {
+	MobileShellMenuProvider,
+	type MobileShellMenuContextValue,
+} from "../MobileShellMenuContext"
 
 function TestIcon(props: React.SVGProps<SVGSVGElement>) {
 	return <svg {...props} />
@@ -16,9 +19,18 @@ vi.mock("react-i18next", async (importOriginal) => {
 
 	return {
 		...actual,
-		useTranslation: () => ({
-			t: (key: string) => key,
-		}),
+		useTranslation: (ns?: string | string[]) => {
+			const namespace = Array.isArray(ns) ? ns[0] : ns
+
+			return {
+				t: (key: string) => {
+					if (namespace === "common" && key === "platform.name") {
+						return "Configured Brand"
+					}
+					return key
+				},
+			}
+		},
 	}
 })
 
@@ -39,8 +51,8 @@ vi.mock("@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext",
 	}),
 }))
 
-vi.mock("@/pages/superMagicMobile/components/icons/MobileBrandLogoIcon", () => ({
-	MobileBrandLogoIcon: () => <div data-testid="brand-icon" />,
+vi.mock("@/pages/superMagicMobile/components/MobileBrandLogo", () => ({
+	MobileBrandLogo: () => <img data-testid="brand-logo" alt="Configured Brand" />,
 }))
 
 vi.mock("./useMobileShellUpgradeAction", () => ({
@@ -90,6 +102,23 @@ describe("MobileShellSidebar", () => {
 				openActionsPopup: chatOpenActionsPopup,
 				projectActionComponents: <div data-testid="chat-project-actions" />,
 			})
+	})
+
+	it("renders configured brand name and logo in the sidebar header", () => {
+		renderSidebar({
+			activeView: "chats",
+			navItems: [],
+			recentItems: [],
+			onNavigate: vi.fn(),
+			onGoHome: vi.fn(),
+			onRecentNavigate: vi.fn(),
+			reloadRecentItems: vi.fn(),
+			hasMore: false,
+			loadMoreRecentItems: vi.fn(),
+		})
+
+		expect(screen.getByText("Configured Brand")).toBeInTheDocument()
+		expect(screen.getByTestId("brand-logo")).toBeInTheDocument()
 	})
 
 	it("opens chat actions for recent chat items instead of default project actions", () => {

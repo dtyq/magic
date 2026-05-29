@@ -1,4 +1,5 @@
 import { Loader2, Menu, MessageCirclePlus } from "lucide-react"
+import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { usePoppinsFont } from "@/styles/font"
 
@@ -8,12 +9,14 @@ interface ChatPageHeaderProps {
 	isPrimaryActionLoading?: boolean
 }
 
-export default function ChatPageHeader({
+function ChatPageHeader({
 	onMenuClick,
 	onPrimaryAction,
 	isPrimaryActionLoading = false,
 }: ChatPageHeaderProps) {
 	const { t } = useTranslation("super")
+	const { t: tCommon } = useTranslation("common")
+	const brandName = tCommon("platform.name") || t("mobile.shell.brandName")
 	// 标题沿用原型里的 Poppins 字体节奏，避免首页品牌感与欢迎区不一致。
 	usePoppinsFont([400])
 	const isPrimaryActionDisabled = onPrimaryAction == null || isPrimaryActionLoading
@@ -32,7 +35,7 @@ export default function ChatPageHeader({
 			</button>
 
 			{/* 标题改为绝对居中，避免右侧 loading 与禁用态切换时品牌名左右跳动。 */}
-			<h1 className="mobile-page-header-title">{t("mobile.shell.brandName")}</h1>
+			<h1 className="mobile-page-header-title">{brandName}</h1>
 
 			<div
 				className="mobile-page-header-btn ml-auto"
@@ -58,3 +61,5 @@ export default function ChatPageHeader({
 		</div>
 	)
 }
+
+export default observer(ChatPageHeader)
