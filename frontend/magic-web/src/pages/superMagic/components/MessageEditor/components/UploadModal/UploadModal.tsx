@@ -4,6 +4,8 @@ import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 
 import BaseModal from "@/pages/superMagic/components/SelectPathModal/components/BaseModal"
+import MobileFilesMoveSheet from "@/pages/superMagic/components/SelectPathModal/components/SelectDirectoryModal/MobileFilesMoveSheet"
+import type { SelectDirectorySubmitParams } from "@/pages/superMagic/components/SelectPathModal/components/SelectDirectoryModal/types"
 import FlexBox from "@/components/base/FlexBox"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useWindowSize } from "@/hooks/use-window-size"
@@ -113,6 +115,16 @@ const UploadModal = forwardRef<UploadModalRef, UploadModalProps>(function Upload
 	// Computed values
 	const searchPlaceholder = placeholder || t("selectPathModal.searchDirectory")
 	const emptyTip = emptyDataTip || t("selectPathModal.noDirectory")
+	const modalTitle = title || t("topicFiles.title")
+	const searchEmptyDescription = t("selectPathModal.searchEmptyDescription", { keyword: "" })
+
+	/**
+	 * Mobile upload path picker reuses the move-file sheet without cross-project config,
+	 * so users can only browse folders inside the current project attachment tree.
+	 */
+	const handleMobileSubmit = useMemoizedFn((params: SelectDirectorySubmitParams) => {
+		onSubmit?.({ path: params.path, files: fileList.map((item) => item.file) })
+	})
 
 	const breadcrumbItems = useMemo(() => {
 		return generateBreadcrumbItems(path, t("selectPathModal.rootDirectory"))
@@ -243,10 +255,32 @@ const UploadModal = forwardRef<UploadModalRef, UploadModalProps>(function Upload
 		</FlexBox>
 	)
 
+	if (isMobile) {
+		return (
+			<MobileFilesMoveSheet
+				visible={visible}
+				title={modalTitle}
+				attachments={attachments}
+				defaultPath={defaultPath}
+				rootLabel={t("selectPathModal.rootDirectory")}
+				backLabel={t("back")}
+				homeLabel={t("selectPathModal.rootDirectory")}
+				closeLabel={t("close")}
+				confirmLabel={okText || t("common.confirm")}
+				clearSearchAriaLabel={t("clearSearch")}
+				searchPlaceholder={searchPlaceholder}
+				searchEmptyDescription={searchEmptyDescription}
+				emptyTip={emptyTip}
+				onClose={() => onClose?.()}
+				onSubmit={handleMobileSubmit}
+			/>
+		)
+	}
+
 	return (
 		<BaseModal
 			visible={visible}
-			title={title || t("topicFiles.title")}
+			title={modalTitle}
 			tips={tips}
 			content={modalContent}
 			footer={footerConfig}
