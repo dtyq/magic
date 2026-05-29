@@ -1664,7 +1664,9 @@
 	},
 	"modeToggle": {
 		"cannotSwitchModeMessage": "当前团队成员不可切换，创建新话题即可启用「<strong>{{modeName}}</strong>」。",
+		"cannotSwitchModeMessageChat": "当前团队成员不可切换，创建新对话即可启用「<strong>{{modeName}}</strong>」。",
 		"createNewTopic": "创建新话题",
+		"createNewChat": "创建新对话",
 		"emptySearchResult": "没有匹配的团队成员",
 		"searchPlaceholder": "搜索团队成员",
 		"selectCrew": "选择团队成员",

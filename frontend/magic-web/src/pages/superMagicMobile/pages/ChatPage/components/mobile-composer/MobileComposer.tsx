@@ -241,6 +241,7 @@ function MobileComposerComponent({
 				agentCode={editorContext.agentCode ?? logic.selectedTopic?.agent_code}
 				selectorVariant={editorContext.mobileModeSelectorVariant}
 				messagesLength={editorContext.messagesLength}
+				useChatTerminology={editorContext.useChatTerminology}
 				sceneControlNode={headerScenePanelsNode}
 				onModeChange={editorContext.setTopicMode}
 			/>

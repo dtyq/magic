@@ -26,6 +26,7 @@ import { MOBILE_LAYOUT_CONFIG } from "../MainInputContainer/components/editors/c
 import { createMessageEditorDraftKey } from "../MessageEditor/utils/draftKey"
 import { userStore } from "@/models/user"
 import { useTaskInterrupt } from "@/pages/superMagic/hooks/useTaskInterrupt"
+import { isCachedChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
 
 /**
  * 这个组件作为项目页的编辑器组件
@@ -200,6 +201,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			stopEventLoading,
 			handleInterrupt,
 			isEmptyStatus: !!isEmptyStatus,
+			useChatTerminology: isCachedChatWorkspaceProject(selectedProject),
 			messagesLength: (messages ?? []).length,
 			enableMessageSendByContent,
 			modules: {

@@ -18,6 +18,7 @@ interface MobileComposerHeaderProps {
 	agentCode?: string | null
 	selectorVariant?: "default" | "claw"
 	messagesLength?: number
+	useChatTerminology?: boolean
 	sceneControlNode?: ReactNode
 	onModeChange?: SceneEditorContext["setTopicMode"]
 }
@@ -30,6 +31,7 @@ function MobileComposerHeaderComponent({
 	agentCode,
 	selectorVariant = "default",
 	messagesLength,
+	useChatTerminology,
 	sceneControlNode,
 	onModeChange,
 }: MobileComposerHeaderProps) {
@@ -52,6 +54,7 @@ function MobileComposerHeaderComponent({
 					agentCode={agentCode}
 					selectorVariant={selectorVariant}
 					messagesLength={messagesLength}
+					useChatTerminology={useChatTerminology}
 					onModeChange={onModeChange}
 				/>
 			) : null}

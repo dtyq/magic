@@ -236,6 +236,7 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 			isTaskRunning,
 			stopEventLoading,
 			isChatPageHomepage: isOnHomepage,
+			useChatTerminology: true,
 			handleInterrupt,
 			onSendComplete: ({ success, currentProject, currentTopic }) => {
 				if (!success) return

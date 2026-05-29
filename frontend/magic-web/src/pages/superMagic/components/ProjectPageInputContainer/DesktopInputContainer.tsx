@@ -74,6 +74,7 @@ function DesktopInputContainer({
 							editorContext.agentCode ?? editorContext.selectedTopic?.agent_code
 						}
 						allowChangeMode={(editorContext.messagesLength ?? 0) > 0 ? false : true}
+						useChatTerminology={editorContext.useChatTerminology}
 						onModeChange={editorContext.setTopicMode}
 					/>
 					{shouldShowSceneControls && <div className="h-[60%] w-[1px] bg-border"></div>}

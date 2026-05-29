@@ -58,6 +58,7 @@ vi.mock("react-i18next", () => ({
 				"modeToggle.searchPlaceholder": "Search crew",
 				"modeToggle.emptySearchResult": "No matching crew",
 				"modeToggle.createNewTopic": "Create New Topic",
+				"modeToggle.createNewChat": "Create New Chat",
 				"messageEditor.modelSwitch.expandDescription": "Expand description",
 				"messageEditor.modelSwitch.collapseDescription": "Collapse description",
 			}
@@ -239,5 +240,41 @@ describe("ModeToggle", () => {
 		expect(
 			screen.queryByTestId("super-message-editor-mode-toggle-content"),
 		).not.toBeInTheDocument()
+	})
+
+	it("shows topic copy on cannot-switch confirm when useChatTerminology is false", () => {
+		render(
+			<ModeToggle
+				topicMode={"mode-a" as never}
+				allowChangeMode={false}
+				useChatTerminology={false}
+				onModeChange={vi.fn()}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("mock-popover-trigger"))
+		fireEvent.click(screen.getAllByTestId("super-message-editor-mode-toggle-item")[1])
+
+		expect(
+			screen.getByTestId("super-message-editor-mode-toggle-create-topic-button"),
+		).toHaveTextContent("Create New Topic")
+	})
+
+	it("shows chat copy on cannot-switch confirm when useChatTerminology is true", () => {
+		render(
+			<ModeToggle
+				topicMode={"mode-a" as never}
+				allowChangeMode={false}
+				useChatTerminology
+				onModeChange={vi.fn()}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("mock-popover-trigger"))
+		fireEvent.click(screen.getAllByTestId("super-message-editor-mode-toggle-item")[1])
+
+		expect(
+			screen.getByTestId("super-message-editor-mode-toggle-create-topic-button"),
+		).toHaveTextContent("Create New Chat")
 	})
 })

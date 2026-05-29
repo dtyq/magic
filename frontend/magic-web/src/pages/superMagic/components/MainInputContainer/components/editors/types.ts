@@ -59,6 +59,8 @@ export interface SceneEditorContext {
 	isTaskRunning?: boolean
 	stopEventLoading?: boolean
 	isChatPageHomepage?: boolean
+	/** When true, mode-switch confirm popup uses chat terminology (对话) instead of topic (话题). */
+	useChatTerminology?: boolean
 	isEmptyStatus?: boolean
 	messagesLength?: number
 	enableMessageSendByContent?: boolean

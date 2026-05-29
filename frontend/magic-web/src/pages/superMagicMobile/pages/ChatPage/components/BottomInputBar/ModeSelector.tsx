@@ -52,6 +52,7 @@ export default observer(function ModeSelector({
 			? false
 			: true
 		: true
+	const useChatTerminology = editorContext?.useChatTerminology
 
 	const applyTopicMode = useMemoizedFn((mode: TopicMode) => {
 		if (editorContext?.setTopicMode) {
@@ -159,14 +160,25 @@ export default observer(function ModeSelector({
 					>
 						<div className="flex w-full flex-col gap-3 rounded-lg">
 							<div className="text-xs leading-[18px] text-foreground">
-								<Trans
-									i18nKey="modeToggle.cannotSwitchModeMessage"
-									ns="super"
-									values={{
-										modeName: resolveModeText(showNewTopicModal.mode?.name),
-									}}
-									components={{ strong: <strong /> }}
-								/>
+								{useChatTerminology ? (
+									<Trans
+										i18nKey="modeToggle.cannotSwitchModeMessageChat"
+										ns="super"
+										values={{
+											modeName: resolveModeText(showNewTopicModal.mode?.name),
+										}}
+										components={{ strong: <strong /> }}
+									/>
+								) : (
+									<Trans
+										i18nKey="modeToggle.cannotSwitchModeMessage"
+										ns="super"
+										values={{
+											modeName: resolveModeText(showNewTopicModal.mode?.name),
+										}}
+										components={{ strong: <strong /> }}
+									/>
+								)}
 							</div>
 							<BlackPurpleButton
 								onClick={handleCreateNewTopic}
@@ -174,7 +186,9 @@ export default observer(function ModeSelector({
 								data-testid="mobile-mode-selector-create-topic-button"
 							>
 								<span className="text-xs font-normal leading-4">
-									{t("modeToggle.createNewTopic")}
+									{useChatTerminology
+										? t("modeToggle.createNewChat")
+										: t("modeToggle.createNewTopic")}
 								</span>
 							</BlackPurpleButton>
 						</div>

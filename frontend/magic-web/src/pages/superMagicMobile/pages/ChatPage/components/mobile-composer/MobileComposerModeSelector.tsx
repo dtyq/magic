@@ -45,6 +45,8 @@ interface MobileComposerModeSelectorProps {
 	selectorVariant?: "default" | "claw"
 	topicModelStore?: ReturnType<typeof createSuperMagicTopicModelStore>
 	messagesLength?: number
+	/** When true, confirm popup copy uses chat (对话) instead of topic (话题). */
+	useChatTerminology?: boolean
 	onModeChange?: (mode: TopicMode) => void
 }
 
@@ -92,6 +94,7 @@ function MobileComposerModeSelectorComponent({
 	selectorVariant = "default",
 	topicModelStore,
 	messagesLength,
+	useChatTerminology,
 	onModeChange,
 }: MobileComposerModeSelectorProps) {
 	const { t: tMainInput } = useTranslation("super/mainInput")
@@ -721,16 +724,29 @@ function MobileComposerModeSelectorComponent({
 					data-testid="mobile-composer-mode-selector-create-topic-dialog"
 				>
 					<div className="text-sm leading-6 text-foreground">
-						<Trans
-							i18nKey="modeToggle.cannotSwitchModeMessage"
-							ns="super"
-							values={{
-								modeName: resolveModeText(showNewTopicModal.mode?.name),
-							}}
-							components={{
-								strong: <strong />,
-							}}
-						/>
+						{useChatTerminology ? (
+							<Trans
+								i18nKey="modeToggle.cannotSwitchModeMessageChat"
+								ns="super"
+								values={{
+									modeName: resolveModeText(showNewTopicModal.mode?.name),
+								}}
+								components={{
+									strong: <strong />,
+								}}
+							/>
+						) : (
+							<Trans
+								i18nKey="modeToggle.cannotSwitchModeMessage"
+								ns="super"
+								values={{
+									modeName: resolveModeText(showNewTopicModal.mode?.name),
+								}}
+								components={{
+									strong: <strong />,
+								}}
+							/>
+						)}
 					</div>
 					<Button
 						type="button"
@@ -738,7 +754,9 @@ function MobileComposerModeSelectorComponent({
 						className="h-10 w-full"
 						data-testid="mobile-composer-mode-selector-create-topic-button"
 					>
-						{tSuper("modeToggle.createNewTopic")}
+						{useChatTerminology
+							? tSuper("modeToggle.createNewChat")
+							: tSuper("modeToggle.createNewTopic")}
 					</Button>
 				</div>
 			</MagicPopup>
