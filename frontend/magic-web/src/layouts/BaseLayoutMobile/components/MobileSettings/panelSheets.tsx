@@ -227,25 +227,6 @@ export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose:
 				dataTestId="mobile-settings-points-detail-sheet"
 			>
 				<div className="flex flex-col gap-2.5 pb-[calc(var(--safe-area-inset-bottom)+16px)] pt-2">
-					<div className="flex shrink-0 items-center gap-3 rounded-lg bg-card px-4 py-4">
-						<div
-							className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10"
-							aria-hidden
-						>
-							<Sparkles className="h-5 w-5 text-primary" strokeWidth={2} />
-						</div>
-						<div className="min-w-0">
-							<div className="text-[12px] leading-4 text-muted-foreground">
-								{t("bonusPointsModal.availablePoints")}
-							</div>
-							<div className="mt-1 text-[24px] font-semibold tabular-nums leading-7 text-foreground">
-								{new Intl.NumberFormat().format(
-									userStore.user.organizationPoints || 0,
-								)}
-							</div>
-						</div>
-					</div>
-
 					{/* 仅在首屏尚无数据时显示整页 loading，避免分页追加时卸载列表导致滚动位置回到顶部。 */}
 					{loading && records.length === 0 ? (
 						<div className="flex flex-col items-center justify-center px-4 py-12 text-center">
