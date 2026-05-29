@@ -37,6 +37,16 @@ function RenameModal({
 		}
 	}
 
+	/** Resolve the field label shown above the input for each entity type. */
+	const getFieldLabel = () => {
+		switch (currentActionItem?.type) {
+			case "project":
+				return translations.projectNameLabel
+			default:
+				return translations.newName
+		}
+	}
+
 	const getPlaceholder = () => {
 		switch (currentActionItem?.type) {
 			case "workspace":
@@ -131,7 +141,7 @@ function RenameModal({
 					<div className="scrollbar-y-thin flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
 						<div className="flex flex-col gap-2.5">
 							<div className="text-xs font-normal leading-4 text-foreground">
-								{translations.newName}
+								{getFieldLabel()}
 							</div>
 							{renderInputContent()}
 						</div>

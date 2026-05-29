@@ -663,13 +663,9 @@ export function useProjectListActions({
 				visible={renameModalVisible}
 				onClose={() => setRenameModalVisible(false)}
 				position="bottom"
-				title={t(
-					isChatMode ? "chat.renameChat" : "hierarchicalWorkspacePopup.projectRename",
-				)}
+				title={t(isChatMode ? "chat.renameChat" : "project.rename")}
 				headerVariant="actionHeader"
-				headerTitle={t(
-					isChatMode ? "chat.renameChat" : "hierarchicalWorkspacePopup.projectRename",
-				)}
+				headerTitle={t(isChatMode ? "chat.renameChat" : "project.rename")}
 				headerLeadingAction={{
 					icon: <IconX />,
 					ariaLabel: t("common.cancel"),
@@ -692,8 +688,13 @@ export function useProjectListActions({
 			>
 				<div className="scrollbar-y-thin flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-[max(var(--safe-area-inset-bottom),16px)] pt-2">
 					<div className="flex flex-col gap-2.5">
+						{/* Field label above input; sheet title stays the generic "Rename" action. */}
 						<div className="text-sm font-normal leading-5 text-foreground">
-							{t("hierarchicalWorkspacePopup.newName")}
+							{t(
+								isChatMode
+									? "chat.chatNameFieldLabel"
+									: "chat.projectNameFieldLabel",
+							)}
 						</div>
 						<Input
 							className="bg-white"

@@ -207,8 +207,9 @@ export function WorkspaceMoreSheet({
 				style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
 			>
 				<div className="flex flex-col gap-2">
+					{/* Field label above the input; header stays "Rename" for the sheet action. */}
 					<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
-						{t("workspace.rename")}
+						{t("workspace.workspaceName")}
 					</p>
 					<MenuGroup>
 						<Input

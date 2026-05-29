@@ -503,12 +503,13 @@ function ChatDrawer({
 				onInputChange={handleRenameInputChange}
 				translations={{
 					workspaceRename: t("hierarchicalWorkspacePopup.workspaceRename"),
-					projectRename: t("hierarchicalWorkspacePopup.projectRename"),
+					projectRename: t("project.rename"),
 					topicRename: t("hierarchicalWorkspacePopup.topicRename"),
 					inputWorkspaceName: t("hierarchicalWorkspacePopup.inputWorkspaceName"),
 					inputProjectName: t("hierarchicalWorkspacePopup.inputProjectName"),
 					inputTopicName: t("hierarchicalWorkspacePopup.inputTopicName"),
 					newName: t("hierarchicalWorkspacePopup.newName"),
+					projectNameLabel: t("chat.projectNameFieldLabel"),
 					cancel: t("common.cancel"),
 					confirm: t("common.confirm"),
 				}}

@@ -14,6 +14,7 @@ export interface RenameModalProps {
 		inputProjectName: string
 		inputTopicName: string
 		newName: string
+		projectNameLabel: string
 		cancel: string
 		confirm: string
 	}
