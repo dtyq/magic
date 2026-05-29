@@ -20,10 +20,10 @@ export function getLocaleModules(): LocaleModules {
 export function getAdminLocaleModules(): AdminLocaleModules {
 	return {
 		adminZhCNModules: import.meta.glob(
-			"../../../node_modules/@dtyq/magic-admin/dist/src/locales/zh_CN/**/*.json",
+			"../../../packages/magic-admin/src/locales/zh_CN/**/*.json",
 		),
 		adminEnUSModules: import.meta.glob(
-			"../../../node_modules/@dtyq/magic-admin/dist/src/locales/en_US/**/*.json",
+			"../../../packages/magic-admin/src/locales/en_US/**/*.json",
 		),
 	}
 }

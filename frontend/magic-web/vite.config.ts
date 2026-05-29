@@ -144,6 +144,29 @@ function getBaseViteConfig(): UserConfig {
 					find: "@enterprise",
 					replacement: resolve(__dirname, "enterprise/src"),
 				},
+				{
+					find: "@admin",
+					replacement: resolve(__dirname, "packages/magic-admin/src"),
+				},
+				{
+					find: "@admin-components",
+					replacement: resolve(__dirname, "packages/magic-admin/components/index.ts"),
+				},
+				{
+					find: "@dtyq/magic-admin/components",
+					replacement: resolve(__dirname, "packages/magic-admin/components/index.ts"),
+				},
+				{
+					find: "@dtyq/magic-admin/provider",
+					replacement: resolve(
+						__dirname,
+						"packages/magic-admin/src/provider/AdminProvider/index.tsx"
+					),
+				},
+				{
+					find: "@dtyq/magic-admin",
+					replacement: resolve(__dirname, "packages/magic-admin/src/index.ts"),
+				},
 			],
 		},
 		plugins: [

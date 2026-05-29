@@ -27,6 +27,7 @@
 	"scripts": {
 		"build": "pnpm build:opensource",
 		"build:enterprise": "EDITION=enterprise node scripts/build.cjs",
+		"build:admin:opensource": "pnpm --filter @dtyq/magic-admin build:opensource",
 		"build:iframe": "cd src/pages/superMagic/components/Detail/contents/HTML/iframe-runtime && pnpm run build",
 		"build:opensource": "node scripts/build.cjs",
 		"coverage": "vitest run --coverage",
@@ -85,7 +86,7 @@
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
 		"@dtyq/es6-template-strings": "~0.0.4",
-		"@dtyq/magic-admin": "^0.1.14",
+		"@dtyq/magic-admin": "workspace:*",
 		"@dtyq/magic-flow": "~0.0.14",
 		"@dtyq/timezone": "^0.0.2",
 		"@dtyq/upload-sdk": "~0.0.9",
