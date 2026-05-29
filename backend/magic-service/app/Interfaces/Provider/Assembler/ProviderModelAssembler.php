@@ -9,6 +9,7 @@ namespace App\Interfaces\Provider\Assembler;
 
 use App\Domain\Provider\Entity\ProviderModelConfigVersionEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
+use App\Domain\Provider\Support\BillingTierFlatPriceCompatibility;
 
 class ProviderModelAssembler extends AbstractProviderAssembler
 {
@@ -39,6 +40,7 @@ class ProviderModelAssembler extends AbstractProviderAssembler
     public static function toConfigVersionEntity(ProviderModelEntity $modelEntity): ProviderModelConfigVersionEntity
     {
         $config = $modelEntity->getConfig();
+        $configData = $config ? BillingTierFlatPriceCompatibility::deriveFlatFields($config->toArray()) : [];
 
         $data = [
             'service_provider_model_id' => $modelEntity->getId(),
@@ -47,25 +49,26 @@ class ProviderModelAssembler extends AbstractProviderAssembler
             'temperature' => $config?->getTemperature(),
             'vector_size' => $config?->getVectorSize() ?? 2048,
             'billing_type' => $config?->getBillingType()->value ?? null,
-            'time_pricing' => $config?->getTimePricing() ?? null,
-            'input_pricing' => $config?->getInputPricing(),
-            'output_pricing' => $config?->getOutputPricing(),
+            'time_pricing' => $configData['time_pricing'] ?? $config?->getTimePricing(),
+            'input_pricing' => $configData['input_pricing'] ?? $config?->getInputPricing(),
+            'output_pricing' => $configData['output_pricing'] ?? $config?->getOutputPricing(),
             'billing_currency' => $config?->getBillingCurrency(),
             'support_function' => $config?->isSupportFunction() ?? false,
-            'cache_hit_pricing' => $config?->getCacheHitPricing(),
+            'cache_hit_pricing' => $configData['cache_hit_pricing'] ?? $config?->getCacheHitPricing(),
             'max_output_tokens' => $config?->getMaxOutputTokens(),
             'support_embedding' => $config?->isSupportEmbedding() ?? false,
             'support_deep_think' => $config?->isSupportDeepThink() ?? false,
-            'cache_write_pricing' => $config?->getCacheWritePricing(),
+            'cache_write_pricing' => $configData['cache_write_pricing'] ?? $config?->getCacheWritePricing(),
             'support_multi_modal' => $config?->isSupportMultiModal() ?? false,
             'official_recommended' => $config?->isOfficialRecommended() ?? false,
-            'input_cost' => $config?->getInputCost(),
-            'output_cost' => $config?->getOutputCost(),
-            'cache_hit_cost' => $config?->getCacheHitCost(),
-            'cache_write_cost' => $config?->getCacheWriteCost(),
-            'time_cost' => $config?->getTimeCost(),
+            'input_cost' => $configData['input_cost'] ?? $config?->getInputCost(),
+            'output_cost' => $configData['output_cost'] ?? $config?->getOutputCost(),
+            'cache_hit_cost' => $configData['cache_hit_cost'] ?? $config?->getCacheHitCost(),
+            'cache_write_cost' => $configData['cache_write_cost'] ?? $config?->getCacheWriteCost(),
+            'time_cost' => $configData['time_cost'] ?? $config?->getTimeCost(),
             'second_pricing' => $config?->getSecondPricing(),
             'second_cost' => $config?->getSecondCost(),
+            'billing_tiers' => $configData['billing_tiers'] ?? $config?->getBillingTiers()?->toArray(),
         ];
 
         return self::createEntityFromArray(ProviderModelConfigVersionEntity::class, $data);

@@ -1434,12 +1434,19 @@ export class StyleManager {
 	 * Restore previous state
 	 */
 	private restoreState(command: any): void {
-		if (!command.previousState) return
-
 		try {
+			// Custom command handlers (e.g. DragDropManager) may not use previousState,
+			// so delegate to them first before the null check.
 			if (this.restoreWithCustomHandlers(command)) {
 				return
 			}
+		} catch (error) {
+			EditorLogger.error("Failed to restore with custom handlers", error)
+		}
+
+		if (!command.previousState) return
+
+		try {
 
 			// Handle batch styles multiple restoration FIRST (before destructuring selector)
 			if (command.commandType === "BATCH_STYLES_MULTIPLE") {

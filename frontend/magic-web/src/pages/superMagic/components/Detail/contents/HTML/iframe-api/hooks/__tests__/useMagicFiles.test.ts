@@ -1,6 +1,7 @@
 import { renderHook, act } from "@testing-library/react"
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { useMagicFiles } from "../useMagicFiles"
+import magicToast from "@/components/base/MagicToaster/utils"
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -210,6 +211,42 @@ describe("useMagicFiles", () => {
 					],
 				}),
 				"*",
+			)
+		})
+
+		it("上传 loading toast 使用固定 key 避免重复展示", async () => {
+			uploadImageFileToProject.mockResolvedValueOnce({
+				uploadedRelativeFilePath: "uploads/a.txt",
+			})
+
+			const { result } = renderHook(() =>
+				useMagicFiles({
+					iframeRef,
+					selectedProject: { id: "proj-1" },
+					uploadImageFileToProject,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.handleMagicUploadFiles({
+					type: "MAGIC_UPLOAD_FILES_REQUEST",
+					requestId: "req-toast",
+					files: [
+						{
+							base64: "data",
+							filename: "a.txt",
+							path: "./a.txt",
+							fileSize: 4,
+							fileType: "text/plain",
+						},
+					],
+				})
+			})
+
+			expect(magicToast.loading).toHaveBeenCalledWith(
+				expect.objectContaining({
+					key: "html-magic-upload-files",
+				}),
 			)
 		})
 

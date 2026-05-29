@@ -559,39 +559,39 @@ export function rewriteHtmlCdnWithHost(content: string, cdnHost: string): Docume
 		match: (parsed: URL) => boolean
 		rewrite: (href: string, parsed: URL) => string | string[]
 	}[] = [
-		{
-			// "https://fonts.googleapis.com/icon?family=Material+Icons"
-			match: (parsed) =>
-				GOOGLE_FONT_HOSTS.has(parsed.hostname) && parsed.pathname === "/icon",
-			rewrite: () => cdnHost + "/googleapis/icon/v145/index.css",
-		},
-		{
-			// "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
-			// "https://fonts.googlefonts.cn/css2?family=Ma+Shan+Zheng&display=swap"
-			// "https://fonts.googleapis.com/css?family=Open+Sans:400,700|Lato:300"
-			// "https://fonts.googlefonts.cn/css?family=Open+Sans:400,700|Lato:300"
-			match: (parsed) =>
-				GOOGLE_FONT_HOSTS.has(parsed.hostname) &&
-				(parsed.pathname === "/css2" || parsed.pathname === "/css"),
-			rewrite: (href, parsed) => {
-				const families = parseFontFamilies(parsed)
-				if (families.length === 0) return href.replace(parsed.hostname, "fonts.loli.net")
-				return families.map(
-					(f) => cdnHost + "/google-fonts/css/woff2/" + toSafeFontName(f) + "_woff2.css",
-				)
+			{
+				// "https://fonts.googleapis.com/icon?family=Material+Icons"
+				match: (parsed) =>
+					GOOGLE_FONT_HOSTS.has(parsed.hostname) && parsed.pathname === "/icon",
+				rewrite: () => cdnHost + "/googleapis/icon/v145/index.css",
 			},
-		},
-		{
-			// "https://fonts.googleapis.com/earlyaccess/notosanssc.css"
-			match: (parsed) => GOOGLE_FONT_HOSTS.has(parsed.hostname),
-			rewrite: (href, parsed) => href.replace(parsed.hostname, "fonts.loli.net"),
-		},
-		{
-			// "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"
-			match: (parsed) => parsed.hostname === "ajax.googleapis.com",
-			rewrite: (href) => href.replace("ajax.googleapis.com", "ajax.loli.net"),
-		},
-	]
+			{
+				// "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
+				// "https://fonts.googlefonts.cn/css2?family=Ma+Shan+Zheng&display=swap"
+				// "https://fonts.googleapis.com/css?family=Open+Sans:400,700|Lato:300"
+				// "https://fonts.googlefonts.cn/css?family=Open+Sans:400,700|Lato:300"
+				match: (parsed) =>
+					GOOGLE_FONT_HOSTS.has(parsed.hostname) &&
+					(parsed.pathname === "/css2" || parsed.pathname === "/css"),
+				rewrite: (href, parsed) => {
+					const families = parseFontFamilies(parsed)
+					if (families.length === 0) return href.replace(parsed.hostname, "fonts.loli.net")
+					return families.map(
+						(f) => cdnHost + "/google-fonts/css/woff2/" + toSafeFontName(f) + "_woff2.css",
+					)
+				},
+			},
+			{
+				// "https://fonts.googleapis.com/earlyaccess/notosanssc.css"
+				match: (parsed) => GOOGLE_FONT_HOSTS.has(parsed.hostname),
+				rewrite: (href, parsed) => href.replace(parsed.hostname, "fonts.loli.net"),
+			},
+			{
+				// "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+				match: (parsed) => parsed.hostname === "ajax.googleapis.com",
+				rewrite: (href) => href.replace("ajax.googleapis.com", "ajax.loli.net"),
+			},
+		]
 
 	function applyGoogleRewrite(link: Element, href: string, doc: Document): void {
 		const parsed = parseHref(href)
@@ -791,6 +791,7 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 			"fetch-interceptor",
 			"media-interceptor",
 			"iframe-chain",
+			"keyboard-interceptor",
 		])
 
 		// 使用DOMParser解析HTML字符串
@@ -830,11 +831,17 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 		// 清理编辑相关的UI元素和属性
 		// 移除编辑工具栏相关的元素
 		const toolbarElements = doc.querySelectorAll(
-			"[data-hover-toolbar], [data-resize-handles], [data-resize-handle], [data-drag-handle], [data-ai-dropdown]",
+			"[data-hover-toolbar], [data-resize-handles], [data-resize-handle], [data-drag-handle], [data-ai-dropdown], [data-drag-indicator]",
 		)
 		toolbarElements.forEach((element) => {
 			element.parentNode?.removeChild(element)
 		})
+
+		// 移除动画暂停样式
+		const animPauseStyle = doc.getElementById("magic-animation-pause")
+		if (animPauseStyle) {
+			animPauseStyle.parentNode?.removeChild(animPauseStyle)
+		}
 
 		// 清理所有元素上的编辑相关属性
 		const allElements = doc.querySelectorAll("*")
@@ -846,6 +853,7 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 			element.removeAttribute("data-drag-handle")
 			element.removeAttribute("data-ai-dropdown")
 			element.removeAttribute("data-ppt-editable")
+			element.removeAttribute("data-listener-added")
 
 			// 移除编辑相关的类名
 			element.classList.remove("magic-ppt-tip-focus")
@@ -892,6 +900,18 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 			const styleContent = element.textContent || element.innerHTML
 			if (styleContent && styleContent.includes("https://tailwindcss.com")) {
 				element.parentNode?.removeChild(element)
+			}
+		})
+
+		// 清理遗留的键盘拦截器脚本（无 data-injected 属性的历史脚本）
+		const allScriptElements = doc.querySelectorAll("script:not([src])")
+		allScriptElements.forEach((script) => {
+			const content = script.textContent || ""
+			if (
+				content.includes("MAGIC_KEYBOARD_SAVE") &&
+				content.includes("window.parent.postMessage")
+			) {
+				script.parentNode?.removeChild(script)
 			}
 		})
 
@@ -1103,7 +1123,7 @@ function filterInjectedTagsWithRegex(htmlString: string): string {
 	// 匹配带有 data-injected 或历史 data-runtime 属性的标签（包括自闭合标签和配对标签）
 	// 处理所有编辑器已知的注入标记值
 	const injectedTagRegex =
-		/<([a-zA-Z][a-zA-Z0-9]*)[^>]*(?:\s+data-injected\s*=\s*["'](?:true|at-polyfill|fetch-interceptor|media-interceptor|iframe-chain)["']|\s+data-runtime\s*=\s*["']true["'])[^>]*>(?:[\s\S]*?<\/\1>)?/gi
+		/<([a-zA-Z][a-zA-Z0-9]*)[^>]*(?:\s+data-injected\s*=\s*["'](?:true|at-polyfill|fetch-interceptor|media-interceptor|iframe-chain|keyboard-interceptor)["']|\s+data-runtime\s*=\s*["']true["'])[^>]*>(?:[\s\S]*?<\/\1>)?/gi
 
 	// 移除匹配的标签
 	let result = htmlString.replace(injectedTagRegex, "")
@@ -1111,6 +1131,12 @@ function filterInjectedTagsWithRegex(htmlString: string): string {
 	// 移除所有剩余的 data-injected / data-runtime 属性（不管值是什么）
 	result = result.replace(/\s+data-injected\s*=\s*["'][^"']*["']/gi, "")
 	result = result.replace(/\s+data-runtime\s*=\s*["'][^"']*["']/gi, "")
+
+	// 清理遗留的键盘拦截器脚本（无 data-injected 属性的历史脚本）
+	result = result.replace(
+		/<script[^>]*>[\s\S]*?MAGIC_KEYBOARD_SAVE[\s\S]*?window\.parent\.postMessage[\s\S]*?<\/script>/gi,
+		"",
+	)
 
 	// 移除编辑相关的UI元素（通过属性匹配）
 	const toolbarElementRegex =

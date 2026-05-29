@@ -189,20 +189,26 @@ function useMessageEditorPubSub({
 	}, [editor, updateContent])
 
 	useEffect(() => {
-		const handleAppendSuggestion = (text: string) => {
-			if (typeof text !== "string" || !text || !editor) return
+		const handleAppendSuggestion = (input: string | JSONContent) => {
+			if (!input || !editor) return
 
-			const newParagraph: JSONContent = {
-				type: "paragraph",
-				content: [{ type: "text", text }],
-			}
+			// Determine new nodes to append
+			const newNodes: JSONContent[] =
+				typeof input === "string"
+					? [{ type: "paragraph", content: [{ type: "text", text: input }] }]
+					: input.type === "doc"
+						? (input.content ?? [])
+						: [input]
+
+			if (!newNodes.length) return
+
 			const currentContent = editor.getJSON()
 			const mergedContent: JSONContent = !editor?.isEmpty
 				? {
-						...currentContent,
-						content: [...(currentContent.content ?? []), newParagraph],
-					}
-				: { type: "doc", content: [newParagraph] }
+					...currentContent,
+					content: [...(currentContent.content ?? []), ...newNodes],
+				}
+				: { type: "doc", content: newNodes }
 			updateContent(mergedContent)
 			safeEditorFocus(editor)
 		}

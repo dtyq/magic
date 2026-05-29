@@ -17,6 +17,9 @@ use App\Domain\Design\Entity\ValueObject\DesignGenerationType;
 use App\Domain\Design\Repository\Facade\DesignGenerationTaskRepositoryInterface;
 use App\Domain\Design\Service\DesignGenerationTaskDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Infrastructure\Core\DataIsolation\OrganizationInfoManagerInterface;
+use App\Infrastructure\Core\DataIsolation\SubscriptionManagerInterface;
+use App\Infrastructure\Core\DataIsolation\ThirdPlatformDataIsolationManagerInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Design\Contract\VideoGatewayClientInterface;
 use Closure;
@@ -28,7 +31,13 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Amqp\Producer;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Database\ConnectionInterface;
+use Hyperf\Database\ConnectionResolverInterface;
+use Hyperf\DbConnection\Db;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -36,6 +45,70 @@ use Psr\Log\LoggerInterface;
  */
 class DesignVideoPollConsumerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        $config = $this->createMock(ConfigInterface::class);
+        $config->method('get')->willReturnCallback(
+            static fn (string $key, mixed $default = null): mixed => match ($key) {
+                'app_env' => 'testing',
+                'service_provider.office_organization' => '',
+                default => $default,
+            }
+        );
+        $connectionResolver = $this->createMock(ConnectionResolverInterface::class);
+        $connectionResolver->method('connection')->willReturn($this->createMock(ConnectionInterface::class));
+
+        $container = new class($config, $connectionResolver, $this->createMock(ThirdPlatformDataIsolationManagerInterface::class), $this->createMock(SubscriptionManagerInterface::class), $this->createMock(OrganizationInfoManagerInterface::class)) implements ContainerInterface {
+            private ?Db $db = null;
+
+            public function __construct(
+                private readonly ConfigInterface $config,
+                private readonly ConnectionResolverInterface $connectionResolver,
+                private readonly ThirdPlatformDataIsolationManagerInterface $thirdPlatformDataIsolationManager,
+                private readonly SubscriptionManagerInterface $subscriptionManager,
+                private readonly OrganizationInfoManagerInterface $organizationInfoManager,
+            ) {
+            }
+
+            public function setDb(Db $db): void
+            {
+                $this->db = $db;
+            }
+
+            public function get(string $id): mixed
+            {
+                return match ($id) {
+                    ConfigInterface::class => $this->config,
+                    Db::class => $this->db,
+                    ConnectionResolverInterface::class => $this->connectionResolver,
+                    ThirdPlatformDataIsolationManagerInterface::class => $this->thirdPlatformDataIsolationManager,
+                    SubscriptionManagerInterface::class => $this->subscriptionManager,
+                    OrganizationInfoManagerInterface::class => $this->organizationInfoManager,
+                    default => null,
+                };
+            }
+
+            public function make(string $id, array $parameters = []): mixed
+            {
+                return $this->get($id);
+            }
+
+            public function has(string $id): bool
+            {
+                return in_array($id, [
+                    ConfigInterface::class,
+                    Db::class,
+                    ConnectionResolverInterface::class,
+                    ThirdPlatformDataIsolationManagerInterface::class,
+                    SubscriptionManagerInterface::class,
+                    OrganizationInfoManagerInterface::class,
+                ], true);
+            }
+        };
+        $container->setDb(new Db($container));
+        ApplicationContext::setContainer($container);
+    }
+
     public function testArchiveFilesUsesStoredDirectoryIdWhenOriginalDirectoryPathChanged(): void
     {
         $repository = new InMemoryDesignGenerationTaskRepository();
@@ -151,10 +224,10 @@ class DesignVideoPollConsumerTest extends TestCase
         ?FileDomainService $fileDomainService = null,
     ): TestableDesignVideoPollConsumer {
         $projectDomainService = $this->createMock(ProjectDomainService::class);
-        $projectDomainService->method('getProjectNotUserId')->with(123)->willReturn(new ProjectEntity([
-            'id' => 123,
-            'user_organization_code' => 'org',
-        ]));
+        $project = (new ProjectEntity())
+            ->setId(123)
+            ->setUserOrganizationCode('org');
+        $projectDomainService->method('getProjectNotUserId')->with(123)->willReturn($project);
 
         $fileNameTool = $this->createMock(DesignGeneratedVideoFileNameTool::class);
         $fileNameTool->method('resolveBaseNameWithoutExtension')->willReturn('smart-video');

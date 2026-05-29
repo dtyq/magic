@@ -20,6 +20,8 @@ class ModelPricingItemDTO extends AbstractDTO
 
     protected string $billingType = '';
 
+    protected ?string $billingCurrency = null;
+
     protected ?int $inputPoints = null;
 
     protected ?int $outputPoints = null;
@@ -27,6 +29,8 @@ class ModelPricingItemDTO extends AbstractDTO
     protected ?int $timePoints = null;
 
     protected ?int $secondPoints = null;
+
+    protected ?array $billingTiers = null;
 
     public function getModelId(): string
     {
@@ -56,6 +60,16 @@ class ModelPricingItemDTO extends AbstractDTO
     public function setBillingType(string $billingType): void
     {
         $this->billingType = $billingType;
+    }
+
+    public function getBillingCurrency(): ?string
+    {
+        return $this->billingCurrency;
+    }
+
+    public function setBillingCurrency(?string $billingCurrency): void
+    {
+        $this->billingCurrency = $billingCurrency;
     }
 
     public function getInputPoints(): ?int
@@ -96,5 +110,15 @@ class ModelPricingItemDTO extends AbstractDTO
     public function setSecondPoints(?int $secondPoints): void
     {
         $this->secondPoints = $secondPoints;
+    }
+
+    public function getBillingTiers(): ?array
+    {
+        return $this->billingTiers;
+    }
+
+    public function setBillingTiers(?array $billingTiers): void
+    {
+        $this->billingTiers = $billingTiers;
     }
 }

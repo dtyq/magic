@@ -19,6 +19,11 @@ abstract readonly class AbstractCloudswayVideoAdapter implements VideoGeneration
     ) {
     }
 
+    public function resolveHasAudioOutput(string $modelVersion, string $modelId, array $request): bool
+    {
+        return true;
+    }
+
     protected function resolveEndpointId(VideoQueueOperationEntity $operation): string
     {
         $modelVersion = trim($operation->getModelVersion());

@@ -22,12 +22,15 @@ class OpenRouterRequest extends ImageGenerateRequest
     protected array $referenceImages = [];
 
     public function __construct(
+        string $width = '',
+        string $height = '',
         string $model = '',
         string $prompt = '',
         array $imageConfig = []
     ) {
-        parent::__construct('', '', $prompt, '', $model);
-        $this->imageConfig = $imageConfig;
+        parent::__construct($width, $height, $prompt, '', $model);
+        $this->setSize($width . 'x' . $height);
+        $this->setImageConfig($imageConfig);
     }
 
     public function getImageConfig(): array
@@ -38,6 +41,22 @@ class OpenRouterRequest extends ImageGenerateRequest
     public function setImageConfig(array $imageConfig): void
     {
         $this->imageConfig = $imageConfig;
+
+        if (isset($imageConfig['image_size']) && is_string($imageConfig['image_size'])) {
+            parent::setResolution($imageConfig['image_size']);
+        }
+    }
+
+    public function setResolution(?string $resolution): void
+    {
+        parent::setResolution($resolution);
+
+        if ($resolution === null || $resolution === '') {
+            unset($this->imageConfig['image_size']);
+            return;
+        }
+
+        $this->imageConfig['image_size'] = $resolution;
     }
 
     public function getReasoning(): array
@@ -80,8 +99,13 @@ class OpenRouterRequest extends ImageGenerateRequest
             ],
         ];
 
-        if (! empty($this->imageConfig)) {
-            $data['image_config'] = $this->imageConfig;
+        $imageConfig = $this->imageConfig;
+        if (! empty($this->getResolution())) {
+            $imageConfig['image_size'] = $this->getResolution();
+        }
+
+        if (! empty($imageConfig)) {
+            $data['image_config'] = $imageConfig;
         }
 
         if (! empty($this->reasoning)) {

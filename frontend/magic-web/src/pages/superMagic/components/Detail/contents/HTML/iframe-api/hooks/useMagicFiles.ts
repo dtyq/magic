@@ -53,7 +53,7 @@ interface UseMagicFilesOptions {
 		file: File
 		path: string
 		fileSize?: number
-	}) => Promise<{ uploadedRelativeFilePath: string }>
+	}) => Promise<{ uploadedRelativeFilePath: string; storedRelativeFilePath?: string }>
 }
 
 interface UseMagicFilesReturn {
@@ -61,6 +61,8 @@ interface UseMagicFilesReturn {
 	handleMagicAddFilesToMessage: (data: MagicAddFilesToMessageRequest) => Promise<void>
 	handleMagicDownloadFiles: (data: MagicDownloadFilesRequest) => Promise<void>
 }
+
+const MAGIC_UPLOAD_FILES_TOAST_KEY = "html-magic-upload-files"
 
 // 从 attachmentList 中递归查找文件（仅内部使用）
 function findFileInAttachments(attachments: any[], targetPath: string): any | null {
@@ -130,7 +132,11 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 		}
 
 		try {
-			magicToast.loading({ content: t("topicFiles.fileUploading"), duration: 0 })
+			magicToast.loading({
+				key: MAGIC_UPLOAD_FILES_TOAST_KEY,
+				content: t("topicFiles.fileUploading"),
+				duration: 0,
+			})
 
 			// Upload files with concurrency control (max 3 parallel)
 			const CONCURRENCY = 3
@@ -139,6 +145,7 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 				path: string
 				success: boolean
 				relative_file_path?: string
+				stored_relative_file_path?: string
 				error?: string
 			}> = []
 
@@ -149,11 +156,12 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 						const { filename, path, fileSize } = fileData
 						// Prefer direct File object (zero-copy via structured clone)
 						// Fall back to base64 decoding for backward compatibility
-						const file = fileData.file instanceof File
-							? fileData.file
-							: fileData.base64
-								? await base64ToFile(fileData.base64, filename)
-								: null
+						const file =
+							fileData.file instanceof File
+								? fileData.file
+								: fileData.base64
+									? await base64ToFile(fileData.base64, filename)
+									: null
 
 						if (!file) {
 							throw new Error("No file data provided (neither file nor base64)")
@@ -169,6 +177,9 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 							path,
 							success: true as const,
 							relative_file_path: uploadResult.uploadedRelativeFilePath,
+							...(uploadResult.storedRelativeFilePath
+								? { stored_relative_file_path: uploadResult.storedRelativeFilePath }
+								: {}),
 						}
 					}),
 				)
@@ -195,7 +206,7 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 			replyToIframe(replyType, requestId, { success: true, results })
 
 			pubsub.publish(PubSubEvents.Update_Attachments, () => {
-				magicToast.destroy()
+				magicToast.destroy(MAGIC_UPLOAD_FILES_TOAST_KEY)
 				magicToast.success(t("topicFiles.fileUploadSuccess"))
 			})
 		} catch (err) {
@@ -203,7 +214,7 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 				success: false,
 				error: err instanceof Error ? err.message : "Unknown error",
 			})
-			magicToast.destroy()
+			magicToast.destroy(MAGIC_UPLOAD_FILES_TOAST_KEY)
 			magicToast.error(t("topicFiles.fileUploadError", "文件上传失败"))
 		}
 	})

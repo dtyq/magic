@@ -50,6 +50,11 @@ class Wan27VideoAdapter implements VideoGenerationProviderAdapterInterface
         return $this->capabilityProvider->resolveGenerationConfig($modelVersion, $modelId);
     }
 
+    public function resolveHasAudioOutput(string $modelVersion, string $modelId, array $request): bool
+    {
+        return true;
+    }
+
     public function buildProviderPayload(VideoQueueOperationEntity $operation): array
     {
         $request = $operation->getRawRequest();

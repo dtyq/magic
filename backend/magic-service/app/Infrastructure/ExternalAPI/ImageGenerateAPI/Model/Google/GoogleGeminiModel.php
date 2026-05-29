@@ -433,16 +433,17 @@ class GoogleGeminiModel extends AbstractImageGenerate
                 'url' => $processedUrl,
             ];
 
+            $currentUsage->addGeneratedImages(1);
+
             // 累计usage信息 - 从usageMetadata中提取
             if (! empty($geminiResult['usageMetadata']) && is_array($geminiResult['usageMetadata'])) {
-                $usageMetadata = $geminiResult['usageMetadata'];
-                $currentUsage->addGeneratedImages(1);
-                $currentUsage->promptTokens += $usageMetadata['promptTokenCount'] ?? 0;
-                $currentUsage->completionTokens += $usageMetadata['candidatesTokenCount'] ?? 0;
-                $currentUsage->totalTokens += $usageMetadata['totalTokenCount'] ?? 0;
-            } else {
-                // 如果没有usage信息，默认增加1张图片
-                $currentUsage->addGeneratedImages(1);
+                $tokenUsage = $this->extractTokenUsage($geminiResult['usageMetadata']);
+                $currentUsage->addTokenUsage(
+                    $tokenUsage['prompt_tokens'],
+                    $tokenUsage['completion_tokens'],
+                    $tokenUsage['thoughts_tokens'],
+                    $tokenUsage['total_tokens']
+                );
             }
 
             // 更新响应对象
@@ -452,5 +453,18 @@ class GoogleGeminiModel extends AbstractImageGenerate
             // 确保锁一定会被释放
             $this->unlockResponse($response, $lockOwner);
         }
+    }
+
+    /**
+     * @return array{prompt_tokens: int, completion_tokens: int, thoughts_tokens: int, total_tokens: int}
+     */
+    private function extractTokenUsage(array $usageMetadata): array
+    {
+        return [
+            'prompt_tokens' => (int) ($usageMetadata['promptTokenCount'] ?? 0),
+            'completion_tokens' => (int) ($usageMetadata['candidatesTokenCount'] ?? 0),
+            'thoughts_tokens' => (int) ($usageMetadata['thoughtsTokenCount'] ?? 0),
+            'total_tokens' => (int) ($usageMetadata['totalTokenCount'] ?? 0),
+        ];
     }
 }

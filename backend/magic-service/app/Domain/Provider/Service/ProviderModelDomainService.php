@@ -104,6 +104,7 @@ readonly class ProviderModelDomainService
         if ($providerModelDTO->getModelType() === ModelType::EMBEDDING) {
             $providerModelDTO->getConfig()?->setSupportEmbedding(true);
         }
+        $this->assertCategoryMatchesModelType($providerModelDTO);
 
         if ($providerModelDTO->getId()) {
             // 更新模型：验证模型是否存在（getById会在不存在时抛出异常）
@@ -356,6 +357,21 @@ readonly class ProviderModelDomainService
         $newModel->setUpdatedAt(new DateTime());
 
         return $this->providerModelRepository->create($dataIsolation, $newModel);
+    }
+
+    private function assertCategoryMatchesModelType(SaveProviderModelDTO $providerModelDTO): void
+    {
+        $category = $providerModelDTO->getCategory();
+        $modelType = $providerModelDTO->getModelType();
+
+        if (! $category instanceof Category || ! $modelType instanceof ModelType) {
+            return;
+        }
+
+        if (($modelType->isEmbedding() && $category !== Category::EMBEDDING)
+            || ($category === Category::EMBEDDING && ! $modelType->isEmbedding())) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType, __('service_provider.invalid_model_type'));
+        }
     }
 
     /**

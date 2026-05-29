@@ -98,35 +98,47 @@ export function withAssistantCard<
 
 			const result: { modelItem: ModelItem | null; modelId: string }[] = []
 
-			// 语言模型
-			if (superAgent.model?.model_id) {
-				const modelId = superAgent.model.model_id
-				const allLanguageModels = superMagicModeService.getModelListByMode(mode, agentCode)
-				const found = allLanguageModels.find((m) => m.model_id === modelId) ?? null
-				result.push({ modelItem: found, modelId })
+			const resolveModel = (
+				modelData:
+					| { model_id?: string; model_name?: string; model_icon?: string }
+					| undefined,
+				getModelList: () => ModelItem[],
+			) => {
+				if (!modelData?.model_id) return
+				const modelId = modelData.model_id
+				// 如果消息中已有 model_icon 和 model_name，直接使用，无需匹配
+				if (modelData.model_icon && modelData.model_name) {
+					result.push({
+						modelItem: {
+							model_icon: modelData.model_icon,
+							model_name: modelData.model_name,
+							model_id: modelId,
+						} as ModelItem,
+						modelId,
+					})
+				} else {
+					// 没有 model_icon/model_name，尝试匹配；匹配不上则不显示
+					const found = getModelList().find((m) => m.model_id === modelId)
+					if (found) {
+						result.push({ modelItem: found, modelId })
+					}
+				}
 			}
+
+			// 语言模型
+			resolveModel(superAgent.model, () =>
+				superMagicModeService.getModelListByMode(mode, agentCode),
+			)
 
 			// 图像模型
-			if (superAgent.image_model?.model_id) {
-				const modelId = superAgent.image_model.model_id
-				const allImageModels = superMagicModeService.getImageModelListByMode(
-					mode,
-					agentCode,
-				)
-				const found = allImageModels.find((m) => m.model_id === modelId) ?? null
-				result.push({ modelItem: found, modelId })
-			}
+			resolveModel(superAgent.image_model, () =>
+				superMagicModeService.getImageModelListByMode(mode, agentCode),
+			)
 
 			// 视频模型
-			if (superAgent.video_model?.model_id) {
-				const modelId = superAgent.video_model.model_id
-				const allVideoModels = superMagicModeService.getVideoModelListByMode(
-					mode,
-					agentCode,
-				)
-				const found = allVideoModels.find((m) => m.model_id === modelId) ?? null
-				result.push({ modelItem: found, modelId })
-			}
+			resolveModel(superAgent.video_model, () =>
+				superMagicModeService.getVideoModelListByMode(mode, agentCode),
+			)
 
 			return result
 		}, [selectedTopic?.id, node?.app_message_id])

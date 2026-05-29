@@ -414,6 +414,7 @@ class LLMAppService extends AbstractLLMAppService
         }
         $imageGeneratedEvent->setSourceType($sourceType);
         $imageGeneratedEvent->setSourceId($data['source_id'] ?? '');
+        $imageGeneratedEvent->setResolution($imageGenerateRequest->getResolution());
         $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
         $imageGeneratedEvent->setBusinessParams($imageGenerateAuditBusinessParams);
 
@@ -1158,7 +1159,9 @@ class LLMAppService extends AbstractLLMAppService
                         'user_name' => $modelGatewayDataIsolation->getUserName(),
                         'access_token_type' => $accessTokenEntity->getType()->value,
                         'chain' => 'textGenerateImage',
-                    ]
+                    ],
+                    null,
+                    $imageGenerateRequest->getResolution()
                 );
 
                 return $generateImageRaw;
@@ -1282,7 +1285,9 @@ class LLMAppService extends AbstractLLMAppService
                         'user_name' => $modelGatewayDataIsolation->getUserName(),
                         'access_token_type' => $accessTokenEntity->getType()->value,
                         'chain' => 'imageEdit',
-                    ]
+                    ],
+                    null,
+                    $imageGenerateRequest->getResolution()
                 );
 
                 return $generateImageRaw;
@@ -1850,7 +1855,8 @@ class LLMAppService extends AbstractLLMAppService
                 $startTime,
                 $modelGatewayDataIsolation->getAccessToken(),
                 ['chain' => 'textGenerateImageV2'],
-                $this->resolveImageTokenUsage($generateImageOpenAIFormat->getUsage())
+                $this->resolveImageTokenUsage($generateImageOpenAIFormat->getUsage()),
+                $imageGenerateRequest->getResolution()
             );
         } catch (Exception $e) {
             $errorMessage = $e->getMessage();
@@ -1873,7 +1879,9 @@ class LLMAppService extends AbstractLLMAppService
                     'chain' => 'textGenerateImageV2',
                     'status' => self::AUDIT_STATUS_FAIL,
                     'failure_reason' => $errorMessage,
-                ]
+                ],
+                null,
+                $imageGenerateRequest->getResolution()
             );
         }
 
@@ -2414,7 +2422,8 @@ class LLMAppService extends AbstractLLMAppService
         float $startTime,
         ?AccessTokenEntity $accessTokenEntity = null,
         array $auditBusinessParams = [],
-        ?Usage $usage = null
+        ?Usage $usage = null,
+        ?string $resolution = null
     ): void {
         // 计算响应时间（毫秒）
         $responseTime = (int) ((microtime(true) - $startTime) * 1000);
@@ -2436,7 +2445,8 @@ class LLMAppService extends AbstractLLMAppService
             $callTime,
             $responseTime,
             $accessTokenEntity,
-            $usage
+            $usage,
+            $resolution
         );
         $businessParams = array_merge(
             $requestDTO->getBusinessParams(),
@@ -2484,7 +2494,8 @@ class LLMAppService extends AbstractLLMAppService
         ?string $callTime = null,
         ?int $responseTime = null,
         ?AccessTokenEntity $accessTokenEntity = null,
-        ?Usage $usage = null
+        ?Usage $usage = null,
+        ?string $resolution = null
     ): ImageGeneratedEvent {
         $imageGeneratedEvent = new ImageGeneratedEvent();
 
@@ -2508,6 +2519,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setPriceId($priceId);
         $imageGeneratedEvent->setCallTime($callTime);
         $imageGeneratedEvent->setResponseTime($responseTime);
+        $imageGeneratedEvent->setResolution($resolution);
         // 设置原始 model_id（目前用于识别是否动态模型），用于计费服务
         $imageGeneratedEvent->setOriginalModelId($requestDTO->getOriginalModelId());
         $imageGeneratedEvent->setUsage($usage);

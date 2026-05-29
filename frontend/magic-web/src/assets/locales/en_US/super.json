@@ -579,12 +579,15 @@
 				"untitledPost": "Untitled post"
 			},
 			"edit": {
+				"addArticleFileToChat": "Add article file to input",
 				"addCurrentPageToChat": "Add this card to chat",
 				"addPostFolderToCurrentChat": "Add this post to chat",
 				"cancel": "Cancel",
 				"discard": "Discard",
+				"goToArticleEdit": "Edit article",
 				"goToEdit": "Edit this card",
 				"noCards": "No cards in current post",
+				"refreshArticle": "Refresh article",
 				"refreshCard": "Refresh card",
 				"refreshConfirmDescription": "The current editor has unsaved changes. Save now or discard changes before refreshing.",
 				"refreshConfirmTitle": "Handle unsaved changes first",
@@ -772,6 +775,11 @@
 		"uploadFailed": "Upload failed",
 		"uploadFailedPrefix": "Upload failed: ",
 		"uploadedAttachments": "Uploaded Attachments ({{count}})"
+	},
+	"htmlEditor": {
+		"dropOverlay": {
+			"hint": "Release to insert image"
+		}
 	},
 	"fileViewer": {
 		"addNewSlide": "New Slide",
@@ -2660,7 +2668,7 @@
 		"insertImage": "Insert Image",
 		"inspector": {
 			"agentPromptPlaceholder": "Describe the problem here",
-			"agentPromptSuffix": "Please describe the problem you encountered:",
+			"agentPromptSuffix": "Please handle the selected element:",
 			"agentPromptTitle": "[HTML Element Inspection] I selected an element on the page. Here are its details:",
 			"computedStyles": "Computed Styles",
 			"copySelector": "Copy Selector",
@@ -2865,6 +2873,8 @@
 	},
 	"topicFiles": {
 		"AIOptimization": "AI Edit",
+		"aiPick": "AI Pick",
+		"aiPickTooltip": "Click to select a page element and let AI modify it",
 		"addFile": "Add File",
 		"addFolder": "Add Folder",
 		"batchExportingPdf": "Batch Exporting PDF...",

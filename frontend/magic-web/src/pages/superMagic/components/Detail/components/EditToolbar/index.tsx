@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { AlertTriangle, Maximize, Minimize, RefreshCw, Share2 } from "lucide-react"
+import { AlertTriangle, Crosshair, Maximize, Minimize, RefreshCw, Share2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { Button } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
@@ -105,6 +105,10 @@ interface EditToolbarProps {
 	projectId?: string
 	/** 触发元素选取检查器（仅 HTML 场景下传入）*/
 	onStartInspector?: () => void
+	/** 触发元素拾取（选取后追加元素信息到当前输入框）*/
+	onStartInspectorAppend?: () => void
+	/** AI 选取是否正在进行中 */
+	isAppendPicking?: boolean
 }
 
 function EditToolbar({
@@ -144,6 +148,8 @@ function EditToolbar({
 	style,
 	projectId,
 	onStartInspector,
+	onStartInspectorAppend,
+	isAppendPicking = false,
 }: EditToolbarProps) {
 	const { t } = useTranslation("super")
 	const { emitFullscreenToggle } = usePPTEventBus()
@@ -576,6 +582,29 @@ function EditToolbar({
 							onSave={onSave}
 							onSaveAndExit={onSaveAndExit}
 							onCancel={onCancel}
+						/>
+					)}
+
+					{/* AI 选取按钮 */}
+					{showFileEditButtons && !isEditMode && onStartInspectorAppend && (
+						<ActionButton
+							icon={
+								<Crosshair
+									size={16}
+									className={cn(isAppendPicking && "animate-pulse")}
+								/>
+							}
+							onClick={onStartInspectorAppend}
+							title={t(
+								"topicFiles.aiPickTooltip",
+								"点击后选取页面元素，让 AI 对其进行修改",
+							)}
+							text={t("topicFiles.aiPick", "AI 选取")}
+							showText={shouldShowButtonText}
+							className={cn(
+								isAppendPicking &&
+									"bg-primary/10 text-primary ring-1 ring-primary/30",
+							)}
 						/>
 					)}
 

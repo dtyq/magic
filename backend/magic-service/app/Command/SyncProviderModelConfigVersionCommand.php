@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Domain\Provider\DTO\Item\BillingType;
 use App\Domain\Provider\Entity\ProviderModelConfigVersionEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Repository\Facade\ProviderModelConfigVersionRepositoryInterface;
@@ -192,6 +193,7 @@ class SyncProviderModelConfigVersionCommand extends HyperfCommand
 
         // 特殊字段处理
         $configData['vector_size'] = $config['vector_size'] ?? 2048;
+        $configData['billing_tiers'] = $config['billing_tiers'] ?? null;
 
         return array_merge($baseData, $configData);
     }
@@ -208,7 +210,7 @@ class SyncProviderModelConfigVersionCommand extends HyperfCommand
         }
 
         if ($field === 'billing_type') {
-            return 'tokens';
+            return BillingType::Tokens->value;
         }
 
         return null;

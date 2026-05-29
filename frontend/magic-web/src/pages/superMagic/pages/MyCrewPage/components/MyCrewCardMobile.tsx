@@ -96,7 +96,8 @@ function MyCrewCardMobile({
 			: null
 	const createdFooterBadgeLabel = employee.needUpgrade
 		? t("skillsLibrary.upgrade")
-		: resolveMyCrewCreatedFooterBadgeLabel(employee.sourceType, t, tCrewCreate)
+		: formatVersionBadge(employee.latestVersionCode) ||
+			resolveMyCrewCreatedFooterBadgeLabel(employee.sourceType, t, tCrewCreate)
 
 	useEffect(() => {
 		setAvatarLoadFailed(false)

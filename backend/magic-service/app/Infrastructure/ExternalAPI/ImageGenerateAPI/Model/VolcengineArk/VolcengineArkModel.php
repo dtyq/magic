@@ -331,25 +331,48 @@ class VolcengineArkModel extends AbstractImageGenerate
 
     private function accumulateUsage(ImageUsage $currentUsage, array $usage, int $fallbackGeneratedImages): void
     {
-        // 火山方舟生图 usage 当前可能返回 input/output，也可能接近 OpenAI 的 prompt/completion，统一转成内部 ImageUsage。
+        $tokenUsage = $this->extractTokenUsage($usage);
+        $currentUsage->addTokenUsage(
+            $tokenUsage['prompt_tokens'],
+            $tokenUsage['completion_tokens'],
+            $tokenUsage['thoughts_tokens'],
+            $tokenUsage['total_tokens']
+        );
+        $currentUsage->addGeneratedImages($this->resolveGeneratedImages($usage, $fallbackGeneratedImages));
+    }
+
+    /**
+     * @return array{prompt_tokens: int, completion_tokens: int, thoughts_tokens: int, total_tokens: int}
+     */
+    private function extractTokenUsage(array $usage): array
+    {
+        // 火山方舟生图 usage 当前可能返回 input/output，也可能接近 OpenAI 的 prompt/completion，统一转成内部 token 结构。
         $promptTokens = (int) ($usage['prompt_tokens'] ?? $usage['input_tokens'] ?? 0);
         $completionTokens = (int) ($usage['completion_tokens'] ?? $usage['output_tokens'] ?? 0);
+        $thoughtsTokens = (int) ($usage['thoughts_tokens'] ?? 0);
         $totalTokens = (int) ($usage['total_tokens'] ?? 0);
 
-        if ($totalTokens <= 0 && ($promptTokens > 0 || $completionTokens > 0)) {
-            $totalTokens = $promptTokens + $completionTokens;
+        if ($totalTokens <= 0 && ($promptTokens > 0 || $completionTokens > 0 || $thoughtsTokens > 0)) {
+            $totalTokens = $promptTokens + $completionTokens + $thoughtsTokens;
         }
         if ($promptTokens <= 0 && $totalTokens > 0 && $completionTokens > 0) {
-            $promptTokens = max(0, $totalTokens - $completionTokens);
+            $promptTokens = max(0, $totalTokens - $completionTokens - $thoughtsTokens);
         }
         if ($completionTokens <= 0 && $totalTokens > 0 && $promptTokens > 0) {
-            $completionTokens = max(0, $totalTokens - $promptTokens);
+            $completionTokens = max(0, $totalTokens - $promptTokens - $thoughtsTokens);
         }
 
-        $currentUsage->promptTokens += $promptTokens;
-        $currentUsage->completionTokens += $completionTokens;
-        $currentUsage->totalTokens += $totalTokens;
-        $currentUsage->addGeneratedImages((int) ($usage['generated_images'] ?? $usage['image_count'] ?? $fallbackGeneratedImages));
+        return [
+            'prompt_tokens' => $promptTokens,
+            'completion_tokens' => $completionTokens,
+            'thoughts_tokens' => $thoughtsTokens,
+            'total_tokens' => $totalTokens,
+        ];
+    }
+
+    private function resolveGeneratedImages(array $usage, int $fallbackGeneratedImages): int
+    {
+        return (int) ($usage['generated_images'] ?? $usage['image_count'] ?? $fallbackGeneratedImages);
     }
 
     private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array

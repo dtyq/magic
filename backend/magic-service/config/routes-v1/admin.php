@@ -52,6 +52,7 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::post('/by-category', [ServiceProviderApi::class, 'getOrganizationProvidersByCategory']);
         Router::get('/office-info', [ServiceProviderApi::class, 'isCurrentOrganizationOfficial']);
         Router::get('/templates/queries', [ServiceProviderApi::class, 'queriesServiceProviderTemplates']);
+        Router::get('/model-pricing-templates/queries', [ServiceProviderApi::class, 'queriesProviderModelPricingTemplates']);
 
         // 废弃，上线后可删除
         Router::get('/available-llm', [ServiceProviderApi::class, 'getAllAvailableLlmProviders']);
