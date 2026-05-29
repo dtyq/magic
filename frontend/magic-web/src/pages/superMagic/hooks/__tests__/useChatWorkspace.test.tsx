@@ -91,6 +91,8 @@ describe("useChatWorkspace", () => {
 		expect(getProjectsMock).toHaveBeenCalledWith({
 			workspace_id: CHAT_WORKSPACE.id,
 			project_name: "server keyword",
+			order_by: "updated_at",
+			sort: "desc",
 			page: 1,
 			page_size: 20,
 		})

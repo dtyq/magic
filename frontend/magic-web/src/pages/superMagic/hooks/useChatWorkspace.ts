@@ -62,6 +62,10 @@ let cachedChatWorkspace: Workspace | null = null
 let cachedChatWorkspaceId: string | null = null
 let sharedChatWorkspaceRequest: Promise<Workspace | null> | null = null
 
+/** Chat 对话列表按项目更新时间倒序；API order_by 仅支持 updated_at / id。 */
+const CHAT_PROJECT_LIST_ORDER_BY = "updated_at"
+const CHAT_PROJECT_LIST_SORT = "desc"
+
 /**
  * Clear module-level chat workspace cache after org/account switch.
  * initUserData must call this so ensureChatWorkspace does not reuse the previous org workspace.
@@ -203,6 +207,8 @@ export function useChatWorkspace(options: UseChatWorkspaceOptions = {}): UseChat
 				const response = await SuperMagicApi.getProjects({
 					workspace_id: workspace.id,
 					project_name: keyword,
+					order_by: CHAT_PROJECT_LIST_ORDER_BY,
+					sort: CHAT_PROJECT_LIST_SORT,
 					page,
 					page_size: pageSize,
 				})
