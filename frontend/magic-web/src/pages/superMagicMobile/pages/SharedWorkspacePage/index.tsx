@@ -4,11 +4,15 @@ import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import { SharedProjectsFilterSheet } from "./components/SharedProjectsFilterSheet"
 import { SharedProjectsView } from "./components/SharedProjectsView"
 import { useSharedWorkspacePage } from "./hooks/useSharedWorkspacePage"
+import { useProjectTitle } from "@/pages/superMagic/hooks/useTopicTitle"
 
 /**
  * 共享工作区面板负责装配数据 Hook 与筛选 Sheet，视图层保持纯展示。
  */
 const SharedWorkspacePagePanel = observer(function SharedWorkspacePagePanel() {
+	// Dynamic title for shared workspace context, aligned with PC collaboration workspace views.
+	useProjectTitle()
+
 	const {
 		tab,
 		searchValue,

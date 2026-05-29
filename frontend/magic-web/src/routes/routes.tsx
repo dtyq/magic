@@ -386,24 +386,18 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 						path: `/:clusterCode${RoutePath.SuperWorkspacesList}`,
 						element: <WorkspacesPage />,
 						meta: {
-							title: "routes.workspace",
+							title: "routes.superWorkspaces",
 						},
 					},
 					{
 						name: RouteName.SuperSharedWorkspace,
 						path: `/:clusterCode${RoutePath.SuperSharedWorkspace}`,
 						element: <SharedWorkspacePage />,
-						meta: {
-							title: "routes.workspace",
-						},
 					},
 					{
 						name: RouteName.SuperWorkspaceProjects,
 						path: `/:clusterCode${RoutePath.SuperWorkspaceProjects}`,
 						element: <WorkspaceProjectsPage />,
-						meta: {
-							title: "routes.workspace",
-						},
 					},
 				],
 			},

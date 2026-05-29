@@ -111,6 +111,9 @@
 		"settings": "设置",
 		"skillEdit": "编辑技能",
 		"skillsLibrary": "技能库",
+		"super": "$t(common:routes.global)",
+		"superChats": "对话",
+		"superWorkspaces": "工作空间",
 		"superDashboard": "$t(common:platform.name)看板",
 		"vectorKnowledgeCreate": "向量知识库创建",
 		"workspace": "工作台"

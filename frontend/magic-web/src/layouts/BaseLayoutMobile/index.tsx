@@ -23,6 +23,7 @@ import {
 	MobileDocumentThemeProvider,
 	MobileDocumentThemeSync,
 } from "@/pages/superMagicMobile/components/MobileDocumentTheme"
+import useMetaSet from "@/routes/hooks/useRoutesMetaSet"
 
 const MobileTabBar = lazy(() => import("./components/MobileTabBar"))
 
@@ -36,6 +37,9 @@ const BaseLayoutMobile = () => {
 	const navigate = useNavigate()
 	const location = useLocation()
 	const { styles, cx } = useStyles()
+
+	// Sync document.title from route meta, same as BaseLayoutPc (chat, contacts, Super Shell, etc.).
+	useMetaSet()
 
 	useNativeBack()
 

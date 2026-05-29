@@ -114,6 +114,9 @@
 		"settings": "Settings",
 		"skillEdit": "Edit Skill",
 		"skillsLibrary": "Skills Library",
+		"super": "$t(common:routes.global)",
+		"superChats": "Chats",
+		"superWorkspaces": "Workspaces",
 		"superDashboard": "$t(common:platform.name) Dashboard",
 		"vectorKnowledgeCreate": "Vector Knowledge Base Creation",
 		"workspace": "Workspace"

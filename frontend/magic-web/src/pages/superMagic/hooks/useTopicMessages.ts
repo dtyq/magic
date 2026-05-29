@@ -1,6 +1,6 @@
-import { useMemoizedFn, useDeepCompareEffect } from "ahooks"
+import { useMemoizedFn } from "ahooks"
 import { isEmpty } from "lodash-es"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { SuperMagicApi } from "@/apis"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
@@ -443,8 +443,10 @@ export function useTopicMessages({ selectedTopic, checkNowDebounced }: UseTopicM
 		},
 	)
 
-	// Initialize messages when topic changes
-	useDeepCompareEffect(() => {
+	// topic 恢复是 refreshState 分阶段推进的：如果继续用普通 effect，
+	// "null -> topic" 这一帧会先泄露上一轮的 ready/loading，导致外层误判为空会话。
+	// 这里在 layout effect 里同步重置，确保首屏拿到的是当前 topic 的真实初始化状态。
+	useLayoutEffect(() => {
 		superMagicStore.setActiveTopicId(selectedTopic?.chat_topic_id || null)
 		setIsSelectedTopicMessagesReady(false)
 		const topicId = selectedTopic?.chat_topic_id
@@ -454,7 +456,12 @@ export function useTopicMessages({ selectedTopic, checkNowDebounced }: UseTopicM
 			setIsMessagesInitialLoading(false)
 		}
 		updateTopicMessages()
-	}, [selectedTopic])
+	}, [
+		selectedTopic?.id,
+		selectedTopic?.chat_topic_id,
+		selectedTopic?.chat_conversation_id,
+		updateTopicMessages,
+	])
 
 	// Subscribe to WebSocket new message events
 	useEffect(() => {

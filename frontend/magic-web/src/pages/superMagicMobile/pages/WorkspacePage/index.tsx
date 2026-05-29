@@ -5,11 +5,15 @@ import { CreateProjectSheet } from "./components/CreateProjectSheet"
 import { WorkspaceProjectListView } from "./components/WorkspaceProjectListView"
 import { useWorkspacePage } from "./hooks/useWorkspacePage"
 import { useWorkspaceDeleteConfirm } from "@/pages/superMagicMobile/pages/WorkspacesPage/hooks/useWorkspaceDeleteConfirm"
+import { useProjectTitle } from "@/pages/superMagic/hooks/useTopicTitle"
 
 /**
  * 工作区页面板只负责装配容器数据和工作区级弹层。
  */
 const WorkspacePagePanel = observer(function WorkspacePagePanel() {
+	// Dynamic title: workspace name (and project when selected), aligned with PC WorkspacePage.
+	useProjectTitle()
+
 	const {
 		selectedWorkspace,
 		filteredProjects,

@@ -1,6 +1,7 @@
 import { observer } from "mobx-react-lite"
 import { ChevronLeft, Ellipsis } from "lucide-react"
 import { useEffect, useState } from "react"
+import { cn } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
@@ -84,13 +85,20 @@ function ChatProjectHeroHeader({
 	)
 }
 
+interface ChatProjectEmptyHeroProps {
+	className?: string
+}
+
 /**
  * 空态欢迎区直接复用首页文案与品牌图形，确保对话页在“无消息”时和首页保持同一视觉语言。
  */
-function ChatProjectEmptyHero() {
+function ChatProjectEmptyHero({ className }: ChatProjectEmptyHeroProps) {
 	return (
 		<div
-			className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-[58%] justify-center px-6"
+			className={cn(
+				"pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-[58%] justify-center px-6",
+				className,
+			)}
 			data-testid="chat-project-empty-hero"
 		>
 			<MobileBrandHero imageClassName="size-[76px] rounded-[26px]" />
@@ -111,7 +119,8 @@ export const ChatProjectMessagePanel = observer(function ChatProjectMessagePanel
 	const { t } = useTranslation("super")
 	const navigate = useNavigate()
 	const [isInitialMessagesLoading, setIsInitialMessagesLoading] = useState(false)
-	const [isInitialMessagesReady, setIsInitialMessagesReady] = useState(false)
+	// Track which topic id has finished its first pull; avoids one-frame stale ready after topic switches.
+	const [messagesReadyTopicId, setMessagesReadyTopicId] = useState<string | null>(null)
 	const selectedProject = projectStore.selectedProject
 	const selectedTopic = topicStore.selectedTopic
 	const capabilities = getMobileTopicPageCapabilities(MobileTopicPageKind.SingleTopicChat)
@@ -119,13 +128,28 @@ export const ChatProjectMessagePanel = observer(function ChatProjectMessagePanel
 	const topicMessages = selectedTopic?.chat_topic_id
 		? (superMagicStore.messages?.get(selectedTopic.chat_topic_id) ?? [])
 		: []
+	const hasBoundTopic = Boolean(selectedTopic?.id && selectedTopic?.chat_topic_id)
+	const isInitialMessagesReadyForTopic =
+		Boolean(selectedTopic?.id) && messagesReadyTopicId === selectedTopic?.id
 	const isEmptyStatus =
-		isInitialMessagesReady && topicMessages.length === 0 && !isInitialMessagesLoading
+		hasBoundTopic &&
+		isInitialMessagesReadyForTopic &&
+		topicMessages.length === 0 &&
+		!isInitialMessagesLoading
+	// 刷新恢复时，selectedTopic 会先于消息快照回填；这段窗口应交给 TopicPage 的 loading spinner，
+	// 不能提前挂欢迎壳层，否则已有历史消息的会话会被误判成“空会话”并闪一下首页文案。
+	const shouldMountEmptyHero = isEmptyStatus
+	const shouldConcealMessageList = isEmptyStatus
 
-	useEffect(() => {
-		// 切换会话后先回到过渡态，等首轮拉取明确返回“无消息”再展示欢迎空态。
-		setIsInitialMessagesReady(false)
-	}, [selectedTopic?.id])
+	const handleInitialMessagesReadyChange = useMemoizedFn((isReady: boolean) => {
+		const topicId = topicStore.selectedTopic?.id ?? null
+		if (!isReady || !topicId) {
+			setMessagesReadyTopicId(null)
+			return
+		}
+
+		setMessagesReadyTopicId(topicId)
+	})
 
 	const { createProjectInChatWorkspace } = useChatWorkspace({ projectPageSize: 1 })
 
@@ -197,17 +221,17 @@ export const ChatProjectMessagePanel = observer(function ChatProjectMessagePanel
 				onOpenActions={onOpenActions}
 			/>
 			<div className="relative min-h-0 flex-1 overflow-hidden">
-				{isEmptyStatus ? <ChatProjectEmptyHero /> : null}
+				{shouldMountEmptyHero ? <ChatProjectEmptyHero /> : null}
 				<TopicPage
 					className="min-h-0 flex-1"
 					hideHeader
 					hideTopicActions
 					pageKind={MobileTopicPageKind.SingleTopicChat}
 					onInitialMessagesLoadingChange={setIsInitialMessagesLoading}
-					onInitialMessagesReadyChange={setIsInitialMessagesReady}
+					onInitialMessagesReadyChange={handleInitialMessagesReadyChange}
 					messageListFallbackRender={<div className="h-full w-full" />}
 					messageListClassName={
-						isEmptyStatus ? "pointer-events-none opacity-0" : undefined
+						shouldConcealMessageList ? "pointer-events-none opacity-0" : undefined
 					}
 					bodyClassName={isEmptyStatus ? "bg-transparent" : undefined}
 					footerClassName={isEmptyStatus ? "bg-transparent" : undefined}

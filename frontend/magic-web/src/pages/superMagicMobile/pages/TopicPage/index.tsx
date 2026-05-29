@@ -1,6 +1,14 @@
 import { useDeepCompareEffect, useMemoizedFn, useUpdateEffect } from "ahooks"
 import { throttle } from "lodash-es"
-import { useMemo, useRef, useState, useEffect, useCallback, type ReactNode } from "react"
+import {
+	useMemo,
+	useRef,
+	useState,
+	useEffect,
+	useCallback,
+	useLayoutEffect,
+	type ReactNode,
+} from "react"
 import { createPortal } from "react-dom"
 import { observer } from "mobx-react-lite"
 import MessageList, { MessageListProvider } from "@/pages/superMagic/components/MessageList"
@@ -249,11 +257,11 @@ function TopicPage({
 	handleTopicMessagesChangeRef.current = handleTopicMessagesChange
 
 	// 让外层壳层区分“真的空会话”和“历史消息首轮还在补齐”，避免欢迎态抢占首屏。
-	useEffect(() => {
+	useLayoutEffect(() => {
 		onInitialMessagesLoadingChange?.(isMessagesInitialLoading)
 	}, [isMessagesInitialLoading, onInitialMessagesLoadingChange])
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		onInitialMessagesReadyChange?.(isSelectedTopicMessagesReady)
 	}, [isSelectedTopicMessagesReady, onInitialMessagesReadyChange])
 

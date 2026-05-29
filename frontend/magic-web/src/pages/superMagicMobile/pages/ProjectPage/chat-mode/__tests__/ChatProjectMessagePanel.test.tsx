@@ -5,6 +5,11 @@ import { ChatProjectMessagePanel } from "../ChatProjectMessagePanel"
 const mockState = vi.hoisted(() => ({
 	initialMessagesLoading: false,
 	initialMessagesReady: true,
+	lastTopicPageProps: {
+		messageListClassName: undefined as string | undefined,
+		bodyClassName: undefined as string | undefined,
+		footerClassName: undefined as string | undefined,
+	},
 	projectStore: {
 		selectedProject: {
 			id: "project-1",
@@ -73,14 +78,26 @@ vi.mock("@/pages/superMagicMobile/pages/TopicPage", async () => {
 	const MockTopicPage = ({
 		onInitialMessagesLoadingChange,
 		onInitialMessagesReadyChange,
+		messageListClassName,
+		bodyClassName,
+		footerClassName,
 	}: {
 		onInitialMessagesLoadingChange?: (isLoading: boolean) => void
 		onInitialMessagesReadyChange?: (isReady: boolean) => void
+		messageListClassName?: string
+		bodyClassName?: string
+		footerClassName?: string
 	}) => {
 		React.useEffect(() => {
 			onInitialMessagesLoadingChange?.(mockState.initialMessagesLoading)
 			onInitialMessagesReadyChange?.(mockState.initialMessagesReady)
 		}, [onInitialMessagesLoadingChange, onInitialMessagesReadyChange])
+
+		mockState.lastTopicPageProps = {
+			messageListClassName,
+			bodyClassName,
+			footerClassName,
+		}
 
 		return <div data-testid="mock-topic-page" />
 	}
@@ -99,6 +116,11 @@ describe("ChatProjectMessagePanel", () => {
 			id: "project-1",
 			project_name: "项目一",
 		}
+		mockState.lastTopicPageProps = {
+			messageListClassName: undefined,
+			bodyClassName: undefined,
+			footerClassName: undefined,
+		}
 		mockState.topicStore.selectedTopic = {
 			id: "topic-1",
 			chat_topic_id: "chat-topic-1",
@@ -116,6 +138,9 @@ describe("ChatProjectMessagePanel", () => {
 		await waitFor(() => {
 			expect(screen.queryByTestId("chat-project-empty-hero")).not.toBeInTheDocument()
 		})
+
+		expect(mockState.lastTopicPageProps.messageListClassName).toBeUndefined()
+		expect(mockState.lastTopicPageProps.bodyClassName).toBeUndefined()
 	})
 
 	it("does not show the empty hero before initial history readiness is confirmed", async () => {
@@ -127,6 +152,8 @@ describe("ChatProjectMessagePanel", () => {
 		await waitFor(() => {
 			expect(screen.queryByTestId("chat-project-empty-hero")).not.toBeInTheDocument()
 		})
+
+		expect(mockState.lastTopicPageProps.messageListClassName).toBeUndefined()
 	})
 
 	it("shows the empty hero after initial loading finishes with no messages", async () => {
@@ -137,5 +164,11 @@ describe("ChatProjectMessagePanel", () => {
 		await waitFor(() => {
 			expect(screen.getByTestId("chat-project-empty-hero")).toBeInTheDocument()
 		})
+
+		expect(mockState.lastTopicPageProps.messageListClassName).toBe(
+			"pointer-events-none opacity-0",
+		)
+		expect(mockState.lastTopicPageProps.bodyClassName).toBe("bg-transparent")
+		expect(mockState.lastTopicPageProps.footerClassName).toBe("bg-transparent")
 	})
 })

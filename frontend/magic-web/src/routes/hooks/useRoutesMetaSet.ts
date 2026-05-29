@@ -59,8 +59,9 @@ export default function useMetaSet() {
 	}
 
 	useEffect(() => {
-		/** 设置对应内容 setMeta(meta) */
-		setMeta(route?.meta)
+		// Only apply static route meta; skip when absent so useProjectTitle / useNamedPageTitle
+		// are not overwritten on Super project/topic/chat routes (no meta.title).
+		if (route?.meta) setMeta(route.meta)
 	}, [route?.meta, t])
 
 	return { setMeta } // 返回设置方法交由业务层作做进一步元信息设置
