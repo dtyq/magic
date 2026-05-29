@@ -261,7 +261,7 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 						aria-label={t("setting.aboutUs")}
 						data-testid="mobile-settings-header-about"
 					>
-						<Info className="h-5 w-5" />
+						<Info className="size-[22px]" />
 					</Button>
 				) : undefined
 			}
