@@ -24,6 +24,14 @@ export const RESOURCE_TYPE = {
 
 export type ResourceType = (typeof RESOURCE_TYPE)[keyof typeof RESOURCE_TYPE]
 
+/** Parent location snapshot stored in recycle-bin list `extra_data.parent_info`. */
+export interface RecycleBinParentInfo {
+	workspace_id?: number
+	workspace_name?: string
+	project_id?: number
+	project_name?: string
+}
+
 export interface RecycleBinDeletedByUser {
 	nickname: string
 	avatar: string
@@ -160,6 +168,67 @@ export function getRecycleBinItemTitle(props: {
 	if (resourceType === RESOURCE_TYPE.TOPIC) return t("common.untitledTopic")
 	if (resourceType === RESOURCE_TYPE.FILE) return t("common.untitledFile")
 	return trimmedName
+}
+
+/** Resolve one path segment; fall back to the same copy used in list rows. */
+export function resolveRecycleBinSegmentName(props: {
+	segment: "workspace" | "project"
+	rawName?: string
+	t: TFunction
+}) {
+	const trimmed = props.rawName?.trim() ?? ""
+	if (trimmed) return trimmed
+	if (props.segment === "workspace") return props.t("common.unNamedWorkspace")
+	return props.t("common.untitledProject")
+}
+
+/** Build path segments under the workspaces scope (excludes scope head). */
+export function buildRecycleBinPathParts(props: {
+	resourceType: ResourceType
+	parentInfo?: RecycleBinParentInfo
+	t: TFunction
+}) {
+	const { resourceType, parentInfo, t } = props
+	if (resourceType === RESOURCE_TYPE.WORKSPACE) return []
+	if (resourceType === RESOURCE_TYPE.PROJECT) {
+		return [
+			resolveRecycleBinSegmentName({
+				segment: "workspace",
+				rawName: parentInfo?.workspace_name,
+				t,
+			}),
+		]
+	}
+	if (resourceType === RESOURCE_TYPE.TOPIC) {
+		return [
+			resolveRecycleBinSegmentName({
+				segment: "workspace",
+				rawName: parentInfo?.workspace_name,
+				t,
+			}),
+			resolveRecycleBinSegmentName({
+				segment: "project",
+				rawName: parentInfo?.project_name,
+				t,
+			}),
+		]
+	}
+	return []
+}
+
+/** Mobile recycle-bin breadcrumb: scope head + parent segments, aligned with prototype TrashScreen. */
+export function buildRecycleBinPathLabel(props: {
+	resourceType: ResourceType
+	parentInfo?: RecycleBinParentInfo
+	t: TFunction
+}) {
+	const head = props.t("mobile.recycleBin.pathScopes.workspaces")
+	const parts = buildRecycleBinPathParts({
+		resourceType: props.resourceType,
+		parentInfo: props.parentInfo,
+		t: props.t,
+	})
+	return [head, ...parts].join(" / ")
 }
 
 export function getResourceTypeByTabId(tabId?: string): ResourceType | undefined {

@@ -1,6 +1,8 @@
 import type { TFunction } from "i18next"
 import type { RecycleBin } from "@/apis/modules/recycle-bin"
 import {
+	buildRecycleBinPathLabel,
+	getRecycleBinItemTitle,
 	RESOURCE_TYPE,
 	type RecycleBinItem,
 	type ResourceType,
@@ -24,21 +26,6 @@ const TAB_KEY_TO_TYPE: Record<string, RecycleBinItemData["type"]> = {
 	files: "file",
 }
 
-function getRecycleBinItemTitle(props: {
-	resourceName?: string
-	resourceType?: ResourceType
-	t: TFunction
-}) {
-	const { resourceName, resourceType, t } = props
-	const trimmedName = resourceName?.trim() ?? ""
-	if (trimmedName) return trimmedName
-	if (resourceType === RESOURCE_TYPE.WORKSPACE) return t("common.unNamedWorkspace")
-	if (resourceType === RESOURCE_TYPE.PROJECT) return t("common.untitledProject")
-	if (resourceType === RESOURCE_TYPE.TOPIC) return t("common.untitledTopic")
-	if (resourceType === RESOURCE_TYPE.FILE) return t("common.untitledFile")
-	return trimmedName
-}
-
 export function mapListItemToItemData(item: RecycleBin.ListItem, t: TFunction): RecycleBinItemData {
 	const resourceType = item.resource_type as ResourceType
 	const tabKey = RESOURCE_TYPE_TO_TAB[resourceType] ?? "files"
@@ -49,9 +36,7 @@ export function mapListItemToItemData(item: RecycleBin.ListItem, t: TFunction): 
 		? { nickname: item.deleted_by_user.nickname, avatar: item.deleted_by_user.avatar }
 		: undefined
 	const parentInfo = item.extra_data?.parent_info
-	const workspaceName = parentInfo?.workspace_name?.trim() || ""
-	const projectName = parentInfo?.project_name?.trim() || ""
-	const pathJoined = [workspaceName, projectName].filter(Boolean).join(" / ")
+	const path = buildRecycleBinPathLabel({ resourceType, parentInfo, t })
 	return {
 		id: item.id,
 		type,
@@ -67,7 +52,7 @@ export function mapListItemToItemData(item: RecycleBin.ListItem, t: TFunction): 
 		resourceId: item.resource_id,
 		resourceType,
 		selected: false,
-		path: pathJoined || undefined,
+		path,
 	}
 }
 
@@ -102,7 +87,6 @@ const TYPE_TO_CATEGORY: Record<RecycleBinItemData["type"], RecycleBinItem["categ
 }
 
 export function mobileItemDataToDomain(item: RecycleBinItemData): RecycleBinItem {
-	const path = item.path?.trim() ? item.path : "/"
 	return {
 		id: item.id,
 		resourceId: item.resourceId,
@@ -111,7 +95,7 @@ export function mobileItemDataToDomain(item: RecycleBinItemData): RecycleBinItem
 		title: item.title,
 		deletedBy: item.deletedBy,
 		deletedByUser: item.deletedByUser,
-		path,
+		path: item.path,
 		deletedOn: "",
 		remainingDays: item.validDays,
 	}

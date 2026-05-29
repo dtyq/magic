@@ -16,7 +16,8 @@ export interface RecycleBinItemData {
 	resourceId: string
 	resourceType: number
 	selected?: boolean
-	path?: string
+	/** Breadcrumb under title; always set for workspace/project/topic rows. */
+	path: string
 }
 
 interface RecycleBinItemProps {
@@ -64,11 +65,8 @@ function RecycleBinItem(props: RecycleBinItemProps) {
 					<p className="w-full truncate text-left text-[16px] font-medium leading-6 text-foreground">
 						{item.title}
 					</p>
-					<p
-						className="min-h-4 w-full truncate pb-1 text-left text-[12px] font-light leading-4 text-muted-foreground"
-						aria-hidden={!item.path}
-					>
-						{item.path?.trim() ? item.path : "\u00a0"}
+					<p className="min-h-4 w-full truncate pb-1 text-left text-[12px] font-light leading-4 text-muted-foreground">
+						{item.path}
 					</p>
 					<div className="flex w-full min-w-0 items-center gap-1.5">
 						<RecycleBinTypeBadge label={typeLabel} />
