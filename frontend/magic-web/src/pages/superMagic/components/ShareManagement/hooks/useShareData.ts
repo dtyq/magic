@@ -20,6 +20,8 @@ interface UseShareDataProps {
 	projectId?: string
 	currentPage: number
 	pageSize?: number
+	/** When false, skip authenticated share-management list fetch (e.g. sheet closed or public share page). */
+	enabled?: boolean
 }
 
 export function useShareData({
@@ -29,6 +31,7 @@ export function useShareData({
 	projectId,
 	currentPage,
 	pageSize = 10,
+	enabled = true,
 }: UseShareDataProps) {
 	const { t } = useTranslation("super")
 	const [data, setData] = useState<(TopicShareItem | FileShareItem | ProjectShareItem)[]>([])
@@ -39,6 +42,9 @@ export function useShareData({
 
 	// 加载数据
 	const fetchData = useCallback(async () => {
+		// Authenticated share-management API; callers must opt in via `enabled`.
+		if (!enabled) return
+
 		try {
 			// 只有首次加载或数据为空时才显示 loading 状态
 			// 刷新时静默更新，避免闪烁
@@ -152,18 +158,32 @@ export function useShareData({
 		} finally {
 			setLoading(false)
 		}
-	}, [currentPage, pageSize, searchText, resourceType, projectId, filterStatus, t])
+	}, [currentPage, enabled, pageSize, searchText, resourceType, projectId, filterStatus, t])
 
-	// 防抖版本的 fetchData
-	const { run: debouncedFetchData } = useDebounceFn(fetchData, {
+	// 防抖版本的 fetchData；关闭时需 cancel，避免 open 由 true→false 时仍发出过期请求。
+	const { run: debouncedFetchData, cancel: cancelDebouncedFetchData } = useDebounceFn(fetchData, {
 		wait: 0,
 	})
 
 	// 加载数据 - 只在真正需要的参数变化时触发
 	useEffect(() => {
+		if (!enabled) {
+			cancelDebouncedFetchData()
+			return
+		}
+
 		debouncedFetchData()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [currentPage, pageSize, searchText, resourceType, projectId, filterStatus, refreshKey])
+	}, [
+		enabled,
+		currentPage,
+		pageSize,
+		searchText,
+		resourceType,
+		projectId,
+		filterStatus,
+		refreshKey,
+	])
 
 	// 切换资源类型时重置首次加载状态
 	useEffect(() => {

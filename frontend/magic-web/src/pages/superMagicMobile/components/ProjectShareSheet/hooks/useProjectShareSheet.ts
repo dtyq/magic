@@ -269,6 +269,9 @@ export function useProjectShareSheet({
 		return shareProject.defaultSelectedFileIds
 	}, [defaultSelectedFileIds, initialSelectedShare, mode, shareProject.defaultSelectedFileIds])
 
+	// Share-management list API requires login; only fetch when the sheet is open.
+	const shouldFetchShareLists = open && Boolean(projectId)
+
 	const projectShareList = useShareData({
 		resourceType: SharedResourceType.Project,
 		filterStatus: SharedTopicFilterStatus.Active,
@@ -276,6 +279,7 @@ export function useProjectShareSheet({
 		projectId,
 		currentPage: 1,
 		pageSize: 50,
+		enabled: shouldFetchShareLists,
 	})
 	const fileShareList = useShareData({
 		resourceType: SharedResourceType.File,
@@ -284,6 +288,7 @@ export function useProjectShareSheet({
 		projectId,
 		currentPage: 1,
 		pageSize: 50,
+		enabled: shouldFetchShareLists,
 	})
 
 	useEffect(() => {

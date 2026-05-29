@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 	warningToast: vi.fn(),
 	projectShareData: [] as ProjectShareItem[],
 	fileShareData: [] as FileShareItem[],
+	useShareDataCalls: [] as Array<{ resourceType: string; enabled?: boolean }>,
 }))
 
 vi.mock("@/apis", () => ({
@@ -76,17 +77,21 @@ vi.mock("@/pages/superMagic/layouts/MainLayout/hooks/useShareProject", () => ({
 }))
 
 vi.mock("@/pages/superMagic/components/ShareManagement/hooks/useShareData", () => ({
-	useShareData: (params: { resourceType: string }) => ({
-		data: params.resourceType === "project" ? mocks.projectShareData : mocks.fileShareData,
-		total:
-			params.resourceType === "project"
-				? mocks.projectShareData.length
-				: mocks.fileShareData.length,
-		loading: false,
-		refreshData: mocks.refreshData,
-		cancelShare: mocks.cancelShare,
-		batchCancelShare: vi.fn(),
-	}),
+	useShareData: (params: { resourceType: string; enabled?: boolean }) => {
+		mocks.useShareDataCalls.push(params)
+
+		return {
+			data: params.resourceType === "project" ? mocks.projectShareData : mocks.fileShareData,
+			total:
+				params.resourceType === "project"
+					? mocks.projectShareData.length
+					: mocks.fileShareData.length,
+			loading: false,
+			refreshData: mocks.refreshData,
+			cancelShare: mocks.cancelShare,
+			batchCancelShare: vi.fn(),
+		}
+	},
 }))
 
 vi.mock("react-i18next", () => ({
@@ -101,10 +106,41 @@ describe("useProjectShareSheet", () => {
 		vi.clearAllMocks()
 		mocks.projectShareData = []
 		mocks.fileShareData = []
+		mocks.useShareDataCalls = []
 		mocks.getSnowflakeIds.mockResolvedValue({ ids: ["share-1"] })
 		mocks.getShareResourceMembers.mockResolvedValue({ members: [] })
 		mocks.createOrUpdateShareResource.mockResolvedValue({})
 		mocks.cancelShare.mockResolvedValue(undefined)
+	})
+
+	it("Sheet 关闭或无 projectId 时不启用分享列表拉取", () => {
+		renderHook(() =>
+			useProjectShareSheet({
+				open: false,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		expect(mocks.useShareDataCalls.every((call) => call.enabled === false)).toBe(true)
+	})
+
+	it("Sheet 打开且有 projectId 时启用分享列表拉取", () => {
+		renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		expect(mocks.useShareDataCalls.every((call) => call.enabled === true)).toBe(true)
 	})
 
 	it("默认进入 create 视图，并支持切换到 manage 后回退", () => {
