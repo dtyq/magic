@@ -18,7 +18,7 @@ describe("mobile skeletons", () => {
 		expect(container.innerHTML).not.toContain("pb-safe-bottom")
 	})
 
-	it("ChatProjectPageMobileSkeleton includes chat hero header and sidebar message area", () => {
+	it("ChatProjectPageMobileSkeleton includes chat hero header on unified mobile background", () => {
 		const { container } = render(<ChatProjectPageMobileSkeleton />)
 
 		expect(screen.getByTestId("mobile-header-skeleton-chat-hero")).toBeInTheDocument()

@@ -97,11 +97,15 @@ export function MobileConversationPageSkeleton({
 }: MobileConversationPageSkeletonProps) {
 	return (
 		<div
-			className={cn("flex h-full min-h-0 flex-col overflow-hidden bg-background", className)}
+			className={cn(
+				"flex h-full min-h-0 flex-col overflow-hidden bg-mobile-background",
+				className,
+			)}
 			data-testid="mobile-conversation-page-skeleton"
 		>
 			{showHeader ? <MobileHeaderSkeleton variant={headerVariant} /> : null}
-			<div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-sidebar">
+			{/* Match ChatProjectMessagePanel: one mobile-background surface under the transparent header. */}
+			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 				<MobileMessageBubblesSkeleton />
 			</div>
 			<MobileComposerFooterSkeleton />
@@ -113,7 +117,10 @@ export function MobileConversationPageSkeleton({
 export function MobileProjectEntrySkeleton({ className }: { className?: string }) {
 	return (
 		<div
-			className={cn("flex h-full min-h-0 flex-col overflow-hidden bg-background", className)}
+			className={cn(
+				"flex h-full min-h-0 flex-col overflow-hidden bg-mobile-background",
+				className,
+			)}
 			data-testid="mobile-project-entry-skeleton"
 		>
 			<div className="flex shrink-0 justify-start px-3 pt-4">
