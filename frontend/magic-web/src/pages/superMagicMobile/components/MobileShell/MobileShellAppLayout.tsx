@@ -7,7 +7,6 @@ import MobileShellScaffold from "./MobileShellScaffold"
 export interface MobileShellAppLayoutProps {
 	/** 与 `MobileShellScaffold` 一致，各路由唯一 */
 	testIdPrefix?: string
-	syncDocumentTheme?: boolean
 	closeSidebarAriaLabel: string
 	isSidebarOpen: boolean
 	onCloseSidebar: () => void
@@ -23,7 +22,6 @@ export interface MobileShellAppLayoutProps {
  */
 export function MobileShellAppLayout({
 	testIdPrefix = "mobile-shell",
-	syncDocumentTheme = true,
 	closeSidebarAriaLabel,
 	isSidebarOpen,
 	onCloseSidebar,
@@ -40,7 +38,6 @@ export function MobileShellAppLayout({
 				onCloseSidebar={onCloseSidebar}
 				closeSidebarAriaLabel={closeSidebarAriaLabel}
 				testIdPrefix={testIdPrefix}
-				syncDocumentTheme={syncDocumentTheme}
 			/>
 		</MobileShellMenuProvider>
 	)

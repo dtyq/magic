@@ -1,5 +1,5 @@
 import { useBoolean, useMemoizedFn, useMount } from "ahooks"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ActionsPopup } from "../../ActionsPopup/types"
 import { useTranslation } from "react-i18next"
 import { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
@@ -13,7 +13,6 @@ import {
 } from "@/pages/superMagic/constants"
 import useCollaboratorUpdatePanel from "@/pages/superMagic/components/WithCollaborators/hooks/useCollaboratorUpdatePanel"
 import useProjectTransferModal from "./useProjectTransferModal"
-import { canManageProject, isOwner } from "@/pages/superMagic/utils/permission"
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import SuperMagicService from "@/pages/superMagic/services"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -45,6 +44,11 @@ import {
 } from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 import { RouteName } from "@/routes/constants"
 import { buildSuperMobileNavigationState } from "@/pages/superMagicMobile/layout/MainLayout/components/MainHeader/backNavigation"
+import {
+	buildMobileProjectActionGroups,
+	sortFilteredProjectActions,
+} from "@/pages/superMagicMobile/utils/mobileProjectActionOrder"
+import { mergeProjectListItemWithStoreCache } from "@/pages/superMagicMobile/utils/mergeProjectListItemWithStoreCache"
 
 interface UseProjectListActionsOptions {
 	onProjectChanged?: () => Promise<void> | void
@@ -52,7 +56,7 @@ interface UseProjectListActionsOptions {
 	onDeleteProjectConfirmed?: (project: ProjectListItem) => Promise<void>
 	mode?: "default" | "chat"
 	chatActionContext?: "drawer" | "detail"
-	actionContext?: "default" | "project-detail"
+	actionContext?: "default" | "project-detail" | "shell-recent"
 	deleteSelectedProjectBehavior?: "switch-next" | "navigate-home"
 	visibleActionKeys?: ProjectActionKey[]
 }
@@ -82,12 +86,20 @@ export function useProjectListActions({
 	const navigate = useNavigate()
 	const selectedWorkspace = workspaceStore.selectedWorkspace
 	const selectedTopic = topicStore.selectedTopic
+	const selectedProjectId = projectStore.selectedProject?.id
 	const isChatMode = mode === "chat"
 	const isProjectDetailActionContext = actionContext === "project-detail"
+	const isShellRecentActionContext = actionContext === "shell-recent"
 	const shouldShowSaveAsProject =
 		isChatMode && (chatActionContext === "detail" || chatActionContext === "drawer")
 
 	const [currentActionItem, updateCurrentActionItem] = useState<ProjectListItem | null>(null)
+
+	/** Enrich recent-menu rows with store role/tag so sidebar menus match project detail permissions. */
+	const actionProject = useMemo(
+		() => mergeProjectListItemWithStoreCache(currentActionItem),
+		[currentActionItem],
+	)
 
 	const [actionsPopupVisible, { setTrue: _openActionsPopup, setFalse: closeActionsPopup }] =
 		useBoolean(false)
@@ -103,8 +115,11 @@ export function useProjectListActions({
 
 	// On project detail, keep panel bound to the route project so lazy chunk can load before first open.
 	const collaboratorPanelProject = isProjectDetailActionContext
-		? (currentActionItem ?? projectStore.selectedProject)
-		: currentActionItem
+		? (actionProject ?? projectStore.selectedProject)
+		: actionProject
+
+	/** Same source as collaborator panel — used for menu visibility before currentActionItem is set. */
+	const permissionProject = collaboratorPanelProject
 
 	const { openManageModal, CollaboratorUpdatePanel, canManageCollaborators } =
 		useCollaboratorUpdatePanel({
@@ -133,6 +148,13 @@ export function useProjectListActions({
 		setTimeout(initializeCollaboratorPanel, 0)
 	})
 
+	/** Drop stale popup target when route project changes so permissions follow selectedProject. */
+	useEffect(() => {
+		if (!isProjectDetailActionContext) return
+
+		updateCurrentActionItem(null)
+	}, [isProjectDetailActionContext, selectedProjectId])
+
 	/**
 	 * 项目详情页转让成功后退回工作区项目列表，与删除/移动详情页退出逻辑一致。
 	 */
@@ -157,17 +179,18 @@ export function useProjectListActions({
 
 	// 转让弹层由 hook 决定是否提供真实交互，列表层只消费稳定接口。
 	const { openTransferModal, TransferModalComponent, canTransferProject } =
-		useProjectTransferModal(currentActionItem, {
+		useProjectTransferModal(permissionProject, {
 			onTransferSuccess: handleProjectTransferSuccess,
 		})
 
 	const openActionsPopup = useMemoizedFn((project: ProjectListItem) => {
-		const headerPolicy = resolveProjectDetailHeaderActions(project, {
+		const mergedProject = mergeProjectListItemWithStoreCache(project) ?? project
+		const headerPolicy = resolveProjectDetailHeaderActions(mergedProject, {
 			canManageCollaborators,
 		})
 		if (isProjectDetailActionContext && !headerPolicy.hasMenuActions) return
 
-		updateCurrentActionItem(project)
+		updateCurrentActionItem(mergedProject)
 		_openActionsPopup()
 	})
 
@@ -311,9 +334,9 @@ export function useProjectListActions({
 		}
 	})
 
-	const isWorkspaceShortcutProjectStatus = isWorkspaceShortcutProject(currentActionItem)
-	const isCollaborationProjectStatus = isCollaborationProject(currentActionItem)
-	const sharedProjectActionPolicy = resolveProjectDetailHeaderActions(currentActionItem, {
+	const isWorkspaceShortcutProjectStatus = isWorkspaceShortcutProject(permissionProject)
+	const isCollaborationProjectStatus = isCollaborationProject(permissionProject)
+	const sharedProjectActionPolicy = resolveProjectDetailHeaderActions(permissionProject, {
 		canManageCollaborators,
 	})
 
@@ -372,7 +395,9 @@ export function useProjectListActions({
 					closeActionsPopup()
 				},
 				variant: "default",
-				visible: isProjectDetailActionContext && !isWorkspaceShortcutProjectStatus,
+				visible:
+					(isProjectDetailActionContext || isShellRecentActionContext) &&
+					!isWorkspaceShortcutProjectStatus,
 				"data-testid": "project-actions-enter-workspace",
 			},
 			{
@@ -399,7 +424,7 @@ export function useProjectListActions({
 				visible: shouldShowProjectCollaboratorAction({
 					mode,
 					isCollaborationProject: isCollaborationProjectStatus,
-					userRole: currentActionItem?.user_role,
+					userRole: permissionProject?.user_role,
 					canManageCollaborators,
 				}),
 				"data-testid": "project-actions-set-collaborators",
@@ -425,7 +450,7 @@ export function useProjectListActions({
 				variant: "default",
 				visible: shouldShowProjectTransferAction({
 					mode,
-					userRole: currentActionItem?.user_role,
+					userRole: permissionProject?.user_role,
 					isWorkspaceShortcutProject: isWorkspaceShortcutProjectStatus,
 					canTransferProject,
 				}),
@@ -449,7 +474,7 @@ export function useProjectListActions({
 		const simplifiedActionKeySet = sharedProjectActionPolicy.useSimplifiedSharedProjectActions
 			? new Set(sharedProjectActionPolicy.visibleActionKeys)
 			: null
-		return actions.filter((action) => {
+		const filtered = actions.filter((action) => {
 			if (!action.visible) return false
 			if (simplifiedActionKeySet) {
 				return simplifiedActionKeySet.has(action.key as SharedProjectVisibleActionKey)
@@ -457,7 +482,10 @@ export function useProjectListActions({
 			if (!visibleActionKeySet) return true
 			return visibleActionKeySet.has(action.key)
 		})
+
+		return sortFilteredProjectActions(filtered, { isChatMode })
 	}, [
+		permissionProject,
 		currentActionItem,
 		t,
 		isWorkspaceShortcutProjectStatus,
@@ -477,6 +505,7 @@ export function useProjectListActions({
 		visibleActionKeys,
 		sharedProjectActionPolicy,
 		isProjectDetailActionContext,
+		isShellRecentActionContext,
 	])
 
 	const handleDeleteProject = useMemoizedFn(async () => {
@@ -596,22 +625,11 @@ export function useProjectListActions({
 		</button>
 	)
 
-	/** 原型把重命名/移动合并为一张卡片，其余操作各自独立成组。 */
-	const projectActionGroups = useMemo(() => {
-		// Shared grouping keys for both default and project-detail contexts.
-		// rename + move/saveAsProject + enterWorkspace (detail only) share one card per prototype.
-		const groupedKeys = [
-			["rename", shouldShowSaveAsProject ? "saveAsProject" : "move", "enterWorkspace"],
-			["setCollaborators", "copyCollaborationLink"],
-			["cancelWorkspaceShortcut"],
-			["transfer"],
-			["delete"],
-		]
-
-		return groupedKeys
-			.map((keys) => projectActions.filter((action) => keys.includes(action.key)))
-			.filter((group) => group.length > 0)
-	}, [projectActions, shouldShowSaveAsProject])
+	/** Prototype four-card layout; extras (copy link / shortcut cancel) get their own cards. */
+	const projectActionGroups = useMemo(
+		() => buildMobileProjectActionGroups(projectActions, { shouldShowSaveAsProject }),
+		[projectActions, shouldShowSaveAsProject],
+	)
 
 	/** 渲染一组动作卡片，确保多按钮组只有内部按钮之间出现分割线。 */
 	const renderProjectActionGroup = (

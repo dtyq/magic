@@ -1,10 +1,13 @@
-import type { ProjectActionKey } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
+import {
+	MOBILE_PROJECT_ACTION_ORDER,
+	SHELL_RECENT_CHAT_ACTION_KEYS,
+} from "@/pages/superMagicMobile/utils/mobileProjectActionOrder"
 
-const COMPACT_MOBILE_SHELL_ACTION_KEYS: ProjectActionKey[] = ["rename", "move", "delete"]
+export { MOBILE_PROJECT_ACTION_ORDER, SHELL_RECENT_CHAT_ACTION_KEYS }
 
 /**
- * 侧栏里的最近项目菜单默认保持精简动作，避免在窄视口里暴露过多入口。
+ * Whitelist for sidebar recent project rows (prototype 6 items, no pin / copy link).
  */
-export function useMobileShellVisibleActionKeys(): ProjectActionKey[] {
-	return COMPACT_MOBILE_SHELL_ACTION_KEYS
+export function useMobileShellVisibleActionKeys() {
+	return MOBILE_PROJECT_ACTION_ORDER
 }

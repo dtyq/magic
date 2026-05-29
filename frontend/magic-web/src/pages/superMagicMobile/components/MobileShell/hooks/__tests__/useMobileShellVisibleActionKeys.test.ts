@@ -1,11 +1,19 @@
 import { renderHook } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { useMobileShellVisibleActionKeys } from "../useMobileShellVisibleActionKeys"
+import {
+	MOBILE_PROJECT_ACTION_ORDER,
+	SHELL_RECENT_CHAT_ACTION_KEYS,
+	useMobileShellVisibleActionKeys,
+} from "../useMobileShellVisibleActionKeys"
 
 describe("useMobileShellVisibleActionKeys", () => {
-	it("默认只返回精简项目动作", () => {
+	it("returns prototype project whitelist for sidebar recent rows", () => {
 		const { result } = renderHook(() => useMobileShellVisibleActionKeys())
 
-		expect(result.current).toEqual(["rename", "move", "delete"])
+		expect(result.current).toEqual(MOBILE_PROJECT_ACTION_ORDER)
+	})
+
+	it("exports chat whitelist without pin", () => {
+		expect(SHELL_RECENT_CHAT_ACTION_KEYS).toEqual(["rename", "saveAsProject", "delete"])
 	})
 })

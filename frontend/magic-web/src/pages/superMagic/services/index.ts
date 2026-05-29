@@ -29,6 +29,7 @@ import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { SuperMagicApi } from "@/apis"
 import type { TopicStore } from "../stores/core/topic"
 import topicReadProgressService from "./topicReadProgressService"
+import { mergeProjectListItemWithStoreCache } from "@/pages/superMagicMobile/utils/mergeProjectListItemWithStoreCache"
 export {
 	syncChatConversationName,
 	resolveChatTopicId,
@@ -430,18 +431,29 @@ class SuperMagicService {
 	 */
 	async switchProjectInMobile(project: ProjectListItem, topic_id?: string) {
 		this.flushCurrentTopicReadProgress("switch-project")
+
+		let resolvedProject = mergeProjectListItemWithStoreCache(project) ?? project
+		if (!resolvedProject.user_role) {
+			const detail = await this.project
+				.getProjectDetail(project.id, { enableErrorMessagePrompt: false })
+				.catch(() => null)
+			if (detail) {
+				resolvedProject = mergeProjectListItemWithStoreCache(detail) ?? detail
+			}
+		}
+
 		// 1. 同步设置与检查
-		const _isReadOnlyProject = isReadOnlyProject(project.user_role)
+		const _isReadOnlyProject = isReadOnlyProject(resolvedProject.user_role)
 
 		let targetWorkspaceId: string | null = null
-		if (isOtherCollaborationProject(project)) {
+		if (isOtherCollaborationProject(resolvedProject)) {
 			targetWorkspaceId = SHARE_WORKSPACE_ID
 		} else {
-			targetWorkspaceId = project.workspace_id
+			targetWorkspaceId = resolvedProject.workspace_id
 		}
 
 		// 2. 乐观状态更新
-		projectStore.setSelectedProject(project)
+		projectStore.setSelectedProject(resolvedProject)
 
 		// 如果工作区已在缓存中，立即更新
 		let optimisticWorkspaceId: string | null = null
@@ -474,17 +486,17 @@ class SuperMagicService {
 			this.topicStore.setSelectedTopic(null) // Clear first, wait for background data
 			this.route.navigateToTopic({
 				workspaceId: navigationWorkspaceId,
-				projectId: project.id,
+				projectId: resolvedProject.id,
 				topicId: optimisticTopicId,
 			})
 			navigatedToTopic = true
 		} else {
 			// Navigate to project optimistically
 			this.topicStore.setSelectedTopic(null)
-			if (isOtherCollaborationProject(project)) {
-				this.route.navigateToCollaborationProject(project)
+			if (isOtherCollaborationProject(resolvedProject)) {
+				this.route.navigateToCollaborationProject(resolvedProject)
 			} else {
-				this.route.navigateToProject(project)
+				this.route.navigateToProject(resolvedProject)
 			}
 		}
 
@@ -511,20 +523,20 @@ class SuperMagicService {
 					this.topicStore.setSelectedTopic(actualTopic)
 
 					// Verify the topic belongs to the project
-					if (actualTopic.project_id !== project.id) {
+					if (actualTopic.project_id !== resolvedProject.id) {
 						// Topic doesn't belong to this project, navigate back to project
 						this.topicStore.setSelectedTopic(null)
-						if (isOtherCollaborationProject(project)) {
-							this.route.navigateToCollaborationProject(project, true)
+						if (isOtherCollaborationProject(resolvedProject)) {
+							this.route.navigateToCollaborationProject(resolvedProject, true)
 						} else {
-							this.route.navigateToProject(project, true)
+							this.route.navigateToProject(resolvedProject, true)
 						}
 					}
 
 					// Load topic list in the background
 					requestIdleCallback(() => {
 						this.topic.fetchTopics({
-							projectId: project.id,
+							projectId: resolvedProject.id,
 							isAutoSelect: false,
 							page: 1,
 						})
@@ -532,10 +544,10 @@ class SuperMagicService {
 				} else {
 					// Topic not found, navigate back to project
 					this.topicStore.setSelectedTopic(null)
-					if (isOtherCollaborationProject(project)) {
-						this.route.navigateToCollaborationProject(project, true)
+					if (isOtherCollaborationProject(resolvedProject)) {
+						this.route.navigateToCollaborationProject(resolvedProject, true)
 					} else {
-						this.route.navigateToProject(project, true)
+						this.route.navigateToProject(resolvedProject, true)
 					}
 				}
 			} else {
@@ -544,7 +556,7 @@ class SuperMagicService {
 				})
 				// Normal project switch without topic, fetch topic list
 				this.topic
-					.fetchTopics({ projectId: project.id, isAutoSelect: false, page: 1 })
+					.fetchTopics({ projectId: resolvedProject.id, isAutoSelect: false, page: 1 })
 					.finally(() => {
 						runInAction(() => {
 							this.topicStore.setFetchList(false)

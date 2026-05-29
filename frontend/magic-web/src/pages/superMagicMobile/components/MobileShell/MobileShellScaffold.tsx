@@ -1,7 +1,4 @@
-import { useEffect, useRef } from "react"
-
 import { cn } from "@/lib/utils"
-import { useTheme } from "@/models/config/hooks"
 
 export interface MobileShellScaffoldProps {
 	isSidebarOpen: boolean
@@ -10,11 +7,6 @@ export interface MobileShellScaffoldProps {
 	onCloseSidebar: () => void
 	/** `data-testid` 前缀，各路由应使用唯一前缀避免 E2E 冲突 */
 	testIdPrefix?: string
-	/**
-	 * 是否同步 `theme-color` 与 `html/body` 背景（全屏壳层场景一般为 true）。
-	 * 若页面外层已有统一主题管理，可设为 false 避免互相覆盖。
-	 */
-	syncDocumentTheme?: boolean
 	/** 蒙层关闭按钮的无障碍文案（建议走 i18n） */
 	closeSidebarAriaLabel?: string
 	rootClassName?: string
@@ -35,37 +27,11 @@ export default function MobileShellScaffold({
 	panel,
 	onCloseSidebar,
 	testIdPrefix = "mobile-shell",
-	syncDocumentTheme = true,
 	closeSidebarAriaLabel = "Close sidebar",
 	rootClassName,
 	panelClassName,
 }: MobileShellScaffoldProps) {
 	const transitionMs = 350
-	const panelRef = useRef<HTMLDivElement>(null)
-	const { prefersColorScheme } = useTheme()
-
-	useEffect(() => {
-		if (!syncDocumentTheme || !panelRef.current) return
-
-		const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-		const previousThemeColor = themeMeta?.getAttribute("content")
-		const previousHtmlBackground = document.documentElement.style.background
-		const previousBodyBackground = document.body.style.background
-		// Match panel surface (mobile-background) so viewport-fit=cover gaps align with page chrome.
-		const nextThemeColor = getComputedStyle(panelRef.current).backgroundColor
-
-		themeMeta?.setAttribute("content", nextThemeColor)
-		document.documentElement.style.background = nextThemeColor
-		document.body.style.background = nextThemeColor
-
-		return () => {
-			if (themeMeta && previousThemeColor) {
-				themeMeta.setAttribute("content", previousThemeColor)
-			}
-			document.documentElement.style.background = previousHtmlBackground
-			document.body.style.background = previousBodyBackground
-		}
-	}, [isSidebarOpen, prefersColorScheme, syncDocumentTheme])
 
 	return (
 		<div
@@ -100,7 +66,6 @@ export default function MobileShellScaffold({
 				)}
 
 				<div
-					ref={panelRef}
 					className={cn(
 						// 共享 panel 容器默认铺一层不透明背景，避免业务页忘记设置背景时透出后侧栏内容。
 						"ease-[cubic-bezier(0.4,0,0.2,1)] absolute inset-0 z-30 overflow-hidden bg-mobile-background",

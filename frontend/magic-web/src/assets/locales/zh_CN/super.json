@@ -241,6 +241,7 @@
 		"deleteChatSuccess": "删除成功",
 		"friend": "朋友",
 		"greet": "嗨, {{name}}",
+		"chatNameFieldLabel": "对话名称",
 		"inputChatName": "请输入对话名称",
 		"noChats": "暂无对话",
 		"noPreview": "暂无对话预览",
@@ -1592,6 +1593,9 @@
 			"loader": {
 				"noMoreData": "没有更多数据了"
 			},
+			"pathScopes": {
+				"workspaces": "工作空间"
+			},
 			"restorePicker": {
 				"backAria": "返回",
 				"cancelAria": "取消",
@@ -1659,6 +1663,7 @@
 			"navTrash": "回收站",
 			"navWorkspaces": "工作空间",
 			"recentlyUsed": "最近使用",
+			"refreshRecentlyUsed": "刷新最近使用",
 			"upgrade": "升级"
 		}
 	},

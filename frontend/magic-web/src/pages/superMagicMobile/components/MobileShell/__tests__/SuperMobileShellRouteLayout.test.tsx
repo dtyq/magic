@@ -6,6 +6,14 @@ import {
 	useSuperMobileShellOutlet,
 } from "../SuperMobileShellRouteLayout"
 
+const setDocumentThemeSidebarOpenMock = vi.fn()
+
+vi.mock("@/pages/superMagicMobile/components/MobileDocumentTheme", () => ({
+	useMobileDocumentThemeControl: () => ({
+		setSidebarOpen: setDocumentThemeSidebarOpenMock,
+	}),
+}))
+
 const reloadRecentItemsMock = vi.fn<() => Promise<void>>()
 
 vi.mock("@/layouts/BaseLayoutMobile/components/MobileTabBar/constants/tabsConfig.shared", () => ({
@@ -98,6 +106,7 @@ describe("SuperMobileShellRouteLayout", () => {
 	beforeEach(() => {
 		reloadRecentItemsMock.mockReset()
 		reloadRecentItemsMock.mockResolvedValue(undefined)
+		setDocumentThemeSidebarOpenMock.mockReset()
 	})
 
 	it("silently reloads recent items whenever the sidebar opens", async () => {

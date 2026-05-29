@@ -242,6 +242,7 @@
 		"deleteChatSuccess": "Deleted successfully",
 		"friend": "My friend",
 		"greet": "Hi! {{name}}",
+		"chatNameFieldLabel": "Conversation Name",
 		"inputChatName": "Please enter conversation name",
 		"noChats": "No conversations yet",
 		"noPreview": "No conversation preview yet",
@@ -1592,6 +1593,9 @@
 			"loader": {
 				"noMoreData": "You've seen everything!"
 			},
+			"pathScopes": {
+				"workspaces": "Workspace"
+			},
 			"restorePicker": {
 				"backAria": "Back",
 				"cancelAria": "Cancel",
@@ -1659,6 +1663,7 @@
 			"navTrash": "Trash",
 			"navWorkspaces": "Workspaces",
 			"recentlyUsed": "Recently used",
+			"refreshRecentlyUsed": "Refresh recently used",
 			"upgrade": "Upgrade"
 		}
 	},

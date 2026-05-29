@@ -13,6 +13,7 @@ import {
 	ensureChatWorkspaceId,
 } from "@/pages/superMagic/hooks/useChatWorkspace"
 import type { MobileShellMenuRecentItem } from "./MobileShellMenuContext"
+import { mergeProjectListItemWithStoreCache } from "@/pages/superMagicMobile/utils/mergeProjectListItemWithStoreCache"
 
 const RECENT_PROJECTS_PAGE_SIZE = 20
 
@@ -110,13 +111,25 @@ async function requestRecentProjects(page: number): Promise<{
 	}
 }
 
+/** Writes recent rows into workspace cache without dropping richer permission fields. */
 function warmRecentProjectsCache(projects: ProjectListItem[]) {
 	projects.forEach((project) => {
 		const cachedProjects = projectStore.getProjectsByWorkspace(project.workspace_id)
-		const hasCachedProject = cachedProjects.some((item) => item.id === project.id)
-		if (hasCachedProject) return
+		const existing = cachedProjects.find((item) => item.id === project.id)
 
-		projectStore.setProjectsForWorkspace(project.workspace_id, [project, ...cachedProjects])
+		if (existing?.user_role && !project.user_role) return
+
+		const merged = mergeProjectListItemWithStoreCache(project) ?? project
+
+		if (existing) {
+			projectStore.setProjectsForWorkspace(
+				project.workspace_id,
+				cachedProjects.map((item) => (item.id === project.id ? merged : item)),
+			)
+			return
+		}
+
+		projectStore.setProjectsForWorkspace(project.workspace_id, [merged, ...cachedProjects])
 	})
 }
 

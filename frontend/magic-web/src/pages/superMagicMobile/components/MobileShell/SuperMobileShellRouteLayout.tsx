@@ -12,6 +12,7 @@ import { MagiClawNavIcon } from "@/pages/superMagicMobile/components/icons/MagiC
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { MobileSettingsPanel } from "@/layouts/BaseLayoutMobile/components/MobileSettings"
+import { useMobileDocumentThemeControl } from "@/pages/superMagicMobile/components/MobileDocumentTheme"
 import { MobileSettingsProvider } from "@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext"
 import { isMagicApp } from "@/utils/devices"
 
@@ -86,6 +87,12 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 	})
 	const { recentItems, reloadRecentItems, loadMoreRecentItems, hasMore } =
 		useRecentProjectsForMenu()
+	const { setSidebarOpen: setDocumentThemeSidebarOpen } = useMobileDocumentThemeControl()
+
+	useEffect(() => {
+		setDocumentThemeSidebarOpen(isSidebarOpen)
+		return () => setDocumentThemeSidebarOpen(false)
+	}, [isSidebarOpen, setDocumentThemeSidebarOpen])
 
 	useEffect(() => {
 		if (!isSidebarOpen) return

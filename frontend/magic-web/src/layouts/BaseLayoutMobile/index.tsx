@@ -19,6 +19,10 @@ import { useGlobalSafeArea } from "@/hooks/useGlobalSafeArea"
 import { interfaceStore } from "@/stores/interface"
 import NavigatePopup from "./components/NavigatePopup"
 import { shouldDisableGlobalSafeArea } from "./components/GlobalSafeArea/utils"
+import {
+	MobileDocumentThemeProvider,
+	MobileDocumentThemeSync,
+} from "@/pages/superMagicMobile/components/MobileDocumentTheme"
 
 const MobileTabBar = lazy(() => import("./components/MobileTabBar"))
 
@@ -79,34 +83,38 @@ const BaseLayoutMobile = () => {
 
 	return (
 		<ConfigProvider>
-			<div className={styles.root}>
-				<GlobalSafeArea direction="top" />
-				<div
-					className={cx(styles.container, {
-						[styles.view]: hasVisibleTabBar,
-						[styles.noGlobalSafeAreaWithoutTabBar]:
-							(!shouldShowTabBar || !interfaceStore.mobileTabBarVisible) &&
-							isNoGlobalSafeArea,
-						[styles.noGlobalSafeAreaWithTabBar]: hasVisibleTabBar && isNoGlobalSafeArea,
-					})}
-					onClick={handleClick}
-				>
-					{Content}
+			<MobileDocumentThemeProvider>
+				<MobileDocumentThemeSync />
+				<div className={styles.root}>
+					<GlobalSafeArea direction="top" />
+					<div
+						className={cx(styles.container, {
+							[styles.view]: hasVisibleTabBar,
+							[styles.noGlobalSafeAreaWithoutTabBar]:
+								(!shouldShowTabBar || !interfaceStore.mobileTabBarVisible) &&
+								isNoGlobalSafeArea,
+							[styles.noGlobalSafeAreaWithTabBar]:
+								hasVisibleTabBar && isNoGlobalSafeArea,
+						})}
+						onClick={handleClick}
+					>
+						{Content}
+					</div>
+					{hasVisibleTabBar && (
+						<Suspense fallback={null}>
+							<MobileTabBar />
+						</Suspense>
+					)}
+					<GlobalSafeArea direction="bottom" />
 				</div>
-				{hasVisibleTabBar && (
-					<Suspense fallback={null}>
-						<MobileTabBar />
-					</Suspense>
-				)}
-				<GlobalSafeArea direction="bottom" />
-			</div>
-			{/* <ComponentRender componentName={DefaultComponents.GlobalMobileSidebar} /> */}
-			<OrganizationSwitchPanel />
-			{/* 全局文件夹上传进度组件 */}
-			<MultiFolderUploadToast />
-			{/* 导航菜单弹层 */}
-			<NavigatePopup />
-			<ShareManagementContainer />
+				{/* <ComponentRender componentName={DefaultComponents.GlobalMobileSidebar} /> */}
+				<OrganizationSwitchPanel />
+				{/* 全局文件夹上传进度组件 */}
+				<MultiFolderUploadToast />
+				{/* 导航菜单弹层 */}
+				<NavigatePopup />
+				<ShareManagementContainer />
+			</MobileDocumentThemeProvider>
 		</ConfigProvider>
 	)
 }
