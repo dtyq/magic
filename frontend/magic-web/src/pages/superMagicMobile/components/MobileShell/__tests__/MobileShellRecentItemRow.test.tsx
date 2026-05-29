@@ -12,11 +12,19 @@ function touchStart(element: Element) {
 	})
 }
 
-function touchEnd(element: Element) {
+function touchMove(element: Element, clientX: number, clientY: number) {
+	fireEvent.touchMove(element, {
+		touches: [{ clientX, clientY }],
+		targetTouches: [{ clientX, clientY }],
+		changedTouches: [{ clientX, clientY }],
+	})
+}
+
+function touchEnd(element: Element, clientX = 0, clientY = 0) {
 	fireEvent.touchEnd(element, {
 		touches: [],
 		targetTouches: [],
-		changedTouches: [{ clientX: 0, clientY: 0 }],
+		changedTouches: [{ clientX, clientY }],
 	})
 }
 
@@ -82,9 +90,19 @@ describe("MobileShellRecentItemRow", () => {
 		touchStart(titleButton)
 		touchEnd(titleButton)
 
-		expect(onRecentNavigate).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "recent-1" }),
-		)
+		expect(onRecentNavigate).toHaveBeenCalledWith(expect.objectContaining({ id: "recent-1" }))
+		expect(onOpenActions).not.toHaveBeenCalled()
+	})
+
+	it("does not navigate when touch moves beyond threshold before release", () => {
+		const { onRecentNavigate, onOpenActions } = renderRow()
+
+		const titleButton = screen.getByTestId("mobile-super-shell-recent-recent-1")
+		touchStart(titleButton)
+		touchMove(titleButton, 0, 30)
+		touchEnd(titleButton, 0, 30)
+
+		expect(onRecentNavigate).not.toHaveBeenCalled()
 		expect(onOpenActions).not.toHaveBeenCalled()
 	})
 

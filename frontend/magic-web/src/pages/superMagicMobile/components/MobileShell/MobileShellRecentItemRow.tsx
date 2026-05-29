@@ -1,4 +1,4 @@
-import { useRef } from "react"
+import { useRef, type TouchEvent } from "react"
 import { useLongPress, useMemoizedFn } from "ahooks"
 import { Ellipsis, Loader } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -67,6 +67,9 @@ function SharedBadgeIcon() {
 
 export type RecentItemActionSource = "more" | "longPress"
 
+/** Max finger movement (px) still treated as a tap; scrolling beyond this suppresses navigation. */
+const RECENT_ITEM_TAP_MOVE_THRESHOLD = 10
+
 export interface MobileShellRecentItemRowProps {
 	item: MobileShellMenuRecentItem
 	testIdPrefix: string
@@ -90,6 +93,9 @@ export function MobileShellRecentItemRow({
 	onOpenActions,
 }: MobileShellRecentItemRowProps) {
 	const titleRef = useRef<HTMLButtonElement>(null)
+	// Tracks whether the current touch gesture moved enough to count as scroll (not a tap).
+	const hasGestureMovedRef = useRef(false)
+	const touchStartPositionRef = useRef<{ x: number; y: number } | null>(null)
 
 	const handleNavigate = useMemoizedFn(() => {
 		onRecentNavigate(item)
@@ -99,6 +105,48 @@ export function MobileShellRecentItemRow({
 		if (!item.project) return
 
 		onOpenActions(item, "more")
+	})
+
+	/** Reads the first active touch point for movement threshold checks. */
+	const getTouchClientPosition = useMemoizedFn((event: TouchEvent) => {
+		const touch = event.touches[0] ?? event.changedTouches[0]
+		if (!touch) return null
+
+		return { x: touch.clientX, y: touch.clientY }
+	})
+
+	/** Marks the gesture as scroll when finger displacement exceeds the tap threshold. */
+	const markGestureMovedIfNeeded = useMemoizedFn((clientX: number, clientY: number) => {
+		const start = touchStartPositionRef.current
+		if (!start) return
+
+		const deltaX = Math.abs(clientX - start.x)
+		const deltaY = Math.abs(clientY - start.y)
+		if (deltaX > RECENT_ITEM_TAP_MOVE_THRESHOLD || deltaY > RECENT_ITEM_TAP_MOVE_THRESHOLD) {
+			hasGestureMovedRef.current = true
+		}
+	})
+
+	const handleTitleTouchStart = useMemoizedFn((event: TouchEvent) => {
+		hasGestureMovedRef.current = false
+		const position = getTouchClientPosition(event)
+		touchStartPositionRef.current = position
+	})
+
+	const handleTitleTouchMove = useMemoizedFn((event: TouchEvent) => {
+		const position = getTouchClientPosition(event)
+		if (!position) return
+
+		markGestureMovedIfNeeded(position.x, position.y)
+	})
+
+	const handleTitleTouchCancel = useMemoizedFn((event: TouchEvent) => {
+		const position = getTouchClientPosition(event)
+		if (position) {
+			markGestureMovedIfNeeded(position.x, position.y)
+		}
+		hasGestureMovedRef.current = true
+		touchStartPositionRef.current = null
 	})
 
 	// useLongPress owns short tap vs long press; native onClick is intentionally omitted on the title button.
@@ -113,6 +161,9 @@ export function MobileShellRecentItemRow({
 			delay: 500,
 			moveThreshold: { x: 20, y: 20 },
 			onClick: () => {
+				// ahooks still fires onClick after scroll; skip navigation when the finger moved.
+				if (hasGestureMovedRef.current) return
+
 				handleNavigate()
 			},
 		},
@@ -132,7 +183,10 @@ export function MobileShellRecentItemRow({
 				type="button"
 				data-testid={`${testIdPrefix}-recent-${item.id}`}
 				onContextMenu={(event) => event.preventDefault()}
-				className="flex h-9 min-w-0 items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-sm text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10"
+				onTouchStart={handleTitleTouchStart}
+				onTouchMove={handleTitleTouchMove}
+				onTouchCancel={handleTitleTouchCancel}
+				className="flex h-9 min-w-0 touch-pan-y items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-sm text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10"
 			>
 				{item.inProgress && (
 					<Loader className="size-4 shrink-0 animate-spin text-foreground" />
