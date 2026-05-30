@@ -48,10 +48,7 @@ export const FileTabMagicIcon = memo(function FileTabMagicIcon({
 		return <MagicFileIcon type="replay" size={size} className={className} />
 	}
 
-	if (
-		fd.display_config?.type === "custom" ||
-		(fd.display_config?.type === "micro-app" && fd.is_directory)
-	) {
+	if (fd.display_config?.type === "custom" || fd.display_config?.type === "micro-app") {
 		return (
 			<CustomFolderMagicIcon
 				displayConfig={fd.display_config}
