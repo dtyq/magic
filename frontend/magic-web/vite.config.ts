@@ -182,7 +182,6 @@ function getBaseViteConfig(): UserConfig {
 		},
 		plugins: [
 			createAppServiceWorkerPlugin(),
-			createCanvasDesignPublicAssetsPlugin(),
 			// Transform named imports from @/components/base to default imports
 			// 将 @/components/base 的命名导入转换为默认导入
 			vitePluginTransformBaseImports({

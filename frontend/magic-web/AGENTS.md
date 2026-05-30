@@ -53,20 +53,6 @@ Guidance for autonomous or semi-autonomous coding agents contributing to the Mag
 - When touching MobX stores, ensure actions remain pure and derivations are memoized where necessary.
 - Keep business logic out of presentation components—place it in services or hooks.
 
-## Service Worker Cache Governance
-- Treat SW caching as an explicit boundary design task, not an implicit optimization.
-- Keep HTML navigation requests online-first: do not cache `index.html` / `search.html` / `shared.html` by default.
-- Keep `config.js`, `mockServiceWorker.js`, and `/sw.js` out of runtime cache buckets.
-- Keep `/canvas-design-media/**` isolated from the main SW cache boundary.
-- Prefer path-based rules for versioned resources first (hashed `/assets/**`, versioned `/packages/**`, `/emojis/**`).
-- For same-origin fixed-name high-value resources (for example `wasm`, `worker`, or fixed-name runtime scripts), use `markServiceWorkerCacheableResourceUrl(resourceUrl, version)` to opt in explicitly.
-- When using `markServiceWorkerCacheableResourceUrl(resourceUrl, version)`, maintain `version` by the resource's own change lifecycle (manual bump on resource content change), not by the product-wide app version.
-- Do not broaden fuzzy route matching to absorb fixed-name resources; create or reuse explicit marker-based buckets instead.
-- In emergency disable flows, require explicit cache targets for kill mode (`MAGIC_SW_CLEAR_CACHES`), and support `ALL` (case-insensitive) only as an intentional operator.
-- Keep `MAGIC_SW_MODE=off` behavior as unregister-only (no cache deletion), and `MAGIC_SW_MODE=kill` as explicit cleanup + unregister.
-- Any SW cache boundary change must include: affected bucket list, rollback plan, and verification checklist (DevTools cache hit, update activation, and recovery path).
-- When updating SW-related entry resources, check both OSS and enterprise entry files for parity (`index.html`, `src/main.tsx`).
-
 ## Workflow for Agents
 1. **Orient**: Read the user request, repo instructions (`README.md`, `CLAUDE.local.md`, this file), and any task-specific files.
 2. **Investigate**: Use `rg`/`pnpm` tooling to locate relevant code; inspect existing patterns before creating new ones.
