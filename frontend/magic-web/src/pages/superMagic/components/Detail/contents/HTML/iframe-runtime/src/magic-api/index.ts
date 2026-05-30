@@ -12,6 +12,7 @@ import { MagicInputApi } from "./MagicInputApi"
 import { MagicI18nApi } from "./MagicI18nApi"
 import { MagicAgentApi } from "./MagicAgentApi"
 import { MagicWorkspaceApi } from "./MagicWorkspaceApi"
+import { MagicUserApi } from "./MagicUserApi"
 
 export function installMagicAPIs(): void {
 	if (typeof window === "undefined") return
@@ -22,4 +23,5 @@ export function installMagicAPIs(): void {
 	new MagicI18nApi().install()
 	new MagicWorkspaceApi().install()
 	new MagicAgentApi().install()
+	new MagicUserApi().install()
 }

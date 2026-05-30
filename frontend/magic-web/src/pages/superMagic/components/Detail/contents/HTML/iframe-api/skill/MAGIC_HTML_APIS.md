@@ -1,6 +1,6 @@
 # HTML 微应用 window.Magic API 使用指南
 
-本文档说明如何在 SuperMagic 的 HTML 微应用中调用 `window.Magic.*` 系列 API，涵盖文件读写（`fs`）和大模型调用（`llm`）两大类能力。
+本文档说明如何在 SuperMagic 的 HTML 微应用中调用 `window.Magic.*` 系列 API，涵盖文件读写（`fs`）、大模型调用（`llm`）、Agent 交互、项目操作（`project`）及用户信息（`user`）等能力。
 
 ---
 
@@ -544,7 +544,49 @@ await window.Magic.project.sendMessage({
 | `directory_path`     | `string` | 是   | 相对路径（相对于工作区根目录）                |
 | `directory_metadata` | `object` | 是   | 目录元数据（含 `version?`, `type?`, `name?`） |
 
-## 六、向后兼容说明
+## 六、用户信息 API（`window.Magic.user`）
+
+### 6.1 获取当前用户信息 `getInfo()`
+
+获取当前登录用户的基础信息，可用于展示头像、姓名，或在表单中自动填充用户字段。
+
+```javascript
+const user = await window.Magic.user.getInfo()
+// → {
+//   user_id: "u_abc123",
+//   magic_id: "m_xyz789",
+//   nickname: "小明",
+//   real_name: "张明",
+//   name: "张明",          // 展示用名称（优先 real_name，不存在则 nickname）
+//   avatar: "https://cdn.example.com/avatars/u_abc123.png",
+//   organization_code: "ORG001"
+// }
+
+// 用于展示
+document.getElementById("avatar").src = user.avatar
+document.getElementById("username").textContent = user.name
+
+// 用于表单预填
+document.getElementById("form-name").value = user.name
+```
+
+**返回**：`Promise<UserInfo>` — 当前用户的基础信息。
+
+| 字段                | 类型     | 说明                                                |
+| ------------------- | -------- | --------------------------------------------------- |
+| `user_id`           | `string` | 用户在当前组织下的 ID                               |
+| `magic_id`          | `string` | Magic 全局唯一 ID                                   |
+| `nickname`          | `string` | 昵称                                                |
+| `real_name`         | `string` | 真实姓名（可能为空）                                |
+| `name`              | `string` | 展示用名称（`real_name` 优先，不存在则 `nickname`） |
+| `avatar`            | `string` | 头像 URL                                            |
+| `organization_code` | `string` | 当前组织编码                                        |
+
+**超时**：15 秒无响应自动 reject。
+
+---
+
+## 七、向后兼容说明
 
 以下旧路径仍然可用，但建议迁移到新的命名空间：
 
@@ -559,7 +601,7 @@ await window.Magic.project.sendMessage({
 
 ---
 
-## 七、完整示例
+## 八、完整示例
 
 ### 示例 A：读数据 → LLM 分析 → 写回结果 → 通知 Agent
 
@@ -719,7 +761,7 @@ await window.Magic.project.sendMessage({
 
 ---
 
-## 八、错误处理最佳实践
+## 九、错误处理最佳实践
 
 ```javascript
 // fs 错误处理
@@ -756,7 +798,7 @@ window.Magic.llm.stream(messages, (delta, done) => {
 
 ---
 
-## 九、API 速查表
+## 十、API 速查表
 
 | API                                                   | 说明                                                              | 返回                     |
 | ----------------------------------------------------- | ----------------------------------------------------------------- | ------------------------ |
@@ -775,3 +817,4 @@ window.Magic.llm.stream(messages, (delta, done) => {
 | `window.Magic.project.addFilesToMessage(files)`       | 将文件附加到输入框                                                | `Promise<unknown>`       |
 | `window.Magic.project.createTopicAndSend(msg, opts?)` | 新建话题并发送消息（msg 支持 string 或 tiptap JSON）              | `Promise<{ topicId }>`   |
 | `window.Magic.project.sendMessage(msg, opts?)`        | 当前话题发送消息（msg 支持 string 或 tiptap JSON）                | `Promise<void>`          |
+| `window.Magic.user.getInfo()`                         | 获取当前用户信息（头像、姓名等）                                  | `Promise<UserInfo>`      |

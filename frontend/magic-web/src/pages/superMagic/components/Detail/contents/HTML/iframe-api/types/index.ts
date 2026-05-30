@@ -289,6 +289,47 @@ export interface AgentSendMessageResponse {
 	error?: string
 }
 
+// ─── UserInfo 消息类型常量 ────────────────────────────────────────────────────
+
+export const USER_INFO_MESSAGE_TYPES = {
+	GET_USER_INFO_REQUEST: "MAGIC_GET_USER_INFO_REQUEST",
+	GET_USER_INFO_RESPONSE: "MAGIC_GET_USER_INFO_RESPONSE",
+} as const
+
+export type UserInfoMessageType = (typeof USER_INFO_MESSAGE_TYPES)[keyof typeof USER_INFO_MESSAGE_TYPES]
+
+// ─── UserInfo 消息报文 ───────────────────────────────────────────────────────
+
+export interface UserInfo {
+	/** 用户 ID */
+	user_id: string
+	/** Magic 全局唯一 ID */
+	magic_id: string
+	/** 昵称 */
+	nickname: string
+	/** 真实姓名 */
+	real_name: string
+	/** 展示用名称（real_name 优先，不存在则 nickname） */
+	name: string
+	/** 头像 URL */
+	avatar: string
+	/** 当前组织编码 */
+	organization_code: string
+}
+
+export interface UserInfoGetRequest {
+	type: typeof USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST
+	requestId: string
+}
+
+export interface UserInfoGetResponse {
+	type: typeof USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE
+	requestId: string
+	success: boolean
+	userInfo?: UserInfo
+	error?: string
+}
+
 // ─── HTML 应用配置（app.json，可选） ─────────────────────────────────────────
 
 /**

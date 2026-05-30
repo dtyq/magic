@@ -544,6 +544,17 @@ declare global {
 					options?: Record<string, unknown>,
 				) => () => void
 			}
+			user?: {
+				getInfo: () => Promise<{
+					user_id: string
+					magic_id: string
+					nickname: string
+					real_name: string
+					name: string
+					avatar: string
+					organization_code: string
+				}>
+			}
 		}
 	}
 }

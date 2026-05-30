@@ -90,6 +90,7 @@ import { POST_MESSAGE_TARGET_STRATEGIES, type OnFetchIntercepted } from "./utils
 import { useIframeFS } from "./iframe-api/hooks/useIframeFS"
 import { useIframeLLM } from "./iframe-api/hooks/useIframeLLM"
 import { useIframeAgent } from "./iframe-api/hooks/useIframeAgent"
+import { useIframeUserInfo } from "./iframe-api/hooks/useIframeUserInfo"
 import { useMagicFiles } from "./iframe-api/hooks/useMagicFiles"
 import { useIframeAgentActions } from "./hooks/useIframeAgentActions"
 import { saveIframeFileContent, createIframeFile } from "./iframe-api/iframeApi"
@@ -601,6 +602,25 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			createTopicAndSend,
 			sendMessage,
 			enableWriteOperations: true,
+		})
+
+		const { handleUserInfoMessage } = useIframeUserInfo({
+			iframeRef,
+			getUserInfo: useMemoizedFn(() => {
+				const info = userStore.user.userInfo
+				if (!info) return null
+				const realName = info.real_name || ""
+				const nickname = info.nickname || ""
+				return {
+					user_id: info.user_id || "",
+					magic_id: info.magic_id || "",
+					nickname,
+					real_name: realName,
+					name: realName || nickname,
+					avatar: info.avatar || "",
+					organization_code: info.organization_code || "",
+				}
+			}),
 		})
 
 		const isDynamicInterceptionEnabled = !disableDynamicResourceInterception
@@ -1361,6 +1381,9 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				) {
 					// 处理 window.Magic.getAgents / createTopicAndSend / sendMessage 请求
 					await handleAgentMessage(event.data.type, event.data)
+				} else if (event.data?.type?.startsWith("MAGIC_GET_USER_INFO_")) {
+					// 处理 window.Magic.user.getInfo() 请求
+					await handleUserInfoMessage(event.data.type, event.data)
 				} else if (event.data && event.data.type === "MAGIC_RELOAD_REQUEST") {
 					// 处理 window.Magic.reload() 请求
 					reloadIframeContent()
