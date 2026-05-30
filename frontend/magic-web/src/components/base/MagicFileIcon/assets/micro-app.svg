@@ -1,0 +1,15 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E4E4EC"/>
+    </linearGradient>
+  </defs>
+  <!-- Gradient background -->
+  <rect width="24" height="24" rx="5" fill="url(#bgGrad)"/>
+  <!-- 2x2 colorful app tiles -->
+  <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2" fill="#FF6B6B"/>
+  <rect x="13" y="3.5" width="7.5" height="7.5" rx="2" fill="#FB923C"/>
+  <rect x="3.5" y="13" width="7.5" height="7.5" rx="2" fill="#818CF8"/>
+  <rect x="13" y="13" width="7.5" height="7.5" rx="2" fill="#34D399"/>
+</svg>

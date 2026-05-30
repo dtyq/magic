@@ -608,7 +608,8 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 									width={16}
 									height={16}
 								/>
-							) : item?.metadata?.type === "custom" ? (
+							) : item?.metadata?.type === "custom" ||
+							  (item?.metadata?.type === "micro-app" && item?.is_directory) ? (
 								<CustomFolderMagicIcon
 									displayConfig={item?.display_config}
 									childrenItems={getChildrenForCustomMetadataIconPath(
@@ -621,7 +622,7 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 													)
 												: null,
 									)}
-									typeFallback="custom"
+									typeFallback={item?.metadata?.type}
 									size={16}
 								/>
 							) : (

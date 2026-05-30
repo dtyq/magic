@@ -10,6 +10,11 @@
 2. 所有文件路径以 **应用根目录**（`index.html` 所在目录）为基准，禁止使用 `../` 穿越到上级目录。
 3. `window.Magic.llm` 的 token 由宿主托管，HTML 内无法直接获取 `api_key`；直接调用方法即可。
 4. 文件写入后，若需要让 Agent 感知到数据变化，调用 `window.Magic.setInputMessage()` 通知 Agent。
+5. 每个微应用文件夹必须包含 `magic.project.js`，这使得点击文件夹图标时直接打开 `index.html`（而非展开文件树）。格式：
+    ```javascript
+    window.magicProjectConfig = { version: "1.0.0", type: "micro-app", name: "应用名" }
+    window.magicProjectConfigure(window.magicProjectConfig)
+    ```
 
 ---
 

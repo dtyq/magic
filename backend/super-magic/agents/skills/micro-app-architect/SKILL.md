@@ -56,6 +56,7 @@ Every micro-app request follows this sequence:
    └─ Wait for user confirmation before proceeding
 
 5. Generation Phase
+   ├─ Generate magic.project.js (project manifest, always first)
    ├─ Generate HTML file(s)
    ├─ Generate companion workspace skill(s) (if needed)
    ├─ Create initial data files (if needed)
@@ -478,14 +479,91 @@ window.Magic.setInputMessage("Please summarize the data in data/results.json");
 
 This skill generates the following artifacts:
 
-| Artifact        | Location                                         | Always generated?              |
-| --------------- | ------------------------------------------------ | ------------------------------ |
-| Main HTML       | `<app-dir>/index.html`                           | Yes                            |
-| Data files      | `<app-dir>/data/*.json`                          | If app needs persistence       |
-| Companion skill | 由 `skill-creator` 技能创建                       | If Medium/Complex architecture |
-| README          | `<app-dir>/README.md`                            | For Medium/Complex apps        |
+| Artifact         | Location                     | Always generated?              |
+| ---------------- | ---------------------------- | ------------------------------ |
+| magic.project.js | `<app-dir>/magic.project.js` | Yes                            |
+| Main HTML        | `<app-dir>/index.html`       | Yes                            |
+| Data files       | `<app-dir>/data/*.json`      | If app needs persistence       |
+| Companion skill  | 由 `skill-creator` 技能创建  | If Medium/Complex architecture |
+| README           | `<app-dir>/README.md`        | For Medium/Complex apps        |
 
 **Naming the app directory:** Use the user's language for the directory name. If the user says "做一个销售看板", the directory should be named descriptively (e.g., `销售看板/` or `sales-dashboard/`).
+
+### magic.project.js (Project Manifest)
+
+Every micro-app **must** include a `magic.project.js` file in the app root directory. This file tells the frontend to treat the folder as a Magic Project — clicking the folder icon directly opens `index.html` instead of expanding the file tree.
+
+**Format:** JSONP (not plain JSON). Use this exact template:
+
+```javascript
+window.magicProjectConfig = {
+  version: "1.0.0",
+  type: "micro-app",
+  name: "<app display name>",
+};
+
+window.magicProjectConfigure(window.magicProjectConfig);
+```
+
+### magic.project.js (Project Manifest)
+
+Every micro-app **must** include a `magic.project.js` file in the app root directory. This file tells the frontend to treat the folder as a Magic Project — clicking the folder icon directly opens `index.html` instead of expanding the file tree.
+
+**Format:** JSONP (not plain JSON). Use this exact template:
+
+```javascript
+window.magicProjectConfig = {
+  version: "1.0.0",
+  type: "micro-app",
+  name: "<app display name>",
+};
+
+window.magicProjectConfigure(window.magicProjectConfig);
+```
+
+**Rules:**
+
+- `type` must be `"micro-app"` — this enables the micro-app icon and click-to-open behavior
+- `name` should be user-friendly (e.g., `"销售看板"`, `"Task Manager"`)
+- Always include the `window.magicProjectConfigure(...)` call at the end
+- Generate this file **before** `index.html` so the frontend recognizes the project immediately
+
+**Optional: Custom Icon (`icon` field)**
+
+You can provide a custom icon for the app folder by adding an `icon` field to `magic.project.js`. The value can be:
+
+- A relative path (relative to the app root) pointing to an SVG, PNG, or any image file you generate alongside the app
+- A `data:` URL (inline base64 image) for self-contained manifests
+- An `https://` URL for remote images
+
+```javascript
+window.magicProjectConfig = {
+  version: "1.0.0",
+  type: "micro-app",
+  name: "销售看板",
+  icon: "icon.svg",          // relative path to an SVG in the same directory
+};
+
+window.magicProjectConfigure(window.magicProjectConfig);
+```
+
+**When to use a custom icon:**
+
+- For business/domain apps where a unique icon adds context (e.g., a chart icon for a dashboard, a calendar icon for a scheduler)
+- When the user explicitly asks for a custom icon
+- For apps that will be shared or presented — a custom icon makes them easier to identify
+
+**How to generate an icon:**
+
+Use `write_file` to create a simple SVG in the app directory (e.g., `icon.svg`), then reference it in `magic.project.js`. Example SVG for a sales dashboard:
+
+```svg
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- design a clean, recognizable icon that reflects the app's purpose -->
+</svg>
+```
+
+Keep SVG icons at 24×24, use flat/modern style with 2–3 colors, and ensure the design reflects the app's core function.
 
 ---
 
@@ -507,6 +585,7 @@ For Medium/Complex apps, generate a `README.md` in the app directory documenting
 ```
 
 app-dir/
+├── magic.project.js
 ├── index.html
 ├── data/
 │ └── ...
@@ -545,13 +624,14 @@ When user requests feature changes to an existing micro-app:
 ### Simple App (Pure HTML)
 
 User: "做一个计算器"
-→ Generate `calculator/index.html` with all logic in `<script>`, no companion skill needed.
+→ Generate `calculator/magic.project.js` + `calculator/index.html` with all logic in `<script>`, no companion skill needed.
 
 ### Medium App (HTML + Skill)
 
 User: "做一个能自动分析CSV数据并生成报告的工具"
 → Generate:
 
+- `data-analyzer/magic.project.js` — project manifest (`type: "micro-app"`)
 - `data-analyzer/index.html` — upload UI, results display, watch for report, agent/model selector
 - `data-analyzer/data/` — uploaded data storage
 - 通过 `skill-creator` 创建 `data_analyzer` 伴生技能，定义分析工作流
@@ -563,6 +643,7 @@ Runtime: HTML 通过 @file mention 引用伴生技能 → `createTopicAndSend` �
 User: "做一个内容创作工作台，能让研究员搜集资料，写手写文章，编辑审核"
 → Generate:
 
+- `content-studio/magic.project.js` — project manifest (`type: "micro-app"`)
 - `content-studio/index.html` — agent selector, model selector, task dispatch UI, status dashboard
 - `content-studio/data/` — tasks, drafts, reviews
 - 通过 `skill-creator` 创建 `content_pipeline` 伴生技能，定义编排工作流
