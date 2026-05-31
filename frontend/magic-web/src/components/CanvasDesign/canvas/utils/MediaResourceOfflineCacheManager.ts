@@ -4,6 +4,7 @@ import {
 	normalizeResourceNamespace,
 	normalizeResourcePathForLookup,
 } from "@/workers/service-worker/canvasMediaShared"
+import { isAppServiceWorkerFeatureEnabled } from "@/workers/service-worker/register"
 
 /**
  * 画布媒体离线缓存（主线程 IndexedDB + 主 SW Canvas 虚拟资源通道）。
@@ -93,6 +94,10 @@ interface VirtualResourceHealthState {
 	repairAttempts: number
 }
 
+interface EnsureServiceWorkerOptions {
+	requireController?: boolean
+}
+
 /**
  * Bump this whenever the virtual URL shape, resource id, namespace/scope rules,
  * path normalization, IndexedDB schema, or CacheStorage key semantics change.
@@ -112,6 +117,12 @@ const VIRTUAL_RESOURCE_FAILURE_WINDOW_MS = 10_000
 const VIRTUAL_RESOURCE_FAILURE_THRESHOLD = 3
 const VIRTUAL_RESOURCE_FALLBACK_COOLDOWN_MS = 60_000
 const VIRTUAL_RESOURCE_REPAIR_THROTTLE_MS = 30_000
+const SERVICE_WORKER_READY_TIMEOUT_MS = 1500
+
+function readServiceWorkerController(): ServiceWorker | null {
+	if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return null
+	return navigator.serviceWorker.controller
+}
 
 /**
  * 虚拟链接的统一入口前缀。
@@ -303,7 +314,9 @@ export class MediaResourceOfflineCacheManager {
 	 * `exchangeOssSrc` 因 `isActiveConsumer === false` 退回 OSS 直链，从而与 SW 虚拟路径策略不一致。
 	 */
 	private isOfflineCacheFeatureOn(): boolean {
-		return !!this.options && isBrowserOfflineCacheSupported()
+		return (
+			!!this.options && isBrowserOfflineCacheSupported() && isAppServiceWorkerFeatureEnabled()
+		)
 	}
 
 	public static getActiveConsumerCount(): number {
@@ -322,7 +335,7 @@ export class MediaResourceOfflineCacheManager {
 	): Promise<CachedMediaResource | null> {
 		try {
 			if (!this.isOfflineCacheFeatureOn() || this.shouldBypassVirtualResource()) return null
-			const registration = await this.ensureServiceWorker()
+			const registration = await this.ensureServiceWorker({ requireController: true })
 			if (!registration) return null
 			const now = Date.now()
 			const namespace = this.getResourceNamespace()
@@ -526,16 +539,32 @@ export class MediaResourceOfflineCacheManager {
 	 * 这一步的意义是让“虚拟链接”具备可解释性：渲染层拿到的是同源占位 URL，
 	 * 但真正的响应由 SW 在后续请求中根据 `cacheKey/sourceUrl` 还原。
 	 */
-	private async ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+	private async ensureServiceWorker(
+		options: EnsureServiceWorkerOptions = {},
+	): Promise<ServiceWorkerRegistration | null> {
 		if (!this.isOfflineCacheFeatureOn()) return null
 
-		const registration = await navigator.serviceWorker.ready.catch(() => null)
+		const registration = await this.waitForServiceWorkerReady()
 		if (!registration) return null
+		if (options.requireController && !readServiceWorkerController()) return null
 
 		this.getRegistrationWorker(registration)?.postMessage({
 			type: "CANVAS_MEDIA_CACHE_CONFIG",
 			maxBytes: this.getMaxBytes(),
 		})
+		return registration
+	}
+
+	private async waitForServiceWorkerReady(): Promise<ServiceWorkerRegistration | null> {
+		let timeoutId: number | undefined
+		const readyPromise = navigator.serviceWorker.ready.catch(() => null)
+		const timeoutPromise = new Promise<null>((resolve) => {
+			timeoutId = window.setTimeout(() => resolve(null), SERVICE_WORKER_READY_TIMEOUT_MS)
+		})
+		const registration = await Promise.race([readyPromise, timeoutPromise])
+		if (timeoutId !== undefined) {
+			window.clearTimeout(timeoutId)
+		}
 		return registration
 	}
 
@@ -759,5 +788,4 @@ export class MediaResourceOfflineCacheManager {
 	private requestVirtualResourceRepair(): void {
 		this.cachePromises.clear()
 	}
-
 }

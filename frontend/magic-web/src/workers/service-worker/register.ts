@@ -38,7 +38,7 @@ function isForceEnableServiceWorkerInDevelopment(): boolean {
 }
 
 function getServiceWorkerMode(): string {
-	return env("MAGIC_SW_MODE")?.trim().toLowerCase() ?? ""
+	return env(SW_MODE_ENV_KEY)?.trim().toLowerCase() ?? ""
 }
 
 function shouldRegisterAppServiceWorker(): boolean {
@@ -46,6 +46,17 @@ function shouldRegisterAppServiceWorker(): boolean {
 	if (serviceWorkerMode === SW_MODE_NONE) return false
 
 	return [SW_MODE_ON, SW_MODE_KILL].includes(serviceWorkerMode)
+}
+
+export function isAppServiceWorkerFeatureEnabled(): boolean {
+	if (
+		isDevelopmentMode() &&
+		!isLocalMockEnabled() &&
+		!isForceEnableServiceWorkerInDevelopment()
+	) {
+		return false
+	}
+	return getServiceWorkerMode() === SW_MODE_ON
 }
 
 function shouldAutoActivateWaitingWorkerOnReload(): boolean {
@@ -374,9 +385,12 @@ function scheduleWarmUpPostMessage(worker: ServiceWorker): void {
 	}
 
 	if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-		window.requestIdleCallback(() => {
-			void postMsg()
-		}, { timeout: 30000 })
+		window.requestIdleCallback(
+			() => {
+				void postMsg()
+			},
+			{ timeout: 30000 },
+		)
 	} else {
 		globalThis.setTimeout(() => {
 			void postMsg()

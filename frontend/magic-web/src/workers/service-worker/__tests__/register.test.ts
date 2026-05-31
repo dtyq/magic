@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	activateWaitingServiceWorkerAndReload,
+	isAppServiceWorkerFeatureEnabled,
 	markServiceWorkerCacheableResourceUrl,
 	registerAppServiceWorker,
 } from "../register"
@@ -205,6 +206,20 @@ describe("registerAppServiceWorker", () => {
 
 		expect(register).not.toHaveBeenCalled()
 		expect(unregister).toHaveBeenCalledTimes(1)
+	})
+
+	it("enables app service worker features only in normal on mode", () => {
+		vi.stubEnv("MAGIC_SW_MODE", "on")
+		expect(isAppServiceWorkerFeatureEnabled()).toBe(true)
+
+		vi.stubEnv("MAGIC_SW_MODE", "kill")
+		expect(isAppServiceWorkerFeatureEnabled()).toBe(false)
+
+		vi.stubEnv("MAGIC_SW_MODE", "off")
+		expect(isAppServiceWorkerFeatureEnabled()).toBe(false)
+
+		vi.stubEnv("MAGIC_SW_MODE", "none")
+		expect(isAppServiceWorkerFeatureEnabled()).toBe(false)
 	})
 
 	it("auto activates waiting worker on browser reload", async () => {
