@@ -269,6 +269,95 @@ const { topicId } = await window.Magic.project.createTopicAndSend(
 - **Path rules for mentions**: `.magic/` paths stay as-is (already at workspace root); app data file paths must be prefixed with `basePath` from `getAppBasePath()`
 - Each skill invocation creates a **new topic** for isolation
 
+### Invoking Built-in System Skills (`@skill` mention)
+
+内置系统技能（如网页搜索、代码执行等）通过 `@skill` mention 调用，与生成的伴生技能使用 `@file` mention 引用 SKILL.md 文件不同。
+
+**两种技能调用方式对比：**
+
+| 类型 | mention type | 数据结构 | 适用场景 |
+|------|-------------|----------|----------|
+| 生成的伴生技能 | `project_file` | `{file_id, file_name, file_path, file_extension}` | 自定义工作流 |
+| 内置系统技能 | `skill` | `{id, name, icon, description, mention_source}` | 平台预注册的能力 |
+
+**`@skill` mention 结构：**
+
+```javascript
+{
+  type: "mention",
+  attrs: {
+    type: "skill",       // ← 注意：不是 "project_file"
+    data: {
+      id: "skill_unique_id",         // 平台分配的技能 ID（必填）
+      name: "网页搜索",               // 技能显示名称（必填）
+      icon: "https://...",           // 技能图标 URL（必填）
+      description: "搜索互联网获取信息", // 技能描述（必填）
+      mention_source: "system",      // 可选: "system" | "agent" | "mine"
+    },
+  },
+}
+```
+
+**`mention_source` 说明：**
+
+| 值 | 含义 |
+|-----|------|
+| `"system"` | 系统内置技能（平台默认提供） |
+| `"agent"` | 绑定在某个员工上的技能 |
+| `"mine"` | 用户自己的技能库（my_library） |
+
+**调用示例 — 在消息中引用系统技能：**
+
+```javascript
+// 创建话题并发送消息，附带 @skill 引用让 Agent 使用指定技能
+const { topicId } = await window.Magic.project.createTopicAndSend(
+  {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "请使用 " },
+          {
+            type: "mention",
+            attrs: {
+              type: "skill",
+              data: {
+                id: "web_search_001",
+                name: "网页搜索",
+                icon: "https://example.com/icons/search.svg",
+                description: "搜索互联网获取最新信息",
+                mention_source: "system",
+              },
+            },
+          },
+          { type: "text", text: " 查找最新的AI行业报告，并将结果整理写入 " },
+          {
+            type: "mention",
+            attrs: {
+              type: "project_file",
+              data: {
+                file_id: "output_ref",
+                file_name: "research.md",
+                file_path: basePath + "data/research.md",
+                file_extension: "md",
+              },
+            },
+          },
+        ],
+      },
+    ],
+  },
+  { model: "auto" },
+);
+```
+
+**何时使用 `@skill` vs `@file` SKILL.md：**
+
+- 需要调用平台已注册的标准能力（搜索、代码执行等）→ `@skill` mention
+- 需要执行自定义的多步骤工作流（数据分析管道、报告生成等）→ `@file` mention 指向 `.magic/skills/<name>/SKILL.md`
+- 两者可以组合使用 — 在同一条消息中同时引用系统技能和伴生技能文件
+
 ---
 
 ## Data Layer Design Patterns
@@ -328,6 +417,64 @@ For apps that need to trigger backend skills or drive multiple agents:
 - When triggering a companion skill, **always create a new topic** (`createTopicAndSend`) — do NOT use `setInputMessage`
 - Default: no `agentId` (general mode), model `"auto"`
 - Provide agent selector + model selector UI when user may want to override defaults
+
+### Built-in Agent IDs
+
+| agentId | 名称 | 说明 |
+|---------|------|------|
+| `general` | 通用模式 | 适用于各种通用场景的智能助手（默认，不传 agentId 即使用此模式） |
+| `chat` | 聊天模式 | 专注于对话交流的智能助手 |
+| `data_analysis` | 数据分析 | 专业的数据分析和处理助手 |
+| `ppt` | PPT | 专业的PPT制作和演示助手 |
+| `summary` | 录音总结 | 专业的录音内容总结助手 |
+
+> 注：除内置 agentId 外，也可以通过 `window.Magic.agent.getAgents()` 获取用户自定义的员工（Agent）列表，使用其 `id` 字段作为 `agentId`。
+
+### Agent Selector UI Pattern
+
+当用户需要调用自定义员工时，应在界面上提供**员工选择器**，并支持通过名称匹配默认选中。实现要点：
+
+```javascript
+// 1. 加载员工列表并渲染选择器
+async function initAgentSelector(defaultAgentName) {
+  const agents = await window.Magic.agent.getAgents();
+
+  // 2. 通过名称模糊匹配默认选中
+  let selectedAgent = null;
+  if (defaultAgentName) {
+    selectedAgent = agents.find(
+      (a) => a.name === defaultAgentName || a.name.includes(defaultAgentName)
+    );
+  }
+
+  // 3. 渲染选择器 UI
+  const selector = document.getElementById("agent-selector");
+  selector.innerHTML = `<option value="">通用模式（不选员工）</option>`;
+  agents.forEach((agent) => {
+    const selected = selectedAgent && agent.id === selectedAgent.id ? "selected" : "";
+    selector.innerHTML += `<option value="${agent.id}" ${selected}>${agent.name}</option>`;
+  });
+}
+
+// 4. 派发任务时读取选中的 agentId
+function getSelectedAgentId() {
+  const selector = document.getElementById("agent-selector");
+  return selector.value || undefined; // 空值 → 通用模式
+}
+
+// 5. 调用时传入
+const { topicId } = await window.Magic.project.createTopicAndSend(
+  tiptapMessage,
+  { agentId: getSelectedAgentId(), model: getSelectedModel() }
+);
+```
+
+**规则：**
+
+- 选择器默认选项为"通用模式"（不传 agentId）
+- 如果用户在需求中指定了员工名称（如"让研究员去搜集资料"），通过 `name.includes()` 模糊匹配并默认选中
+- 选择器应同时提供**模型选择器**（默认 `"auto"`）
+- 当 `agentId` 为空或未选择时，不传该字段（等同于通用模式）
 
 ### Pattern 1: Skill Dispatch via New Topic (Primary Pattern)
 
@@ -488,22 +635,6 @@ This skill generates the following artifacts:
 | README           | `<app-dir>/README.md`        | For Medium/Complex apps        |
 
 **Naming the app directory:** Use the user's language for the directory name. If the user says "做一个销售看板", the directory should be named descriptively (e.g., `销售看板/` or `sales-dashboard/`).
-
-### magic.project.js (Project Manifest)
-
-Every micro-app **must** include a `magic.project.js` file in the app root directory. This file tells the frontend to treat the folder as a Magic Project — clicking the folder icon directly opens `index.html` instead of expanding the file tree.
-
-**Format:** JSONP (not plain JSON). Use this exact template:
-
-```javascript
-window.magicProjectConfig = {
-  version: "1.0.0",
-  type: "micro-app",
-  name: "<app display name>",
-};
-
-window.magicProjectConfigure(window.magicProjectConfig);
-```
 
 ### magic.project.js (Project Manifest)
 

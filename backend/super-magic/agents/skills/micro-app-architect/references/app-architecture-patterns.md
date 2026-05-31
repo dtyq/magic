@@ -39,8 +39,9 @@ window.Magic.fs.watchFile("data/sales.json", () => loadAndRender());
 ```
 <workspace-root>/
 ├── .magic/
-│   └── report_writer/
-│       └── SKILL.md              (multi-step analysis + report generation)
+│   └── skills/
+│       └── report_writer/
+│           └── SKILL.md          (multi-step analysis + report generation)
 └── report-generator/
     ├── index.html                (upload UI, progress, results display, agent/model selector)
     └── data/
@@ -75,7 +76,7 @@ generateBtn.addEventListener("click", async () => {
         { type: "text", text: "请阅读以下技能文件并按照其中的指引执行任务：" },
         { type: "mention", attrs: {
           type: "project_file",
-          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/report_writer/SKILL.md", file_extension: "md" }
+          data: { file_id: "skill_ref", file_name: "SKILL.md", file_path: ".magic/skills/report_writer/SKILL.md", file_extension: "md" }
         }},
         { type: "text", text: "\n\n用户任务：分析 data/input.json 中的数据，生成报告写入 data/report.json" }
       ]
