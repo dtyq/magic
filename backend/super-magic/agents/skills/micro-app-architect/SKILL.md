@@ -432,16 +432,17 @@ For apps that need to trigger backend skills or drive multiple agents:
 
 ### 获取可用员工列表（代码生成阶段）
 
-在生成微应用代码前，如果需要知道用户有哪些可用员工以便写入正确的 `agentId`，可使用 `list_agents` 工具：
+在生成微应用代码前，如果需要知道用户有哪些可用员工以便写入正确的 `agentId`，可使用 `list-agents` 技能的脚本：
 
-```python
-from sdk.tool import tool
-
+```bash
 # 获取当前用户所有可用员工
-result = tool.call("list_agents", {})
+python agents/skills/agent-info/scripts/list.py
 
 # 按名称过滤
-result = tool.call("list_agents", {"name_filter": "数据分析"})
+python agents/skills/agent-info/scripts/list.py --name-filter "数据分析"
+
+# 按类型过滤（official / custom / public）
+python agents/skills/agent-info/scripts/list.py --type-filter custom
 ```
 
 返回结果包含每个员工的 `code`（即 agentId）、`name`、`description` 和 `type`（official/custom/public）。

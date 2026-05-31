@@ -39,6 +39,7 @@ skills:
     - name: lark-cli
     - name: dingtalk-cli
     - name: micro-app-architect
+    - name: agent-info
   workspace_skills: "*"
 ---
 

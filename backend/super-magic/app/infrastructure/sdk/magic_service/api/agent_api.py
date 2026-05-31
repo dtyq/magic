@@ -320,3 +320,23 @@ class AgentApi(MagicServiceAbstractApi):
         endpoint_path = "/api/v1/super-agents/featured"
         data = await self.request_by_parameter_async(parameter, 'GET', endpoint_path)
         return ListAgentsResult(data)
+
+    def list_agents(
+        self,
+        parameter: ListAgentsParameter
+    ) -> ListAgentsResult:
+        """
+        List all agents available to the current user (sync)
+
+        Uses the /api/v1/super-agents/featured endpoint which returns
+        the user's frequent + all accessible agents.
+
+        Args:
+            parameter: ListAgentsParameter instance
+
+        Returns:
+            ListAgentsResult containing the list of available agents
+        """
+        endpoint_path = "/api/v1/super-agents/featured"
+        data = self.request_by_parameter(parameter, 'GET', endpoint_path)
+        return ListAgentsResult(data)
