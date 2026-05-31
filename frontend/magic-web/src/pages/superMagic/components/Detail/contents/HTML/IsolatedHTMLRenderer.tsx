@@ -98,6 +98,8 @@ import {
 	createIframeFile,
 	deleteIframeFile,
 	deleteIframeFiles,
+	moveIframeFile,
+	renameIframeFile,
 } from "./iframe-api/iframeApi"
 
 import { env } from "@/utils/env"
@@ -576,6 +578,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			entryPath: relative_file_path || "",
 			fileList: flatFileList,
 			appConfig: null,
+			projectId: selectedProject?.id,
 			uploadFn: uploadImageFileToProject,
 			saveContentFn: ({ file_id, content }) => saveIframeFileContent([{ file_id, content }]),
 			mkdirFn: useMemoizedFn(async ({ name, parentId }) => {
@@ -590,11 +593,17 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				if (!fileId) throw new Error(`Failed to create directory: ${name}`)
 				return { file_id: fileId }
 			}),
-			deleteFn: useMemoizedFn(async ({ file_id }) => {
-				await deleteIframeFile(file_id)
+			deleteFn: useMemoizedFn(async ({ file_id, project_id }) => {
+				await deleteIframeFile(file_id, project_id)
 			}),
-			deleteFilesFn: useMemoizedFn(async ({ file_ids }) => {
-				await deleteIframeFiles(file_ids)
+			deleteFilesFn: useMemoizedFn(async ({ file_ids, project_id }) => {
+				await deleteIframeFiles(file_ids, project_id)
+			}),
+			moveFileFn: useMemoizedFn(async ({ file_id, target_parent_id, project_id }) => {
+				await moveIframeFile({ file_id, target_parent_id, project_id })
+			}),
+			renameFileFn: useMemoizedFn(async ({ file_id, target_name }) => {
+				await renameIframeFile({ file_id, target_name })
 			}),
 		})
 

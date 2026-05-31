@@ -21,6 +21,10 @@ export const FS_MESSAGE_TYPES = {
 	DELETE_FILE_RESPONSE: "MAGIC_FS_DELETE_FILE_RESPONSE",
 	DELETE_DIR_REQUEST: "MAGIC_FS_DELETE_DIR_REQUEST",
 	DELETE_DIR_RESPONSE: "MAGIC_FS_DELETE_DIR_RESPONSE",
+	MOVE_FILE_REQUEST: "MAGIC_FS_MOVE_FILE_REQUEST",
+	MOVE_FILE_RESPONSE: "MAGIC_FS_MOVE_FILE_RESPONSE",
+	RENAME_FILE_REQUEST: "MAGIC_FS_RENAME_FILE_REQUEST",
+	RENAME_FILE_RESPONSE: "MAGIC_FS_RENAME_FILE_RESPONSE",
 	WATCH_REGISTER: "MAGIC_FS_WATCH_REGISTER",
 	WATCH_UNREGISTER: "MAGIC_FS_WATCH_UNREGISTER",
 	FILE_CHANGED: "MAGIC_FS_FILE_CHANGED",
@@ -130,6 +134,38 @@ export interface FSDeleteDirRequest {
 
 export interface FSDeleteDirResponse {
 	type: typeof FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
+}
+
+export interface FSMoveFileRequest {
+	type: typeof FS_MESSAGE_TYPES.MOVE_FILE_REQUEST
+	requestId: string
+	/** 源文件/目录路径（相对于应用根目录） */
+	path: string
+	/** 目标父目录路径（相对于应用根目录） */
+	targetDir: string
+}
+
+export interface FSMoveFileResponse {
+	type: typeof FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
+}
+
+export interface FSRenameFileRequest {
+	type: typeof FS_MESSAGE_TYPES.RENAME_FILE_REQUEST
+	requestId: string
+	/** 待重命名的文件/目录路径（相对于应用根目录） */
+	path: string
+	/** 新名称（仅文件名，不含路径） */
+	newName: string
+}
+
+export interface FSRenameFileResponse {
+	type: typeof FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE
 	requestId: string
 	success: boolean
 	error?: string

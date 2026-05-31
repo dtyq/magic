@@ -15,6 +15,8 @@ import {
 	type MkdirFn,
 	type DeleteFileFn,
 	type DeleteFilesFn,
+	type MoveFileFn,
+	type RenameFileFn,
 } from "../services/IframeFSService"
 import type { HTMLAppConfig } from "../types"
 
@@ -27,6 +29,8 @@ export interface UseIframeFSOptions {
 	fileList: FSFileItem[]
 	/** Optional app.json (e.g. file aliases); null if not loaded. */
 	appConfig: HTMLAppConfig | null
+	/** 项目 ID，用于删除等需要 project_id 的操作 */
+	projectId?: string
 	/** 创建新文件时的上传函数，复用现有上传链路 */
 	uploadFn: UploadFn
 	/** 更新已存在文件内容的函数（不重新上传 OSS） */
@@ -45,6 +49,14 @@ export interface UseIframeFSOptions {
 	 * 不提供时 deleteDir 请求将返回错误。
 	 */
 	deleteFilesFn?: DeleteFilesFn
+	/**
+	 * （可选）移动文件/目录函数。不提供时 moveFile 请求将返回错误。
+	 */
+	moveFileFn?: MoveFileFn
+	/**
+	 * （可选）重命名文件/目录函数。不提供时 renameFile 请求将返回错误。
+	 */
+	renameFileFn?: RenameFileFn
 }
 
 export interface UseIframeFSReturn {
@@ -53,7 +65,7 @@ export interface UseIframeFSReturn {
 }
 
 export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
-	const { iframeRef, entryPath, fileList, appConfig, uploadFn, saveContentFn, mkdirFn, deleteFn, deleteFilesFn } = options
+	const { iframeRef, entryPath, fileList, appConfig, projectId, uploadFn, saveContentFn, mkdirFn, deleteFn, deleteFilesFn, moveFileFn, renameFileFn } = options
 
 	const serviceRef = useRef<IframeFSService | null>(null)
 
@@ -70,11 +82,14 @@ export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 			entryPath,
 			fileList,
 			appConfig,
+			projectId,
 			uploadFn,
 			saveContentFn,
 			mkdirFn,
 			deleteFn,
 			deleteFilesFn,
+			moveFileFn,
+			renameFileFn,
 		})
 
 		return () => {

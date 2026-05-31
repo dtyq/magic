@@ -6,9 +6,9 @@ describe("MagicFSApi", () => {
 	let api: MagicFSApi
 
 	beforeEach(() => {
-		;(window as any).Magic = undefined
+		; (window as any).Magic = undefined
 		// mockImplementation prevents jsdom from echoing postMessage back to the same window
-		postMessageSpy = vi.spyOn(window.parent, "postMessage").mockImplementation(() => {})
+		postMessageSpy = vi.spyOn(window.parent, "postMessage").mockImplementation(() => { })
 		api = new MagicFSApi()
 		api.install()
 	})
@@ -16,7 +16,7 @@ describe("MagicFSApi", () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
 		vi.useRealTimers()
-		;(window as any).Magic = undefined
+			; (window as any).Magic = undefined
 	})
 
 	// ─── 辅助：模拟来自 parent 的响应 ──────────────────────────────────────────
@@ -150,9 +150,73 @@ describe("MagicFSApi", () => {
 
 	// ─── watchFile ──────────────────────────────────────────────────────────────
 
+	it("moveFile() 发送 MAGIC_FS_MOVE_FILE_REQUEST 并在响应成功时 resolve", async () => {
+		const promise = (window as any).Magic.fs.moveFile("./old.json", "./archive/")
+
+		const [req] = postMessageSpy.mock.calls[0]
+		expect(req.type).toBe("MAGIC_FS_MOVE_FILE_REQUEST")
+		expect(req.path).toBe("./old.json")
+		expect(req.targetDir).toBe("./archive/")
+
+		simulateResponse({
+			type: "MAGIC_FS_MOVE_FILE_RESPONSE",
+			requestId: req.requestId,
+			success: true,
+		})
+
+		await promise
+	})
+
+	it("moveFile() 传入非字符串 path 时立即 reject", async () => {
+		await expect((window as any).Magic.fs.moveFile(123, "./dir/")).rejects.toThrow(
+			"moveFile: path must be a string",
+		)
+		expect(postMessageSpy).not.toHaveBeenCalled()
+	})
+
+	it("moveFile() 传入非字符串 targetDir 时立即 reject", async () => {
+		await expect((window as any).Magic.fs.moveFile("./file.txt", null)).rejects.toThrow(
+			"moveFile: targetDir must be a string",
+		)
+		expect(postMessageSpy).not.toHaveBeenCalled()
+	})
+
+	it("renameFile() 发送 MAGIC_FS_RENAME_FILE_REQUEST 并在响应成功时 resolve", async () => {
+		const promise = (window as any).Magic.fs.renameFile("./draft.txt", "final.txt")
+
+		const [req] = postMessageSpy.mock.calls[0]
+		expect(req.type).toBe("MAGIC_FS_RENAME_FILE_REQUEST")
+		expect(req.path).toBe("./draft.txt")
+		expect(req.newName).toBe("final.txt")
+
+		simulateResponse({
+			type: "MAGIC_FS_RENAME_FILE_RESPONSE",
+			requestId: req.requestId,
+			success: true,
+		})
+
+		await promise
+	})
+
+	it("renameFile() 传入非字符串 path 时立即 reject", async () => {
+		await expect((window as any).Magic.fs.renameFile(123, "new.txt")).rejects.toThrow(
+			"renameFile: path must be a string",
+		)
+		expect(postMessageSpy).not.toHaveBeenCalled()
+	})
+
+	it("renameFile() 传入非字符串 newName 时立即 reject", async () => {
+		await expect((window as any).Magic.fs.renameFile("./file.txt", 456)).rejects.toThrow(
+			"renameFile: newName must be a string",
+		)
+		expect(postMessageSpy).not.toHaveBeenCalled()
+	})
+
+	// ─── watchFile（原有测试） ───────────────────────────────────────────────────
+
 	it("watchFile() 发送 MAGIC_FS_WATCH_REGISTER 并在文件变更时触发回调", () => {
 		const cb = vi.fn()
-		;(window as any).Magic.fs.watchFile("./data.json", cb)
+			; (window as any).Magic.fs.watchFile("./data.json", cb)
 
 		const [req] = postMessageSpy.mock.calls[0]
 		expect(req.type).toBe("MAGIC_FS_WATCH_REGISTER")
@@ -170,7 +234,7 @@ describe("MagicFSApi", () => {
 
 	it("watchFile() 只响应匹配路径的 MAGIC_FS_FILE_CHANGED 消息", () => {
 		const cb = vi.fn()
-		;(window as any).Magic.fs.watchFile("./a.json", cb)
+			; (window as any).Magic.fs.watchFile("./a.json", cb)
 
 		simulateResponse({
 			type: "MAGIC_FS_FILE_CHANGED",
@@ -203,13 +267,13 @@ describe("MagicFSApi", () => {
 
 	it("watchFile() 传入非字符串路径时抛出错误", () => {
 		expect(() => {
-			;(window as any).Magic.fs.watchFile(123, vi.fn())
+			; (window as any).Magic.fs.watchFile(123, vi.fn())
 		}).toThrow("watchFile: path must be a string")
 	})
 
 	it("watchFile() 传入非函数回调时抛出错误", () => {
 		expect(() => {
-			;(window as any).Magic.fs.watchFile("./data.json", "not-a-function")
+			; (window as any).Magic.fs.watchFile("./data.json", "not-a-function")
 		}).toThrow("watchFile: callback must be a function")
 	})
 

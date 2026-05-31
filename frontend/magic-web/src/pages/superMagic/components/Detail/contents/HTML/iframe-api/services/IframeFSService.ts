@@ -15,6 +15,8 @@ import {
 	type FSListRequest,
 	type FSDeleteFileRequest,
 	type FSDeleteDirRequest,
+	type FSMoveFileRequest,
+	type FSRenameFileRequest,
 	type FSWatchRegister,
 	type FSWatchUnregister,
 	type HTMLAppConfig,
@@ -58,12 +60,26 @@ export type MkdirFn = (params: { name: string; parentId?: string }) => Promise<{
 /**
  * 删除文件函数签名——由 hook 注入，调用 SuperMagicApi.deleteFile。
  */
-export type DeleteFileFn = (params: { file_id: string }) => Promise<unknown>
+export type DeleteFileFn = (params: { file_id: string; project_id: string }) => Promise<unknown>
 
 /**
  * 批量删除文件函数签名——用于删除目录时一次性删除目录下所有文件及目录本身。
  */
-export type DeleteFilesFn = (params: { file_ids: string[] }) => Promise<unknown>
+export type DeleteFilesFn = (params: { file_ids: string[]; project_id: string }) => Promise<unknown>
+
+/**
+ * 移动文件/目录函数签名——将文件移动到目标父目录。
+ */
+export type MoveFileFn = (params: {
+	file_id: string
+	target_parent_id: string
+	project_id: string
+}) => Promise<unknown>
+
+/**
+ * 重命名文件/目录函数签名。
+ */
+export type RenameFileFn = (params: { file_id: string; target_name: string }) => Promise<unknown>
 
 export interface IframeFSConfig {
 	/** 向 iframe 发送消息的函数 */
@@ -74,6 +90,8 @@ export interface IframeFSConfig {
 	fileList: FSFileItem[]
 	/** Optional app.json (alias map, etc.); null if not loaded. */
 	appConfig: HTMLAppConfig | null
+	/** 项目 ID，用于删除等需要 project_id 的操作 */
+	projectId?: string
 	/** 创建新文件时使用的上传函数（文件不存在时走此路径） */
 	uploadFn: UploadFn
 	/** 更新已存在文件内容的函数（文件已存在时走此路径，不重新上传 OSS） */
@@ -94,6 +112,16 @@ export interface IframeFSConfig {
 	 * 用于删除目录及其所有内容。不提供时 deleteDir 请求将返回错误。
 	 */
 	deleteFilesFn?: DeleteFilesFn
+	/**
+	 * （可选）移动文件/目录函数。
+	 * 不提供时 moveFile 请求将返回错误。
+	 */
+	moveFileFn?: MoveFileFn
+	/**
+	 * （可选）重命名文件/目录函数。
+	 * 不提供时 renameFile 请求将返回错误。
+	 */
+	renameFileFn?: RenameFileFn
 }
 
 /** 读取文件大小限制：5 MB */
@@ -156,6 +184,12 @@ export class IframeFSService {
 				return true
 			case FS_MESSAGE_TYPES.DELETE_DIR_REQUEST:
 				await this.handleDeleteDir(payload as FSDeleteDirRequest)
+				return true
+			case FS_MESSAGE_TYPES.MOVE_FILE_REQUEST:
+				await this.handleMoveFile(payload as FSMoveFileRequest)
+				return true
+			case FS_MESSAGE_TYPES.RENAME_FILE_REQUEST:
+				await this.handleRenameFile(payload as FSRenameFileRequest)
 				return true
 			case FS_MESSAGE_TYPES.WATCH_REGISTER:
 				this.handleWatchRegister(payload as FSWatchRegister)
@@ -411,7 +445,7 @@ export class IframeFSService {
 				})
 			}
 
-			await this.cfg.deleteFn({ file_id: item.file_id })
+			await this.cfg.deleteFn({ file_id: item.file_id, project_id: this.cfg.projectId || "" })
 			this.send({ type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE, requestId, success: true })
 		} catch (err) {
 			this.send({
@@ -482,10 +516,10 @@ export class IframeFSService {
 			// 加入目录本身
 			fileIds.push(dirItem.file_id)
 
-			await this.cfg.deleteFilesFn({ file_ids: fileIds })
+			await this.cfg.deleteFilesFn({ file_ids: fileIds, project_id: this.cfg.projectId || "" })
 
 			// 清理 dirCache 中相关条目
-			for (const key of this.dirCache.keys()) {
+			for (const key of Array.from(this.dirCache.keys())) {
 				if (key === dirPath || key.startsWith(resolvedDir)) {
 					this.dirCache.delete(key)
 				}
@@ -495,6 +529,124 @@ export class IframeFSService {
 		} catch (err) {
 			this.send({
 				type: FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE,
+				requestId,
+				success: false,
+				error: err instanceof Error ? err.message : "Unknown error",
+			})
+		}
+	}
+
+	private async handleMoveFile(req: FSMoveFileRequest) {
+		const { requestId, path, targetDir } = req
+		const resolved = this.resolvePath(path)
+
+		if (!resolved) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: `Access denied or invalid path: ${path}`,
+			})
+		}
+
+		if (!this.cfg.moveFileFn) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: "Move operation is not supported",
+			})
+		}
+
+		try {
+			const item = this.findFile(resolved)
+			if (!item) {
+				return this.send({
+					type: FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE,
+					requestId,
+					success: false,
+					error: `File not found: ${path}`,
+				})
+			}
+
+			// 解析目标父目录
+			const resolvedTargetDir = this.resolveDir(targetDir)
+			if (resolvedTargetDir === null) {
+				return this.send({
+					type: FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE,
+					requestId,
+					success: false,
+					error: `Invalid target directory: ${targetDir}`,
+				})
+			}
+
+			const targetDirPath = resolvedTargetDir.endsWith("/")
+				? resolvedTargetDir.slice(0, -1)
+				: resolvedTargetDir
+			const targetDirItem = this.findFile(targetDirPath)
+			if (!targetDirItem) {
+				return this.send({
+					type: FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE,
+					requestId,
+					success: false,
+					error: `Target directory not found: ${targetDir}`,
+				})
+			}
+
+			await this.cfg.moveFileFn({
+				file_id: item.file_id,
+				target_parent_id: targetDirItem.file_id,
+				project_id: this.cfg.projectId || "",
+			})
+			this.send({ type: FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE, requestId, success: true })
+		} catch (err) {
+			this.send({
+				type: FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: err instanceof Error ? err.message : "Unknown error",
+			})
+		}
+	}
+
+	private async handleRenameFile(req: FSRenameFileRequest) {
+		const { requestId, path, newName } = req
+		const resolved = this.resolvePath(path)
+
+		if (!resolved) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: `Access denied or invalid path: ${path}`,
+			})
+		}
+
+		if (!this.cfg.renameFileFn) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: "Rename operation is not supported",
+			})
+		}
+
+		try {
+			const item = this.findFile(resolved)
+			if (!item) {
+				return this.send({
+					type: FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE,
+					requestId,
+					success: false,
+					error: `File not found: ${path}`,
+				})
+			}
+
+			await this.cfg.renameFileFn({ file_id: item.file_id, target_name: newName })
+			this.send({ type: FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE, requestId, success: true })
+		} catch (err) {
+			this.send({
+				type: FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE,
 				requestId,
 				success: false,
 				error: err instanceof Error ? err.message : "Unknown error",
