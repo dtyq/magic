@@ -13,6 +13,8 @@ import {
 	type FSWriteRequest,
 	type FSWriteBlobRequest,
 	type FSListRequest,
+	type FSDeleteFileRequest,
+	type FSDeleteDirRequest,
 	type FSWatchRegister,
 	type FSWatchUnregister,
 	type HTMLAppConfig,
@@ -53,6 +55,16 @@ export type SaveContentFn = (params: { file_id: string; content: string }) => Pr
  */
 export type MkdirFn = (params: { name: string; parentId?: string }) => Promise<{ file_id: string }>
 
+/**
+ * 删除文件函数签名——由 hook 注入，调用 SuperMagicApi.deleteFile。
+ */
+export type DeleteFileFn = (params: { file_id: string }) => Promise<unknown>
+
+/**
+ * 批量删除文件函数签名——用于删除目录时一次性删除目录下所有文件及目录本身。
+ */
+export type DeleteFilesFn = (params: { file_ids: string[] }) => Promise<unknown>
+
 export interface IframeFSConfig {
 	/** 向 iframe 发送消息的函数 */
 	postToIframe: (message: object) => void
@@ -72,6 +84,16 @@ export interface IframeFSConfig {
 	 * 不提供时回退到旧行为：只查 fileList 中已有的目录。
 	 */
 	mkdirFn?: MkdirFn
+	/**
+	 * （可选）删除文件函数。
+	 * 不提供时 deleteFile 请求将返回错误。
+	 */
+	deleteFn?: DeleteFileFn
+	/**
+	 * （可选）批量删除文件函数。
+	 * 用于删除目录及其所有内容。不提供时 deleteDir 请求将返回错误。
+	 */
+	deleteFilesFn?: DeleteFilesFn
 }
 
 /** 读取文件大小限制：5 MB */
@@ -128,6 +150,12 @@ export class IframeFSService {
 				return true
 			case FS_MESSAGE_TYPES.LIST_REQUEST:
 				this.handleList(payload as FSListRequest)
+				return true
+			case FS_MESSAGE_TYPES.DELETE_FILE_REQUEST:
+				await this.handleDeleteFile(payload as FSDeleteFileRequest)
+				return true
+			case FS_MESSAGE_TYPES.DELETE_DIR_REQUEST:
+				await this.handleDeleteDir(payload as FSDeleteDirRequest)
 				return true
 			case FS_MESSAGE_TYPES.WATCH_REGISTER:
 				this.handleWatchRegister(payload as FSWatchRegister)
@@ -348,6 +376,130 @@ export class IframeFSService {
 			.map((p) => p.split("/").pop() || p)
 
 		this.send({ type: FS_MESSAGE_TYPES.LIST_RESPONSE, requestId, success: true, files })
+	}
+
+	private async handleDeleteFile(req: FSDeleteFileRequest) {
+		const { requestId, path } = req
+		const resolved = this.resolvePath(path)
+
+		if (!resolved) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: `Access denied or invalid path: ${path}`,
+			})
+		}
+
+		if (!this.cfg.deleteFn) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: "Delete operation is not supported",
+			})
+		}
+
+		try {
+			const item = this.findFile(resolved)
+			if (!item) {
+				return this.send({
+					type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE,
+					requestId,
+					success: false,
+					error: `File not found: ${path}`,
+				})
+			}
+
+			await this.cfg.deleteFn({ file_id: item.file_id })
+			this.send({ type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE, requestId, success: true })
+		} catch (err) {
+			this.send({
+				type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: err instanceof Error ? err.message : "Unknown error",
+			})
+		}
+	}
+
+	private async handleDeleteDir(req: FSDeleteDirRequest) {
+		const { requestId, path } = req
+		const resolvedDir = this.resolveDir(path)
+
+		if (resolvedDir === null) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE,
+				requestId,
+				success: false,
+				error: `Access denied or invalid path: ${path}`,
+			})
+		}
+
+		if (!this.cfg.deleteFilesFn) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE,
+				requestId,
+				success: false,
+				error: "Delete operation is not supported",
+			})
+		}
+
+		// 禁止删除应用根目录本身
+		if (resolvedDir === this.appRootDir) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE,
+				requestId,
+				success: false,
+				error: "Cannot delete the app root directory",
+			})
+		}
+
+		try {
+			// 收集目录本身 + 目录下所有文件的 file_id
+			const dirPath = resolvedDir.endsWith("/") ? resolvedDir.slice(0, -1) : resolvedDir
+			const fileIds: string[] = []
+
+			// 先找目录本身的 file_id
+			const dirItem = this.findFile(dirPath)
+			if (!dirItem) {
+				return this.send({
+					type: FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE,
+					requestId,
+					success: false,
+					error: `Directory not found: ${path}`,
+				})
+			}
+
+			// 收集目录下所有子文件/子目录
+			for (const f of this.cfg.fileList) {
+				const fp = f.relative_file_path.replace(/^\/+/, "")
+				if (fp.startsWith(resolvedDir)) {
+					fileIds.push(f.file_id)
+				}
+			}
+
+			// 加入目录本身
+			fileIds.push(dirItem.file_id)
+
+			await this.cfg.deleteFilesFn({ file_ids: fileIds })
+
+			// 清理 dirCache 中相关条目
+			for (const key of this.dirCache.keys()) {
+				if (key === dirPath || key.startsWith(resolvedDir)) {
+					this.dirCache.delete(key)
+				}
+			}
+
+			this.send({ type: FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE, requestId, success: true })
+		} catch (err) {
+			this.send({
+				type: FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE,
+				requestId,
+				success: false,
+				error: err instanceof Error ? err.message : "Unknown error",
+			})
+		}
 	}
 
 	private handleGetAppBasePath(req: { requestId: string }) {

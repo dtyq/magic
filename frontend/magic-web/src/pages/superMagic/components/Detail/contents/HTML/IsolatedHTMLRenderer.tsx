@@ -93,7 +93,12 @@ import { useIframeAgent } from "./iframe-api/hooks/useIframeAgent"
 import { useIframeUserInfo } from "./iframe-api/hooks/useIframeUserInfo"
 import { useMagicFiles } from "./iframe-api/hooks/useMagicFiles"
 import { useIframeAgentActions } from "./hooks/useIframeAgentActions"
-import { saveIframeFileContent, createIframeFile } from "./iframe-api/iframeApi"
+import {
+	saveIframeFileContent,
+	createIframeFile,
+	deleteIframeFile,
+	deleteIframeFiles,
+} from "./iframe-api/iframeApi"
 
 import { env } from "@/utils/env"
 import { userStore } from "@/models/user"
@@ -584,6 +589,12 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				const fileId = res?.file_id
 				if (!fileId) throw new Error(`Failed to create directory: ${name}`)
 				return { file_id: fileId }
+			}),
+			deleteFn: useMemoizedFn(async ({ file_id }) => {
+				await deleteIframeFile(file_id)
+			}),
+			deleteFilesFn: useMemoizedFn(async ({ file_ids }) => {
+				await deleteIframeFiles(file_ids)
 			}),
 		})
 

@@ -63,3 +63,20 @@ export async function createIframeFile(data: {
 }): Promise<{ file_id?: string }> {
 	return iframeClient.post("/api/v1/super-agent/file", data)
 }
+
+// ─── 删除文件/目录 ───────────────────────────────────────────────────────────
+
+/**
+ * 删除单个文件（iframe 专用）。
+ */
+export async function deleteIframeFile(file_id: string): Promise<unknown> {
+	return iframeClient.delete(`/api/v1/super-agent/file/${file_id}`)
+}
+
+/**
+ * 批量删除文件（iframe 专用）。
+ * 用于删除目录时一次性删除目录下所有文件及目录本身。
+ */
+export async function deleteIframeFiles(file_ids: string[]): Promise<unknown> {
+	return iframeClient.post("/api/v1/super-agent/file/batch-delete", { file_ids })
+}

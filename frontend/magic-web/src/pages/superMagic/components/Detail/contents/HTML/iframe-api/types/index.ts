@@ -17,6 +17,10 @@ export const FS_MESSAGE_TYPES = {
 	WRITE_BLOB_RESPONSE: "MAGIC_FS_WRITE_BLOB_RESPONSE",
 	LIST_REQUEST: "MAGIC_FS_LIST_REQUEST",
 	LIST_RESPONSE: "MAGIC_FS_LIST_RESPONSE",
+	DELETE_FILE_REQUEST: "MAGIC_FS_DELETE_FILE_REQUEST",
+	DELETE_FILE_RESPONSE: "MAGIC_FS_DELETE_FILE_RESPONSE",
+	DELETE_DIR_REQUEST: "MAGIC_FS_DELETE_DIR_REQUEST",
+	DELETE_DIR_RESPONSE: "MAGIC_FS_DELETE_DIR_RESPONSE",
 	WATCH_REGISTER: "MAGIC_FS_WATCH_REGISTER",
 	WATCH_UNREGISTER: "MAGIC_FS_WATCH_UNREGISTER",
 	FILE_CHANGED: "MAGIC_FS_FILE_CHANGED",
@@ -102,6 +106,32 @@ export interface FSListResponse {
 	requestId: string
 	success: boolean
 	files?: string[]
+	error?: string
+}
+
+export interface FSDeleteFileRequest {
+	type: typeof FS_MESSAGE_TYPES.DELETE_FILE_REQUEST
+	requestId: string
+	path: string
+}
+
+export interface FSDeleteFileResponse {
+	type: typeof FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
+}
+
+export interface FSDeleteDirRequest {
+	type: typeof FS_MESSAGE_TYPES.DELETE_DIR_REQUEST
+	requestId: string
+	path: string
+}
+
+export interface FSDeleteDirResponse {
+	type: typeof FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE
+	requestId: string
+	success: boolean
 	error?: string
 }
 

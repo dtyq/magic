@@ -1,6 +1,6 @@
 ---
 name: html-api-sdk
-description: "Complete API reference for window.Magic.* in SuperMagic HTML micro-apps (HTML 微应用). Read this skill when you need exact method signatures, parameters, return types, or usage examples for: fs (readFile/writeFile/listFiles/watchFile), llm (chat/stream/getModels), agent (getAgents/selectAgent), project (createTopicAndSend/sendMessage/uploadFiles/downloadFiles), user (getInfo), getAppBasePath, setInputMessage, reload. Also covers tiptap JSON message format, @file and @skill mention structures, model selector UI rules, error handling patterns, and backward compatibility table. Trigger phrases: 'window.Magic API', 'readFile writeFile', 'watchFile callback', 'llm.stream', 'llm.chat', 'createTopicAndSend format', 'tiptap JSON mention', '@file mention structure', '@skill mention', 'getAppBasePath usage', 'model selector UI', 'user.getInfo', 'get user info', 'user avatar', 'Magic API 用法', 'fs 读写文件 API', '流式调用参数', '文件监听回调', '话题消息格式', 'mention 结构', '模型选择器', '用户信息', '获取头像'."
+description: "Complete API reference for window.Magic.* in SuperMagic HTML micro-apps (HTML 微应用). Read this skill when you need exact method signatures, parameters, return types, or usage examples for: fs (readFile/writeFile/listFiles/deleteFile/deleteDir/watchFile), llm (chat/stream/getModels), agent (getAgents/selectAgent), project (createTopicAndSend/sendMessage/uploadFiles/downloadFiles), user (getInfo), getAppBasePath, setInputMessage, reload. Also covers tiptap JSON message format, @file and @skill mention structures, model selector UI rules, error handling patterns, and backward compatibility table. Trigger phrases: 'window.Magic API', 'readFile writeFile', 'deleteFile deleteDir', 'watchFile callback', 'llm.stream', 'llm.chat', 'createTopicAndSend format', 'tiptap JSON mention', '@file mention structure', '@skill mention', 'getAppBasePath usage', 'model selector UI', 'user.getInfo', 'get user info', 'user avatar', 'Magic API 用法', 'fs 读写文件 API', 'fs 删除文件', '流式调用参数', '文件监听回调', '话题消息格式', 'mention 结构', '模型选择器', '用户信息', '获取头像'."
 ---
 
 # window.Magic API — HTML Micro-App Guide
@@ -62,6 +62,22 @@ await window.Magic.fs.writeFile("data/large.bin", blob);
 ```javascript
 const files = await window.Magic.fs.listFiles("data/");
 ```
+
+### `deleteFile(path)` → `Promise<void>`
+
+```javascript
+await window.Magic.fs.deleteFile("data/temp.json");
+```
+
+- Rejects if file not found. `../` blocked.
+
+### `deleteDir(path)` → `Promise<void>`
+
+```javascript
+await window.Magic.fs.deleteDir("temp/");
+```
+
+- Recursively deletes all files and subdirectories. Cannot delete app root. Rejects if dir not found. `../` blocked.
 
 ### `watchFile(path, cb)` → `() => void`
 

@@ -110,7 +110,43 @@ const unwatch = window.Magic.fs.watchFile("data/orders.json", async (event) => {
 
 ---
 
-### 1.5 并发读取（推荐）
+### 1.5 删除文件 `deleteFile(path)`
+
+```javascript
+// 删除指定文件
+await window.Magic.fs.deleteFile("data/temp.json")
+
+// 错误处理
+try {
+	await window.Magic.fs.deleteFile("data/nonexistent.json")
+} catch (e) {
+	console.error("删除失败：", e.message)
+}
+```
+
+**参数**：`path: string` — 相对于应用根目录的路径。  
+**返回**：`Promise<void>`。  
+**说明**：文件不存在时 reject；禁止 `../` 穿越。
+
+---
+
+### 1.6 删除目录 `deleteDir(path)`
+
+```javascript
+// 删除指定目录及其所有内容
+await window.Magic.fs.deleteDir("temp/")
+
+// 删除子目录
+await window.Magic.fs.deleteDir("data/cache")
+```
+
+**参数**：`path: string` — 相对于应用根目录的目录路径。  
+**返回**：`Promise<void>`。  
+**说明**：会递归删除目录内所有文件和子目录；不能删除应用根目录本身；目录不存在时 reject；禁止 `../` 穿越。
+
+---
+
+### 1.7 并发读取（推荐）
 
 ```javascript
 const [users, orders, settings] = await Promise.all([

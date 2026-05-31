@@ -80,6 +80,20 @@ export class MagicFSApi extends MagicBaseApi {
 				})
 			},
 
+			deleteFile: (path: string): Promise<void> => {
+				if (typeof path !== "string") {
+					return Promise.reject(new Error("deleteFile: path must be a string"))
+				}
+				return this.request<void>("MAGIC_FS_DELETE_FILE_REQUEST", { path })
+			},
+
+			deleteDir: (path: string): Promise<void> => {
+				if (typeof path !== "string") {
+					return Promise.reject(new Error("deleteDir: path must be a string"))
+				}
+				return this.request<void>("MAGIC_FS_DELETE_DIR_REQUEST", { path })
+			},
+
 			watchFile: (
 				path: string,
 				callback: (e: { path: string; timestamp: number }) => void,

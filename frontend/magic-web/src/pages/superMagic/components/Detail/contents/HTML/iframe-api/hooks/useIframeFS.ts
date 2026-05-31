@@ -13,6 +13,8 @@ import {
 	type UploadFn,
 	type SaveContentFn,
 	type MkdirFn,
+	type DeleteFileFn,
+	type DeleteFilesFn,
 } from "../services/IframeFSService"
 import type { HTMLAppConfig } from "../types"
 
@@ -34,6 +36,15 @@ export interface UseIframeFSOptions {
 	 * 不提供时回退到旧行为：仅查 fileList 中已有的目录，找不到则以无 parentId 上传。
 	 */
 	mkdirFn?: MkdirFn
+	/**
+	 * （可选）删除文件函数。不提供时 deleteFile 请求将返回错误。
+	 */
+	deleteFn?: DeleteFileFn
+	/**
+	 * （可选）批量删除文件函数。用于删除目录及其所有内容。
+	 * 不提供时 deleteDir 请求将返回错误。
+	 */
+	deleteFilesFn?: DeleteFilesFn
 }
 
 export interface UseIframeFSReturn {
@@ -42,7 +53,7 @@ export interface UseIframeFSReturn {
 }
 
 export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
-	const { iframeRef, entryPath, fileList, appConfig, uploadFn, saveContentFn, mkdirFn } = options
+	const { iframeRef, entryPath, fileList, appConfig, uploadFn, saveContentFn, mkdirFn, deleteFn, deleteFilesFn } = options
 
 	const serviceRef = useRef<IframeFSService | null>(null)
 
@@ -62,6 +73,8 @@ export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 			uploadFn,
 			saveContentFn,
 			mkdirFn,
+			deleteFn,
+			deleteFilesFn,
 		})
 
 		return () => {
