@@ -156,11 +156,52 @@ const RichText = memo(
 				// Remove trailing newline if it exists
 				plainText = plainText.replace(/\n$/, "")
 
+				// Extract mentions and build rich text JSON from the fragment
+				const mentions: TiptapMentionAttributes[] = []
+				const richTextJson: JSONContent = { type: "doc", content: [] }
+				fragment.content.forEach((node) => {
+					const nodeJson = node.toJSON()
+					richTextJson.content!.push(nodeJson)
+					// Collect mention nodes recursively
+					const collectMentions = (n: Node) => {
+						if (n.type.name === "mention" && n.attrs) {
+							mentions.push(n.attrs as TiptapMentionAttributes)
+						}
+						n.forEach((child) => collectMentions(child))
+					}
+					collectMentions(node)
+				})
+
+				// Build magic clipboard metadata
+				const metadata: Record<string, unknown> = {
+					richText: JSON.stringify(richTextJson),
+				}
+				if (mentions.length > 0) {
+					metadata.mentions = mentions.map((m) => ({ attrs: m }))
+				}
+				const metadataBase64 = btoa(encodeURIComponent(JSON.stringify(metadata)))
+				const htmlWithMetadata = `<div data-magic-clipboard="${metadataBase64}">${htmlContent}</div>`
+
 				// Write to clipboard with both formats
 				event.preventDefault()
 				if (event.clipboardData) {
-					event.clipboardData.setData("text/html", htmlContent)
+					event.clipboardData.setData("text/html", htmlWithMetadata)
 					event.clipboardData.setData("text/plain", plainText)
+					// Also set custom MIME types for desktop browsers
+					try {
+						event.clipboardData.setData(
+							"text/x-magic-message-rich-text",
+							metadata.richText as string,
+						)
+						if (mentions.length > 0) {
+							event.clipboardData.setData(
+								"text/x-magic-message-mentions",
+								JSON.stringify(metadata.mentions),
+							)
+						}
+					} catch {
+						// Custom MIME types may not be supported in all browsers
+					}
 				}
 
 				return true
