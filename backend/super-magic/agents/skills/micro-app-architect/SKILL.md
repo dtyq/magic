@@ -1,6 +1,11 @@
 ---
 name: micro-app-architect
-description: "Build, modify, or extend any interactive application as an HTML micro-app — including tools, dashboards, panels, generators, workflow systems, multi-agent pipelines, automation platforms, data visualizations, or any user-facing interface. Triggers on any request that implies creating something with a UI, orchestrating a multi-step process, coordinating multiple agents/employees, tracking progress, or generating artifacts through an interactive page. Also handles modifications to existing micro-apps. 将任何需求转化为可运行的HTML微应用。适用于：构建任何工具/应用/面板/看板/生成器/系统；编排多步骤工作流或多员工协作流水线；需要进度展示、状态追踪、数据可视化的场景；以及修改已有微应用的功能。当用户描述中隐含'需要一个界面来做某事'时均应触发。"
+description: |
+  Use when the user wants to create, build, or generate any interactive tool, app, page, or UI as an HTML micro-app. Also use when the user wants to modify, fix, or add features to an existing micro-app project (contains magic.project.js). CRITICAL - When the workspace contains a magic.project.js file and the user asks to change or update it, you MUST load this skill first.
+  Trigger phrases: "做一个应用", "做个工具", "做一个页面", "做个看板", "做个面板", "做个仪表盘", "做个管理系统", "做个网页", "做个生成器", "做个计算器", "做个记账本", "做个日程表", "做个追踪器", "帮我搭建一个", "帮我生成一个", "创建一个可交互的", "做个xxx来管理", "做个xxx来展示", "做个xxx来统计", "做个xxx来分析", "做个xxx来记录", "build me a tool", "create an app", "make a dashboard", "make a tracker", "make a calculator", "make a generator", "create a form", "build a kanban", "build a workflow UI", "修改这个应用", "给这个应用加个功能", "fix this micro-app", "update the app".
+  Skip when: user only asks a general coding question, wants a CLI script with no UI, or needs a pure backend service with no interactive frontend.
+
+name-cn: 微应用构建器
 ---
 
 # Micro-App Architect
