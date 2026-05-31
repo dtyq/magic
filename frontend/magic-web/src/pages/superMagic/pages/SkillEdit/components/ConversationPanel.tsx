@@ -221,8 +221,9 @@ function ConversationPanel({
 			allowMessageTooltip: true,
 			allowConversationCopy: true,
 			onTopicSwitch: topicStore.setSelectedTopic,
+			projectFilesStore,
 		}
-	}, [topicStore.setSelectedTopic])
+	}, [topicStore.setSelectedTopic, projectFilesStore])
 
 	return (
 		<ConversationPanelScaffold

@@ -1,6 +1,7 @@
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import type { JSONContent } from "@tiptap/core"
 import { createContext, type PropsWithChildren, type ReactNode, useContext } from "react"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 
 export interface MessageListContextState {
 	/** 是否允许撤回 */
@@ -21,6 +22,8 @@ export interface MessageListContextState {
 	renderAssistantAvatar?: (props?: { className?: string }) => ReactNode
 	/** When false, hide the assistant "task completed" status badge */
 	showTaskCompletedBadge?: boolean
+	/** 当前上下文的 projectFilesStore 实例 */
+	projectFilesStore?: ProjectFilesStore
 }
 
 const MessageListContext = createContext<MessageListContextState>({
