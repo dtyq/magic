@@ -430,6 +430,23 @@ For apps that need to trigger backend skills or drive multiple agents:
 
 > 注：除内置 agentId 外，也可以通过 `window.Magic.agent.getAgents()` 获取用户自定义的员工（Agent）列表，使用其 `id` 字段作为 `agentId`。
 
+### 获取可用员工列表（代码生成阶段）
+
+在生成微应用代码前，如果需要知道用户有哪些可用员工以便写入正确的 `agentId`，可使用 `list_agents` 工具：
+
+```python
+from sdk.tool import tool
+
+# 获取当前用户所有可用员工
+result = tool.call("list_agents", {})
+
+# 按名称过滤
+result = tool.call("list_agents", {"name_filter": "数据分析"})
+```
+
+返回结果包含每个员工的 `code`（即 agentId）、`name`、`description` 和 `type`（official/custom/public）。
+这样在生成代码时就可以直接将真实的 agentId 硬编码进 HTML，而非依赖运行时动态查询。
+
 ### Agent Selector UI Pattern
 
 当用户需要调用自定义员工时，应在界面上提供**员工选择器**，并支持通过名称匹配默认选中。实现要点：
