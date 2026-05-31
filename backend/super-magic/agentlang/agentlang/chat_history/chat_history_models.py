@@ -57,7 +57,7 @@ class CompactionConfig:
     max_conversation_rounds: int = 500  # 触发压缩的消息数量阈值
 
     # Dynamic threshold calculation (kept for compatibility)
-    default_token_threshold: int = 100_000
+    default_token_threshold: int = 180_000
     min_token_threshold: int = 100_000
     max_token_threshold: int = 180_000
     context_usage_ratio: float = 0.9
