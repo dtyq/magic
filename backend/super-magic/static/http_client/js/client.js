@@ -1643,12 +1643,51 @@ function applyLocalDebugOptions(messageData) {
     if (!messageData || typeof messageData !== 'object') return;
     messageData.dynamic_config = Object.assign({}, messageData.dynamic_config, {
         enable_debug_tool_result_content: true,
+        client_context: buildLocalDebugClientContext(),
     });
     if (currentMessageVersion) {
         messageData.dynamic_config.message_version = currentMessageVersion;
     } else {
         delete messageData.dynamic_config.message_version;
     }
+}
+
+function buildLocalDebugClientContext() {
+    return {
+        version: '1.0.0',
+        data: {
+            content: buildLocalDebugClientContextContent(),
+        },
+    };
+}
+
+function buildLocalDebugClientContextContent() {
+    const openedTabs = [...filePreviewTabs.values()]
+        .map(tab => formatClientContextTabName(tab))
+        .filter(Boolean);
+    const focusedFile = getClientContextFocusedFile();
+
+    if (!openedTabs.length && !focusedFile) return '';
+
+    const tabLines = openedTabs.length
+        ? openedTabs.map(tabName => `- ${tabName}`).join('\n')
+        : 'None';
+    return [
+        'Open tabs:',
+        tabLines,
+        `Focused file: ${focusedFile || 'None'}`,
+    ].join('\n');
+}
+
+function formatClientContextTabName(tab) {
+    if (!tab || typeof tab !== 'object') return '';
+    if (isToolDetailPreviewPath(tab.path)) return tab.title || 'Tool detail';
+    return tab.path || tab.title || '';
+}
+
+function getClientContextFocusedFile() {
+    if (!activeFilePreviewPath || isToolDetailPreviewPath(activeFilePreviewPath)) return '';
+    return activeFilePreviewPath;
 }
 
 // 发送消息
