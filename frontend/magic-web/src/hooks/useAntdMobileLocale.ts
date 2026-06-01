@@ -1,14 +1,16 @@
 import { useDeepCompareEffect, useRequest } from "ahooks"
 import type { Locale } from "antd-mobile/es/locales/base"
 import { configStore } from "@/models/config"
-import { getAntdMobileLocale } from "@/utils/locale"
+import { getAntdMobileLocale, getAntdMobileLocaleSyncFallback } from "@/utils/locale"
 
 /**
  * Resolves antd-mobile locale for ConfigProvider based on the active app language.
- * Keeps InfiniteScroll and other adm components in sync with i18next language switches.
+ * Always returns a valid Locale: sync fallback while chunks load, then async bundle.
+ * Never pass `undefined` to ConfigProvider — adm merges props and would wipe defaults.
  */
-export function useAntdMobileLocale(): Locale | undefined {
+export function useAntdMobileLocale(): Locale {
 	const { displayLanguage } = configStore.i18n
+	const syncFallback = getAntdMobileLocaleSyncFallback(displayLanguage)
 
 	const {
 		data: locale,
@@ -23,5 +25,5 @@ export function useAntdMobileLocale(): Locale | undefined {
 		return () => cancel?.()
 	}, [displayLanguage, runAsync, cancel])
 
-	return locale ?? undefined
+	return locale ?? syncFallback
 }
