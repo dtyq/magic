@@ -5,7 +5,7 @@ import { getWorkspaceStateSessionStorageKey } from "../utils/sessionStorage"
 import { ProjectListItem } from "../pages/Workspace/types"
 import { isOtherCollaborationProject, SHARE_WORKSPACE_ID } from "../constants"
 import { userStore } from "@/models/user"
-import { routesMatch } from "@/routes/history/helpers"
+import { routesMatch, routesPathMatch } from "@/routes/history/helpers"
 import { baseHistory, history } from "@/routes/history"
 import { projectStore, workspaceStore, topicStore } from "../stores/core"
 import { interfaceStore } from "@/stores/interface"
@@ -180,12 +180,26 @@ class RouteManageService {
 		return this.getCurrentMatchedRouteName() === RouteName.SuperChatProjectState
 	}
 
+	/**
+	 * Detect mobile Super homepage entry routes where fixRouteParams must not rewrite URL.
+	 * Covers the new /mobile-home route, bare /super index, and legacy mobile-tabs home.
+	 */
 	isCurrentMobileHomeRoute(
 		location: { pathname: string; search: string } = baseHistory.location,
 	): boolean {
-		if (!location.pathname.includes("/mobile-tabs")) return false
+		const { pathname, search } = location
 
-		const searchParams = new URLSearchParams(location.search)
+		if (routesPathMatch(RouteName.MobileHome, pathname)) {
+			return true
+		}
+
+		if (isBareSuperRootPath(pathname)) {
+			return true
+		}
+
+		if (!pathname.includes("/mobile-tabs")) return false
+
+		const searchParams = new URLSearchParams(search)
 		const currentTab = searchParams.get("tab") || MobileTabParam.Super
 		const hasRouteParams =
 			Boolean(searchParams.get("projectId")) || Boolean(searchParams.get("topicId"))
@@ -833,6 +847,11 @@ class RouteManageService {
 			match?.route.name === RouteName.SuperWorkspaceProjectTopicState
 		)
 	}
+}
+
+/** Returns true when pathname is bare /{cluster}/super without project/topic segments. */
+function isBareSuperRootPath(pathname: string): boolean {
+	return /^\/[^/]+\/super\/?$/.test(pathname) && !pathname.includes("/mobile-tabs")
 }
 
 export default new RouteManageService()

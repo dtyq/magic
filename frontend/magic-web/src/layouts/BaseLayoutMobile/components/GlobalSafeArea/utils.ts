@@ -13,7 +13,6 @@ export const NO_GLOBAL_SAFE_AREA_ROUTES_NAMES: string[] = [
 	RouteName.Explore,
 	RouteName.ChatConversation,
 	RouteName.Profile,
-	RouteName.Super,
 	RouteName.MobileTabs,
 	RouteName.ProfileSettingsTimezone,
 ]

@@ -27,6 +27,10 @@ import {
 	shouldShowProjectTransferAction,
 } from "@/pages/superMagicMobile/utils/projectActionVisibility"
 import {
+	MOBILE_RENAME_POPUP_INPUT_CLASS,
+	MOBILE_RENAME_POPUP_LABEL_CLASS,
+} from "@/pages/superMagicMobile/utils/mobileRenamePopupFieldStyles"
+import {
 	resolveProjectDetailHeaderActions,
 	type SharedProjectVisibleActionKey,
 } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
@@ -707,7 +711,7 @@ export function useProjectListActions({
 				<div className="scrollbar-y-thin flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-[max(var(--safe-area-inset-bottom),16px)] pt-2">
 					<div className="flex flex-col gap-2.5">
 						{/* Field label above input; sheet title stays the generic "Rename" action. */}
-						<div className="text-sm font-normal leading-5 text-foreground">
+						<div className={MOBILE_RENAME_POPUP_LABEL_CLASS}>
 							{t(
 								isChatMode
 									? "chat.chatNameFieldLabel"
@@ -715,7 +719,7 @@ export function useProjectListActions({
 							)}
 						</div>
 						<Input
-							className="bg-white"
+							className={MOBILE_RENAME_POPUP_INPUT_CLASS}
 							placeholder={t(
 								isChatMode
 									? "chat.inputChatName"
@@ -730,6 +734,11 @@ export function useProjectListActions({
 								})
 							}}
 							autoFocus
+							data-testid={
+								isChatMode
+									? "chat-rename-popup-input"
+									: "project-rename-popup-input"
+							}
 						/>
 					</div>
 				</div>

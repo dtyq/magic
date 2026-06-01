@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react"
+import { render } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import SuperRootRedirect from "./SuperRootRedirect"
+import { RouteName } from "@/routes/constants"
 
 const mockState = vi.hoisted(() => ({
 	isMobile: false,
@@ -8,6 +9,7 @@ const mockState = vi.hoisted(() => ({
 	params: {} as Record<string, string | undefined>,
 	navigate: vi.fn(),
 	navigateToHome: vi.fn(),
+	replace: vi.fn(),
 }))
 
 vi.mock("react-router", () => ({
@@ -23,11 +25,6 @@ vi.mock("@/routes/hooks/useNavigate", () => ({
 	default: () => mockState.navigate,
 }))
 
-vi.mock("@/routes/components/Navigate", () => ({
-	__esModule: true,
-	default: ({ name }: { name: string }) => <div data-testid="navigate-target">{name}</div>,
-}))
-
 vi.mock("@/routes/history", () => ({
 	baseHistory: {
 		location: {
@@ -35,6 +32,9 @@ vi.mock("@/routes/history", () => ({
 				return mockState.pathname
 			},
 		},
+	},
+	history: {
+		replace: mockState.replace,
 	},
 }))
 
@@ -72,6 +72,7 @@ describe("SuperRootRedirect", () => {
 		mockState.params = {}
 		mockState.navigate.mockReset()
 		mockState.navigateToHome.mockReset()
+		mockState.replace.mockReset()
 	})
 
 	it("redirects bare /super to mobile home on mobile viewport", () => {
@@ -79,7 +80,7 @@ describe("SuperRootRedirect", () => {
 
 		render(<SuperRootRedirect />)
 
-		expect(screen.getByTestId("navigate-target")).toHaveTextContent("MobileHome")
+		expect(mockState.replace).toHaveBeenCalledWith({ name: RouteName.MobileHome })
 		expect(mockState.navigate).not.toHaveBeenCalled()
 		expect(mockState.navigateToHome).not.toHaveBeenCalled()
 	})

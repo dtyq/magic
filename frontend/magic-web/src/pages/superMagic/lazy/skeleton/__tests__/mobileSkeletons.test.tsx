@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import TopicPageMobileSkeleton from "../TopicPageMobileSkeleton"
 import ChatProjectPageMobileSkeleton from "../ChatProjectPageMobileSkeleton"
+import MobileHomePageMobileSkeleton from "../MobileHomePageMobileSkeleton"
 import ProjectPageMobileSkeleton from "../ProjectPageMobileSkeleton"
 import TopicPageMobileSkeletonWithLayout from "../TopicPageMobileSkeletonWithLayout"
 import ProjectPageMobileSkeletonWithLayout from "../ProjectPageMobileSkeletonWithLayout"
@@ -23,6 +24,17 @@ describe("mobile skeletons", () => {
 
 		expect(screen.getByTestId("mobile-header-skeleton-chat-hero")).toBeInTheDocument()
 		expect(screen.getByTestId("mobile-message-bubbles-skeleton")).toBeInTheDocument()
+		expect(container.innerHTML).not.toContain("pb-safe-bottom")
+	})
+
+	it("MobileHomePageMobileSkeleton mirrors conversation shell with centered brand hero", () => {
+		const { container } = render(<MobileHomePageMobileSkeleton />)
+
+		expect(screen.getByTestId("mobile-home-page-skeleton")).toBeInTheDocument()
+		expect(screen.getByTestId("mobile-header-skeleton-mobile-home")).toBeInTheDocument()
+		expect(screen.getByTestId("mobile-brand-hero-skeleton")).toBeInTheDocument()
+		expect(screen.getByTestId("mobile-composer-footer-skeleton")).toBeInTheDocument()
+		expect(screen.queryByTestId("mobile-message-bubbles-skeleton")).not.toBeInTheDocument()
 		expect(container.innerHTML).not.toContain("pb-safe-bottom")
 	})
 

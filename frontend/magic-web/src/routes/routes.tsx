@@ -109,7 +109,7 @@ const SuperMobileShellAppRouteLayout = lazy(
 /** 回收站（桌面/移动统一入口） */
 const ResponsiveRecycleBin = lazy(() => import("@/pages/recycleBin/ResponsiveRecycleBinPage"))
 const ChatsPage = lazy(() => import("@/pages/superMagicMobile/pages/ChatsPage"))
-const MobileHomePage = lazy(() => import("@/pages/superMagicMobile/pages/ChatPage"))
+const MobileHomePage = lazy(() => import("@/pages/superMagic/lazy/MobileHomePage"))
 const SuperAppsPage = lazy(() => import("@/pages/superMagic/pages/AppsPage"))
 const SuperMagicNavigate = lazy(() => import("@/pages/superMagic/lazy/SuperMagicNavigate"))
 const SuperRootRedirect = lazy(() => import("@/pages/superMagic/lazy/SuperRootRedirect"))

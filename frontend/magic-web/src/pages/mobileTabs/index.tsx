@@ -11,6 +11,7 @@ import ChatMobileSkeleton from "@/pages/chatNew/lazy/skeleton/ChatMobileSkeleton
 import WorkspacePageMobileSkeleton from "../superMagic/lazy/skeleton/WorkspacePageMobileSkeleton"
 import { TAB_PARAM_TO_TAB_KEY, MobileTabBarKey } from "./constants"
 import { isLegacyMobileTabsHomeEntry } from "./legacyEntry"
+import { LegacyMobileHomeRedirect } from "./legacyHomeRedirect"
 import { notifyAppTabChange } from "@/layouts/BaseLayoutMobile/components/MobileTabBar/utils"
 
 // Lazy load tab pages (只加载一次)
@@ -85,7 +86,7 @@ function MobileTabs() {
 	}, [activeTab])
 
 	if (shouldRedirectLegacyMobileHome) {
-		return <Navigate name={RouteName.MobileHome} replace />
+		return <LegacyMobileHomeRedirect />
 	}
 
 	// Legacy mobile home aliases now collapse to /mobile-home before desktop/mobile fallback handling.

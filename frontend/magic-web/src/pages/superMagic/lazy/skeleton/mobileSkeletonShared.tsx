@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/shadcn-ui/skeleton"
 import { cn } from "@/lib/utils"
 import TopicItemSkeleton from "@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/components/TopicItemSkeleton"
 
-type MobileHeaderSkeletonVariant = "project-entry" | "project-topic" | "chat-hero"
+type MobileHeaderSkeletonVariant = "project-entry" | "project-topic" | "chat-hero" | "mobile-home"
 
 interface MobileHeaderSkeletonProps {
 	variant: MobileHeaderSkeletonVariant
@@ -29,7 +29,7 @@ function MobileHeaderSkeleton({ variant, className }: MobileHeaderSkeletonProps)
 					<Skeleton className="size-12 rounded-none" />
 				</div>
 			) : null}
-			{variant === "project-topic" || variant === "chat-hero" ? (
+			{variant === "project-topic" || variant === "chat-hero" || variant === "mobile-home" ? (
 				<Skeleton className="ml-auto size-12 shrink-0 rounded-full" />
 			) : null}
 		</div>
@@ -87,6 +87,42 @@ interface MobileConversationPageSkeletonProps {
 	showHeader?: boolean
 	headerVariant?: MobileHeaderSkeletonVariant
 	className?: string
+}
+
+/** Brand hero placeholder aligned with MobileBrandHero on mobile-home. */
+function MobileBrandHeroSkeleton({ className }: { className?: string }) {
+	return (
+		<div
+			className={cn(
+				"flex w-full max-w-[348px] shrink-0 flex-col items-center gap-3 text-center",
+				className,
+			)}
+			data-testid="mobile-brand-hero-skeleton"
+		>
+			<Skeleton className="size-20 shrink-0 rounded-full" />
+			<Skeleton className="h-4 w-[180px] max-w-full rounded-md" />
+			<Skeleton className="h-7 w-[240px] max-w-full rounded-md" />
+		</div>
+	)
+}
+
+/** Mobile-home skeleton: shared header/composer pattern from conversation detail + centered hero. */
+export function MobileHomePageSkeleton({ className }: { className?: string }) {
+	return (
+		<div
+			className={cn(
+				"flex h-full min-h-0 flex-col overflow-hidden bg-mobile-background",
+				className,
+			)}
+			data-testid="mobile-home-page-skeleton"
+		>
+			<MobileHeaderSkeleton variant="mobile-home" />
+			<div className="flex min-h-0 flex-1 items-center justify-center px-4">
+				<MobileBrandHeroSkeleton />
+			</div>
+			<MobileComposerFooterSkeleton />
+		</div>
+	)
 }
 
 /** Conversation page skeleton shared by topic and chat routes. */

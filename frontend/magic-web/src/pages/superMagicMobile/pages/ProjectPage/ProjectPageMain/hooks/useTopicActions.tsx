@@ -21,6 +21,10 @@ import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory
 import { sortTopicsWithPinnedFirst } from "./topicPinSort"
 import useNavigate from "@/routes/hooks/useNavigate"
 import {
+	MOBILE_RENAME_POPUP_INPUT_CLASS,
+	MOBILE_RENAME_POPUP_LABEL_CLASS,
+} from "@/pages/superMagicMobile/utils/mobileRenamePopupFieldStyles"
+import {
 	getMobileTopicPageCapabilities,
 	MobileTopicPageKind,
 } from "@/pages/superMagicMobile/pages/shared/topicPageCapabilities"
@@ -324,11 +328,11 @@ export function useTopicListActions({
 			>
 				<div className="scrollbar-y-thin flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-[max(var(--safe-area-inset-bottom),16px)] pt-2">
 					<div className="flex flex-col gap-2.5">
-						<div className="text-sm font-normal leading-5 text-foreground">
+						<div className={MOBILE_RENAME_POPUP_LABEL_CLASS}>
 							{t("hierarchicalWorkspacePopup.newName")}
 						</div>
 						<Input
-							className="bg-white"
+							className={MOBILE_RENAME_POPUP_INPUT_CLASS}
 							placeholder={t("hierarchicalWorkspacePopup.inputTopicName")}
 							value={currentActionItem?.topic?.topic_name}
 							onChange={(e) => {
@@ -343,6 +347,7 @@ export function useTopicListActions({
 								}))
 							}}
 							autoFocus
+							data-testid="topic-rename-popup-input"
 						/>
 					</div>
 				</div>

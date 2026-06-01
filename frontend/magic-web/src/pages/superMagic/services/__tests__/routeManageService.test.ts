@@ -2,27 +2,38 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { RouteName } from "@/routes/constants"
 
-const replaceMock = vi.fn()
-const pushMock = vi.fn()
-const goMock = vi.fn()
-const routesMatchMock = vi.fn()
+const mockState = vi.hoisted(() => ({
+	pathname: "/global/super/workspaces",
+	search: "",
+	isMobile: false,
+	replaceMock: vi.fn(),
+	pushMock: vi.fn(),
+	goMock: vi.fn(),
+	routesMatchMock: vi.fn(),
+	routesPathMatchMock: vi.fn(),
+}))
 
 vi.mock("@/routes/history", () => ({
 	baseHistory: {
 		location: {
-			pathname: "/global/super/workspaces",
-			search: "",
+			get pathname() {
+				return mockState.pathname
+			},
+			get search() {
+				return mockState.search
+			},
 		},
 	},
 	history: {
-		replace: replaceMock,
-		push: pushMock,
-		go: goMock,
+		replace: mockState.replaceMock,
+		push: mockState.pushMock,
+		go: mockState.goMock,
 	},
 }))
 
 vi.mock("@/routes/history/helpers", () => ({
-	routesMatch: routesMatchMock,
+	routesMatch: mockState.routesMatchMock,
+	routesPathMatch: mockState.routesPathMatchMock,
 }))
 
 vi.mock("@/models/user", () => ({
@@ -36,6 +47,14 @@ vi.mock("@/models/user", () => ({
 	},
 }))
 
+vi.mock("@/stores/interface", () => ({
+	interfaceStore: {
+		get isMobile() {
+			return mockState.isMobile
+		},
+	},
+}))
+
 vi.mock("../../stores/core", () => ({
 	projectStore: {
 		selectedProject: null,
@@ -43,15 +62,22 @@ vi.mock("../../stores/core", () => ({
 	workspaceStore: {
 		selectedWorkspace: { id: "workspace-1" },
 	},
-	topicStore: {},
+	topicStore: {
+		selectedTopic: null,
+	},
 }))
 
 const navigateMock = vi.fn()
+
+const { replaceMock, pushMock, goMock, routesMatchMock, routesPathMatchMock } = mockState
 
 const { default: routeManageService } = await import("../routeManageService")
 
 describe("routeManageService.navigateToHome", () => {
 	beforeEach(() => {
+		mockState.pathname = "/global/super/workspaces"
+		mockState.search = ""
+		mockState.isMobile = false
 		replaceMock.mockReset()
 		pushMock.mockReset()
 		goMock.mockReset()
@@ -60,6 +86,7 @@ describe("routeManageService.navigateToHome", () => {
 	})
 
 	it("navigates to MobileHome from standalone mobile super routes", () => {
+		mockState.isMobile = true
 		routesMatchMock.mockReturnValue({
 			params: { clusterCode: "global" },
 			pathname: "/global/super/workspaces",
@@ -72,6 +99,79 @@ describe("routeManageService.navigateToHome", () => {
 		expect(replaceMock).toHaveBeenCalledWith(
 			expect.objectContaining({ name: RouteName.MobileHome }),
 		)
+	})
+})
+
+describe("routeManageService.isCurrentMobileHomeRoute", () => {
+	it("returns true for bare /super index", () => {
+		expect(
+			routeManageService.isCurrentMobileHomeRoute({
+				pathname: "/global/super",
+				search: "",
+			}),
+		).toBe(true)
+	})
+
+	it("returns true for /mobile-home route", () => {
+		routesPathMatchMock.mockReturnValue(true)
+
+		expect(
+			routeManageService.isCurrentMobileHomeRoute({
+				pathname: "/global/mobile-home",
+				search: "",
+			}),
+		).toBe(true)
+	})
+
+	it("returns true for legacy mobile-tabs super home", () => {
+		routesPathMatchMock.mockReturnValue(false)
+
+		expect(
+			routeManageService.isCurrentMobileHomeRoute({
+				pathname: "/global/mobile-tabs",
+				search: "?tab=super",
+			}),
+		).toBe(true)
+	})
+
+	it("returns false for mobile-tabs deep links carrying project state", () => {
+		routesPathMatchMock.mockReturnValue(false)
+
+		expect(
+			routeManageService.isCurrentMobileHomeRoute({
+				pathname: "/global/mobile-tabs",
+				search: "?tab=super&projectId=project-1",
+			}),
+		).toBe(false)
+	})
+})
+
+describe("routeManageService.fixRouteParams", () => {
+	beforeEach(() => {
+		mockState.pathname = "/global/super"
+		mockState.search = ""
+		mockState.isMobile = true
+		replaceMock.mockReset()
+		pushMock.mockReset()
+		goMock.mockReset()
+		routesMatchMock.mockReset()
+		navigateMock.mockReset()
+		routeManageService.setNavigate(navigateMock)
+	})
+
+	it("skips navigation on mobile bare /super even when workspace is selected", () => {
+		routesMatchMock.mockReturnValue({
+			params: { clusterCode: "global" },
+			pathname: "/global/super",
+			pathnameBase: "/global/super",
+			route: { name: RouteName.Super },
+		})
+
+		routeManageService.fixRouteParams()
+
+		expect(navigateMock).not.toHaveBeenCalled()
+		expect(replaceMock).not.toHaveBeenCalled()
+		expect(pushMock).not.toHaveBeenCalled()
 	})
 })
 
