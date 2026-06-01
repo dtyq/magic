@@ -71,6 +71,27 @@ export function teamEditionRedirection(routes: Array<RouteObject>): Array<RouteO
 	})
 }
 
+const PERSISTENT_MOBILE_SHELL_ROUTE_NAMES = new Set<string>([RouteName.MyCrew, RouteName.MagiClaw])
+
+export function splitPersistentMobileShellRoutes<T extends RouteObject>(routes: Array<T>) {
+	return routes.reduce<{
+		mobileShellRoutes: Array<T>
+		standaloneRoutes: Array<T>
+	}>(
+		(groups, route) => {
+			const targetRoutes = PERSISTENT_MOBILE_SHELL_ROUTE_NAMES.has(route.name)
+				? groups.mobileShellRoutes
+				: groups.standaloneRoutes
+			targetRoutes.push(route)
+			return groups
+		},
+		{
+			mobileShellRoutes: [],
+			standaloneRoutes: [],
+		},
+	)
+}
+
 /**
  * 使用 a 标签打开新标签
  * @param url 跳转地址

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { Bot, Box, LayoutGrid, MessageCircle, Mic, Trash2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
@@ -84,6 +84,7 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 	const { t } = useTranslation("super")
 	const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+	const pendingNavigationFrameRef = useRef<number[]>([])
 	const shouldShowAppsEntry = hasOrganizationAppsShortcuts({
 		isPersonalOrganization: userStore.user.isPersonalOrganization,
 	})
@@ -95,6 +96,13 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 		setDocumentThemeSidebarOpen(isSidebarOpen)
 		return () => setDocumentThemeSidebarOpen(false)
 	}, [isSidebarOpen, setDocumentThemeSidebarOpen])
+
+	useEffect(() => {
+		return () => {
+			pendingNavigationFrameRef.current.forEach((frameId) => cancelAnimationFrame(frameId))
+			pendingNavigationFrameRef.current = []
+		}
+	}, [])
 
 	useEffect(() => {
 		if (!isSidebarOpen) return
@@ -133,16 +141,42 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 		[shouldShowAppsEntry, t],
 	)
 
+	const runAfterSidebarCloseFrame = useCallback((action: () => void) => {
+		pendingNavigationFrameRef.current.forEach((frameId) => cancelAnimationFrame(frameId))
+		pendingNavigationFrameRef.current = []
+
+		// Let the closed transform commit and paint before route rendering starts; otherwise React may batch both updates and skip the visible close transition.
+		const firstFrameId = requestAnimationFrame(() => {
+			const secondFrameId = requestAnimationFrame(() => {
+				pendingNavigationFrameRef.current = []
+				action()
+			})
+			pendingNavigationFrameRef.current = [secondFrameId]
+		})
+
+		pendingNavigationFrameRef.current = [firstFrameId]
+	}, [])
+
 	const handleMenuNavigate = useCallback(
 		(key: string) => {
 			setIsSidebarOpen(false)
+			const navigateWithoutViewTransition = (name: RouteName) => {
+				// Sidebar close already animates the shell; page View Transition snapshots stack old/new shells and cause multi-shell flicker.
+				const navigateToRoute = () => navigate({ name, viewTransition: false })
+				if (isSidebarOpen) {
+					runAfterSidebarCloseFrame(navigateToRoute)
+					return
+				}
+				navigateToRoute()
+			}
+
 			if (key === "trash") {
 				// 回收站已是独立路由，侧栏点击应与其他正式导航项保持一致。
-				navigate({ name: RouteName.RecycleBin })
+				navigateWithoutViewTransition(RouteName.RecycleBin)
 				return
 			}
 			if (key === "chats") {
-				navigate({ name: RouteName.SuperChatsList })
+				navigateWithoutViewTransition(RouteName.SuperChatsList)
 				return
 			}
 			if (key === "recording") {
@@ -150,24 +184,24 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 				return
 			}
 			if (key === "magiClaw") {
-				navigate({ name: RouteName.MagiClaw })
+				navigateWithoutViewTransition(RouteName.MagiClaw)
 				return
 			}
 			if (key === "myCrew") {
-				navigate({ name: RouteName.MyCrew })
+				navigateWithoutViewTransition(RouteName.MyCrew)
 				return
 			}
 			if (key === "apps") {
-				navigate({ name: RouteName.SuperApps })
+				navigateWithoutViewTransition(RouteName.SuperApps)
 				return
 			}
 			if (key === "workspaces") {
-				navigate({ name: RouteName.SuperWorkspacesList })
+				navigateWithoutViewTransition(RouteName.SuperWorkspacesList)
 				return
 			}
-			navigate({ name: RouteName.MobileHome })
+			navigateWithoutViewTransition(RouteName.MobileHome)
 		},
-		[navigate],
+		[isSidebarOpen, navigate, runAfterSidebarCloseFrame],
 	)
 
 	/**
@@ -199,7 +233,13 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 			onGoHome: () => {
 				setIsSidebarOpen(false)
 				// Disable page View Transition so shell close animation does not stack with VT snapshots (multi-sidebar flicker).
-				navigate({ name: RouteName.MobileHome, viewTransition: false })
+				const navigateHome = () =>
+					navigate({ name: RouteName.MobileHome, viewTransition: false })
+				if (isSidebarOpen) {
+					runAfterSidebarCloseFrame(navigateHome)
+					return
+				}
+				navigateHome()
 			},
 			onRecentNavigate: handleRecentNavigate,
 			reloadRecentItems,
@@ -211,11 +251,13 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 			handleMenuNavigate,
 			handleRecentNavigate,
 			hasMore,
+			isSidebarOpen,
 			loadMoreRecentItems,
 			navItems,
 			navigate,
 			recentItems,
 			reloadRecentItems,
+			runAfterSidebarCloseFrame,
 		],
 	)
 	/** 统一默认侧栏，避免业务页重复实现与维护一整份侧栏 JSX。 */

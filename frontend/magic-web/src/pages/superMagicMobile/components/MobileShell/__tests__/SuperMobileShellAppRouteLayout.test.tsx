@@ -20,14 +20,31 @@ vi.mock("react-i18next", async (importOriginal) => {
 
 /** Tracks whether the mobile shell layout was mounted for the current render. */
 const superMobileShellRouteLayoutMock = vi.fn(
-	({ children }: { children: ReactNode }) => (
-		<div data-testid="super-mobile-shell-route-layout">{children}</div>
+	({
+		children,
+		activeView,
+		testIdPrefix,
+	}: {
+		children: ReactNode
+		activeView: string
+		testIdPrefix: string
+	}) => (
+		<div
+			data-testid="super-mobile-shell-route-layout"
+			data-active-view={activeView}
+			data-prefix={testIdPrefix}
+		>
+			{children}
+		</div>
 	),
 )
 
 vi.mock("../SuperMobileShellRouteLayout", () => ({
-	SuperMobileShellRouteLayout: (props: { children: ReactNode }) =>
-		superMobileShellRouteLayoutMock(props),
+	SuperMobileShellRouteLayout: (props: {
+		children: ReactNode
+		activeView: string
+		testIdPrefix: string
+	}) => superMobileShellRouteLayoutMock(props),
 }))
 
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -38,8 +55,10 @@ function renderAppRouteLayout(initialPath = "/demo/super/chats") {
 	return render(
 		<MemoryRouter initialEntries={[initialPath]}>
 			<Routes>
-				<Route path="/:clusterCode/super/*" element={<SuperMobileShellAppRouteLayout />}>
-					<Route path="chats" element={<div data-testid="child-page">child</div>} />
+				<Route path="/:clusterCode/*" element={<SuperMobileShellAppRouteLayout />}>
+					<Route path="super/chats" element={<div data-testid="child-page">child</div>} />
+					<Route path="my-crew" element={<div data-testid="child-page">child</div>} />
+					<Route path="claw" element={<div data-testid="child-page">child</div>} />
 				</Route>
 			</Routes>
 		</MemoryRouter>,
@@ -69,5 +88,19 @@ describe("SuperMobileShellAppRouteLayout", () => {
 		expect(screen.getByTestId("super-mobile-shell-route-layout")).toBeInTheDocument()
 		expect(screen.getByTestId("child-page")).toBeInTheDocument()
 		expect(superMobileShellRouteLayoutMock).toHaveBeenCalled()
+	})
+
+	it.each([
+		["/demo/my-crew", "myCrew", "my-crew-shell"],
+		["/demo/claw", "magiClaw", "magi-claw-shell"],
+	])("resolves persistent shell state for %s", (initialPath, activeView, testIdPrefix) => {
+		vi.mocked(useIsMobile).mockReturnValue(true)
+
+		renderAppRouteLayout(initialPath)
+
+		const shell = screen.getByTestId("super-mobile-shell-route-layout")
+		expect(shell).toHaveAttribute("data-active-view", activeView)
+		expect(shell).toHaveAttribute("data-prefix", testIdPrefix)
+		expect(screen.getByTestId("child-page")).toBeInTheDocument()
 	})
 })

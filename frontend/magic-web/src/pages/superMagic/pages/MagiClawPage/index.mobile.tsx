@@ -1,5 +1,8 @@
 import { useTranslation } from "react-i18next"
-import { SuperMobileShellRouteLayout } from "@/pages/superMagicMobile/components/MobileShell"
+import {
+	SuperMobileShellRouteLayout,
+	useOptionalSuperMobileShellOutlet,
+} from "@/pages/superMagicMobile/components/MobileShell"
 import { MagiClawCreateDialog } from "./MagiClawCreateDialog"
 import { MagiClawDeleteConfirmSheet } from "./MagiClawDeleteConfirmSheet"
 import { MagiClawEditDialog } from "./MagiClawEditDialog"
@@ -181,7 +184,12 @@ function MagiClawMobilePanel() {
 
 /** 页面入口只负责接入统一移动端壳层，业务逻辑由容器 hook 承担。 */
 export default function MagiClawMobilePage() {
+	const shellOutlet = useOptionalSuperMobileShellOutlet()
 	const { t } = useTranslation("super")
+
+	if (shellOutlet) {
+		return <MagiClawMobilePanel />
+	}
 
 	return (
 		<SuperMobileShellRouteLayout

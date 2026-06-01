@@ -4,7 +4,12 @@ import { RoutePath, RoutePathMobile } from "@/constants/routes"
 import magicAdminRoutes from "@/routes/modules/admin/routes"
 import magiClawRoutes from "@/routes/modules/magi-claw/routes"
 import { RouteName } from "@/routes/constants"
-import { routesRedirection, teamEditionRedirection, withFlowNamespaces } from "@/routes/helpers"
+import {
+	routesRedirection,
+	splitPersistentMobileShellRoutes,
+	teamEditionRedirection,
+	withFlowNamespaces,
+} from "@/routes/helpers"
 import { superMagicCrewRoutes } from "@/routes/modules/superMagicCrewRoutes"
 
 /**
@@ -228,6 +233,8 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 			],
 		},
 	]
+	const { mobileShellRoutes, standaloneRoutes: standaloneSuperMagicRoutes } =
+		splitPersistentMobileShellRoutes([...superMagicCrewRoutes, ...magiClawRoutes])
 	const clusterRoutes = {
 		path: "/:clusterCode",
 		element: <BaseLayout />,
@@ -399,6 +406,7 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 						path: `/:clusterCode${RoutePath.SuperWorkspaceProjects}`,
 						element: <WorkspaceProjectsPage />,
 					},
+					...mobileShellRoutes,
 				],
 			},
 			{
@@ -432,8 +440,7 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 					},
 				],
 			},
-			...superMagicCrewRoutes,
-			...magiClawRoutes,
+			...standaloneSuperMagicRoutes,
 			{
 				name: RouteName.SuperMagicNavigate,
 				path: `/:clusterCode${RoutePathMobile.SuperMagicNavigate}`,

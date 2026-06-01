@@ -16,6 +16,14 @@ function resolveActiveView(pathname: string): string {
 		return "apps"
 	}
 
+	if (matchPath(`/:clusterCode${RoutePath.MyCrew}`, pathname)) {
+		return "myCrew"
+	}
+
+	if (matchPath(`/:clusterCode${RoutePath.MagiClaw}`, pathname)) {
+		return "magiClaw"
+	}
+
 	if (matchPath(`/:clusterCode${RoutePath.RecycleBin}`, pathname)) {
 		return "trash"
 	}
@@ -38,6 +46,14 @@ function resolveTestIdPrefix(pathname: string): string {
 
 	if (matchPath(`/:clusterCode${RoutePath.SuperApps}`, pathname)) {
 		return "super-apps-shell"
+	}
+
+	if (matchPath(`/:clusterCode${RoutePath.MyCrew}`, pathname)) {
+		return "my-crew-shell"
+	}
+
+	if (matchPath(`/:clusterCode${RoutePath.MagiClaw}`, pathname)) {
+		return "magi-claw-shell"
 	}
 
 	if (matchPath(`/:clusterCode${RoutePath.RecycleBin}`, pathname)) {

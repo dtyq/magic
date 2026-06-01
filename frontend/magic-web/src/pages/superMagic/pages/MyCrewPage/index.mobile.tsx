@@ -12,6 +12,7 @@ import {
 import {
 	MobileShellSidebarToggleButton,
 	SuperMobileShellRouteLayout,
+	useOptionalSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import useNavigate from "@/routes/hooks/useNavigate"
@@ -363,7 +364,12 @@ const MyCrewPageMobilePanel = observer(MyCrewPageMobilePanelBase)
 
 /** Page entry wraps the panel in the unified mobile shell layout. */
 export default function MyCrewPageMobile() {
+	const shellOutlet = useOptionalSuperMobileShellOutlet()
 	const { t } = useTranslation("super")
+
+	if (shellOutlet) {
+		return <MyCrewPageMobilePanel />
+	}
 
 	return (
 		<SuperMobileShellRouteLayout
