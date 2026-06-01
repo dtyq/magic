@@ -61,18 +61,19 @@ function resolveTestIdPrefix(pathname: string): string {
 
 /**
  * Super 一级移动端路由父布局：公共 Shell 只在这里挂载一次，子路由仅切换面板内容。
- * 回收站桌面端仍需保持原有 PC 页面，因此仅在该路径且非移动端时跳过 Shell 包裹。
+ * 桌面端不挂载 Shell（避免依赖 BaseLayoutMobile 内的 MobileDocumentThemeProvider）；
+ * 子页面通过 MobileOnlyRoute 重定向到 /super，回收站等仍走各自 PC 页面。
  */
 export default function SuperMobileShellAppRouteLayout() {
 	const location = useLocation()
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
 	const pathname = location.pathname
-	const isRecycleBinRoute = matchPath(`/:clusterCode${RoutePath.RecycleBin}`, pathname) != null
 	const activeView = useMemo(() => resolveActiveView(pathname), [pathname])
 	const testIdPrefix = useMemo(() => resolveTestIdPrefix(pathname), [pathname])
 
-	if (!isMobile && isRecycleBinRoute) {
+	// Desktop skips mobile shell; child routes handle redirect or PC-specific rendering.
+	if (!isMobile) {
 		return <Outlet />
 	}
 
