@@ -3371,5 +3371,9 @@
 		"workspaceName": "Workspace Name",
 		"workspaceNotFound": "Workspace not found",
 		"workspaces": "Workspaces"
+	},
+	"citations": {
+		"sourceCount": "{{count}} knowledge base citations",
+		"openSource": "Open source"
 	}
 }

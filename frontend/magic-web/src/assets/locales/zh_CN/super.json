@@ -3385,5 +3385,9 @@
 		"workspaceName": "工作区名称",
 		"workspaceNotFound": "工作区不存在",
 		"workspaces": "工作区"
+	},
+	"citations": {
+		"sourceCount": "{{count}} 条知识库引用",
+		"openSource": "打开来源"
 	}
 }

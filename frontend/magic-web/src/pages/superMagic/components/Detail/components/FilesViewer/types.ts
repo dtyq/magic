@@ -161,6 +161,9 @@ export interface FilesViewerRef {
 	// Playback tab相关方法
 	openPlaybackTab: (options?: { toolData?: any; forceActivate?: boolean }) => void
 	closePlaybackTab: () => void
+	// Knowledge base tab相关方法
+	openKnowledgeBaseTab: (data: { knowledgeBaseId: string; fileKey: string; title: string; knowledgeBaseName?: string; fileExtension?: string }) => void
+	closeKnowledgeBaseTab: (tabId: string) => void
 }
 
 // Tab component props

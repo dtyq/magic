@@ -114,4 +114,33 @@ export function useMobileFilePreviewPubSub({
             pubsub.unsubscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
         }
     }, [onPlaybackOpen])
+
+    // 订阅知识库文件预览事件
+    useEffect(() => {
+        const handleOpenKnowledgeBaseTab = (data: unknown) => {
+            const payload = data as {
+                knowledgeBaseId: string
+                fileKey: string
+                title: string
+                knowledgeBaseName?: string
+            }
+            onFileClick({
+                file_id: `kb_${payload.knowledgeBaseId}_${payload.fileKey}`,
+                file_name: payload.title,
+                file_extension: "md",
+                knowledge_base_id: payload.knowledgeBaseId,
+                file_key: payload.fileKey,
+                display_config: {
+                    type: "knowledge_base",
+                    name: payload.title,
+                },
+            })
+        }
+
+        pubsub.subscribe(PubSubEvents.Open_Knowledge_Base_Tab, handleOpenKnowledgeBaseTab)
+
+        return () => {
+            pubsub.unsubscribe(PubSubEvents.Open_Knowledge_Base_Tab, handleOpenKnowledgeBaseTab)
+        }
+    }, [onFileClick])
 }

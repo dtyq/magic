@@ -9,6 +9,8 @@ import { observer } from "mobx-react-lite"
 import { ToolCall } from "./ToolCall"
 import { cn } from "@/lib/utils"
 import MarkdownComponent from "../../Text/components/Markdown"
+import { parseCitations } from "@/pages/superMagic/utils/parseCitations"
+import { CitationCard } from "../../Citations"
 import { Attachment } from "@/pages/superMagic/components/MessageList/components/MessageAttachment"
 import type { AttachmentProps } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/type"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
@@ -75,9 +77,20 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 	const reasoningContent =
 		typeof node?.reasoning_content === "string" ? node.reasoning_content : ""
 	const hasReasoningContent = !/^\s*$/.test(reasoningContent)
-	const content = typeof node?.content === "string" ? node.content : ""
-	const hasContent = !/^\s*$/.test(content)
+	const rawContent = typeof node?.content === "string" ? node.content : ""
+	const hasContent = !/^\s*$/.test(rawContent)
 	const hasAssistantContent = node?.role === "assistant" && hasContent
+
+	const [highlightedCitation, setHighlightedCitation] = useState<number | null>(null)
+
+	// 解析引用数据：仅对 assistant 消息分离 <references> 块和正文
+	const { content: displayContent, citations } = useMemo(
+		() =>
+			hasAssistantContent
+				? parseCitations(rawContent)
+				: { content: rawContent, citations: [] },
+		[rawContent, hasAssistantContent],
+	)
 
 	const [openReasoning, setOpenReasoning] = useState(false)
 	// const hasToolCall = Boolean(node?.tool_calls)
@@ -191,13 +204,39 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 				</ReasoningPanel>
 			)}
 			{hasContent && (
-				<MarkdownComponent
-					className={markdownBaseClassName}
-					isStreaming={streamState === "content"}
-					content={content}
-					onMouseEnter={onMouseEnter}
-					onMouseLeave={onMouseLeave}
-				/>
+				<>
+					<MarkdownComponent
+						className={markdownBaseClassName}
+						isStreaming={streamState === "content"}
+						content={displayContent}
+						citations={citations}
+						highlightedCitation={highlightedCitation}
+						onCitationClick={setHighlightedCitation}
+						onMouseEnter={onMouseEnter}
+						onMouseLeave={onMouseLeave}
+					/>
+					{citations.length > 0 && (
+						<CitationCard
+							sources={citations}
+							highlightedIndex={highlightedCitation}
+							onHighlightChange={setHighlightedCitation}
+							onFileClick={(citation) => {
+								if (
+									citation.type === "knowledge_base" &&
+									(citation.knowledge_base_id || citation.file_key)
+								) {
+									pubsub.publish(PubSubEvents.Open_Knowledge_Base_Tab, {
+										knowledgeBaseId: citation.knowledge_base_id || "",
+										fileKey: citation.file_key || "",
+										title: citation.title,
+										knowledgeBaseName: citation.knowledge_base_name,
+										fileExtension: citation.file_extension,
+									})
+								}
+							}}
+						/>
+					)}
+				</>
 			)}
 
 			{hasToolCall &&

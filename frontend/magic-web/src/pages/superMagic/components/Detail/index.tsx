@@ -55,6 +55,13 @@ export interface DetailRef {
 	switchToTab: (fileId: string) => void
 	openPlaybackTab: (options?: { toolData?: any; forceActivate?: boolean }) => void
 	closePlaybackTab: () => void
+	openKnowledgeBaseTab: (data: {
+		knowledgeBaseId: string
+		fileKey: string
+		title: string
+		knowledgeBaseName?: string
+		fileExtension?: string
+	}) => void
 }
 
 const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
@@ -137,6 +144,11 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 		closePlaybackTab: () => {
 			if (filesViewerRef.current) {
 				filesViewerRef.current.closePlaybackTab()
+			}
+		},
+		openKnowledgeBaseTab: (data) => {
+			if (filesViewerRef.current) {
+				filesViewerRef.current.openKnowledgeBaseTab(data)
 			}
 		},
 	}))

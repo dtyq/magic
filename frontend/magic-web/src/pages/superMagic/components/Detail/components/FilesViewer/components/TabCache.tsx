@@ -3,7 +3,12 @@ import { cn } from "@/lib/utils"
 import useFullscreenMode from "@/hooks/useFullscreenMode"
 import Render from "../../../Render"
 import PlaybackTabContent, { type PlaybackTabContentProps } from "./PlaybackTabContent"
+import KnowledgeBaseTabContent from "./KnowledgeBaseTabContent"
 import { PLAYBACK_TAB_ID } from "../hooks/usePlaybackTab"
+import {
+	KNOWLEDGE_BASE_TAB_ID_PREFIX,
+	type KnowledgeBaseTabData,
+} from "../hooks/useKnowledgeBaseTab"
 
 interface TabCacheProps {
 	tab: {
@@ -17,6 +22,7 @@ interface TabCacheProps {
 	isFullscreen?: boolean
 	openFileTab?: (fileId: string, autoEdit?: boolean) => void
 	playbackProps?: PlaybackTabContentProps
+	knowledgeBaseData?: KnowledgeBaseTabData
 }
 
 /**
@@ -32,8 +38,10 @@ const TabCache = memo(
 		isFullscreen,
 		openFileTab,
 		playbackProps,
+		knowledgeBaseData,
 	}: TabCacheProps) => {
 		const isPlaybackTab = tab.id === PLAYBACK_TAB_ID
+		const isKnowledgeBaseTab = tab.id.startsWith(KNOWLEDGE_BASE_TAB_ID_PREFIX)
 		const tabContentRef = useRef<HTMLDivElement>(null)
 		const isFullscreenMode = useFullscreenMode()
 
@@ -85,11 +93,13 @@ const TabCache = memo(
 					isActive
 						? "pointer-events-auto visible opacity-100"
 						: "pointer-events-none invisible opacity-0",
-					isPlaybackTab && "bg-white dark:bg-background",
+					(isPlaybackTab || isKnowledgeBaseTab) && "bg-white dark:bg-background",
 				)}
 			>
 				{isPlaybackTab && playbackProps ? (
 					<PlaybackTabContent {...playbackProps} />
+				) : isKnowledgeBaseTab && knowledgeBaseData ? (
+					<KnowledgeBaseTabContent data={knowledgeBaseData} />
 				) : (
 					<Render
 						key={tab.refreshKey || tab.id}

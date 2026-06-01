@@ -12,6 +12,8 @@ import {
 	type ReactElement,
 } from "react"
 import { preprocessMarkdown } from "@/pages/superMagic/utils/handleMarkDown"
+import { CITE_MARKER_PATTERN } from "@/pages/superMagic/utils/parseCitations"
+import type { CitationSource } from "@/pages/superMagic/utils/parseCitations"
 import HtmlCodeBlockPreview from "./components/HtmlCodeBlockPreview"
 import type { HtmlCodeBlockPreviewStreamingScrollState } from "./components/HtmlCodeBlockPreview/types"
 import {
@@ -24,9 +26,11 @@ import { MarkdownLink, type MarkdownLinkProps } from "./parser/MarkdownLink"
 import { cn } from "@/lib/utils"
 import type { MarkdownComponentProps } from "./types"
 import styles from "./index.module.css"
+import { CitationBadge } from "../../../Citations"
 
 const MARKDOWN_DOMPURIFY_CONFIG = {
-	ADD_ATTR: ["path"],
+	ADD_ATTR: ["path", "index"],
+	ADD_TAGS: ["cite-badge"],
 }
 // 规则：
 // - allowRawHtml=true：HTML 直接渲染为 DOM（跳过预处理）
@@ -43,8 +47,28 @@ const RAW_HTML_TAG_PATTERN = /<\/?([a-z][a-z0-9_-]*)((?:\s+[^>/]*)?)\s*\/?>/gi
 // 匹配 DOCTYPE、注释等 HTML 声明节点。
 const RAW_HTML_DECLARATION_PATTERN = /<![^>]*>/gi
 // 允许保留的项目自定义标签，避免它们在预处理阶段被误转义。
-const RAW_HTML_ALLOWED_CUSTOM_TAGS = new Set(["file-path"])
+const RAW_HTML_ALLOWED_CUSTOM_TAGS = new Set(["file-path", "cite-badge"])
 const QRCODE_FENCE_LANGUAGE = "qrcode"
+
+/** 匹配完整或未闭合的 <references> 块，用于从 Markdown 内容中移除 */
+const REFERENCES_STRIP_PATTERN = /<references>[\s\S]*?(<\/references>|$)/
+
+/**
+ * 从内容中移除 <references>...</references> 块。
+ * 必须在 preprocessMarkdown 之前调用，否则 <references>/<ref> 会被转义为 backtick 代码。
+ */
+function stripReferencesBlock(content: string): string {
+	if (!content.includes("<references>")) return content
+	return content.replace(REFERENCES_STRIP_PATTERN, "").trimEnd()
+}
+
+/** 将 {{cite:N}} 标记转换为 <cite-badge index="N"></cite-badge> 自定义标签 */
+function preprocessCiteMarkers(content: string): string {
+	if (!content.includes("{{cite:")) return content
+	return content.replace(CITE_MARKER_PATTERN, (_match, index) => {
+		return `<cite-badge index="${index}"></cite-badge>`
+	})
+}
 
 function isCodeLanguage(className: string | undefined, language: string): boolean {
 	if (!className) return false
@@ -168,14 +192,21 @@ export interface UseMarkdownComponentResult {
 	a: (props: MarkdownLinkProps) => ReactElement
 	img: (props: XMarkdownComponentProps) => ReactElement
 	"file-path": (props: XMarkdownComponentProps) => ReactElement
+	"cite-badge": (props: XMarkdownComponentProps) => ReactElement
 }
 
 export function useMarkdownComponent({
 	streamingScrollStateRef,
 	isStreaming = false,
+	citations,
+	highlightedCitation,
+	onCitationClick,
 }: {
 	streamingScrollStateRef: MutableRefObject<HtmlCodeBlockPreviewStreamingScrollState>
 	isStreaming: boolean
+	citations?: CitationSource[]
+	highlightedCitation?: number | null
+	onCitationClick?: (index: number | null) => void
 }): UseMarkdownComponentResult {
 	return useMemo(
 		() => ({
@@ -239,8 +270,23 @@ export function useMarkdownComponent({
 			"file-path"(props: XMarkdownComponentProps) {
 				return <FilePath path={props.path} />
 			},
+			"cite-badge"(props: XMarkdownComponentProps) {
+				const index = Number(props.index)
+				if (!index || index < 1) return <></>
+				const hasCitationData = citations?.some((c) => c.index === index)
+				return (
+					<CitationBadge
+						index={index}
+						highlighted={highlightedCitation === index}
+						clickable={!!hasCitationData}
+						onClick={(idx) =>
+							onCitationClick?.(highlightedCitation === idx ? null : idx)
+						}
+					/>
+				)
+			},
 		}),
-		[isStreaming, streamingScrollStateRef],
+		[isStreaming, streamingScrollStateRef, citations, highlightedCitation, onCitationClick],
 	)
 }
 
@@ -249,6 +295,9 @@ function MarkdownComponent({
 	className,
 	isStreaming = false,
 	allowRawHtml = true,
+	citations,
+	highlightedCitation,
+	onCitationClick,
 	onMouseEnter,
 	onMouseLeave,
 }: MarkdownComponentProps) {
@@ -260,7 +309,12 @@ function MarkdownComponent({
 
 		const fenceClosed = ensureClosedMarkdownFence(nextMarkdownSource)
 		const normalized = allowRawHtml ? fenceClosed : normalizeMarkdownHtmlFences(fenceClosed)
-		return preprocessMarkdown(normalized)
+		// 1. 先移除 <references> 块（在 preprocessMarkdown 之前，避免被转义为 backtick 代码）
+		const refsStripped = stripReferencesBlock(normalized)
+		// 2. preprocessMarkdown 处理标签转义等（{{cite:N}} 是纯文本，不受影响）
+		const preprocessed = preprocessMarkdown(refsStripped)
+		// 3. 最后将 {{cite:N}} 转为 <cite-badge> 标签（在 preprocessMarkdown 之后，和原逻辑一致）
+		return preprocessCiteMarkers(preprocessed)
 	}, [content, isStreaming, allowRawHtml])
 
 	const streamingScrollStateRef = useRef<HtmlCodeBlockPreviewStreamingScrollState>({
@@ -270,6 +324,9 @@ function MarkdownComponent({
 	const components = useMarkdownComponent({
 		isStreaming,
 		streamingScrollStateRef: streamingScrollStateRef,
+		citations,
+		highlightedCitation,
+		onCitationClick,
 	})
 
 	return (
