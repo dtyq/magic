@@ -9,8 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-from app.utils.async_file_utils import async_stat
-from ..constants import DEFAULT_VISUAL_MAX_PAGES, PDF_EXTENSIONS
+from app.utils.async_file_utils import async_mkdir, async_stat, async_write_text
+from ..constants import DEFAULT_VISUAL_MAX_PAGES, PDF_EXTENSIONS, VISUAL_RESULTS_DIRNAME
 from ..models import DocumentChunk, DocumentNode, DocumentProfile, ExtractionResult, stable_document_id
 from ..pdf.pdf_metadata import PdfMetadata
 from ..pdf.pdf_outline_reader import PdfOutlineReader
@@ -68,8 +68,10 @@ class PdfDocumentDriver(DocumentDriver):
         source_range = compact_numeric_ranges(pages)
         if mode == "visual":
             content = await PdfVisualExtractor.extract_pages(path, pages, kwargs.get("visual_query"))
+            visual_result_path = await self._write_visual_result(output_dir, source_range, content)
             chunks = DocumentChunker.chunk_text(content, path.name, f"pages:{source_range}", max_chars=max_chars)
         else:
+            visual_result_path = None
             segments = await PdfTextExtractor.extract_page_segments(path, pages)
             chunks = self._chunk_page_segments(segments, path.name, max_chars)
         chunks = await ChunkStore.write_chunks(output_dir, chunks)
@@ -85,8 +87,22 @@ class PdfDocumentDriver(DocumentDriver):
             pages_processed=len(pages),
             total_units=total_pages,
             next_range=compact_numeric_ranges(remaining[:10]) or None,
-            metadata={"mode": mode, "source_range": source_range, **metadata},
+            metadata={
+                "mode": mode,
+                "source_range": source_range,
+                **({"visual_result_path": visual_result_path} if visual_result_path else {}),
+                **metadata,
+            },
         )
+
+    @staticmethod
+    async def _write_visual_result(output_dir: Path, source_range: str, content: str) -> str:
+        visual_dir = output_dir / VISUAL_RESULTS_DIRNAME
+        await async_mkdir(visual_dir, parents=True, exist_ok=True)
+        safe_range = source_range.replace(",", "_").replace("-", "_")
+        result_path = visual_dir / f"pdf_pages_{safe_range}.md"
+        await async_write_text(result_path, content)
+        return str(result_path.relative_to(output_dir))
 
     @staticmethod
     def _chunk_page_segments(segments: Iterable[tuple[int, str]], title: str, max_chars: int) -> List[DocumentChunk]:

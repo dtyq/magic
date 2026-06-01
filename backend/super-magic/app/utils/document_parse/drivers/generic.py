@@ -72,7 +72,12 @@ class GenericMarkItDownDriver:
 
         document_id = stable_document_id(path)
         temp_output = output_dir / f"{path.name}.raw.md"
-        parse_result = await get_file_parser().parse(path, temp_output, extract_images=kwargs.get("extract_images", True))
+        parse_result = await get_file_parser().parse(
+            path,
+            temp_output,
+            extract_images=kwargs.get("extract_images", True),
+            enable_visual_understanding=False,
+        )
         if not parse_result.success or not parse_result.output_file_path:
             return await self._fallback_extraction(
                 path,

@@ -9,6 +9,8 @@ Use this workflow when the user asks to read, summarize, analyze, or convert a l
 
 Do not start by converting the entire file into one large Markdown document. First build a lightweight understanding of the document, then read only the parts needed for the user's goal.
 
+When another prompt or tool error tells you to use this skill, first load it explicitly with `read_skills(['document-converter'])`, then follow this workflow in Code Mode.
+
 ## Default Approach
 
 1. Inspect the document first: identify its type, size, structure, outline, and representative samples.
@@ -23,7 +25,8 @@ Do not start by converting the entire file into one large Markdown document. Fir
 - Do not read or convert a large document all at once unless the user explicitly requires a full export.
 - Use the outline and samples to decide what to read next.
 - Prefer text extraction for ordinary document body content.
-- Use visual understanding only for pages or images where layout, scans, charts, signatures, or visual details matter.
+- Do not run visual understanding proactively. First extract readable text, outline, chunks, and image assets/links. Use visual understanding only later, when the user request or the already-read content shows that an image, chart, scan, signature, or visual layout is necessary to answer.
+- When visual understanding is used, save the recognition result as a Markdown file under the same source document output directory, preferably in `visual-results/`, and reference that file in the final answer or follow-up notes.
 - For spreadsheets, inspect sheets, headers, sample rows, and table size before extracting data.
 - For slide decks, treat each slide as a natural unit.
 - For Word-like documents, follow the heading structure when available.
@@ -55,6 +58,22 @@ For the same source document, reuse one stable `output_dir` across all document-
 When the user does not provide an output directory, create one under the current workspace output area and derive the directory name from the current full file name, including the extension. For example, use `sample_pdf` for `sample.pdf`, `sample_docx` for `sample.docx`, and `README_md` for `README.md`. Do not use only the file stem in batch jobs, because files such as `sample.pdf`, `sample.docx`, and `sample.png` would otherwise overwrite or mix artifacts in the same `sample/` directory.
 
 Before writing to an existing `output_dir`, make sure it belongs to the same source file. If unsure, choose a fresh unique directory instead of reusing a possibly polluted directory.
+
+## Reuse Existing Parsed Artifacts
+
+When starting a new topic or when the current context does not show whether a document has already been parsed, do not immediately re-run extraction. If the source file still exists, first look for an existing output directory that matches the current full file name, such as `document-converter-output/sample_pdf/` for `sample.pdf`.
+
+Reuse existing artifacts when all of these are true:
+
+- `document.index.json` exists.
+- `document.outline.md` exists.
+- `chunks/` exists and contains Markdown chunk files.
+- The `source_path` in `document.index.json` points to the same source document.
+- The source document has not changed since the index was created, when timestamps or stored metadata are available.
+
+If valid parsed artifacts already exist, read `document.outline.md` and `document.index.json` first, then read only the needed chunk files or call `summarize_document` on that `output_dir`. Do not re-run `export_document_markdown` or `extract_document_content` just to rediscover content that is already available.
+
+Re-run extraction only when artifacts are missing, incomplete, point to a different source file, appear stale, do not cover the needed range, or the user explicitly asks to regenerate the Markdown.
 
 ## Batch Conversion Rules
 
@@ -98,7 +117,7 @@ Parameters:
 - `input_path` (required): absolute path to the source document.
 - `output_dir` (required): absolute path to the directory where `chunks/`, `document.index.json`, and `document.outline.md` should be written.
 - `ranges` (optional): range expression for the needed content, such as `1-3,8,10-12`. The range may refer to pages, slides, sections, sheets, or cells depending on file type.
-- `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text, `visual` for selected scanned or visually complex PDF pages, and `auto` when no specific mode is needed.
+- `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text and `auto` when no specific mode is needed. Use `visual` only after reading the outline/chunks and confirming that selected scanned or visually complex PDF pages are necessary; visual results must be stored as files.
 - `max_chars` (optional): maximum characters per chunk. Use the default unless the user needs smaller or larger chunk files.
 - `extract_images` (optional): whether image assets should be extracted when supported.
 
@@ -113,7 +132,7 @@ Parameters:
 - `input_path` (required): absolute path to the source document.
 - `output_dir` (required): absolute path to the directory where Markdown export artifacts should be written.
 - `ranges` (optional): range expression to export. Omit it when the user explicitly wants the whole document.
-- `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text and `visual` only for selected scanned or visually complex PDF pages.
+- `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text. Use `visual` only for selected scanned or visually complex PDF pages after confirming visual recognition is needed; visual results must be stored as files.
 - `max_chars` (optional): maximum characters per chunk.
 - `combined_filename` (optional): file name for the combined Markdown output. Use an empty string to skip the combined file.
 
@@ -199,7 +218,7 @@ if not result.ok:
 print(result.content)
 ```
 
-Use `mode: "visual"` only for selected pages where layout, scans, charts, signatures, or visual details matter.
+Use `mode: "visual"` only for selected pages where layout, scans, charts, signatures, or visual details are required to answer. Do not use it during the first pass. When used, keep the generated visual recognition Markdown under the same document output directory.
 
 ### Export a document to Markdown
 

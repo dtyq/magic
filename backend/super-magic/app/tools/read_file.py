@@ -1,14 +1,10 @@
 from app.i18n import i18n
-import asyncio
 import math
 import os
-import time
-from io import BytesIO
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from markitdown import MarkItDown, StreamInfo
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
@@ -19,13 +15,10 @@ from app.core.entity.message.server_message import (DisplayType, FileContent,
                                                     ToolDetail)
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.markitdown_plugins.csv_plugin import CSVConverter
-from app.tools.markitdown_plugins.docx_plugin import DocxConverter
-from app.tools.markitdown_plugins.excel_plugin import ExcelConverter
 from app.tools.utils.display_content_utils import truncate_content_for_display
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_is_dir, async_read_bytes, async_read_text
-from app.utils.file_constants import CONVERSION_RECOMMENDED_TYPES
+from app.utils.async_file_utils import async_exists, async_is_dir, async_read_text
+from app.utils.file_constants import CONVERTIBLE_EXTENSIONS
 from app.utils.file_utils import is_binary_file
 
 logger = get_logger(__name__) # noqa: F811
@@ -39,6 +32,10 @@ MIN_MAX_TOKENS = 5000
 
 # 超大文件阈值：超过这个Token数的文件，强烈建议使用 grep_search
 LARGE_FILE_TOKEN_THRESHOLD = 100000
+
+# CSV is directly readable text. Other convertible formats need the structured
+# document-converter workflow instead of implicit read_file conversion.
+DOCUMENT_CONVERTER_TYPES = CONVERTIBLE_EXTENSIONS - {'.csv'}
 
 def _compute_max_tokens(tool_context: Optional["ToolContext"]) -> int:
     """根据剩余上下文窗口动态计算本次读取上限。
@@ -275,42 +272,32 @@ class ReadFile(AbstractFileTool[ReadFileParams], WorkspaceTool[ReadFileParams]):
     Read file content
     """
 
-    # Initialize MarkItDown with converters
-    md = MarkItDown()
-    md.register_converter(ExcelConverter())
-    md.register_converter(CSVConverter())
-    md.register_converter(DocxConverter())
-
     def get_prompt_hint(self) -> str:
         return """\
 <!--zh
 支持的文件类型：
-- 文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml等）
-- Word文档（.docx）
-- Excel文件（.xlsx、.csv）
+- 可直接读取的文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml、.csv等）
 
 注意：
 - 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
-- 无法读取支持的文件类型以外的文件，尤其是二进制文件
-- 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
+- 无法直接读取二进制文件和复杂文档
+- 对于CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
 - 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
-- PDF、PowerPoint、Notebook、旧版 Word/Excel 等复杂文档不会自动转换；遇到这类文件时，根据错误提示使用 document-converter skill
+- PDF、PowerPoint、Notebook、Word、Excel、图片等复杂或二进制文档不会自动转换；遇到这类文件时，先调用 `read_skills(['document-converter'])` 加载 skill，再按其中流程处理
 - 文本读取结果会用「行号 + 制表符 + 内容」展示行号；复制到任何编辑工具参数时，只复制制表符之后的真实文件内容，不要带行号前缀
 
 建议：
 - 当你需要读取多个文件时，强烈建议使用 read_files 工具，而非多次调用本工具，这将会极大提升任务效率
 -->
 Supported file types:
-- Text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, etc.)
-- Word documents (.docx)
-- Excel files (.xlsx, .csv)
+- Directly readable text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, .csv, etc.)
 
 Notes:
 - Relative paths resolve to .workspace; use absolute paths for files outside .workspace
-- Cannot read unsupported file types, especially binary files
-- For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python script for data analysis
+- Cannot directly read binary files or complex documents
+- For CSV files, use this tool to read first 10 lines to understand structure, then use Python script for data analysis
 - To avoid excessive context length, large files may be auto-truncated; if complete reading necessary, you can read in multiple passes
-- For complex or unreadable document formats such as PDF, PowerPoint, notebooks, and legacy Office files, do not auto-convert. Return an error that tells the model to use the `document-converter` skill.
+- For complex or unreadable document formats such as PDF, PowerPoint, notebooks, Word, Excel, and images, do not auto-convert. Return an error that tells the model to call `read_skills(['document-converter'])` first, then follow that skill workflow.
 - Text read output displays line numbers as line number + tab + content; when copying into any edit tool parameter, copy only the real file content after the tab and omit the line-number prefix
 
 Suggestions:
@@ -320,148 +307,11 @@ Suggestions:
     def _build_document_converter_skill_error(self, file_path: Path) -> str:
         return (
             f"read_file cannot directly read this document format: `{file_path.name}` ({file_path.suffix.lower()}).\n\n"
-            "Use the `document-converter` skill to inspect the document first, then extract only the needed pages, "
+            "Call `read_skills(['document-converter'])` first. Then use the document-converter skill to inspect the document, "
+            "then extract only the needed pages, "
             "sections, slides, sheets, ranges, images, or notebook cells. Do not try to auto-convert the whole file "
             "inside read_file."
         )
-
-    async def _try_read_with_plugin(self, file_path: Path, params: ReadFileParams, tool_context: Optional[ToolContext] = None) -> Optional[ToolResult]:
-        """
-        尝试使用 MarkItDown plugin 读取文件
-
-        判断逻辑：
-        1. 文件扩展名在 plugin 列表中
-        2. 或者是二进制文件且不是已知的文本类型（兜底处理）
-
-        注意：建议使用 document-converter skill 的文件类型（如 PDF、PPT 等）不会使用 plugin 读取。
-        旧格式（.xls, .doc）不再隐式转换。
-
-        Args:
-            file_path: 文件路径
-            params: 读取参数
-
-        Returns:
-            Optional[ToolResult]: 如果适合用 plugin 读取则返回 ToolResult，否则返回 None
-        """
-        file_extension = file_path.suffix.lower()
-
-        # 如果文件类型需要结构化文档流程，不使用 plugin 读取，也不自动转换。
-        if file_extension in CONVERSION_RECOMMENDED_TYPES:
-            return ToolResult.error(self._build_document_converter_skill_error(file_path))
-
-        if file_extension in {'.xls', '.doc'}:
-            return ToolResult.error(self._build_document_converter_skill_error(file_path))
-
-        # 检查是否是二进制文件
-        is_binary = await is_binary_file(file_path)
-
-        # 定义需要用 plugin 处理的扩展名
-        plugin_extensions = {'.xlsx', '.csv', '.docx'}
-
-        # 定义已知的文本文件扩展名
-        text_extensions = {'.md', '.txt', '.py', '.js', '.json', '.yaml', '.yml',
-                         '.html', '.css', '.xml', '.toml', '.ini', '.conf',
-                         '.log', '.sh', '.bat', '.c', '.cpp', '.h', '.java',
-                         '.go', '.rs', '.php', '.rb', '.ts', '.tsx', '.jsx'}
-
-        # 判断是否使用 plugin：
-        # 1. 文件扩展名在 plugin 列表中
-        # 2. 或者是二进制文件且不是已知的文本类型（兜底处理）
-        use_plugin = (
-            file_extension in plugin_extensions or
-            (is_binary and file_extension not in text_extensions)
-        )
-
-        if not use_plugin:
-            return None
-
-        actual_read_path = file_path
-
-        # 使用 plugin 读取
-        logger.info(f"使用 plugin 读取文件: {actual_read_path.name} (原文件: {file_path.name}, 扩展名: {file_extension}, 二进制: {is_binary})")
-
-        markdown_content = await self._read_using_plugin(actual_read_path, params.offset, params.limit)
-
-        if not markdown_content:
-            return ToolResult.error(self._build_document_converter_skill_error(file_path))
-
-        # 构建返回结果
-        content_tokens = num_tokens_from_string(markdown_content)
-
-        # 添加文件元信息
-        # 注意：不显示Token数，避免大模型混淆（Token数对大模型无实际意义）
-        meta_info = f"# 文件: {file_path.name}\n\n"
-        meta_info += f"**文件信息**: 通过轻量解析器读取，内容以 Markdown 展示\n\n---\n\n"
-
-        content_with_meta = meta_info + markdown_content
-
-        # 如果是完整读取（从头读取整个文件），添加完整性提示
-        is_complete_read = params.offset == 0 and (params.limit is None or params.limit <= 0)
-        if is_complete_read:
-            content_with_meta += "\n\n---\n\n**[文件已完整读取]**"
-
-        extra_info = {
-            "raw_content": markdown_content,
-            "raw_content_without_line_numbers": markdown_content,
-            "original_file_path": str(file_path),
-            "read_path": str(actual_read_path),  # 使用实际读取的路径
-            "read_method": "markitdown",
-            "is_converted": False,
-            "conversion_strategy": None
-        }
-
-        # 读取文件后更新时间戳
-        if tool_context:
-            await self.get_horizon(tool_context).update_timestamp(file_path)
-
-        return ToolResult(
-            content=content_with_meta,
-            extra_info=extra_info
-        )
-
-    async def _read_using_plugin(self, file_path: Path, offset: int, limit: int) -> Optional[str]:
-        """
-        使用 MarkItDown 的 plugin 读取文件内容
-
-        支持的文件类型：
-        - Excel: .xlsx, .xls
-        - CSV: .csv
-        - Word: .docx
-
-        Args:
-            file_path: 文件路径
-            offset: 偏移行数
-            limit: 限制行数
-
-        Returns:
-            Optional[str]: Markdown 内容，如果失败返回 None
-        """
-        try:
-            file_extension = file_path.suffix.lower()
-            file_bytes = await async_read_bytes(file_path)
-
-            # 定义同步转换函数（在线程池中执行）
-            def convert_sync():
-                result = self.md.convert(
-                    BytesIO(file_bytes),
-                    stream_info=StreamInfo(extension=file_extension),
-                    offset=offset,
-                    limit=limit
-                )
-                return result.markdown if result else None
-
-            # 在线程池中执行同步文件操作和转换
-            loop = asyncio.get_event_loop()
-            markdown_content = await loop.run_in_executor(None, convert_sync)
-
-            if not markdown_content:
-                logger.warning(f"MarkItDown conversion returned empty result for: {file_path.name}")
-
-            return markdown_content
-
-        except Exception as e:
-            logger.error(f"Error using MarkItDown to read file {file_path.name}: {e}")
-            return None
 
     async def execute(
         self,
@@ -494,8 +344,8 @@ Suggestions:
         执行文件读取操作，专注于读取可读文件
 
         逻辑流程：
-        1. 对于可以直接读取的文件类型，直接读取或使用轻量 plugin 读取
-        2. 对于复杂或无法直接读取的文档格式，返回错误并提示使用 document-converter skill
+        1. 对于可以直接读取的文本文件类型，直接读取
+        2. 对于复杂或无法直接读取的文档格式，返回错误并提示先调用 read_skills(['document-converter'])
 
         Args:
             params: 文件读取参数
@@ -520,25 +370,17 @@ Suggestions:
                     tool_context.set_metadata("error_file_path", params.file_path)
                 return ToolResult.error(f"The specified path is a directory, not a file: {params.file_path}. Use list_dir to inspect directory contents.")
 
-            # === 第一步：尝试使用 plugin 直接读取 ===
-            plugin_result = await self._try_read_with_plugin(file_path, params, tool_context)
-            if plugin_result is not None:
-                # 如果有模糊匹配警告，添加到 plugin 读取结果的末尾
-                if fuzzy_warning and plugin_result.ok:
-                    plugin_result.content = f"{plugin_result.content}\n\n---\n\n{fuzzy_warning}"
-                return plugin_result
-
-            # === 第二步：对于其他文件类型，继续文本读取逻辑 ===
+            # === 第一步：复杂文档或二进制文件不在 read_file 内自动转换 ===
             original_file_name = file_path.name
             read_path = file_path  # 默认读取原始文件路径
 
-            if file_path.suffix.lower() in CONVERSION_RECOMMENDED_TYPES:
+            if file_path.suffix.lower() in DOCUMENT_CONVERTER_TYPES or await is_binary_file(file_path):
                 if tool_context:
                     tool_context.set_metadata("error_type", "read_file.error_unsupported_document")
                     tool_context.set_metadata("error_file_path", str(file_path))
                 return ToolResult.error(self._build_document_converter_skill_error(file_path))
 
-            # === 第三步：执行实际的文件读取逻辑 ===
+            # === 第二步：执行实际的文本读取逻辑 ===
 
             # 检查要读取的文件是否存在
             if not await async_exists(read_path):
@@ -648,8 +490,6 @@ Suggestions:
                 "original_file_path": str(file_path),
                 "read_path": str(read_path),
                 "read_method": read_method,  # 标识读取方式：统一为 text(纯文本)
-                "is_converted": False,
-                "conversion_strategy": None,
                 # 截断信息（如果被截断）
                 "was_truncated": content_truncated,
                 "truncation_info": truncation_info if content_truncated else None
@@ -852,14 +692,8 @@ Suggestions:
 
         original_file_name = os.path.basename(original_file_path_str)
 
-        # 根据读取方式确定显示类型
-        read_method = result.extra_info.get("read_method", "unknown")
-        if read_method == "markitdown":
-            # markitdown 处理的文件（Excel、CSV、Word等）使用 MD 显示类型
-            display_type = DisplayType.MD
-        else:
-            # 纯文本文件根据实际读取路径的扩展名确定显示类型
-            display_type = self.get_display_type_by_extension(read_path_str)
+        # 纯文本文件根据实际读取路径的扩展名确定显示类型
+        display_type = self.get_display_type_by_extension(read_path_str)
 
         # 优先使用不带行号的内容版本，如果不存在则回退到带行号的版本
         content_for_display = (

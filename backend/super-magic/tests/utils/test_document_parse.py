@@ -6,6 +6,7 @@ from app.utils.document_parse.service.document_extractor import DocumentExtracto
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.document_inspector import DocumentInspector
 from app.utils.document_parse.service.document_summarizer import DocumentSummarizer
+from app.utils.document_parse.drivers.pdf_driver import PdfDocumentDriver
 from app.utils.document_parse.structure.range_parser import RangeParser
 
 
@@ -57,3 +58,35 @@ async def test_image_document_parse_pipeline_uses_metadata_without_visual_model(
     assert extraction.chunks[0].path == "chunks/chunk_0001.md"
     assert structure.metadata["chunk_lookup"]["chunk_0001"]["source_range"] == "image:1"
     assert (output_dir / "assets" / "sample.png").exists()
+
+
+@pytest.mark.asyncio
+async def test_pdf_visual_mode_persists_recognition_result(tmp_path: Path, monkeypatch):
+    source = tmp_path / "sample.pdf"
+    output_dir = tmp_path / "sample-pdf.document"
+    source.write_bytes(b"%PDF test placeholder")
+
+    async def fake_metadata(path: Path):
+        return {
+            "page_count": 2,
+            "sample_pages": 2,
+            "avg_chars_per_sample_page": 0,
+            "text_density": "low",
+            "has_images_in_sample": True,
+        }
+
+    async def fake_outline(path: Path):
+        return []
+
+    async def fake_visual(path: Path, pages, query=None):
+        return "## 第 1 页\n\nChart recognition result."
+
+    monkeypatch.setattr("app.utils.document_parse.drivers.pdf_driver.PdfMetadata.inspect", fake_metadata)
+    monkeypatch.setattr("app.utils.document_parse.drivers.pdf_driver.PdfOutlineReader.read", fake_outline)
+    monkeypatch.setattr("app.utils.document_parse.drivers.pdf_driver.PdfVisualExtractor.extract_pages", fake_visual)
+
+    extraction = await PdfDocumentDriver().extract(source, output_dir, ranges="1", mode="visual")
+
+    assert extraction.metadata["visual_result_path"] == "visual-results/pdf_pages_1.md"
+    assert (output_dir / "visual-results" / "pdf_pages_1.md").read_text(encoding="utf-8") == "## 第 1 页\n\nChart recognition result."
+    assert extraction.chunks[0].path == "chunks/chunk_0001.md"

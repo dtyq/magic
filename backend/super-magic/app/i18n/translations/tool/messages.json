@@ -27,10 +27,6 @@
         "zh_CN": "读取文件 {{file_path}} 时出错",
         "en_US": "Error reading file {{file_path}}"
     },
-    "read_file.error_conversion_failed": {
-        "zh_CN": "文件 {{file_name}} 转换失败",
-        "en_US": "Failed to convert file {{file_name}}"
-    },
     "read_file.error_detail": {
         "zh_CN": "读取失败",
         "en_US": "Read failed"
@@ -46,6 +42,10 @@
     "read_file.error_unexpected": {
         "zh_CN": "读取文件 {{file_name}} 遇到问题",
         "en_US": "Ran into an issue while reading file {{file_name}}"
+    },
+    "read_file.error_unsupported_document": {
+        "zh_CN": "{{file_name}} 需要使用 document-converter 解析",
+        "en_US": "{{file_name}} needs document-converter parsing"
     },
     "read_file.failed": {
         "zh_CN": "读取文件失败",
@@ -91,9 +91,9 @@
         "zh_CN": "路径是文件夹",
         "en_US": "Path is a directory"
     },
-    "read_file.detail_reason_conversion_failed": {
-        "zh_CN": "格式转换失败",
-        "en_US": "Format conversion failed"
+    "read_file.detail_reason_unsupported_document": {
+        "zh_CN": "需要使用 document-converter",
+        "en_US": "Use document-converter"
     },
     "read_file.detail_reason_unexpected": {
         "zh_CN": "读取异常",
@@ -102,34 +102,6 @@
     "read_file.detail_reason_unknown": {
         "zh_CN": "未知错误",
         "en_US": "Unknown error"
-    },
-    "read_file.conversion_strategy_balanced": {
-        "zh_CN": "平衡模式",
-        "en_US": "Balanced"
-    },
-    "read_file.conversion_strategy_performance": {
-        "zh_CN": "性能优先",
-        "en_US": "Performance"
-    },
-    "read_file.conversion_strategy_quality": {
-        "zh_CN": "质量优先",
-        "en_US": "Quality"
-    },
-    "read_file.converted": {
-        "zh_CN": "已转换",
-        "en_US": "Converted"
-    },
-    "read_file.converted_and_read": {
-        "zh_CN": "转换并读取",
-        "en_US": "Converted & Read"
-    },
-    "read_file.converted_and_read_with_strategy": {
-        "zh_CN": "已使用 {{strategy}} 转换并读取",
-        "en_US": "Converted & Read ({{strategy}})"
-    },
-    "read_file.converted_with_strategy": {
-        "zh_CN": "已使用 {{strategy}} 转换",
-        "en_US": "Converted ({{strategy}})"
     },
     "read_file.default_file_label": {
         "zh_CN": "文件",
