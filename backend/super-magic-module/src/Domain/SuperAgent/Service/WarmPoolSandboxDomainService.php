@@ -164,16 +164,28 @@ class WarmPoolSandboxDomainService
     }
 
     /**
-     * Ready rows to probe for liveness. Used by the probe crontab to
-     * detect rows whose underlying pod was already reaped (e.g. k8s
-     * restart, gateway-side idle reaper) so they can be retired and
+     * Ready rows to reconcile against the gateway. Used by the reconcile
+     * crontab to detect rows whose underlying pod was already reaped (e.g.
+     * k8s restart, gateway-side idle reaper) so they can be retired and
      * refilled immediately.
      *
      * @return WarmPoolSandboxEntity[]
      */
-    public function listReadyForProbe(int $limit = 100): array
+    public function listReadyForReconcile(int $limit = 100): array
     {
-        return $this->repository->findReadyForProbe($limit);
+        return $this->repository->findReadyForReconcile($limit);
+    }
+
+    /**
+     * `claimed` rows whose bound_at is at or before the cutoff, oldest first.
+     * Used by the reconcile path to find claimed orphans (pods already gone
+     * from k8s) without touching rows still completing their mount/boot.
+     *
+     * @return WarmPoolSandboxEntity[]
+     */
+    public function listClaimedForReconcile(string $boundBefore, int $limit = 100): array
+    {
+        return $this->repository->findClaimedBefore($boundBefore, $limit);
     }
 
     public function lastObservedAgentImage(): ?string

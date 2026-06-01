@@ -220,12 +220,24 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         return array_map(fn ($m) => $this->toEntity($m), $models->all());
     }
 
-    public function findReadyForProbe(int $limit = 100): array
+    public function findReadyForReconcile(int $limit = 100): array
     {
         $models = WarmPoolSandboxModel::query()
             ->where('env', $this->env)
             ->where('status', WarmPoolSandboxStatus::Ready->value)
             ->orderBy('id', 'ASC')
+            ->limit($limit)
+            ->get();
+        return array_map(fn ($m) => $this->toEntity($m), $models->all());
+    }
+
+    public function findClaimedBefore(string $boundBefore, int $limit = 100): array
+    {
+        $models = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
+            ->where('status', WarmPoolSandboxStatus::Claimed->value)
+            ->where('bound_at', '<=', $boundBefore)
+            ->orderBy('bound_at', 'ASC')
             ->limit($limit)
             ->get();
         return array_map(fn ($m) => $this->toEntity($m), $models->all());

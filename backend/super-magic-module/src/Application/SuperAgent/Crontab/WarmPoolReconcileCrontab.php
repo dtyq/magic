@@ -16,7 +16,7 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * Warm-pool liveness probe crontab.
+ * Warm-pool reconcile crontab.
  *
  * Periodically asks the sandbox gateway whether each ready row's pod is
  * still alive and retires the ones that are gone. This is what closes the
@@ -27,21 +27,33 @@ use Throwable;
  * {@see \Dtyq\SuperMagic\Domain\SuperAgent\Service\WarmPoolSandboxDomainService::tryAcquireAndMount()}
  * 's failure-retire path.
  *
+ * The same tick also runs a SECOND, independent reconcile pass over
+ * `claimed` rows ({@see WarmPoolSandboxAppService::reconcileClaimedOrphans()}).
+ * Claimed rows are excluded from every other cleanup path once their
+ * lifecycle ownership moves to the agent session, so without this pass a
+ * claimed row whose pod is long gone from k8s would linger in the table
+ * forever. The reconcile pass is kept separate from the ready-probe path on
+ * purpose: it uses a grace period and only deletes the DB tombstone (never
+ * the pod) when the gateway is explicit that the pod is gone, so it can
+ * never tear down an active user session.
+ *
  * Disabled by default; enable via `super-magic.warm_pool.enabled = true`.
  */
 #[Crontab(
     rule: '*/30 * * * * *',
-    name: 'WarmPoolProbeCrontab',
+    name: 'WarmPoolReconcileCrontab',
     callback: 'execute',
-    memo: '每 30 秒探活 warm-pool ready 行，死沙箱立刻 retire 让 refill 补齐',
+    memo: '每 30 秒对账 warm-pool ready 行（死沙箱立刻 retire 让 refill 补齐），并对账 claimed 孤儿行（Pod 已不在 k8s 的仅删 DB 记录）',
 )]
-readonly class WarmPoolProbeCrontab
+readonly class WarmPoolReconcileCrontab
 {
-    private const LOCK_KEY = 'warm_pool_probe_crontab_lock';
+    private const LOCK_KEY = 'warm_pool_reconcile_crontab_lock';
 
     private const LOCK_EXPIRE = 120;
 
-    private const PROBE_BATCH_LIMIT = 50;
+    private const READY_RECONCILE_BATCH_LIMIT = 50;
+
+    private const CLAIMED_RECONCILE_BATCH_LIMIT = 50;
 
     protected LoggerInterface $logger;
 
@@ -66,20 +78,38 @@ readonly class WarmPoolProbeCrontab
 
         $start = microtime(true);
         try {
-            $result = $this->warmPoolSandboxAppService->probeAndRetireDead(self::PROBE_BATCH_LIMIT);
+            $result = $this->warmPoolSandboxAppService->reconcileReadyDead(self::READY_RECONCILE_BATCH_LIMIT);
 
             $elapsedMs = round((microtime(true) - $start) * 1000, 2);
             // Only log when something actually happened — every-30s noise
             // would drown the rest of the warm-pool logs.
             if (($result['retired'] ?? 0) > 0) {
-                $this->logger->info('[WarmPoolProbe] tick done', [
+                $this->logger->info('[WarmPoolReconcile] ready reconcile done', [
                     'elapsed_ms' => $elapsedMs,
-                    'probed' => $result['probed'] ?? 0,
+                    'scanned' => $result['scanned'] ?? 0,
                     'retired' => $result['retired'] ?? 0,
                 ]);
             }
+
+            // Independent second pass: reclaim claimed orphan rows whose pod
+            // is already gone from k8s. Failures here must not abort the
+            // ready-reconcile result above, hence its own try/catch.
+            try {
+                $reconcile = $this->warmPoolSandboxAppService->reconcileClaimedOrphans(self::CLAIMED_RECONCILE_BATCH_LIMIT);
+                if (($reconcile['reclaimed'] ?? 0) > 0) {
+                    $this->logger->info('[WarmPoolReconcile] claimed reconcile done', [
+                        'scanned' => $reconcile['scanned'] ?? 0,
+                        'reclaimed' => $reconcile['reclaimed'] ?? 0,
+                    ]);
+                }
+            } catch (Throwable $e) {
+                $this->logger->error('[WarmPoolReconcile] claimed reconcile failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
         } catch (Throwable $e) {
-            $this->logger->error('[WarmPoolProbe] tick failed', [
+            $this->logger->error('[WarmPoolReconcile] ready reconcile failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);

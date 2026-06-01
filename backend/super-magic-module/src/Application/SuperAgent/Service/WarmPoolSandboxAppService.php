@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WarmPoolSandboxEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WarmPoolSandboxDomainService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -25,10 +26,13 @@ use Throwable;
  *   - {@see refill()} — top the pool up to a target water-line for the
  *     latest agent image.
  *   - {@see evictExpired()} — reap rows that overshot expires_at.
- *   - {@see probeAndRetireDead()} — actively liveness-probe ready rows
- *     against the gateway and retire ones whose pod is already gone,
- *     so refill can fill the deficit before any user collides with a
- *     dead row.
+ *   - {@see reconcileReadyDead()} — reconcile `ready` rows against the
+ *     gateway and retire ones whose pod is already gone, so refill can
+ *     fill the deficit before any user collides with a dead row.
+ *   - {@see reconcileClaimedOrphans()} — reconcile `claimed` rows
+ *     whose pod the gateway already reaped (~20 min idle ceiling, k8s
+ *     restart, session end) without notifying us, deleting only the
+ *     stale DB tombstone so `claimed` orphans don't pile up forever.
  *   - {@see invalidateStaleImageGeneration()} — drop rows whose
  *     agent_image differs from the current generation (used on image
  *     rollouts).
@@ -48,6 +52,15 @@ class WarmPoolSandboxAppService extends AbstractAppService
      * expires_at the row is eligible for eviction.
      */
     private const POOL_TTL_MINUTES = 10;
+
+    /**
+     * Grace window before a `claimed` row becomes eligible for orphan
+     * reconciliation. A freshly-claimed sandbox may legitimately still be
+     * booting (and thus not yet `Running`); only rows bound longer ago than
+     * this are checked, so an in-flight mount is never mistaken for a
+     * reaped orphan. Comfortably under the gateway's ~20 min idle ceiling.
+     */
+    private const RECLAIM_GRACE_MINUTES = 15;
 
     /**
      * Hard ceiling on each refill burst so a stampede of new requests
@@ -154,8 +167,8 @@ class WarmPoolSandboxAppService extends AbstractAppService
     }
 
     /**
-     * Liveness-probe a batch of `ready` rows against the gateway and retire
-     * the ones whose underlying pod is gone (k8s cluster restart, gateway-side
+     * Reconcile a batch of `ready` rows against the gateway and retire the
+     * ones whose underlying pod is gone (k8s cluster restart, gateway-side
      * idle reaper, manual pod kill, etc.).
      *
      * Retired rows are deleted from the DB by {@see WarmPoolSandboxDomainService::retireClaimed()},
@@ -166,11 +179,11 @@ class WarmPoolSandboxAppService extends AbstractAppService
      * not retire on a transport error, otherwise a flaky gateway would
      * empty the entire pool.
      */
-    public function probeAndRetireDead(int $limit = 50): array
+    public function reconcileReadyDead(int $limit = 50): array
     {
-        $rows = $this->domain->listReadyForProbe($limit);
+        $rows = $this->domain->listReadyForReconcile($limit);
         if ($rows === []) {
-            return ['probed' => 0, 'retired' => 0];
+            return ['scanned' => 0, 'retired' => 0];
         }
 
         $sandboxIds = array_map(fn (WarmPoolSandboxEntity $row) => $row->getSandboxId(), $rows);
@@ -178,20 +191,20 @@ class WarmPoolSandboxAppService extends AbstractAppService
         try {
             $batch = $this->gateway->getBatchSandboxStatus($sandboxIds);
         } catch (Throwable $e) {
-            $this->logger->warning('[WarmPoolSandbox] Probe skipped: gateway batch-status threw', [
+            $this->logger->warning('[WarmPoolSandbox] Ready reconcile skipped: gateway batch-status threw', [
                 'error' => $e->getMessage(),
-                'probed' => count($sandboxIds),
+                'scanned' => count($sandboxIds),
             ]);
-            return ['probed' => count($sandboxIds), 'retired' => 0, 'skipped' => 'gateway_error'];
+            return ['scanned' => count($sandboxIds), 'retired' => 0, 'skipped' => 'gateway_error'];
         }
 
         if (! $batch->isSuccess()) {
-            $this->logger->warning('[WarmPoolSandbox] Probe skipped: gateway batch-status returned error', [
+            $this->logger->warning('[WarmPoolSandbox] Ready reconcile skipped: gateway batch-status returned error', [
                 'code' => $batch->getCode(),
                 'message' => $batch->getMessage(),
-                'probed' => count($sandboxIds),
+                'scanned' => count($sandboxIds),
             ]);
-            return ['probed' => count($sandboxIds), 'retired' => 0, 'skipped' => 'gateway_error'];
+            return ['scanned' => count($sandboxIds), 'retired' => 0, 'skipped' => 'gateway_error'];
         }
 
         $aliveIds = array_flip($batch->getRunningSandboxIds());
@@ -201,10 +214,10 @@ class WarmPoolSandboxAppService extends AbstractAppService
                 continue;
             }
             try {
-                $this->domain->retireClaimed($row, 'probe_dead');
+                $this->domain->retireClaimed($row, 'reconcile_dead');
                 ++$retired;
             } catch (Throwable $e) {
-                $this->logger->warning('[WarmPoolSandbox] Probe retire failed', [
+                $this->logger->warning('[WarmPoolSandbox] Ready reconcile retire failed', [
                     'sandbox_id' => $row->getSandboxId(),
                     'error' => $e->getMessage(),
                 ]);
@@ -212,15 +225,95 @@ class WarmPoolSandboxAppService extends AbstractAppService
         }
 
         if ($retired > 0) {
-            $this->logger->info('[WarmPoolSandbox] Probe retired dead warm-pool sandboxes', [
-                'probed' => count($rows),
+            $this->logger->info('[WarmPoolSandbox] Reconciled dead ready warm-pool sandboxes', [
+                'scanned' => count($rows),
                 'retired' => $retired,
             ]);
         }
 
         return [
-            'probed' => count($rows),
+            'scanned' => count($rows),
             'retired' => $retired,
+        ];
+    }
+
+    /**
+     * Reconcile `claimed` orphan rows — DB tombstones whose underlying pod is
+     * already gone from k8s (session ended, idle-reaped, cluster restart) but
+     * whose row was never cleaned up, because claimed rows are intentionally
+     * excluded from every other warm-pool cleanup path once their lifecycle
+     * ownership moves to the agent session at claim time.
+     *
+     * This is deliberately NOT folded into {@see reconcileReadyDead()}:
+     *
+     *   - It only acts on rows whose `bound_at` is older than
+     *     {@see RECLAIM_GRACE_MINUTES}, so a freshly-claimed sandbox still
+     *     booting (and thus legitimately not yet `Running`) is never touched.
+     *   - It only deletes when the gateway EXPLICITLY reports the pod as
+     *     gone (`NotFound`/`Exited`). `Pending`/`Running`/`Unknown` or an
+     *     absent entry are treated as "still alive / inconclusive" so a flaky
+     *     gateway can never wipe active sessions.
+     *   - It deletes ONLY the DB row and never calls `deleteSandbox`: the pod
+     *     no longer belongs to the warm pool, so tearing it down here would be
+     *     wrong (and it is already gone anyway).
+     */
+    public function reconcileClaimedOrphans(int $limit = 50, int $graceMinutes = self::RECLAIM_GRACE_MINUTES): array
+    {
+        $cutoff = date('Y-m-d H:i:s', time() - $graceMinutes * 60);
+        $rows = $this->domain->listClaimedForReconcile($cutoff, $limit);
+        if ($rows === []) {
+            return ['scanned' => 0, 'reclaimed' => 0];
+        }
+
+        $sandboxIds = array_map(fn (WarmPoolSandboxEntity $row) => $row->getSandboxId(), $rows);
+
+        try {
+            $batch = $this->gateway->getBatchSandboxStatus($sandboxIds);
+        } catch (Throwable $e) {
+            $this->logger->warning('[WarmPoolSandbox] Reconcile skipped: gateway batch-status threw', [
+                'error' => $e->getMessage(),
+                'scanned' => count($sandboxIds),
+            ]);
+            return ['scanned' => count($sandboxIds), 'reclaimed' => 0, 'skipped' => 'gateway_error'];
+        }
+
+        if (! $batch->isSuccess()) {
+            $this->logger->warning('[WarmPoolSandbox] Reconcile skipped: gateway batch-status returned error', [
+                'code' => $batch->getCode(),
+                'message' => $batch->getMessage(),
+                'scanned' => count($sandboxIds),
+            ]);
+            return ['scanned' => count($sandboxIds), 'reclaimed' => 0, 'skipped' => 'gateway_error'];
+        }
+
+        $statusMap = $batch->getStatusMap();
+        $reclaimed = 0;
+        foreach ($rows as $row) {
+            $status = $statusMap[$row->getSandboxId()] ?? null;
+            // Only reclaim when the gateway is explicit that the pod is gone.
+            if (! in_array($status, [SandboxStatus::NOT_FOUND, SandboxStatus::EXITED], true)) {
+                continue;
+            }
+            $id = $row->getId();
+            if ($id === null) {
+                continue;
+            }
+            // DB-row-only cleanup — see method docblock for why we must not
+            // call gateway->deleteSandbox here.
+            $this->domain->deleteEntry($id);
+            ++$reclaimed;
+        }
+
+        if ($reclaimed > 0) {
+            $this->logger->info('[WarmPoolSandbox] Reconciled claimed orphan rows', [
+                'scanned' => count($rows),
+                'reclaimed' => $reclaimed,
+            ]);
+        }
+
+        return [
+            'scanned' => count($rows),
+            'reclaimed' => $reclaimed,
         ];
     }
 

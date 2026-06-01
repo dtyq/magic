@@ -78,12 +78,21 @@ interface WarmPoolSandboxRepositoryInterface
     public function findAllPooled(int $limit = 500): array;
 
     /**
-     * Return ready rows for liveness probing, oldest first so the prober
-     * naturally rotates through the pool tick by tick.
+     * Return ready rows to reconcile against the gateway, oldest first so the
+     * reconciler naturally rotates through the pool tick by tick.
      *
      * @return WarmPoolSandboxEntity[]
      */
-    public function findReadyForProbe(int $limit = 100): array;
+    public function findReadyForReconcile(int $limit = 100): array;
+
+    /**
+     * Return `claimed` rows bound at or before `$boundBefore`, oldest binding
+     * first. The cutoff keeps freshly-claimed rows whose mount may still be
+     * settling out of the reconciler's blast radius.
+     *
+     * @return WarmPoolSandboxEntity[]
+     */
+    public function findClaimedBefore(string $boundBefore, int $limit = 100): array;
 
     /**
      * Most recently observed agent_image stored in the warm pool. Used to
