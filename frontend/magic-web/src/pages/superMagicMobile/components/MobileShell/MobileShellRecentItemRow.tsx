@@ -70,6 +70,16 @@ export type RecentItemActionSource = "more" | "longPress"
 /** Max finger movement (px) still treated as a tap; scrolling beyond this suppresses navigation. */
 const RECENT_ITEM_TAP_MOVE_THRESHOLD = 10
 
+/** Clears browser text selection so long-press context menus do not leave highlighted copy. */
+function clearTextSelection() {
+	if (typeof window === "undefined") return
+
+	const selection = window.getSelection()
+	if (!selection || selection.isCollapsed) return
+
+	selection.removeAllRanges()
+}
+
 export interface MobileShellRecentItemRowProps {
 	item: MobileShellMenuRecentItem
 	testIdPrefix: string
@@ -128,6 +138,8 @@ export function MobileShellRecentItemRow({
 	})
 
 	const handleTitleTouchStart = useMemoizedFn((event: TouchEvent) => {
+		// Prevent iOS from starting a text-selection range before long-press menu opens.
+		clearTextSelection()
 		hasGestureMovedRef.current = false
 		const position = getTouchClientPosition(event)
 		touchStartPositionRef.current = position
@@ -154,6 +166,7 @@ export function MobileShellRecentItemRow({
 		(event) => {
 			if (!item.project) return
 
+			clearTextSelection()
 			onOpenActions(item, "longPress", getRecentItemActionAnchor(event))
 		},
 		titleRef,
@@ -186,7 +199,7 @@ export function MobileShellRecentItemRow({
 				onTouchStart={handleTitleTouchStart}
 				onTouchMove={handleTitleTouchMove}
 				onTouchCancel={handleTitleTouchCancel}
-				className="flex h-9 min-w-0 touch-pan-y items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-sm text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10"
+				className="flex h-9 min-w-0 touch-pan-y select-none items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-sm text-foreground transition-colors [-webkit-touch-callout:none] active:bg-black/5 dark:active:bg-white/10 [&_*]:select-none"
 			>
 				{item.inProgress && (
 					<Loader className="size-4 shrink-0 animate-spin text-foreground" />
