@@ -19,6 +19,7 @@ from ..pdf.pdf_visual_extractor import PdfVisualExtractor
 from ..structure.asset_store import AssetStore
 from ..structure.chunk_store import ChunkStore
 from ..structure.chunker import DocumentChunker
+from ..structure.image_feature_analyzer import ImageFeatureAnalyzer
 from ..structure.image_watermark_detector import ImageWatermarkDetector
 from ..structure.outline_builder import OutlineBuilder
 from ..structure.range_parser import RangeParser, compact_numeric_ranges
@@ -156,6 +157,7 @@ class PdfDocumentDriver(DocumentDriver):
                     "height": image.get("height"),
                     "content_hash": image.get("content_hash"),
                     "rects": image.get("rects", []),
+                    "features": image.get("features"),
                 },
             ))
         return assets, skipped_watermarks
@@ -188,6 +190,7 @@ class PdfDocumentDriver(DocumentDriver):
                     if not image_bytes:
                         continue
                     rects = PdfDocumentDriver._image_rects(page, xref)
+                    features = ImageFeatureAnalyzer.analyze_bytes(image_bytes)
                     extracted.append({
                         "page": page_no,
                         "unit": page_no,
@@ -199,6 +202,7 @@ class PdfDocumentDriver(DocumentDriver):
                         "height": image.get("height"),
                         "content_hash": hashlib.sha1(image_bytes).hexdigest(),
                         "rects": rects,
+                        "features": features,
                         "bytes": image_bytes,
                     })
         return extracted

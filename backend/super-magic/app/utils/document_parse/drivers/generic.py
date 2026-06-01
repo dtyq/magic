@@ -17,6 +17,7 @@ from ..structure.asset_store import AssetStore
 from ..structure.chunk_store import ChunkStore
 from ..structure.chunker import DocumentChunker
 from ..structure.heading_detector import HeadingDetector
+from ..structure.image_feature_analyzer import ImageFeatureAnalyzer
 from ..structure.image_watermark_detector import ImageWatermarkDetector
 from ..structure.outline_builder import OutlineBuilder
 from ..structure.virtual_outline_builder import VirtualOutlineBuilder
@@ -141,11 +142,15 @@ class GenericMarkItDownDriver:
         image_records = []
         for image_path in sorted(files, key=lambda item: item.name):
             image_bytes = await async_read_bytes(image_path)
+            features = ImageFeatureAnalyzer.analyze_bytes(image_bytes)
             image_records.append({
                 "path": str(image_path),
                 "original_name": image_path.name,
                 "name": image_path.name,
                 "content_hash": hashlib.sha1(image_bytes).hexdigest(),
+                "width": features.get("width"),
+                "height": features.get("height"),
+                "features": features,
             })
         image_records, skipped_watermarks = ImageWatermarkDetector.split_images(
             image_records,
@@ -172,6 +177,7 @@ class GenericMarkItDownDriver:
                     "original_path": str(image_path),
                     "original_name": image_path.name,
                     "content_hash": image.get("content_hash"),
+                    "features": image.get("features"),
                 },
             ))
         return assets, skipped_watermarks

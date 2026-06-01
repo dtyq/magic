@@ -218,3 +218,28 @@ async def test_generic_driver_keeps_one_repeated_image_asset(tmp_path: Path):
     assert "duplicate repeated image kept once" in skipped[0]["reason"]
     assert content.count("![") == 1
     assert "assets/sample_docx_image_0001.png" in content
+
+
+@pytest.mark.asyncio
+async def test_generic_driver_filters_lightweight_invalid_images(tmp_path: Path):
+    from PIL import Image
+
+    raw_images = tmp_path / "sample.raw-images"
+    raw_images.mkdir()
+    Image.new("RGB", (2, 2), color="black").save(raw_images / "tiny.png")
+    Image.new("RGBA", (24, 24), color=(255, 255, 255, 0)).save(raw_images / "transparent.png")
+    Image.new("RGB", (400, 4), color="black").save(raw_images / "line.png")
+    Image.new("RGB", (80, 40), color="white").save(raw_images / "blank_spacer.png")
+    Image.new("RGB", (32, 16), color="green").save(raw_images / "logo.png")
+
+    output_dir = tmp_path / "sample.document"
+    driver = GenericMarkItDownDriver()
+    assets, skipped = await driver._collect_image_assets(str(raw_images), output_dir, "sample.docx")
+
+    assert len(assets) == 1
+    assert assets[0].title == "logo.png"
+    reasons = {item["original_name"]: item["reason"] for item in skipped}
+    assert reasons["tiny.png"] == "invalid tiny image"
+    assert reasons["transparent.png"] == "invalid transparent image"
+    assert reasons["line.png"] == "invalid decorative line image"
+    assert reasons["blank_spacer.png"] == "invalid solid or blank image"

@@ -16,9 +16,11 @@ class ImageWatermarkDetector:
     """Detect image records that are safe to skip as watermarks."""
 
     KEYWORDS = ("watermark", "draft", "confidential", "do-not-copy", "do_not_copy")
+    BLANK_KEYWORDS = ("blank", "spacer", "pixel", "tracking", "background")
     MIN_AREA_RATIO = 0.18
     MIN_CENTER_OVERLAP_RATIO = 0.35
     MIN_UNIT_COVERAGE_RATIO = 0.5
+    PROTECTED_KEYWORDS = ("signature", "stamp", "seal", "chop")
 
     @classmethod
     def split_images(
@@ -41,8 +43,11 @@ class ImageWatermarkDetector:
         duplicate_keys = cls._duplicate_keys(image_list, selected_unit_count) if deduplicate_repeated_images else set()
         for image in image_list:
             key = cls._image_key(image)
+            invalid_reason = cls._invalid_image_reason(image)
             if key in watermark_keys:
                 skipped.append(cls._skipped_record(image, watermark_keys[key]))
+            elif invalid_reason:
+                skipped.append(cls._skipped_record(image, invalid_reason))
             elif key in duplicate_keys and key in seen_keys:
                 skipped.append(cls._skipped_record(image, "duplicate repeated image kept once"))
             else:
@@ -111,6 +116,37 @@ class ImageWatermarkDetector:
         ).lower()
         return any(keyword in haystack for keyword in cls.KEYWORDS)
 
+    @classmethod
+    def _has_protected_keyword(cls, image: dict[str, Any]) -> bool:
+        haystack = " ".join(
+            str(image.get(field) or "")
+            for field in ("name", "title", "original_name")
+        ).lower()
+        return any(keyword in haystack for keyword in cls.PROTECTED_KEYWORDS)
+
+    @classmethod
+    def _has_blank_keyword(cls, image: dict[str, Any]) -> bool:
+        haystack = " ".join(
+            str(image.get(field) or "")
+            for field in ("name", "title", "original_name")
+        ).lower()
+        return any(keyword in haystack for keyword in cls.BLANK_KEYWORDS)
+
+    @classmethod
+    def _invalid_image_reason(cls, image: dict[str, Any]) -> str | None:
+        if cls._has_protected_keyword(image):
+            return None
+        features = image.get("features") or {}
+        if features.get("is_transparent"):
+            return "invalid transparent image"
+        if features.get("is_tiny"):
+            return "invalid tiny image"
+        if features.get("is_decorative_line"):
+            return "invalid decorative line image"
+        if features.get("is_solid_or_blank") and cls._has_blank_keyword(image):
+            return "invalid solid or blank image"
+        return None
+
     @staticmethod
     def _max_area_ratio(image: dict[str, Any]) -> float:
         rects = image.get("rects") or []
@@ -134,4 +170,5 @@ class ImageWatermarkDetector:
             "width": image.get("width"),
             "height": image.get("height"),
             "reason": reason,
+            "features": image.get("features"),
         }
