@@ -38,7 +38,15 @@ readonly class WarmPoolRefillCrontab
 {
     private const LOCK_KEY = 'warm_pool_refill_crontab_lock';
 
-    private const LOCK_EXPIRE = 300;
+    // Kept short on purpose: the lock is released in finally on the happy
+    // path, so this expiry only matters when the holder dies mid-refill
+    // (crash / hard restart / OOM) and never runs finally. A short TTL
+    // bounds how long the pool stays un-refilled after such a crash —
+    // another instance can re-acquire the lock within this window instead
+    // of waiting out a multi-minute stale lock. Set slightly above the
+    // P99 refill duration so a healthy run never lets the lock expire
+    // mid-execution (which would allow concurrent refills / overshoot).
+    private const LOCK_EXPIRE = 60;
 
     protected LoggerInterface $logger;
 
