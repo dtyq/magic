@@ -120,6 +120,8 @@ Parameters:
 - `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text and `auto` when no specific mode is needed. Use `visual` only after reading the outline/chunks and confirming that selected scanned or visually complex PDF pages are necessary; visual results must be stored as files.
 - `max_chars` (optional): maximum characters per chunk. Use the default unless the user needs smaller or larger chunk files.
 - `extract_images` (optional): whether image assets should be extracted when supported.
+- `exclude_watermark_images` (optional): whether high-confidence watermark images should be skipped. Keep the default unless the user explicitly needs every raw image.
+- `deduplicate_repeated_images` (optional): whether repeated identical images, such as logos on every page, should be kept only once. Keep the default for normal reading/export tasks.
 
 Do not use this as a blind whole-file converter unless the user explicitly requires a full export.
 
@@ -135,6 +137,8 @@ Parameters:
 - `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text. Use `visual` only for selected scanned or visually complex PDF pages after confirming visual recognition is needed; visual results must be stored as files.
 - `max_chars` (optional): maximum characters per chunk.
 - `combined_filename` (optional): file name for the combined Markdown output. Use an empty string to skip the combined file.
+- `exclude_watermark_images` (optional): whether high-confidence watermark images should be skipped. Keep the default unless the user explicitly needs every raw image.
+- `deduplicate_repeated_images` (optional): whether repeated identical images, such as logos on every page, should be kept only once. Keep the default for normal reading/export tasks.
 
 This tool is a convenience workflow for Markdown export, not a replacement for targeted extraction when the user only needs specific content.
 

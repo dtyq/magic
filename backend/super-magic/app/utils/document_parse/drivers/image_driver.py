@@ -118,6 +118,8 @@ class ImageDocumentDriver(DocumentDriver):
             "",
             "Image metadata extraction completed.",
             "",
+            f"![{path.name}]({asset.path})",
+            "",
             f"- Asset: `{asset.path}`",
             f"- Format: `{metadata.get('format', '')}`",
             f"- Size: `{metadata.get('width', '')}x{metadata.get('height', '')}`",

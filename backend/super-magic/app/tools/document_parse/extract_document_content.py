@@ -59,6 +59,16 @@ Maximum characters per chunk"""
         description="""<!--zh: 支持时是否提取图片资源-->
 Whether to extract images when supported"""
     )
+    exclude_watermark_images: bool = Field(
+        True,
+        description="""<!--zh: 支持时是否跳过高置信水印图片-->
+Whether to skip high-confidence watermark images when supported"""
+    )
+    deduplicate_repeated_images: bool = Field(
+        True,
+        description="""<!--zh: 支持时是否对重复图片只保留首个资源，例如每页重复出现的 logo-->
+Whether to keep only the first copy of repeated images such as logos on every page"""
+    )
 
 
 @tool()
@@ -90,6 +100,8 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
             mode=params.mode,
             max_chars=params.max_chars,
             extract_images=params.extract_images,
+            exclude_watermark_images=params.exclude_watermark_images,
+            deduplicate_repeated_images=params.deduplicate_repeated_images,
         )
         structure = await DocumentIndexer().build_from_extraction(input_path, output_dir, extraction)
 
