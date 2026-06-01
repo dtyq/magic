@@ -11,6 +11,15 @@ class ClientContextV1Parser(ClientContextParserInterface):
     VERSION = "1.0.0"
     CONTENT_LIMIT = 5000
 
+    @classmethod
+    def normalize_content(cls, content: str) -> str:
+        return (
+            content
+            .replace("\\r\\n", "\n")
+            .replace("\\n", "\n")
+            .replace("\\r", "\n")
+        )
+
     def parse(self, client_context: object) -> ClientContextPayload | None:
         if not isinstance(client_context, Mapping):
             return None
@@ -27,7 +36,9 @@ class ClientContextV1Parser(ClientContextParserInterface):
         if not isinstance(content, str):
             return None
 
+        normalized_content = self.normalize_content(content)
+
         return ClientContextPayload(
             version=self.VERSION,
-            content=content[: self.CONTENT_LIMIT],
+            content=normalized_content[: self.CONTENT_LIMIT],
         )

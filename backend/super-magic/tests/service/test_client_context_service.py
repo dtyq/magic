@@ -43,6 +43,24 @@ def test_client_context_v1_parser_truncates_content():
     assert payload.content == "a" * 5000
 
 
+def test_client_context_v1_parser_normalizes_escaped_newlines():
+    parser = ClientContextV1Parser()
+
+    payload = parser.parse({
+        "version": "1.0.0",
+        "data": {"content": "Open tabs:\\n- a.ts\\r\\n- b.ts\\rFocused file: b.ts"},
+    })
+
+    assert payload is not None
+    assert payload.content == "Open tabs:\n- a.ts\n- b.ts\nFocused file: b.ts"
+    assert payload.content.splitlines() == [
+        "Open tabs:",
+        "- a.ts",
+        "- b.ts",
+        "Focused file: b.ts",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_client_context_injects_diff_after_baseline(tmp_path):
     store = HorizonStore(str(tmp_path), "test-agent", "agent-1")
@@ -60,6 +78,29 @@ async def test_client_context_injects_diff_after_baseline(tmp_path):
     assert "version=\"1.0.0\"" not in context
     assert "文件 A" in context
     assert "文件 B" in context
+
+
+@pytest.mark.asyncio
+async def test_client_context_injects_full_latest_context_when_diff_is_large(tmp_path):
+    store = HorizonStore(str(tmp_path), "test-agent", "agent-1")
+    horizon = AgentHorizon(store, "agent-1")
+    old_context = "\n".join(f"old line {i}" for i in range(40))
+    new_context = "\n".join(f"new line {i}" for i in range(40))
+
+    await horizon.set_client_context(old_context)
+    assert await horizon.build_context_update("unit-test") is not None
+
+    await horizon.set_client_context(new_context)
+
+    context = await horizon.build_context_update("unit-test")
+
+    assert context is not None
+    assert "<client_context_changed>" in context
+    assert "[summary:" not in context
+    assert "line diff is too large" in context
+    assert "Latest client context:" in context
+    assert "new line 39" in context
+    assert "old line 39" not in context
 
 
 @pytest.mark.asyncio
