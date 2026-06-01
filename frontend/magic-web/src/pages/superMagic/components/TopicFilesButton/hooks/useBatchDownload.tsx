@@ -3,7 +3,6 @@ import type { AttachmentItem } from "./types"
 import { MenuProps } from "antd"
 import { collectFileIds } from "../utils/collectFileIds"
 import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
-import { normalizeSelectionIdsForShare } from "../utils/normalizeSelectionIdsForShare"
 import {
 	hasMagicSystemFolderInDeletionSelection,
 	resolveBatchDeleteConfirmContentKey,
@@ -468,8 +467,8 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	const handleBatchShare = () => {
 		if (selectedItems.size === 0 || !onBatchShareClick) return
 
-		// Collapse fully selected folders to folder IDs so the share sheet shows folder rows, not flat files.
-		const selectedFileIds = normalizeSelectionIdsForShare(filteredFiles, selectedItems)
+		// PC multi-select stores the folder row ID itself, so share must preserve direct selections.
+		const selectedFileIds = collectSelectedItemIds(filteredFiles, selectedItems, getItemId)
 
 		if (selectedFileIds.length > 0) {
 			onBatchShareClick(selectedFileIds)
