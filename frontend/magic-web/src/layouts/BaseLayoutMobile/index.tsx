@@ -24,6 +24,7 @@ import {
 	MobileDocumentThemeSync,
 } from "@/pages/superMagicMobile/components/MobileDocumentTheme"
 import useMetaSet from "@/routes/hooks/useRoutesMetaSet"
+import { useAntdMobileLocale } from "@/hooks/useAntdMobileLocale"
 
 const MobileTabBar = lazy(() => import("./components/MobileTabBar"))
 
@@ -37,6 +38,7 @@ const BaseLayoutMobile = () => {
 	const navigate = useNavigate()
 	const location = useLocation()
 	const { styles, cx } = useStyles()
+	const antdMobileLocale = useAntdMobileLocale()
 
 	// Sync document.title from route meta, same as BaseLayoutPc (chat, contacts, Super Shell, etc.).
 	useMetaSet()
@@ -83,7 +85,7 @@ const BaseLayoutMobile = () => {
 	const hasVisibleTabBar = shouldShowTabBar && interfaceStore.mobileTabBarVisible
 
 	return (
-		<ConfigProvider>
+		<ConfigProvider locale={antdMobileLocale}>
 			<MobileDocumentThemeProvider>
 				<GlobalSafeAreaSync />
 				<MobileDocumentThemeSync />

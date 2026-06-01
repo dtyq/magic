@@ -16,11 +16,13 @@ import { observer } from "mobx-react-lite"
 import { IconStack2 } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { useMemo } from "react"
+import { useAntdMobileLocale } from "@/hooks/useAntdMobileLocale"
 
 const BaseLayoutMobile = () => {
 	const { styles } = useStyles()
 	const navigate = useNavigate()
 	const { t } = useTranslation("admin/common")
+	const antdMobileLocale = useAntdMobileLocale()
 
 	const { isOfficialOrg, userPermissions } = useAdminStore()
 
@@ -40,7 +42,7 @@ const BaseLayoutMobile = () => {
 	)
 
 	return (
-		<ConfigProvider>
+		<ConfigProvider locale={antdMobileLocale}>
 			<GlobalSafeArea direction="top" />
 			<MobileHeader onClick={() => navigate({ name: RouteName.AdminHome })} />
 			<div className={styles.container}>

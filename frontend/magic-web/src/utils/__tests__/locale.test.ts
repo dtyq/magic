@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import {
 	getAntdLocale,
+	getAntdMobileLocale,
 	getCurrentLang,
 	getLocalePreferredKeys,
 	normalizeLocale,
@@ -355,6 +356,25 @@ describe("locale utilities", () => {
 		it("should handle unsupported locales gracefully", async () => {
 			// Act & Assert - should not throw
 			await expect(getAntdLocale("fr_FR")).resolves.toBeDefined()
+		})
+	})
+
+	describe("getAntdMobileLocale", () => {
+		it("should handle supported locales without throwing", async () => {
+			await expect(getAntdMobileLocale(SupportLocales.zhCN)).resolves.toBeDefined()
+			await expect(getAntdMobileLocale(SupportLocales.enUS)).resolves.toBeDefined()
+		})
+
+		it("should expose InfiniteScroll.noMore for en_US", async () => {
+			const locale = (await getAntdMobileLocale(SupportLocales.enUS)) as {
+				InfiniteScroll?: { noMore?: string }
+			}
+
+			expect(locale?.InfiniteScroll?.noMore).toBe("No more")
+		})
+
+		it("should handle unsupported locales gracefully", async () => {
+			await expect(getAntdMobileLocale("fr_FR")).resolves.toBeDefined()
 		})
 	})
 })
