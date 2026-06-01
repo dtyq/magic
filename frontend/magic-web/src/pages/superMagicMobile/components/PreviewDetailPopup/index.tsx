@@ -246,12 +246,16 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 	}, [isFullscreen, onPreviewFullscreenChange])
 
 	const RenderComponent = useMemo(() => {
-		// 设计太垃，兼容数据格式
-		const meta = attachmentList.find((item) => item?.file_id === previewDetail?.currentFileId)
 		// 修正 detail 类型（如果 metadata.type 是 design 但 type 是 notSupport，需要修正）
 		const correctedPreviewDetail = correctDetailType(previewDetail, {
 			attachmentList,
 		})
+		if (!correctedPreviewDetail?.type) return null
+
+		// 设计太垃，兼容数据格式
+		const meta = attachmentList.find(
+			(item) => item?.file_id === correctedPreviewDetail?.currentFileId,
+		)
 		return (
 			<Render
 				type={correctedPreviewDetail?.type}
