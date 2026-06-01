@@ -600,13 +600,14 @@ async def async_write_bytes(
         raise
 
 
-async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') -> str:
+async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8', errors: Optional[str] = None) -> str:
     """
     异步读取文本文件
 
     Args:
         file_path: 文件路径
         encoding: 编码格式，默认utf-8
+        errors: 解码错误处理策略，例如 "replace" 或 "ignore"
 
     Returns:
         str: 文件内容
@@ -625,7 +626,7 @@ async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') 
             raise FileNotFoundError(f"文本文件不存在: {path_obj}")
 
         # 异步读取文件内容
-        async with aiofiles.open(path_obj, 'r', encoding=encoding) as f:
+        async with aiofiles.open(path_obj, 'r', encoding=encoding, errors=errors) as f:
             content = await f.read()
 
         logger.debug(f"异步读取文本文件完成: {path_obj}")
@@ -757,6 +758,46 @@ async def async_exists(path: Union[str, Path]) -> bool:
         return await aiofiles.os.path.exists(str(path))
     except Exception as e:
         logger.error(f"检查路径存在性失败 {path}: {e}")
+        raise
+
+
+async def async_is_dir(path: Union[str, Path]) -> bool:
+    """
+    异步检查路径是否为目录
+
+    Args:
+        path: 路径
+
+    Returns:
+        bool: 路径是否为目录
+
+    Raises:
+        OSError: 系统错误
+    """
+    try:
+        return await aiofiles.os.path.isdir(str(path))
+    except Exception as e:
+        logger.error(f"检查路径是否为目录失败 {path}: {e}")
+        raise
+
+
+async def async_is_file(path: Union[str, Path]) -> bool:
+    """
+    异步检查路径是否为文件
+
+    Args:
+        path: 路径
+
+    Returns:
+        bool: 路径是否为文件
+
+    Raises:
+        OSError: 系统错误
+    """
+    try:
+        return await aiofiles.os.path.isfile(str(path))
+    except Exception as e:
+        logger.error(f"检查路径是否为文件失败 {path}: {e}")
         raise
 
 

@@ -135,6 +135,146 @@
         "zh_CN": "文件",
         "en_US": "File"
     },
+    "inspect_document.before": {
+        "zh_CN": "正在探测 {{file_name}}",
+        "en_US": "Inspecting {{file_name}}"
+    },
+    "inspect_document.after_success": {
+        "zh_CN": "已探测 {{file_name}}",
+        "en_US": "Inspected {{file_name}}"
+    },
+    "inspect_document.after_failed": {
+        "zh_CN": "{{file_name}} 探测失败",
+        "en_US": "Failed to inspect {{file_name}}"
+    },
+    "inspect_document.detail_title": {
+        "zh_CN": "文档探测结果",
+        "en_US": "Document Inspection"
+    },
+    "extract_document_content.before": {
+        "zh_CN": "正在提取 {{file_name}}",
+        "en_US": "Extracting {{file_name}}"
+    },
+    "extract_document_content.after_success": {
+        "zh_CN": "已提取 {{file_name}}",
+        "en_US": "Extracted {{file_name}}"
+    },
+    "extract_document_content.after_failed": {
+        "zh_CN": "{{file_name}} 提取失败",
+        "en_US": "Failed to extract {{file_name}}"
+    },
+    "extract_document_content.detail_title": {
+        "zh_CN": "文档内容提取",
+        "en_US": "Document Extraction"
+    },
+    "build_document_index.before": {
+        "zh_CN": "正在建立 {{file_name}} 的文档索引",
+        "en_US": "Building document index for {{file_name}}"
+    },
+    "build_document_index.after_success": {
+        "zh_CN": "已建立 {{file_name}} 的文档索引",
+        "en_US": "Built document index for {{file_name}}"
+    },
+    "build_document_index.after_failed": {
+        "zh_CN": "{{file_name}} 建索引失败",
+        "en_US": "Failed to build document index for {{file_name}}"
+    },
+    "build_document_index.detail_title": {
+        "zh_CN": "文档索引",
+        "en_US": "Document Index"
+    },
+    "summarize_document.before": {
+        "zh_CN": "正在总结 {{file_name}}",
+        "en_US": "Summarizing {{file_name}}"
+    },
+    "summarize_document.after_success": {
+        "zh_CN": "已生成 {{file_name}} 的文档摘要",
+        "en_US": "Generated document summary for {{file_name}}"
+    },
+    "summarize_document.after_failed": {
+        "zh_CN": "{{file_name}} 摘要生成失败",
+        "en_US": "Failed to summarize {{file_name}}"
+    },
+    "summarize_document.detail_title": {
+        "zh_CN": "文档摘要",
+        "en_US": "Document Summary"
+    },
+    "convert_document_format.before": {
+        "zh_CN": "正在转换 {{file_name}}",
+        "en_US": "Converting {{file_name}}"
+    },
+    "convert_document_format.after_success": {
+        "zh_CN": "已转换 {{file_name}}",
+        "en_US": "Converted {{file_name}}"
+    },
+    "convert_document_format.after_failed": {
+        "zh_CN": "{{file_name}} 转换失败",
+        "en_US": "Failed to convert {{file_name}}"
+    },
+    "convert_document_format.detail_title": {
+        "zh_CN": "文档格式转换",
+        "en_US": "Document Format Conversion"
+    },
+    "export_document_markdown.before": {
+        "zh_CN": "正在导出 {{file_name}}",
+        "en_US": "Exporting {{file_name}}"
+    },
+    "export_document_markdown.after_success": {
+        "zh_CN": "已导出 {{file_name}}",
+        "en_US": "Exported {{file_name}}"
+    },
+    "export_document_markdown.after_failed": {
+        "zh_CN": "{{file_name}} 导出失败",
+        "en_US": "Failed to export {{file_name}}"
+    },
+    "export_document_markdown.detail_title": {
+        "zh_CN": "Markdown 导出",
+        "en_US": "Markdown Export"
+    },
+    "document_parse.detail_type": {
+        "zh_CN": "类型",
+        "en_US": "Type"
+    },
+    "document_parse.detail_unit_type": {
+        "zh_CN": "结构单位",
+        "en_US": "Structure unit"
+    },
+    "document_parse.detail_total_units": {
+        "zh_CN": "单位数量",
+        "en_US": "Unit count"
+    },
+    "document_parse.detail_strategy": {
+        "zh_CN": "推荐策略",
+        "en_US": "Recommended strategy"
+    },
+    "document_parse.detail_output_dir": {
+        "zh_CN": "输出目录",
+        "en_US": "Output directory"
+    },
+    "document_parse.detail_index_file": {
+        "zh_CN": "索引文件",
+        "en_US": "Index file"
+    },
+    "document_parse.detail_outline_file": {
+        "zh_CN": "目录文件",
+        "en_US": "Outline file"
+    },
+    "document_parse.detail_node_count": {
+        "zh_CN": "节点数量",
+        "en_US": "Node count"
+    },
+    "document_parse.detail_chunk_count": {
+        "zh_CN": "Chunk 数量",
+        "en_US": "Chunk count"
+    },
+    "document_parse.detail_summary_file": {
+        "zh_CN": "摘要文件",
+        "en_US": "Summary file"
+    },
+    "document_parse.detail_combined_file": {
+        "zh_CN": "合并文件",
+        "en_US": "Combined file"
+    },
     "write_file.error": {
         "zh_CN": "写入文件 {{file_path}} 时出错",
         "en_US": "Error writing file {{file_path}}"
@@ -174,10 +314,6 @@
     "edit_file.error_file_not_exist": {
         "zh_CN": "抱歉，找不到这个文件",
         "en_US": "Sorry, couldn't find this file"
-    },
-    "convert_to_markdown.process_error": {
-        "zh_CN": " (转换过程中遇到问题)",
-        "en_US": " (error occurred during conversion)"
     },
     "shell_exec.error": {
         "zh_CN": "Shell命令执行失败: {{error}}",

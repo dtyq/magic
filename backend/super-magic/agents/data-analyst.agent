@@ -7,7 +7,6 @@ tools:
   - visual_understanding
   - video_understanding
   - convert_pdf
-  - convert_to_markdown
   - list_dir
   - read_files
   - write_file
@@ -29,6 +28,7 @@ skills:
     - name: using-mcp
     - name: user-info
     - name: develop-data-analysis-dashboard
+    - name: document-converter
   workspace_skills: "*"
   preload:
     - name: develop-data-analysis-dashboard

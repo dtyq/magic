@@ -6,7 +6,6 @@ from collections import defaultdict
 
 from agentlang.logger import get_logger
 from .driver.interfaces.file_parser_driver_interface import FileParserDriverInterface, ParseResult, ParseMetadata
-from .driver.pdf_ocr_driver import PdfOcrDriver
 from .driver.pdf_local_driver import PdfLocalDriver
 from .driver.pdf_visual_driver import PdfVisualDriver
 from .selector.interfaces.driver_selector_interface import DriverSelectorInterface
@@ -40,9 +39,8 @@ class FileParser:
 
     def _register_all_drivers(self):
         """Register all available file parser drivers."""
-        # PDF drivers (Visual has the highest priority, then OCR, then local)
+        # PDF drivers (Visual has the highest priority, then local).
         self._drivers.append(PdfVisualDriver())  # PDF files with visual understanding (highest priority)
-        self._drivers.append(PdfOcrDriver())     # PDF files with OCR (Magic Service)
         self._drivers.append(PdfLocalDriver())   # PDF files with local processing (MarkItDown)
 
         # Core text driver
@@ -120,8 +118,8 @@ class FileParser:
                    If not provided, will find and try appropriate drivers based on file extension.
             **kwargs: Additional parsing options passed to the driver and selector:
                 - enable_visual_understanding (bool): Whether to perform visual understanding on extracted images, default True
-                - force_{type}_driver_type (str): Force specific driver type for file type (e.g., force_pdf_driver_type='ocr')
-                - {type}_* (various): File-type specific selector parameters (e.g., pdf_visual_max_pages, pdf_ocr_max_pages)
+                - force_{type}_driver_type (str): Force specific driver type for file type (e.g., force_pdf_driver_type='local')
+                - {type}_* (various): File-type specific selector parameters (e.g., pdf_visual_max_pages)
                 - Other driver-specific options
 
         Returns:
@@ -234,7 +232,7 @@ class FileParser:
             selector_kwargs = {}
 
             # Generic parameters
-            for key in ['visual_max_pages', 'ocr_max_pages', 'large_file_size_mb']:
+            for key in ['visual_max_pages', 'large_file_size_mb']:
                 if key in kwargs:
                     selector_kwargs[key] = kwargs[key]
 

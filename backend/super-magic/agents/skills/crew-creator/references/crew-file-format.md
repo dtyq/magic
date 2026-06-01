@@ -205,7 +205,7 @@ tools:
   - read_webpages_as_markdown
   - visual_understanding
   - video_understanding
-  - convert_to_markdown
+  - run_python_snippet
   - list_dir
   - file_search
   - read_files

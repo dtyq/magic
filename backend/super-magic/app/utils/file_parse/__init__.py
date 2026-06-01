@@ -3,7 +3,6 @@
 from .file_parser import FileParser, get_file_parser
 from .driver.interfaces.file_parser_driver_interface import FileParserDriverInterface, ParseResult, ParseMetadata
 from .driver.abstract_driver import AbstractDriver
-from .driver.pdf_ocr_driver import PdfOcrDriver
 from .driver.pdf_local_driver import PdfLocalDriver
 from .driver.pdf_visual_driver import PdfVisualDriver
 from .driver.text_driver import TextDriver
@@ -29,7 +28,6 @@ __all__ = [
     'AbstractDriver',
 
     # Specific drivers
-    'PdfOcrDriver',
     'PdfLocalDriver',
     'PdfVisualDriver',
     'TextDriver',
