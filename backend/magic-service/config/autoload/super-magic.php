@@ -56,7 +56,7 @@ return [
         // still being stabilised. Empty string means "no restriction".
         'allowed_user_ids' => array_values(array_filter(array_map(
             'trim',
-            explode(',', (string) \Hyperf\Support\env('SUPER_MAGIC_WARM_POOL_ALLOWED_USER_IDS', 'usi_b38c10d21b21da5c90892e1e83d6060e'))
+            explode(',', (string) \Hyperf\Support\env('SUPER_MAGIC_WARM_POOL_ALLOWED_USER_IDS', ''))
         ))),
         // When false, sandbox-gateway skips the agfs-server readiness probe
         // and returns immediately after the pod is created. Useful for local
