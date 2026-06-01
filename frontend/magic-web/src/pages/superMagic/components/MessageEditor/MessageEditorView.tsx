@@ -6,6 +6,7 @@ import type { RefObject, DragEvent, ClipboardEvent, ReactNode } from "react"
 import type { MessageEditorSize } from "./types"
 import TabIcon from "./assets/tab.svg"
 import { cn } from "@/lib/utils"
+import { useEditorPortalSync } from "./hooks/useEditorPortalSync"
 import {
 	messageEditorContainerVariants,
 	messageEditorInnerVariants,
@@ -69,6 +70,10 @@ function MessageEditorView({
 	showAiCompletion,
 }: MessageEditorViewProps) {
 	const isMobile = useIsMobile()
+
+	// Fix: ensure EditorContent re-renders when editor.contentComponent changes
+	// (works around tiptap PureEditorContent stale portal reference bug)
+	useEditorPortalSync(tiptapEditor)
 
 	return (
 		<>
