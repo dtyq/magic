@@ -65,25 +65,36 @@ function NotSupportPreview(props: NotSupportPreviewProps) {
 		}
 	}
 
+	/** Mobile preview sheet: toolbar-only header sits below MagicPopup title as a full-width bar. */
+	const useActionsBarChrome = headerRenderMode === "actions"
+
+	const headerNode = showFileHeader ? (
+		<CommonHeaderV2
+			type={type}
+			onFullscreen={onFullscreen}
+			onDownload={onDownload}
+			isFromNode={isFromNode}
+			isFullscreen={isFullscreen}
+			viewMode={viewMode}
+			onViewModeChange={onViewModeChange}
+			onCopy={onCopy}
+			fileContent={fileContent}
+			currentFile={currentFile}
+			detailMode={detailMode}
+			allowEdit={allowEdit}
+			renderMode={headerRenderMode}
+		/>
+	) : null
+
 	return (
 		<div className="flex h-full min-h-0 flex-col bg-background">
-			{showFileHeader ? (
-				<CommonHeaderV2
-					type={type}
-					onFullscreen={onFullscreen}
-					onDownload={onDownload}
-					isFromNode={isFromNode}
-					isFullscreen={isFullscreen}
-					viewMode={viewMode}
-					onViewModeChange={onViewModeChange}
-					onCopy={onCopy}
-					fileContent={fileContent}
-					currentFile={currentFile}
-					detailMode={detailMode}
-					allowEdit={allowEdit}
-					renderMode={headerRenderMode}
-				/>
-			) : null}
+			{showFileHeader && useActionsBarChrome ? (
+				<div className="flex h-11 w-full shrink-0 items-center border-b border-border bg-background px-2.5">
+					{headerNode}
+				</div>
+			) : (
+				headerNode
+			)}
 
 			<div
 				className={cn(

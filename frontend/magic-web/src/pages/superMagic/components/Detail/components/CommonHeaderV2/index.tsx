@@ -525,11 +525,8 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 	if (renderMode === "actions") {
 		return (
 			<>
-				<div
-					ref={headerContainerRef}
-					className="flex h-11 w-full shrink-0 items-center border-b border-border bg-background px-2.5"
-					data-testid="detail-header"
-				>
+				{/* Neutral wrapper: bar chrome belongs at call sites (e.g. mobile preview sheet), not here — Design floating pill nests this inline. */}
+				<div ref={headerContainerRef} className="w-full" data-testid="detail-header">
 					{actionsNode}
 				</div>
 				<FileShareModals
