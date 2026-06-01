@@ -52,6 +52,20 @@ All path parameters passed to these tools must be absolute paths.
 
 For the same source document, reuse one stable `output_dir` across all document-converter tool calls. Keep `document.index.json`, `document.outline.md`, `chunks/`, summaries, converted files, and combined Markdown exports under that same directory unless the user explicitly asks for a different location.
 
+When the user does not provide an output directory, create one under the current workspace output area and derive the directory name from the current full file name, including the extension. For example, use `sample_pdf` for `sample.pdf`, `sample_docx` for `sample.docx`, and `README_md` for `README.md`. Do not use only the file stem in batch jobs, because files such as `sample.pdf`, `sample.docx`, and `sample.png` would otherwise overwrite or mix artifacts in the same `sample/` directory.
+
+Before writing to an existing `output_dir`, make sure it belongs to the same source file. If unsure, choose a fresh unique directory instead of reusing a possibly polluted directory.
+
+## Batch Conversion Rules
+
+- Process every file requested by the user. Do not invent a local supported-extension whitelist.
+- Prefer calling `inspect_document` or `export_document_markdown` and record the returned error when a file is unsupported.
+- Do not skip images, CSS, logs, configuration files, code files, or small text-like files just because they look different from office documents.
+- Keep the source directory clean. Write reports, summaries, indexes, chunks, and combined Markdown files under the chosen output root, not inside the input directory.
+- Use a unique output directory for each input file. The directory name should include the original extension as described above.
+- For batch reports, record one row per file with `input_path`, `output_dir`, `ok`, `file_type`, `index_path`, `combined_path`, and `error` when present.
+- Count success from actual tool results and output files, not from the planned file list.
+
 ## Tools
 
 ### `inspect_document`
@@ -105,6 +119,8 @@ Parameters:
 
 This tool is a convenience workflow for Markdown export, not a replacement for targeted extraction when the user only needs specific content.
 
+In batch exports, `output_dir` must be unique for each source file and should include the source file extension in the directory name.
+
 ### `summarize_document`
 
 Use this after chunks already exist. It summarizes from `document.index.json` and `chunks/` instead of reading the original document again.
@@ -134,10 +150,18 @@ Do not use this tool for semantic extraction, chunking, indexing, or summarizati
 ### Inspect before extracting
 
 ```python
+import re
+from pathlib import Path
 from sdk.tool import tool
 
+def document_output_dir(output_root: str, input_path: str) -> str:
+    path = Path(input_path)
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", path.name).strip("._")
+    safe_name = safe_name.replace(".", "_")
+    return str(Path(output_root) / safe_name)
+
 doc = "/absolute/path/to/uploads/report.pdf"
-out = "/absolute/path/to/document-output/report"
+out = document_output_dir("/absolute/path/to/document-output", doc)
 
 profile = tool.call("inspect_document", {
     "input_path": doc,
@@ -160,9 +184,12 @@ print(index.content)
 ```python
 from sdk.tool import tool
 
+doc = "/absolute/path/to/uploads/report.pdf"
+out = "/absolute/path/to/document-output/report_pdf"
+
 result = tool.call("extract_document_content", {
-    "input_path": "/absolute/path/to/uploads/report.pdf",
-    "output_dir": "/absolute/path/to/document-output/report",
+    "input_path": doc,
+    "output_dir": out,
     "ranges": "1-3,8,10-12",
     "mode": "local_text",
 })
@@ -177,13 +204,24 @@ Use `mode: "visual"` only for selected pages where layout, scans, charts, signat
 ### Export a document to Markdown
 
 ```python
+import re
+from pathlib import Path
 from sdk.tool import tool
 
+def document_output_dir(output_root: str, input_path: str) -> str:
+    path = Path(input_path)
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", path.name).strip("._")
+    safe_name = safe_name.replace(".", "_")
+    return str(Path(output_root) / safe_name)
+
+doc = "/absolute/path/to/uploads/report.pdf"
+out = document_output_dir("/absolute/path/to/document-output", doc)
+
 export = tool.call("export_document_markdown", {
-    "input_path": "/absolute/path/to/uploads/report.pdf",
-    "output_dir": "/absolute/path/to/document-output/report",
+    "input_path": doc,
+    "output_dir": out,
     "mode": "local_text",
-    "combined_filename": "report.md",
+    "combined_filename": f"{Path(doc).stem}.md",
 })
 if not export.ok:
     raise SystemExit(export.content)

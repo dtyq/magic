@@ -1,4 +1,8 @@
-"""Generic MarkItDown-backed document driver."""
+"""Generic MarkItDown-backed document driver.
+
+This driver is best-effort. When an external converter is unavailable, it emits
+a bounded metadata chunk instead of breaking the whole document-converter flow.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.utils.async_file_utils import async_exists, async_read_text, async_stat, async_unlink
-from ..models import DocumentProfile, ExtractionResult, stable_document_id
+from ..models import DocumentChunk, DocumentProfile, ExtractionResult, stable_document_id
 from ..structure.chunk_store import ChunkStore
 from ..structure.chunker import DocumentChunker
 from ..structure.heading_detector import HeadingDetector
@@ -70,7 +74,12 @@ class GenericMarkItDownDriver:
         temp_output = output_dir / f"{path.name}.raw.md"
         parse_result = await get_file_parser().parse(path, temp_output, extract_images=kwargs.get("extract_images", True))
         if not parse_result.success or not parse_result.output_file_path:
-            raise ValueError(parse_result.error_message or "document extraction failed")
+            return await self._fallback_extraction(
+                path,
+                output_dir,
+                parse_result.error_message or "document extraction failed",
+                mode,
+            )
         content = await async_read_text(parse_result.output_file_path, errors="ignore")
         chunks = DocumentChunker.chunk_text(content, path.name, ranges or "all", max_chars=max_chars)
         chunks = await ChunkStore.write_chunks(output_dir, chunks)
@@ -86,4 +95,40 @@ class GenericMarkItDownDriver:
             total_units=len(chunks),
             pages_processed=len(chunks),
             metadata={"mode": mode, "raw_markdown_path": str(temp_output.relative_to(output_dir))},
+        )
+
+    async def _fallback_extraction(self, path: Path, output_dir: Path, error_message: str, mode: str) -> ExtractionResult:
+        document_id = stable_document_id(path)
+        content = "\n".join([
+            f"# {path.name}",
+            "",
+            "Content extraction could not be completed in this environment.",
+            "",
+            f"- File type: `{path.suffix.lower()}`",
+            f"- Extraction error: `{error_message}`",
+            "",
+            "The document is still indexed as a supported file type, but detailed Markdown content requires the relevant converter or parser dependency.",
+        ])
+        chunk = DocumentChunk(
+            chunk_id="chunk_0001",
+            title=path.name,
+            content=content,
+            source_range="all",
+            metadata={"extraction_error": error_message, "fallback": True},
+        )
+        chunks = await ChunkStore.write_chunks(output_dir, [chunk])
+        nodes = VirtualOutlineBuilder.by_units(self.unit_type, 1, 1)
+        if nodes:
+            nodes[0].title = path.name
+            nodes[0].chunk_ids.append(chunks[0].chunk_id)
+            chunks[0].parent_node_id = nodes[0].node_id
+        return ExtractionResult(
+            document_id=document_id,
+            source_path=str(path),
+            output_dir=str(output_dir),
+            chunks=chunks,
+            nodes=nodes,
+            total_units=1,
+            pages_processed=1,
+            metadata={"mode": mode, "fallback": True, "extraction_error": error_message},
         )

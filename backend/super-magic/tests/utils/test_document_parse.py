@@ -37,3 +37,23 @@ async def test_markdown_document_parse_pipeline(tmp_path: Path):
     assert "Global Summary" in summary
     assert "Chunk Summaries" in summary
     assert "Title" in summary
+
+
+@pytest.mark.asyncio
+async def test_image_document_parse_pipeline_uses_metadata_without_visual_model(tmp_path: Path):
+    from PIL import Image
+
+    source = tmp_path / "sample.png"
+    output_dir = tmp_path / "sample-image.document"
+    Image.new("RGB", (32, 16), color="white").save(source)
+
+    profile = await DocumentInspector().inspect(source)
+    extraction = await DocumentExtractor().extract(source, output_dir)
+    structure = await DocumentIndexer().build_from_extraction(source, output_dir, extraction)
+
+    assert profile.file_type == "image"
+    assert profile.metadata["width"] == 32
+    assert extraction.assets
+    assert extraction.chunks[0].path == "chunks/chunk_0001.md"
+    assert structure.metadata["chunk_lookup"]["chunk_0001"]["source_range"] == "image:1"
+    assert (output_dir / "assets" / "sample.png").exists()
