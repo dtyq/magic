@@ -7,20 +7,22 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Application\Kernel;
 
-use Exception;
+use App\Domain\Chat\Service\MessageContentProviderInterface;
 use Hyperf\Engine\WebSocket\Frame;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
 use Hyperf\SocketIOServer\NamespaceInterface;
 use Hyperf\SocketIOServer\Room\RedisAdapter;
 use Hyperf\SocketIOServer\SidProvider\SidProviderInterface;
+use Hyperf\SocketIOServer\SocketIO;
 use Hyperf\WebSocketServer\Sender;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use ReflectionMethod;
 use ReflectionProperty;
+use RuntimeException;
 
 /**
  * @internal
@@ -29,215 +31,574 @@ class RedisAdapterTest extends TestCase
 {
     use MockeryPHPUnitIntegration;
 
-    public function testBroadcastSupportsRoomOption(): void
+    protected function setUp(): void
     {
-        [$adapter, $redis, $sender, $sidProvider] = $this->makeAdapter();
-
-        $redis->shouldReceive('sMembers')
-            ->once()
-            ->with($this->roomKey('r1'))
-            ->andReturn(['sid1']);
-        $sidProvider->shouldReceive('isLocal')
-            ->once()
-            ->with('sid1')
-            ->andReturn(true);
-        $sidProvider->shouldReceive('getFd')
-            ->once()
-            ->with('sid1')
-            ->andReturn(11);
-        $sender->shouldReceive('pushFrame')
-            ->once()
-            ->withArgs(function ($fd, $frame) {
-                return $fd === 11 && $frame instanceof Frame && (string) $frame->getPayloadData() === 'packet';
-            });
-
-        $adapter->broadcast('packet', ['flag' => ['local' => true], 'room' => 'r1']);
+        parent::setUp();
+        SocketIO::$serverId = 'server-a';
     }
 
-    public function testCleanUpExpiredOnceCallsDisconnectSidOnlyOncePerSid(): void
+    protected function tearDown(): void
     {
-        [$redisFactory, $redis, $sender, $namespace, $sidProvider] = $this->makeDependencies();
-        $adapter = Mockery::mock(RedisAdapter::class . '[disconnectSid]', [$redisFactory, $sender, $namespace, $sidProvider])->makePartial();
-
-        $redis->shouldReceive('zRangeByScore')
-            ->twice()
-            ->withArgs(function ($key, $min, $max, $options) {
-                return $key === $this->expireKey()
-                    && $min === '-inf'
-                    && is_string($max)
-                    && is_array($options)
-                    && isset($options['limit'])
-                    && $options['limit'] === [0, 1000];
-            })
-            ->andReturn(['sid1', 'sid2'], []);
-        $redis->shouldReceive('zRem')->never();
-
-        $adapter->shouldReceive('disconnectSid')->once()->with('sid1');
-        $adapter->shouldReceive('disconnectSid')->once()->with('sid2');
-
-        $adapter->cleanUpExpiredOnce();
+        SocketIO::$serverId = '';
+        parent::tearDown();
     }
 
-    public function testCleanUpExpiredOnceProcessesMultipleBatches(): void
+    public function testLocalBroadcastUsesLocalRoomIndexOnly(): void
     {
-        [$redisFactory, $redis, $sender, $namespace, $sidProvider] = $this->makeDependencies();
-        $adapter = Mockery::mock(RedisAdapter::class . '[disconnectSid]', [$redisFactory, $sender, $namespace, $sidProvider])->makePartial();
+        [$adapter, $redis, $queueRedis, $sender, $sidProvider] = $this->makeAdapter();
 
-        $batchSizeProperty = new ReflectionProperty(RedisAdapter::class, 'cleanUpExpiredBatchSize');
-        $batchSizeProperty->setAccessible(true);
-        $batchSizeProperty->setValue($adapter, 2);
-
-        $redis->shouldReceive('zRangeByScore')
-            ->times(3)
-            ->withArgs(function ($key, $min, $max, $options) {
-                return $key === $this->expireKey()
-                    && $min === '-inf'
-                    && is_string($max)
-                    && is_array($options)
-                    && isset($options['limit'])
-                    && $options['limit'] === [0, 2];
-            })
-            ->andReturn(['sid1', 'sid2'], ['sid3'], []);
-
-        $adapter->shouldReceive('disconnectSid')->once()->with('sid1');
-        $adapter->shouldReceive('disconnectSid')->once()->with('sid2');
-        $adapter->shouldReceive('disconnectSid')->once()->with('sid3');
-
-        $adapter->cleanUpExpiredOnce();
-    }
-
-    public function testAddExecutesExpireWriteOnceForMultiRooms(): void
-    {
-        [$adapter, $redis] = $this->makeAdapter();
-        $adapter->setTtl(5000);
-
-        $redis->shouldReceive('multi')->once();
-        $redis->shouldReceive('sAdd')->once()->with($this->sidKey('sid1'), 'r1', 'r2');
-        $redis->shouldReceive('sAdd')->once()->with($this->roomKey('r1'), 'sid1');
-        $redis->shouldReceive('sAdd')->once()->with($this->roomKey('r2'), 'sid1');
-        $redis->shouldReceive('zAdd')
-            ->once()
-            ->withArgs(function ($key, $score, $sid) {
-                return $key === $this->expireKey() && is_numeric($score) && $sid === 'sid1';
-            });
-        $redis->shouldReceive('sAdd')->once()->with($this->statKey(), 'sid1');
-        $redis->shouldReceive('exec')->once();
-
-        $adapter->add('sid1', 'r1', 'r2');
-    }
-
-    public function testBroadcastSkipsExceptSidWithoutLocalCheck(): void
-    {
-        [$adapter, $redis, $sender, $sidProvider] = $this->makeAdapter();
-
-        $redis->shouldReceive('sMembers')
-            ->once()
-            ->with($this->roomKey('r1'))
-            ->andReturn(['sid1']);
-        $sidProvider->shouldReceive('isLocal')->never();
-        $sender->shouldReceive('pushFrame')->never();
-
-        $adapter->broadcast('packet', [
-            'flag' => ['local' => true],
-            'rooms' => ['r1'],
-            'except' => ['sid1'],
-        ]);
-    }
-
-    public function testDisconnectSidStillCleansRouteWhenCloseFdFails(): void
-    {
-        [$adapter, $redis, $sender, $sidProvider] = $this->makeAdapter();
-        $logger = Mockery::mock(LoggerInterface::class);
-        $adapter->logger = $logger;
-
-        $logger->shouldReceive('info')
-            ->once()
-            ->withArgs(fn ($message) => is_string($message) && str_contains($message, 'sidGuard event=disconnectSidTriggered'));
-        $logger->shouldReceive('warning')
-            ->once()
-            ->withArgs(fn ($message) => is_string($message) && str_contains($message, 'sidGuard event=closeFdFailed'));
+        $adapter->add('sid1', 'r1');
 
         $sidProvider->shouldReceive('isLocal')->once()->with('sid1')->andReturn(true);
-        $sidProvider->shouldReceive('getFd')->once()->with('sid1')->andReturn(10);
-        $sender->shouldReceive('disconnect')->once()->with(10)->andThrow(new Exception('socket already closed'));
+        $sidProvider->shouldReceive('getFd')->once()->with('sid1')->andReturn(11);
+        $sender->shouldReceive('pushFrame')
+            ->once()
+            ->withArgs(fn ($fd, $frame) => $fd === 11
+                && $frame instanceof Frame
+                && (string) $frame->getPayloadData() === 'packet');
 
-        $redis->shouldReceive('sMembers')->once()->with($this->sidKey('sid1'))->andReturn([]);
-        $redis->shouldReceive('multi')->once();
-        $redis->shouldReceive('del')->once()->with($this->sidKey('sid1'));
-        $redis->shouldReceive('sRem')->once()->with($this->statKey(), 'sid1');
-        $redis->shouldReceive('zRem')->once()->with($this->expireKey(), 'sid1');
-        $redis->shouldReceive('exec')->once();
+        $adapter->broadcast('packet', ['flag' => ['local' => true], 'room' => 'r1']);
 
-        $adapter->disconnectSid('sid1');
+        $redis->shouldNotHaveReceived('sMembers');
+        $redis->shouldNotHaveReceived('publish');
+        $redis->shouldNotHaveReceived('scan');
+        $queueRedis->shouldNotHaveReceived('lPush');
     }
 
-    public function testPhpRedisSubscribeLogsWhenPayloadContainsObject(): void
+    public function testAddWritesRoomNodeOnlyForFirstLocalSidInRoom(): void
     {
-        [$adapter] = $this->makeAdapter();
-        $logger = Mockery::mock(LoggerInterface::class);
-        $adapter->logger = $logger;
+        [$adapter, $redis] = $this->makeAdapter();
+        $nodeId = $this->nodeId('server-a');
 
-        $logger->shouldReceive('warning')
+        $adapter->add('sid1', 'r1');
+        $adapter->add('sid2', 'r1');
+
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->roomNodesKey('r1'), $nodeId)
+            ->once();
+        $redis->shouldHaveReceived('expire')
+            ->with($this->roomNodesKey('r1'), 86400)
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->nodeRoomsKey($nodeId), $this->hashValue('r1'))
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->nodeRoomSidsKey($nodeId, 'r1'), 'sid1')
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->nodeRoomSidsKey($nodeId, 'r1'), 'sid2')
+            ->once();
+        $redis->shouldNotHaveReceived('multi');
+        $redis->shouldNotHaveReceived('scan');
+    }
+
+    public function testDelRemovesRoomNodeOnlyAfterLastLocalSidLeaves(): void
+    {
+        [$adapter, $redis] = $this->makeAdapter();
+        $nodeId = $this->nodeId('server-a');
+
+        $adapter->add('sid1', 'r1');
+        $adapter->add('sid2', 'r1');
+        $adapter->del('sid1', 'r1');
+        $adapter->del('sid2', 'r1');
+
+        $redis->shouldHaveReceived('sRem')
+            ->with($this->roomNodesKey('r1'), $nodeId)
+            ->once();
+        $redis->shouldHaveReceived('del')
+            ->with($this->nodeRoomSidsKey($nodeId, 'r1'))
+            ->once();
+        $redis->shouldNotHaveReceived('scan');
+    }
+
+    public function testNumericRoomIdKeepsStringSemantics(): void
+    {
+        [$adapter, $redis, , $sender, $sidProvider] = $this->makeAdapter();
+        $nodeId = $this->nodeId('server-a');
+        $room = '595693396611473408';
+
+        $adapter->add('sid1', $room);
+
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->roomNodesKey($room), $nodeId)
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->sidRoomsKey('sid1'), $room)
+            ->once();
+
+        self::assertSame([$room], $adapter->clientRooms('sid1'));
+
+        $sidProvider->shouldReceive('isLocal')->once()->with('sid1')->andReturn(true);
+        $sidProvider->shouldReceive('getFd')->once()->with('sid1')->andReturn(11);
+        $sender->shouldReceive('pushFrame')
             ->once()
-            ->withArgs(function ($message) {
-                return is_string($message)
-                    && str_contains($message, 'sidGuard event=subscribePayloadObjectDetected')
-                    && str_contains($message, TestPayloadObject::class);
-            });
+            ->withArgs(fn ($fd, $frame) => $fd === 11
+                && $frame instanceof Frame
+                && (string) $frame->getPayloadData() === 'packet');
 
-        $method = new ReflectionMethod(RedisAdapter::class, 'logSubscribePayloadObjectTypes');
+        $adapter->broadcast('packet', ['flag' => ['local' => true], 'room' => $room]);
+        $redis->shouldNotHaveReceived('scan');
+    }
+
+    public function testAddDoesNotMutateLocalIndexWhenRedisWriteFails(): void
+    {
+        [$adapter, $redis, , $sender, $sidProvider] = $this->makeAdapter();
+        $adapter->logger = new NullLogger();
+        $nodeId = $this->nodeId('server-a');
+
+        $redis->shouldReceive('sAdd')
+            ->with($this->nodeRoomSidsKey($nodeId, 'r1'), 'sid1')
+            ->once()
+            ->andThrow(new RuntimeException('redis failed'));
+
+        $this->expectException(RuntimeException::class);
+        try {
+            $adapter->add('sid1', 'r1');
+        } finally {
+            $sender->shouldReceive('pushFrame')->never();
+            $sidProvider->shouldReceive('isLocal')->never();
+
+            $adapter->broadcast('packet', ['flag' => ['local' => true], 'room' => 'r1']);
+        }
+    }
+
+    public function testReconcileRouteIndexRebuildsLocalIndexesAndRemovesStaleRoom(): void
+    {
+        [$adapter, $redis] = $this->makeAdapter();
+        $nodeId = $this->nodeId('server-a');
+        $staleRoomHash = $this->hashValue('stale-room');
+
+        $this->setPrivateProperty($adapter, 'roomSids', ['room:r1' => ['sid1' => true]]);
+        $this->setPrivateProperty($adapter, 'sidRooms', ['sid1' => ['room:r1' => 'r1']]);
+        $this->setPrivateProperty($adapter, 'roomLocalCount', ['room:r1' => 1]);
+
+        $redis->shouldReceive('sMembers')
+            ->with($this->nodeRoomsKey($nodeId))
+            ->once()
+            ->andReturn([$staleRoomHash]);
+
+        $adapter->reconcileRouteIndex();
+
+        $redis->shouldHaveReceived('sRem')
+            ->with($this->roomNodesKeyByHash($staleRoomHash), $nodeId)
+            ->once();
+        $redis->shouldHaveReceived('del')
+            ->with($this->nodeRoomSidsKeyByHash($nodeId, $staleRoomHash))
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->roomNodesKey('r1'), $nodeId)
+            ->once();
+        $redis->shouldHaveReceived('expire')
+            ->with($this->roomNodesKey('r1'), 86400)
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->nodeRoomSidsKey($nodeId, 'r1'), 'sid1')
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->sidRoomsKey('sid1'), 'r1')
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->nodeSidsKey($nodeId), 'sid1')
+            ->once();
+        $redis->shouldHaveReceived('sAdd')
+            ->with($this->nodeRoomsKey($nodeId), $this->hashValue('r1'))
+            ->once();
+        $redis->shouldNotHaveReceived('scan');
+    }
+
+    public function testRemoteBroadcastFansOutToTargetNodeQueues(): void
+    {
+        [$adapter, $redis, $queueRedis, $sender, $sidProvider] = $this->makeAdapter();
+        $currentNodeId = $this->nodeId('server-a');
+        $remoteNodeId = 'server-b:p222';
+        $adapter->add('sid1', 'r1');
+
+        $redis->shouldReceive('sMembers')
+            ->with($this->roomNodesKey('r1'))
+            ->once()
+            ->andReturn([$currentNodeId, $remoteNodeId]);
+        $redis->shouldReceive('zScore')
+            ->with($this->nodesKey($this->nodeBucket($remoteNodeId)), $remoteNodeId)
+            ->once()
+            ->andReturn((string) (PHP_INT_MAX / 1000));
+
+        $sidProvider->shouldReceive('isLocal')->once()->with('sid1')->andReturn(true);
+        $sidProvider->shouldReceive('getFd')->once()->with('sid1')->andReturn(11);
+        $sender->shouldReceive('pushFrame')->once();
+
+        $adapter->broadcast('packet', ['rooms' => ['r1']]);
+
+        $queueRedis->shouldHaveReceived('lPush')
+            ->withArgs(function ($key, $payload) use ($remoteNodeId) {
+                return $key === $this->nodeQueueKey($remoteNodeId, $this->laneForRoom('r1'))
+                    && $this->payloadPacket($payload) === 'packet';
+            })
+            ->once();
+        $queueRedis->shouldHaveReceived('lTrim')
+            ->with($this->nodeQueueKey($remoteNodeId, $this->laneForRoom('r1')), 0, 9999)
+            ->once();
+        $queueRedis->shouldHaveReceived('expire')
+            ->with($this->nodeQueueKey($remoteNodeId, $this->laneForRoom('r1')), 60)
+            ->once();
+        $redis->shouldNotHaveReceived('publish');
+        $redis->shouldNotHaveReceived('scan');
+    }
+
+    public function testSameServerDifferentWorkerFansOutThroughQueue(): void
+    {
+        [$adapter, $redis, $queueRedis, $sender, $sidProvider] = $this->makeAdapter();
+        $currentNodeId = $this->nodeId('server-a');
+        $siblingNodeId = 'server-a:p999999';
+        $adapter->add('sid1', 'r1');
+
+        $redis->shouldReceive('sMembers')
+            ->with($this->roomNodesKey('r1'))
+            ->once()
+            ->andReturn([$currentNodeId, $siblingNodeId]);
+        $redis->shouldReceive('zScore')
+            ->with($this->nodesKey($this->nodeBucket($siblingNodeId)), $siblingNodeId)
+            ->once()
+            ->andReturn((string) (PHP_INT_MAX / 1000));
+
+        $sidProvider->shouldReceive('isLocal')->once()->with('sid1')->andReturn(true);
+        $sidProvider->shouldReceive('getFd')->once()->with('sid1')->andReturn(11);
+        $sender->shouldReceive('pushFrame')->once();
+
+        $adapter->broadcast('packet', ['rooms' => ['r1']]);
+
+        $queueRedis->shouldHaveReceived('lPush')
+            ->withArgs(function ($key, $payload) use ($siblingNodeId) {
+                return $key === $this->nodeQueueKey($siblingNodeId, $this->laneForRoom('r1'))
+                    && $this->payloadPacket($payload) === 'packet';
+            })
+            ->once();
+        $redis->shouldNotHaveReceived('publish');
+        $redis->shouldNotHaveReceived('scan');
+    }
+
+    public function testRenewDoesNotWriteRedis(): void
+    {
+        [$adapter, $redis] = $this->makeAdapter();
+
+        $adapter->renew('sid1');
+
+        $redis->shouldNotHaveReceived('zAdd');
+        $redis->shouldNotHaveReceived('zRangeByScore');
+    }
+
+    public function testCleanUpExpiredUsesNodeRoomsWithoutScan(): void
+    {
+        [$adapter, $redis, $queueRedis] = $this->makeAdapter();
+        $nodeId = $this->nodeId('server-a');
+        $deadNodeId = 'server-dead:p1';
+        $this->setPrivateProperty($adapter, 'nodeBucketCount', 1);
+        $this->setPrivateProperty($adapter, 'queueLaneCount', 2);
+
+        $redis->shouldReceive('set')
+            ->with($this->cleanupLockKey(0), $nodeId, Mockery::type('array'))
+            ->once()
+            ->andReturn(true);
+        $redis->shouldReceive('zRangeByScore')
+            ->withArgs(fn ($key, $min, $max, $options) => $key === $this->nodesKey(0)
+                && $min === '-inf'
+                && is_string($max)
+                && $options === ['limit' => [0, 200]])
+            ->once()
+            ->andReturn([$deadNodeId]);
+        $redis->shouldReceive('zScore')
+            ->with($this->nodesKey(0), $deadNodeId)
+            ->once()
+            ->andReturn(false);
+        $redis->shouldReceive('sMembers')
+            ->with($this->nodeRoomsKey($deadNodeId))
+            ->once()
+            ->andReturn([$this->hashValue('r1')]);
+        $redis->shouldReceive('sMembers')
+            ->with($this->nodeSidsKey($deadNodeId))
+            ->once()
+            ->andReturn(['server-dead#1']);
+
+        $adapter->cleanUpExpiredOnce();
+
+        $redis->shouldHaveReceived('sRem')
+            ->with($this->roomNodesKey('r1'), $deadNodeId)
+            ->once();
+        $redis->shouldHaveReceived('del')
+            ->with($this->nodeRoomsKey($deadNodeId))
+            ->once();
+        $redis->shouldHaveReceived('del')
+            ->with($this->sidRoomsKey('server-dead#1'))
+            ->once();
+        $redis->shouldHaveReceived('del')
+            ->with($this->sidNodeKey('server-dead#1'))
+            ->once();
+        $redis->shouldHaveReceived('zRem')
+            ->with($this->nodesKey(0), $deadNodeId)
+            ->once();
+        $queueRedis->shouldHaveReceived('del')->with($this->nodeQueueKey($deadNodeId, 0))->once();
+        $queueRedis->shouldHaveReceived('del')->with($this->nodeQueueKey($deadNodeId, 1))->once();
+        $redis->shouldNotHaveReceived('scan');
+    }
+
+    public function testGlobalBroadcastCachesActiveNodeBucketsBriefly(): void
+    {
+        [$adapter, $redis, $queueRedis] = $this->makeAdapter();
+        $currentNodeId = $this->nodeId('server-a');
+        $remoteNodeId = 'server-b:p222';
+        $this->setPrivateProperty($adapter, 'nodeBucketCount', 2);
+
+        $redis->shouldReceive('zRangeByScore')
+            ->withArgs(fn ($key, $min, $max) => in_array($key, [$this->nodesKey(0), $this->nodesKey(1)], true)
+                && is_string($min)
+                && $max === '+inf')
+            ->twice()
+            ->andReturn([$currentNodeId], [$remoteNodeId]);
+
+        $adapter->broadcast('packet-1', []);
+        $adapter->broadcast('packet-2', []);
+
+        $queueRedis->shouldHaveReceived('lPush')->twice();
+        $redis->shouldNotHaveReceived('scan');
+    }
+
+    public function testQueuePayloadPushesOnlyLocalRoomSids(): void
+    {
+        [$adapter, , , $sender, $sidProvider] = $this->makeAdapter();
+        $adapter->add('sid1', 'r1');
+
+        $sidProvider->shouldReceive('isLocal')->once()->with('sid1')->andReturn(true);
+        $sidProvider->shouldReceive('getFd')->once()->with('sid1')->andReturn(11);
+        $sender->shouldReceive('pushFrame')
+            ->once()
+            ->withArgs(fn ($fd, $frame) => $fd === 11
+                && $frame instanceof Frame
+                && (string) $frame->getPayloadData() === 'packet');
+
+        $method = new ReflectionMethod(RedisAdapter::class, 'handleQueuePayload');
         $method->setAccessible(true);
-        $method->invoke($adapter, ['payload' => new TestPayloadObject()], ['meta' => []]);
+        $method->invoke($adapter, json_encode([
+            'v' => 1,
+            'packet' => base64_encode('packet'),
+            'opts' => ['rooms' => ['r1']],
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    public function testMessageContentProviderResolvesPacketOnlyOncePerBroadcast(): void
+    {
+        [$adapter, , , $sender, $sidProvider] = $this->makeAdapter();
+        $adapter->add('sid1', 'r1');
+        $adapter->add('sid2', 'r1');
+
+        $provider = Mockery::mock(MessageContentProviderInterface::class);
+        $provider->shouldReceive('resolveActualPacket')->once()->with('packet')->andReturn('resolved');
+        $this->setPrivateProperty($adapter, 'messageContentProvider', $provider);
+
+        $sidProvider->shouldReceive('isLocal')->with('sid1')->once()->andReturn(true);
+        $sidProvider->shouldReceive('isLocal')->with('sid2')->once()->andReturn(true);
+        $sidProvider->shouldReceive('getFd')->with('sid1')->once()->andReturn(11);
+        $sidProvider->shouldReceive('getFd')->with('sid2')->once()->andReturn(12);
+        $sender->shouldReceive('pushFrame')
+            ->twice()
+            ->withArgs(fn ($fd, $frame) => in_array($fd, [11, 12], true)
+                && $frame instanceof Frame
+                && (string) $frame->getPayloadData() === 'resolved');
+
+        $adapter->broadcast('packet', ['flag' => ['local' => true], 'rooms' => ['r1']]);
     }
 
     /**
-     * @return array{RedisAdapter, RedisProxy, Sender, SidProviderInterface}
+     * @return array{RedisAdapter, RedisProxy, RedisProxy, Sender, SidProviderInterface}
      */
     private function makeAdapter(string $namespace = '/im'): array
     {
-        [$redisFactory, $redis, $sender, $nsp, $sidProvider] = $this->makeDependencies($namespace);
+        [$redisFactory, $redis, $queueRedis, $sender, $nsp, $sidProvider] = $this->makeDependencies($namespace);
         $adapter = new RedisAdapter($redisFactory, $sender, $nsp, $sidProvider);
-        return [$adapter, $redis, $sender, $sidProvider];
+        return [$adapter, $redis, $queueRedis, $sender, $sidProvider];
     }
 
     /**
-     * @return array{RedisFactory, RedisProxy, Sender, NamespaceInterface, SidProviderInterface}
+     * @return array{RedisFactory, RedisProxy, RedisProxy, Sender, NamespaceInterface, SidProviderInterface}
      */
     private function makeDependencies(string $namespace = '/im'): array
     {
-        $redis = Mockery::mock(RedisProxy::class);
+        $redis = Mockery::spy(RedisProxy::class);
+        $queueRedis = Mockery::spy(RedisProxy::class);
+        $this->mockPipelineForwardingTo($redis);
+        $this->mockPipelineForwardingTo($queueRedis);
         $redisFactory = Mockery::mock(RedisFactory::class);
         $sender = Mockery::mock(Sender::class);
         $nsp = Mockery::mock(NamespaceInterface::class);
         $sidProvider = Mockery::mock(SidProviderInterface::class);
 
         $redisFactory->shouldReceive('get')->once()->with('default')->andReturn($redis);
+        $redisFactory->shouldReceive('get')->once()->with('socketio_queue')->andReturn($queueRedis);
         $nsp->shouldReceive('getNamespace')->andReturn($namespace);
 
-        return [$redisFactory, $redis, $sender, $nsp, $sidProvider];
+        return [$redisFactory, $redis, $queueRedis, $sender, $nsp, $sidProvider];
     }
 
-    private function roomKey(string $room, string $namespace = '/im'): string
+    private function mockPipelineForwardingTo(RedisProxy $redis): void
     {
-        return sprintf('magicChat:SocketIo:RedisAdapter:%s:rooms:%s', $namespace, $room);
+        $redis->shouldReceive('pipeline')->andReturnUsing(static fn () => new class($redis) {
+            public function __construct(private RedisProxy $redis)
+            {
+            }
+
+            public function exec(): array
+            {
+                return [];
+            }
+
+            public function __call(string $method, array $arguments): self
+            {
+                $this->redis->{$method}(...$arguments);
+                return $this;
+            }
+        });
     }
 
-    private function sidKey(string $sid, string $namespace = '/im'): string
+    private function setPrivateProperty(object $object, string $property, mixed $value): void
     {
-        return sprintf('magicChat:SocketIo:RedisAdapter:%s:fds:%s', $namespace, $sid);
+        $reflectionProperty = new ReflectionProperty($object, $property);
+        $reflectionProperty->setAccessible(true);
+        $reflectionProperty->setValue($object, $value);
     }
 
-    private function statKey(string $namespace = '/im'): string
+    private function roomNodesKey(string $room, string $namespace = '/im'): string
     {
-        return sprintf('magicChat:SocketIo:RedisAdapter:%s:stat', $namespace);
+        return $this->roomNodesKeyByHash($this->hashValue($room), $namespace);
     }
 
-    private function expireKey(string $namespace = '/im'): string
+    private function roomNodesKeyByHash(string $roomHash, string $namespace = '/im'): string
     {
-        return sprintf('magicChat:SocketIo:RedisAdapter:%s:expire', $namespace);
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:room_nodes:%s:%s',
+            $this->clusterRouteTag('room_nodes:' . $this->hashValue($namespace) . ':' . $roomHash),
+            $this->hashValue($namespace),
+            $roomHash
+        );
     }
-}
 
-class TestPayloadObject
-{
+    private function nodeRoomsKey(string $nodeId, string $namespace = '/im'): string
+    {
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:node_rooms:%s:%s',
+            $this->clusterRouteTag('node:' . $this->hashValue($namespace) . ':' . $nodeId),
+            $this->hashValue($namespace),
+            $nodeId
+        );
+    }
+
+    private function nodeSidsKey(string $nodeId, string $namespace = '/im'): string
+    {
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:node_sids:%s:%s',
+            $this->clusterRouteTag('node:' . $this->hashValue($namespace) . ':' . $nodeId),
+            $this->hashValue($namespace),
+            $nodeId
+        );
+    }
+
+    private function nodeRoomSidsKey(string $nodeId, string $room, string $namespace = '/im'): string
+    {
+        return $this->nodeRoomSidsKeyByHash($nodeId, $this->hashValue($room), $namespace);
+    }
+
+    private function nodeRoomSidsKeyByHash(string $nodeId, string $roomHash, string $namespace = '/im'): string
+    {
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:node_room_sids:%s:%s:%s',
+            $this->clusterRouteTag('node_room_sids:' . $this->hashValue($namespace) . ':' . $nodeId . ':' . $roomHash),
+            $this->hashValue($namespace),
+            $nodeId,
+            $roomHash
+        );
+    }
+
+    private function sidRoomsKey(string $sid, string $namespace = '/im'): string
+    {
+        $sidHash = $this->hashValue($sid);
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:sid_rooms:%s:%s',
+            $this->clusterRouteTag('sid:' . $this->hashValue($namespace) . ':' . $sidHash),
+            $this->hashValue($namespace),
+            $sidHash
+        );
+    }
+
+    private function sidNodeKey(string $sid, string $namespace = '/im'): string
+    {
+        $sidHash = $this->hashValue($sid);
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:sid_node:%s:%s',
+            $this->clusterRouteTag('sid:' . $this->hashValue($namespace) . ':' . $sidHash),
+            $this->hashValue($namespace),
+            $sidHash
+        );
+    }
+
+    private function nodesKey(int $bucket): string
+    {
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:nodes:%d',
+            $this->clusterRouteTag('nodes:' . $bucket),
+            $bucket
+        );
+    }
+
+    private function nodeQueueKey(string $nodeId, int $lane, string $namespace = '/im'): string
+    {
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:node_queue:%s:%s:%d',
+            $this->clusterRouteTag('node_queue:' . $this->hashValue($namespace) . ':' . $nodeId . ':' . $lane),
+            $this->hashValue($namespace),
+            $nodeId,
+            $lane
+        );
+    }
+
+    private function cleanupLockKey(int $bucket): string
+    {
+        return sprintf(
+            'magicChat:SocketIo:RedisAdapter:v2:%s:cleanup_lock:%d',
+            $this->clusterRouteTag('nodes:' . $bucket),
+            $bucket
+        );
+    }
+
+    private function nodeBucket(string $nodeId): int
+    {
+        return (int) (sprintf('%u', crc32($nodeId)) % 128);
+    }
+
+    private function laneForRoom(string $room): int
+    {
+        return (int) (sprintf('%u', crc32($this->hashValue($room))) % 8);
+    }
+
+    private function payloadPacket(string $payload): ?string
+    {
+        $data = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+        $packet = base64_decode((string) ($data['packet'] ?? ''), true);
+        return $packet === false ? null : $packet;
+    }
+
+    private function hashValue(string $value): string
+    {
+        return sha1($value);
+    }
+
+    private function clusterRouteTag(string $routeSeed): string
+    {
+        return '{socketio:' . $this->hashValue($routeSeed) . '}';
+    }
+
+    private function nodeId(string $serverId): string
+    {
+        $pid = getmypid();
+        if ($pid === false) {
+            $pid = 0;
+        }
+        return $serverId . ':p' . $pid;
+    }
 }

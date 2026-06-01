@@ -6,7 +6,9 @@ declare(strict_types=1);
  */
 use Aws\WrappedHttpHandler;
 use GuzzleHttp\BodySummarizer;
+use Hyperf\SocketIOServer\Command\RemoveRedisGarbage;
 use Hyperf\SocketIOServer\Listener\ServerIdListener;
+use Hyperf\SocketIOServer\Listener\StartSubscriberListener;
 use Hyperf\SocketIOServer\Room\RedisAdapter;
 use Hyperf\SocketIOServer\SidProvider\DistributedSidProvider;
 use Hyperf\SocketIOServer\SocketIO;
@@ -28,7 +30,10 @@ return [
             // socket-io server 支持 swow 驱动
             SocketIO::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/SocketIO.php',
             ServerIdListener::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/ServerIdListener.php',
-            RedisAdapter::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/RedisAdapter.php',
+            StartSubscriberListener::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/StartSubscriberListener.php',
+            RemoveRedisGarbage::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/RemoveRedisGarbage.php',
+            // Socket.IO Redis v2：按 node queue + route index 分摊热点 key，必要时可回滚到 RedisAdapter.php。
+            RedisAdapter::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/RedisAdapterV2.php',
             DistributedSidProvider::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/DistributedSidProvider.php',
             // websocket server 支持 swow 驱动
             //            Sender::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/WebSocketServer/Sender.php',

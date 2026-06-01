@@ -15,7 +15,7 @@ use RuntimeException;
 /**
  * 基于连接生命周期生成 sid，避免 fd 复用导致 sid 重复。
  *
- * sid 格式：{serverId}#{intSeq}
+ * sid 格式：{serverId}:p{pid}#{intSeq}
  */
 class DistributedSidProvider implements SidProviderInterface, SidLifecycleProviderInterface
 {
@@ -63,7 +63,7 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
             return false;
         }
 
-        return $parts[0] === SocketIO::$serverId && isset($this->sidToFd[$sid]);
+        return $parts[0] === $this->getSidPrefix() && isset($this->sidToFd[$sid]);
     }
 
     public function getFd(string $sid): int
@@ -85,7 +85,7 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
         }
 
         $seq = $this->nextConnSeq();
-        $sid = SocketIO::$serverId . '#' . $seq;
+        $sid = $this->getSidPrefix() . '#' . $seq;
 
         $this->fdToSid[$fd] = $sid;
         $this->sidToFd[$sid] = $fd;
@@ -119,5 +119,16 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
 
         ++$this->nextConnSeq;
         return $this->nextConnSeq;
+    }
+
+    private function getSidPrefix(): string
+    {
+        $pid = getmypid();
+        if ($pid === false) {
+            $pid = 0;
+        }
+        // 同一个 serverId 下会有多个 worker 进程，pid 纳入 sid 前缀后，
+        // RedisAdapterV2 可以把每个 worker 当成独立 node queue 目标，避免同机多进程互相误判为本地连接。
+        return SocketIO::$serverId . ':p' . $pid;
     }
 }
