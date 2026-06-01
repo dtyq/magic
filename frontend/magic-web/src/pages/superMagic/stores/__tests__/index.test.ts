@@ -66,6 +66,48 @@ function createChunkMessage({
 	} as any
 }
 
+function createToolEnvelope({
+	appMessageId,
+	correlationId,
+	toolCallId,
+	seqId = "101",
+}: {
+	appMessageId: string
+	correlationId: string
+	toolCallId: string
+	seqId?: string
+}) {
+	return {
+		seq: {
+			seq_id: seqId,
+			message: {
+				type: "super_magic_message",
+				app_message_id: appMessageId,
+				topic_id: "topic-1",
+				send_time: Date.now() / 1000,
+				status: "unread",
+				super_magic_message: {
+					role: "tool",
+					correlation_id: correlationId,
+					content: null,
+					reasoning_content: null,
+					tool_call_id: toolCallId,
+					tool_calls: null,
+					tool: {
+						id: toolCallId,
+						name: "read_webpages_as_markdown",
+						action: "深度阅读多个网页内容",
+						status: "finished",
+						remark: "共5个网页",
+						attachments: [],
+					},
+					status: "running",
+				},
+			},
+		},
+	} as any
+}
+
 describe("SuperMagicStore streaming", () => {
 	beforeEach(() => {
 		vi.useFakeTimers()
@@ -253,6 +295,65 @@ describe("SuperMagicStore streaming", () => {
 		)
 		expect(messages).toHaveLength(1)
 		expect((store.getMessageNode("corr-3") as any)?.content).toBe("你好呀")
+	})
+
+	it("tool 完成态等待所属工具动画结束，但不被下一条流式消息阻塞", () => {
+		const store = new SuperMagicStore()
+		store.setActiveTopicId("topic-1")
+		store.setTest("topic-1")
+
+		store.enqueueMessage(
+			"topic-1",
+			createAssistantEnvelope({
+				appMessageId: "assistant-tool-app-id",
+				correlationId: "corr-tool",
+				content: "让我读取网页",
+				nodeOverrides: {
+					tool_calls: [
+						{
+							id: "tool-call-1",
+							type: "function",
+							index: 0,
+							function: {
+								name: "read_webpages_as_markdown",
+								label: "深度阅读多个网页内容",
+								arguments: JSON.stringify({
+									urls: Array.from({ length: 30 }, (_, index) =>
+										`https://example.com/${index}`,
+									),
+								}),
+							},
+							tool: {
+								id: "tool-call-1",
+								name: "read_webpages_as_markdown",
+								action: "深度阅读多个网页内容",
+								status: "running",
+								attachments: [],
+							},
+						},
+					],
+				},
+			}),
+		)
+
+		store.enqueueMessage(
+			"topic-1",
+			createToolEnvelope({
+				appMessageId: "tool-app-id",
+				correlationId: "corr-tool",
+				toolCallId: "tool-call-1",
+			}),
+		)
+
+		store.receiveChunk(
+			createChunkMessage({ correlationId: "corr-next", content: "下一条" }),
+		)
+		vi.runAllTimers()
+
+		expect(store.toolResponseMap.get("topic-1")?.get("tool-call-1")?.status).toBe(
+			"finished",
+		)
+		expect(store.getStreamState("topic-1", "corr-next")).toBeTruthy()
 	})
 
 	it("非活跃话题不启动定时器，final 到达后 buffer 正常排空且保存快照", () => {

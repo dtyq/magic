@@ -1,0 +1,197 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`DebugPanel Basic Rendering should render correctly 1`] = `
+<div>
+  <div
+    class="x-markdown-debug-panel"
+    style="left: 804px; top: 284px; cursor: grab;"
+  >
+    <div
+      class="x-markdown-debug-row"
+    >
+      <span
+        class="x-markdown-debug-label"
+      >
+        FPS
+      </span>
+      <span
+        class="x-markdown-debug-value"
+        style="color: #ff4d4f;"
+      >
+        0
+      </span>
+    </div>
+    <div
+      class="x-markdown-debug-row"
+    >
+      <span
+        class="x-markdown-debug-label"
+      >
+        Memory
+      </span>
+      <span
+        class="x-markdown-debug-value"
+      >
+        0 KB
+      </span>
+    </div>
+    <div
+      class="x-markdown-debug-actions"
+    >
+      <button
+        class="x-markdown-debug-action x-markdown-debug-record-btn "
+        type="button"
+      >
+        ⏺ Record
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`DebugPanel Snapshot Tests should match snapshot after stopping recording 1`] = `
+<div>
+  <div
+    class="x-markdown-debug-panel"
+    style="left: 3620px; top: 980px; cursor: grab;"
+  >
+    <div
+      class="x-markdown-debug-row"
+    >
+      <span
+        class="x-markdown-debug-label"
+      >
+        FPS
+      </span>
+      <span
+        class="x-markdown-debug-value"
+        style="color: #ff4d4f;"
+      >
+        0
+      </span>
+    </div>
+    <div
+      class="x-markdown-debug-row"
+    >
+      <span
+        class="x-markdown-debug-label"
+      >
+        Memory
+      </span>
+      <span
+        class="x-markdown-debug-value"
+      >
+        0 KB
+      </span>
+    </div>
+    <div
+      class="x-markdown-debug-actions"
+    >
+      <button
+        class="x-markdown-debug-action x-markdown-debug-record-btn "
+        type="button"
+      >
+        ⏺ Record
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`DebugPanel Snapshot Tests should match snapshot when recording 1`] = `
+<div>
+  <div
+    class="x-markdown-debug-panel"
+    style="left: 3620px; top: 980px; cursor: grab;"
+  >
+    <div
+      class="x-markdown-debug-row"
+    >
+      <span
+        class="x-markdown-debug-label"
+      >
+        FPS
+      </span>
+      <span
+        class="x-markdown-debug-value"
+        style="color: #ff4d4f;"
+      >
+        0
+      </span>
+    </div>
+    <div
+      class="x-markdown-debug-row"
+    >
+      <span
+        class="x-markdown-debug-label"
+      >
+        Memory
+      </span>
+      <span
+        class="x-markdown-debug-value"
+      >
+        0 KB
+      </span>
+    </div>
+    <div
+      class="x-markdown-debug-actions"
+    >
+      <button
+        class="x-markdown-debug-action x-markdown-debug-record-btn recording"
+        type="button"
+      >
+        ⏹ Stop
+      </button>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`DebugPanel Snapshot Tests should match snapshot with modal open 1`] = `
+<div>
+  <div
+    class="x-markdown-debug-panel"
+    style="left: 3620px; top: 980px; cursor: grab;"
+  >
+    <div
+      class="x-markdown-debug-row"
+    >
+      <span
+        class="x-markdown-debug-label"
+      >
+        FPS
+      </span>
+      <span
+        class="x-markdown-debug-value"
+        style="color: #ff4d4f;"
+      >
+        0
+      </span>
+    </div>
+    <div
+      class="x-markdown-debug-row"
+    >
+      <span
+        class="x-markdown-debug-label"
+      >
+        Memory
+      </span>
+      <span
+        class="x-markdown-debug-value"
+      >
+        0 KB
+      </span>
+    </div>
+    <div
+      class="x-markdown-debug-actions"
+    >
+      <button
+        class="x-markdown-debug-action x-markdown-debug-record-btn "
+        type="button"
+      >
+        ⏺ Record
+      </button>
+    </div>
+  </div>
+</div>
+`;

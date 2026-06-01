@@ -1,0 +1,214 @@
+/* ==========================================
+   XMarkdown – default css
+   ========================================== */
+
+@keyframes x-markdown-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.x-markdown {
+  --text-color: inherit;
+  --font-size: inherit;
+  --margin-block: 0 0 1em 0;
+  --td-th-padding: 0.85em 1em;
+  --pre-th-td-padding: 2px 0;
+  --border-font-weight: 600;
+  --padding-ul-ol: 0 0 0 1em;
+  --margin-ul-ol: 0 0 1em 1.8em;
+  --margin-li: 0.25em 0;
+  --margin-pre: 1em 0;
+  --padding-code-inline: 0.2em 0.4em;
+  --margin-code-inline: 0 0.2em;
+  --code-inline-text: 0.85em;
+  --small-border-radius: 2px;
+  --image-margin: 0.5em 0;
+  --hr-margin: 1.5em 0;
+  --table-margin: 1em 0;
+
+  font-size: var(--font-size);
+  line-height: 1.5714285714285714;
+  width: 100%;
+  color: var(--text-color);
+}
+
+/* xmd-tail: default styling for streaming tail indicator */
+xmd-tail {
+  display: inline;
+}
+
+.xmd-tail {
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.x-markdown p,
+.x-markdown div,
+.x-markdown span,
+.x-markdown li {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.x-markdown pre,
+.x-markdown code {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.x-markdown th,
+.x-markdown td {
+  padding: var(--td-th-padding);
+}
+
+.x-markdown th {
+  font-weight: var(--border-font-weight);
+}
+
+.x-markdown pre table {
+  box-shadow: none;
+}
+
+.x-markdown pre td,
+.x-markdown pre th {
+  padding: var(--pre-th-td-padding);
+  border: none;
+  text-align: left;
+}
+
+.x-markdown p {
+  margin: var(--margin-block);
+}
+
+.x-markdown p:first-child {
+  margin-top: 0;
+}
+
+.x-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.x-markdown ul,
+.x-markdown ol {
+  margin: var(--margin-ul-ol);
+  padding: var(--padding-ul-ol);
+}
+
+.x-markdown ul:first-child,
+.x-markdown ol:first-child {
+  margin-top: 0;
+}
+
+.x-markdown ul:last-child,
+.x-markdown ol:last-child {
+  margin-bottom: 0;
+}
+
+.x-markdown ol > li {
+  list-style: decimal;
+}
+
+.x-markdown ul > li {
+  list-style: disc;
+}
+
+.x-markdown li {
+  margin: var(--margin-li);
+}
+
+.x-markdown li:first-child {
+  margin-top: 0;
+}
+
+.x-markdown li:last-child {
+  margin-bottom: 0;
+}
+
+.x-markdown pre {
+  margin: var(--margin-pre);
+  overflow-x: auto;
+}
+
+.x-markdown pre:first-child {
+  margin-top: 0;
+}
+
+.x-markdown pre:last-child {
+  margin-bottom: 0;
+}
+
+.x-markdown code {
+  padding: var(--padding-code-inline);
+  margin: var(--margin-code-inline);
+  font-size: var(--code-inline-text);
+  border-radius: var(--small-border-radius);
+}
+
+.x-markdown pre code {
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  border-radius: 0;
+  line-height: 2;
+}
+
+.x-markdown img {
+  max-width: 100%;
+  height: auto;
+  margin: var(--image-margin);
+}
+
+.x-markdown hr {
+  margin: var(--hr-margin);
+}
+
+.x-markdown table:not(pre) {
+  margin: var(--table-margin);
+  border-collapse: collapse;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+}
+
+.x-markdown table:not(pre):first-child {
+  margin-top: 0;
+}
+
+.x-markdown table:not(pre):last-child {
+  margin-bottom: 0;
+}
+
+.x-markdown .inline-katex .katex-display {
+  display: inline-block;
+  margin: 0;
+  text-align: initial;
+  vertical-align: middle;
+}
+
+.x-markdown .inline-katex .katex-display > .katex {
+  display: inline-block;
+  text-align: initial;
+  white-space: normal;
+}
+
+.x-markdown .inline-katex .katex-display > .katex > .katex-html {
+  display: inline-block;
+  position: static;
+}
+
+.x-markdown .inline-katex .katex-display > .katex > .katex-html > .tag {
+  position: static;
+}
+
+.x-markdown .block-katex {
+  display: block;
+  margin: 1em 0;
+}

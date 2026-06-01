@@ -404,6 +404,13 @@ export class SuperMagicStore {
 		const messageNode = getRawMessageNode(message?.message)
 
 		const appMessageId = message?.message?.app_message_id as string
+		if (topicId === this.activeTopicId) {
+			notifyAskUserV2BrowserNotificationFromMessageNode({
+				topicId,
+				messageNode,
+				messageSendTime: nextMessage?.send_time,
+			})
+		}
 
 		const correlationId = messageNode?.correlation_id as string
 
@@ -631,11 +638,13 @@ export class SuperMagicStore {
 					this.handleTopicSuspended(topicId)
 				}
 
-				// 流式渲染未完成时，tool 消息整体回退到 buffer 等待。
-				// toolResponseMap 也不提前写入，确保 UI 工具状态与流式进度同步，
-				// 避免后端 tool 响应抢占消费导致工具状态提前落定。
+				// 仅等待当前 tool 所属 assistant 的流式动画完成；其他消息的流式
+				// 不应阻塞当前 tool 完成态写入，否则上一条工具会被下一条回复卡住。
 				const topicMeta = this.getTopicMetadata(topicId)
-				if (topicMeta.timer || topicMeta.content.size > 0) {
+				const relatedStreamState = messageNode?.correlation_id
+					? topicMeta.content.get(messageNode.correlation_id as string)
+					: undefined
+				if (relatedStreamState && relatedStreamState.stage !== "done") {
 					console.log(
 						"%c 【DEBUG】 消费队列 - 工具（等待流式完成）",
 						"background-color: orange;color: white;padding:0 4px",

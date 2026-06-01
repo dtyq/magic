@@ -145,6 +145,10 @@ function getBaseViteConfig(): UserConfig {
 					replacement: resolve(__dirname, "enterprise/src"),
 				},
 				{
+					find: "@dtyq/x-markdown",
+					replacement: resolve(__dirname, "packages/x-markdown/src/index.ts"),
+				},
+				{
 					find: "@admin",
 					replacement: resolve(__dirname, "packages/magic-admin/src"),
 				},
@@ -160,7 +164,7 @@ function getBaseViteConfig(): UserConfig {
 					find: "@dtyq/magic-admin/provider",
 					replacement: resolve(
 						__dirname,
-						"packages/magic-admin/src/provider/AdminProvider/index.tsx"
+						"packages/magic-admin/src/provider/AdminProvider/index.tsx",
 					),
 				},
 				{
