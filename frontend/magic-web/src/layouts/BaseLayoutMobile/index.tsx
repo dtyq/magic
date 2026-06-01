@@ -15,7 +15,7 @@ import { RouteName } from "@/routes/constants"
 import { routesPathMatch } from "@/routes/history/helpers"
 import { observer } from "mobx-react-lite"
 import { MultiFolderUploadToast } from "@/components/global/MultiFolderUploadToast"
-import { useGlobalSafeArea } from "@/hooks/useGlobalSafeArea"
+import { GlobalSafeAreaSync } from "@/hooks/useGlobalSafeArea"
 import { interfaceStore } from "@/stores/interface"
 import NavigatePopup from "./components/NavigatePopup"
 import { shouldDisableGlobalSafeArea } from "./components/GlobalSafeArea/utils"
@@ -42,9 +42,6 @@ const BaseLayoutMobile = () => {
 	useMetaSet()
 
 	useNativeBack()
-
-	// 根据路由自动管理安全边距样式
-	useGlobalSafeArea()
 
 	const { Content } = useKeepAlive({
 		keepAliveRoutes: keepAliveRoutes,
@@ -88,6 +85,7 @@ const BaseLayoutMobile = () => {
 	return (
 		<ConfigProvider>
 			<MobileDocumentThemeProvider>
+				<GlobalSafeAreaSync />
 				<MobileDocumentThemeSync />
 				<div className={styles.root}>
 					<GlobalSafeArea direction="top" />
