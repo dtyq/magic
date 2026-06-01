@@ -21,6 +21,7 @@ use Carbon\Carbon;
  * @property string $status
  * @property null|string $bound_user_id
  * @property null|string $bound_project_id
+ * @property null|string $bound_topic_id
  * @property null|Carbon $bound_at
  * @property null|Carbon $expires_at
  * @property null|string $dead_reason
@@ -47,6 +48,7 @@ class WarmPoolSandboxModel extends AbstractModel
         'status',
         'bound_user_id',
         'bound_project_id',
+        'bound_topic_id',
         'bound_at',
         'expires_at',
         'dead_reason',

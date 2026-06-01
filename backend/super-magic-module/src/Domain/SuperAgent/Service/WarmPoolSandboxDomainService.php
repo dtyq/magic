@@ -103,13 +103,15 @@ class WarmPoolSandboxDomainService
     public function claimOneReady(
         string $agentImage,
         string $userId,
-        string $projectId
+        string $projectId,
+        ?string $topicId = null
     ): ?WarmPoolSandboxEntity {
         return $this->repository->claimOneReady(
             $agentImage,
             $userId,
             $projectId,
-            date('Y-m-d H:i:s')
+            date('Y-m-d H:i:s'),
+            $topicId
         );
     }
 
@@ -213,14 +215,15 @@ class WarmPoolSandboxDomainService
         string $projectSpaceRootFileId,
         string $userSpaceRootFileId,
         string $authorization,
-        array $labels = []
+        array $labels = [],
+        ?string $topicId = null
     ): ?string {
         $latestImage = $this->gateway->getLatestAgentImage();
         if ($latestImage === '') {
             return null;
         }
 
-        $claimed = $this->claimOneReady($latestImage, $userId, $projectId);
+        $claimed = $this->claimOneReady($latestImage, $userId, $projectId, $topicId);
         if ($claimed === null) {
             return null;
         }

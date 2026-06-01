@@ -1473,7 +1473,8 @@ class AgentDomainService
                 projectSpaceRootFileId: $projectSpaceRootFileId,
                 userSpaceRootFileId: $userSpaceRootFileId,
                 authorization: $authorization,
-                labels: ['topic-id' => (string) $topicEntity->getId()]
+                labels: ['topic-id' => (string) $topicEntity->getId()],
+                topicId: (string) $topicEntity->getId()
             );
         } catch (Throwable $e) {
             // Fall back to the cold path on any unexpected error.

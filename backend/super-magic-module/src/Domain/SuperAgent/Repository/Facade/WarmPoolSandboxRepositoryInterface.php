@@ -51,7 +51,7 @@ interface WarmPoolSandboxRepositoryInterface
 
     /**
      * Atomically claim ONE `ready` row matching the given image and stamp
-     * status/bound_* columns to `claimed`/<user>/<project>. Uses
+     * status/bound_* columns to `claimed`/<user>/<project>/<topic>. Uses
      * `FOR UPDATE SKIP LOCKED` so concurrent claimers don't collide.
      *
      * Returns the claimed entity (post-update) or null if none available.
@@ -60,7 +60,8 @@ interface WarmPoolSandboxRepositoryInterface
         string $agentImage,
         string $userId,
         string $projectId,
-        string $now
+        string $now,
+        ?string $topicId = null
     ): ?WarmPoolSandboxEntity;
 
     public function updateStatus(int $id, string $status, ?string $deadReason = null): bool;

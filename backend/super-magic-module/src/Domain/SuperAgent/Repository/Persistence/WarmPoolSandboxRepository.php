@@ -56,6 +56,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
             'status' => $entity->getStatus(),
             'bound_user_id' => $entity->getBoundUserId(),
             'bound_project_id' => $entity->getBoundProjectId(),
+            'bound_topic_id' => $entity->getBoundTopicId(),
             'bound_at' => $entity->getBoundAt(),
             'expires_at' => $entity->getExpiresAt(),
             'dead_reason' => $entity->getDeadReason(),
@@ -145,9 +146,10 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         string $agentImage,
         string $userId,
         string $projectId,
-        string $now
+        string $now,
+        ?string $topicId = null
     ): ?WarmPoolSandboxEntity {
-        return Db::transaction(function () use ($agentImage, $userId, $projectId, $now) {
+        return Db::transaction(function () use ($agentImage, $userId, $projectId, $now, $topicId) {
             // SKIP LOCKED is the whole point: other workers should not block
             // on a row we're already taking, they should fall to the next.
             $model = WarmPoolSandboxModel::query()
@@ -163,6 +165,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
             $model->status = WarmPoolSandboxStatus::Claimed->value;
             $model->bound_user_id = $userId;
             $model->bound_project_id = $projectId;
+            $model->bound_topic_id = $topicId;
             $model->bound_at = $now;
             $model->updated_at = $now;
             $model->save();
@@ -263,6 +266,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         $e->setStatus((string) $model->status);
         $e->setBoundUserId($model->bound_user_id !== null ? (string) $model->bound_user_id : null);
         $e->setBoundProjectId($model->bound_project_id !== null ? (string) $model->bound_project_id : null);
+        $e->setBoundTopicId($model->bound_topic_id !== null ? (string) $model->bound_topic_id : null);
         $e->setBoundAt($model->bound_at !== null ? (string) $model->bound_at : null);
         $e->setExpiresAt($model->expires_at !== null ? (string) $model->expires_at : null);
         $e->setDeadReason($model->dead_reason !== null ? (string) $model->dead_reason : null);

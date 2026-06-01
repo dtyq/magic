@@ -32,6 +32,8 @@ class WarmPoolSandboxEntity
 
     private ?string $boundProjectId = null;
 
+    private ?string $boundTopicId = null;
+
     private ?string $boundAt = null;
 
     private ?string $expiresAt = null;
@@ -120,6 +122,16 @@ class WarmPoolSandboxEntity
     public function setBoundProjectId(?string $boundProjectId): void
     {
         $this->boundProjectId = $boundProjectId;
+    }
+
+    public function getBoundTopicId(): ?string
+    {
+        return $this->boundTopicId;
+    }
+
+    public function setBoundTopicId(?string $boundTopicId): void
+    {
+        $this->boundTopicId = $boundTopicId;
     }
 
     public function getBoundAt(): ?string
