@@ -22,10 +22,14 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_is_dir
+from app.utils.async_file_utils import CopyConflict, async_copytree, async_exists, async_is_dir, async_mkdir, async_rmtree
+from app.utils.document_parse.constants import ASSETS_DIRNAME, VISUAL_RESULTS_DIRNAME
 from app.utils.document_parse.output.markdown_writer import MarkdownWriter
+from app.utils.document_parse.service.document_artifact_mode import DocumentArtifactModeSelector
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
+from app.utils.document_parse.service.document_inspector import DocumentInspector
+from app.utils.document_parse.service.reading_state import ReadingStateStore
 
 from .path_utils import require_absolute_path
 
@@ -61,6 +65,11 @@ Maximum characters per chunk"""
         description="""<!--zh: 合并版 Markdown 文件名，留空则不生成合并版文件-->
 Combined Markdown file name. Leave empty to skip writing a combined file"""
     )
+    artifact_mode: str = Field(
+        "auto",
+        description="""<!--zh: 输出产物模式。auto 自动选择；simple 为小文件生成扁平 Markdown；progressive 生成完整索引、chunk 和阅读状态-->
+Artifact mode. Use auto, simple, or progressive"""
+    )
     exclude_watermark_images: bool = Field(
         True,
         description="""<!--zh: 支持时是否跳过高置信水印图片-->
@@ -94,7 +103,24 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
         if params.mode not in {"auto", "local_text", "visual"}:
             return ToolResult.error("Unsupported extraction mode. For PDF, use local_text or visual.")
+        try:
+            profile = await DocumentInspector().inspect(input_path)
+            artifact_mode = DocumentArtifactModeSelector.resolve(params.artifact_mode, profile, params.max_chars)
+        except ValueError as exc:
+            return ToolResult.error(str(exc))
 
+        if artifact_mode == "simple":
+            return await self._execute_simple(tool_context, params, input_path, output_dir, profile.file_type)
+
+        return await self._execute_progressive(tool_context, params, input_path, output_dir)
+
+    async def _execute_progressive(
+        self,
+        tool_context: ToolContext,
+        params: ExportDocumentMarkdownParams,
+        input_path: Path,
+        output_dir: Path,
+    ) -> ToolResult:
         extraction = await DocumentExtractor().extract(
             input_path,
             output_dir,
@@ -106,6 +132,14 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             deduplicate_repeated_images=params.deduplicate_repeated_images,
         )
         structure = await DocumentIndexer().build_from_extraction(input_path, output_dir, extraction)
+        await ReadingStateStore().mark_extracted(
+            output_dir,
+            source_path=str(input_path),
+            total_units=extraction.total_units,
+            unit_type=structure.unit_type,
+            file_type=structure.file_type,
+            extracted_range=str(extraction.metadata.get("source_range") or params.ranges or "all"),
+        )
 
         combined_path: Path | None = None
         combined_filename = params.combined_filename.strip()
@@ -126,6 +160,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             f"- Chunk count: {len(extraction.chunks)}",
             f"- Index: `{output_dir_str}/document.index.json`",
             f"- Outline: `{output_dir_str}/document.outline.md`",
+            f"- Reading state: `{output_dir_str}/document.reading_state.json`",
         ]
         if combined_path_str:
             content_lines.append(f"- Combined Markdown: `{combined_path_str}`")
@@ -134,8 +169,72 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         extra["index_path"] = f"{output_dir_str}/document.index.json"
         extra["outline_path"] = f"{output_dir_str}/document.outline.md"
         extra["combined_path"] = combined_path_str
+        extra["artifact_mode"] = "progressive"
         extra["structure"] = structure.to_dict()
         return ToolResult(content="\n".join(content_lines), extra_info=extra)
+
+    async def _execute_simple(
+        self,
+        tool_context: ToolContext,
+        params: ExportDocumentMarkdownParams,
+        input_path: Path,
+        output_dir: Path,
+        file_type: str,
+    ) -> ToolResult:
+        await async_mkdir(output_dir, parents=True, exist_ok=True)
+        temp_dir = output_dir / ".simple-export-tmp"
+        if await async_exists(temp_dir):
+            await async_rmtree(temp_dir)
+        combined_path = output_dir / "document.md"
+        try:
+            extraction = await DocumentExtractor().extract(
+                input_path,
+                temp_dir,
+                ranges=params.ranges,
+                mode=params.mode,
+                max_chars=params.max_chars,
+                extract_images=True,
+                exclude_watermark_images=params.exclude_watermark_images,
+                deduplicate_repeated_images=params.deduplicate_repeated_images,
+            )
+            await MarkdownWriter.write_combined(combined_path, extraction.chunks, input_path.stem)
+            await self._copy_simple_optional_dir(temp_dir, output_dir, ASSETS_DIRNAME)
+            await self._copy_simple_optional_dir(temp_dir, output_dir, VISUAL_RESULTS_DIRNAME)
+        finally:
+            if await async_exists(temp_dir):
+                await async_rmtree(temp_dir)
+
+        if tool_context:
+            await self._dispatch_file_event(tool_context, str(combined_path), EventType.FILE_CREATED)
+            await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)
+
+        content_lines = [
+            f"Document Markdown export completed: `{input_path.name}`",
+            "",
+            f"- Artifact mode: simple",
+            f"- Output directory: `{output_dir}`",
+            f"- Main Markdown: `{combined_path}`",
+            f"- Chunk count: {len(extraction.chunks)}",
+        ]
+        if file_type == "spreadsheet":
+            content_lines.append("- Note: spreadsheet files may need targeted sheet/range extraction for large tables.")
+
+        extra = asdict(extraction)
+        for chunk in extra.get("chunks") or []:
+            chunk["path"] = str(combined_path)
+        extra["artifact_mode"] = "simple"
+        extra["combined_path"] = str(combined_path)
+        extra["main_markdown_path"] = str(combined_path)
+        extra["index_path"] = None
+        extra["outline_path"] = None
+        extra["reading_state_path"] = None
+        return ToolResult(content="\n".join(content_lines), extra_info=extra)
+
+    @staticmethod
+    async def _copy_simple_optional_dir(temp_dir: Path, output_dir: Path, dirname: str) -> None:
+        source = temp_dir / dirname
+        if await async_exists(source) and await async_is_dir(source):
+            await async_copytree(source, output_dir / dirname, on_conflict=CopyConflict.OVERWRITE)
 
     async def get_before_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
@@ -154,10 +253,13 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         lines = [
             f"# {i18n.translate('export_document_markdown.detail_title', category='tool.messages')}",
             "",
+            f"- Artifact mode: `{result.extra_info.get('artifact_mode', 'progressive')}`",
             f"- {i18n.translate('document_parse.detail_chunk_count', category='tool.messages')}: {len(chunks)}",
-            f"- {i18n.translate('document_parse.detail_index_file', category='tool.messages')}: `{result.extra_info.get('index_path', '')}`",
-            f"- {i18n.translate('document_parse.detail_outline_file', category='tool.messages')}: `{result.extra_info.get('outline_path', '')}`",
         ]
+        if result.extra_info.get("index_path"):
+            lines.append(f"- {i18n.translate('document_parse.detail_index_file', category='tool.messages')}: `{result.extra_info.get('index_path', '')}`")
+        if result.extra_info.get("outline_path"):
+            lines.append(f"- {i18n.translate('document_parse.detail_outline_file', category='tool.messages')}: `{result.extra_info.get('outline_path', '')}`")
         combined_path = result.extra_info.get("combined_path")
         if combined_path:
             lines.append(f"- {i18n.translate('document_parse.detail_combined_file', category='tool.messages')}: `{combined_path}`")

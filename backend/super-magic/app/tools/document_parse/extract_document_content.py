@@ -25,6 +25,7 @@ from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_exists, async_is_dir
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
+from app.utils.document_parse.service.reading_state import ReadingStateStore
 from .path_utils import require_absolute_path
 
 
@@ -104,6 +105,14 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
             deduplicate_repeated_images=params.deduplicate_repeated_images,
         )
         structure = await DocumentIndexer().build_from_extraction(input_path, output_dir, extraction)
+        await ReadingStateStore().mark_extracted(
+            output_dir,
+            source_path=str(input_path),
+            total_units=extraction.total_units,
+            unit_type=structure.unit_type,
+            file_type=structure.file_type,
+            extracted_range=str(extraction.metadata.get("source_range") or params.ranges or "all"),
+        )
 
         if tool_context:
             await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)
@@ -115,7 +124,8 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
             f"- Chunk count: {len(extraction.chunks)}\n"
             f"- Processed units: {extraction.pages_processed}/{extraction.total_units}\n"
             f"- Index: `{output_dir_str}/document.index.json`\n"
-            f"- Outline: `{output_dir_str}/document.outline.md`"
+            f"- Outline: `{output_dir_str}/document.outline.md`\n"
+            f"- Reading state: `{output_dir_str}/document.reading_state.json`"
         )
         extra = asdict(extraction)
         extra["index_path"] = f"{output_dir_str}/document.index.json"

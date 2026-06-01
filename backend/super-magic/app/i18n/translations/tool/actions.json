@@ -75,6 +75,18 @@
         "zh_CN": "导出 Markdown",
         "en_US": "Export Markdown"
     },
+    "sample_document_content": {
+        "zh_CN": "抽样阅读文档",
+        "en_US": "Sample document"
+    },
+    "plan_document_reading": {
+        "zh_CN": "规划文档阅读",
+        "en_US": "Plan document reading"
+    },
+    "understand_document_images": {
+        "zh_CN": "理解文档图片",
+        "en_US": "Understand document images"
+    },
     "download_from_markdown": {
         "zh_CN": "下载资源",
         "en_US": "Download resources"

@@ -2,14 +2,20 @@ from pathlib import Path
 
 import pytest
 
+from agentlang.tools.tool_result import ToolResult
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
+from app.utils.document_parse.service.document_artifact_mode import DocumentArtifactModeSelector
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.document_inspector import DocumentInspector
+from app.utils.document_parse.service.document_image_understander import DocumentImageUnderstander
+from app.utils.document_parse.service.document_reading_planner import DocumentReadingPlanner
+from app.utils.document_parse.service.document_sampler import DocumentSampler
 from app.utils.document_parse.service.document_summarizer import DocumentSummarizer
 from app.utils.document_parse.drivers.pdf_driver import PdfDocumentDriver
 from app.utils.document_parse.drivers.generic import GenericMarkItDownDriver
-from app.utils.document_parse.models import DocumentAsset
+from app.utils.document_parse.models import DocumentAsset, DocumentProfile
 from app.utils.document_parse.structure.range_parser import RangeParser
+from app.tools.document_parse.export_document_markdown import ExportDocumentMarkdown
 
 
 def test_range_parser_compacts_numeric_ranges():
@@ -61,6 +67,113 @@ async def test_image_document_parse_pipeline_uses_metadata_without_visual_model(
     assert "![sample.png](assets/sample.png)" in extraction.chunks[0].content
     assert structure.metadata["chunk_lookup"]["chunk_0001"]["source_range"] == "image:1"
     assert (output_dir / "assets" / "sample.png").exists()
+
+
+@pytest.mark.asyncio
+async def test_sampler_recommends_image_understanding_for_scanned_pdf(tmp_path: Path):
+    import fitz
+    from PIL import Image
+
+    image_path = tmp_path / "page.png"
+    Image.new("RGB", (200, 120), color="white").save(image_path)
+
+    source = tmp_path / "scanned.pdf"
+    doc = fitz.open()
+    for _ in range(3):
+        page = doc.new_page(width=200, height=120)
+        page.insert_image(fitz.Rect(0, 0, 200, 120), filename=str(image_path))
+    doc.save(str(source))
+    doc.close()
+
+    output_dir = tmp_path / "scanned.document"
+    result = await DocumentSampler().sample(source, output_dir, max_units=2, include_images=True)
+
+    assert result["text_signal"]["image_dominant"] is True
+    assert any("understand_document_images" in action for action in result["recommendations"])
+    assert (output_dir / "samples" / "sample_page_1_2.md").exists()
+    assert (output_dir / "document.reading_state.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_sampler_recommends_text_extraction_for_text_pdf(tmp_path: Path):
+    import fitz
+
+    source = tmp_path / "text.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=300, height=200)
+    page.insert_text((20, 40), "This is extractable PDF text. " * 20)
+    doc.save(str(source))
+    doc.close()
+
+    output_dir = tmp_path / "text.document"
+    result = await DocumentSampler().sample(source, output_dir, max_units=1, include_images=True)
+    plan = await DocumentReadingPlanner().plan(output_dir, goal="summarize", budget="10 pages")
+
+    assert result["text_signal"]["has_extractable_text"] is True
+    assert any("extract_document_content" in action for action in result["recommendations"])
+    assert plan["recommended_action"] == "extract_document_content"
+
+
+@pytest.mark.asyncio
+async def test_document_image_understander_writes_visual_results_back_to_chunk(tmp_path: Path, monkeypatch):
+    from PIL import Image
+    from app.utils.async_file_utils import async_write_json
+
+    output_dir = tmp_path / "doc.document"
+    chunks_dir = output_dir / "chunks"
+    assets_dir = output_dir / "assets"
+    chunks_dir.mkdir(parents=True)
+    assets_dir.mkdir(parents=True)
+    Image.new("RGB", (32, 16), color="white").save(assets_dir / "page1.png")
+    (chunks_dir / "chunk_0001.md").write_text(
+        "## Page 1\n\n![Page 1](assets/page1.png)\n",
+        encoding="utf-8",
+    )
+    await async_write_json(
+        output_dir / "document.index.json",
+        {
+            "source_path": str(tmp_path / "source.pdf"),
+            "file_type": "pdf",
+            "unit_type": "page",
+            "total_units": 1,
+            "chunks": [
+                {
+                    "chunk_id": "chunk_0001",
+                    "path": "chunks/chunk_0001.md",
+                    "source_range": "pages:1",
+                    "content": "## Page 1\n\n![Page 1](assets/page1.png)\n",
+                }
+            ],
+            "assets": [
+                {
+                    "asset_id": "asset_0001",
+                    "asset_type": "image",
+                    "path": "assets/page1.png",
+                    "title": "Page 1",
+                    "source_range": "pages:1",
+                    "metadata": {"page": 1},
+                }
+            ],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    async def fake_execute_purely(self, params, **kwargs):
+        return ToolResult(content="Recognized text from page image.")
+
+    monkeypatch.setattr(
+        "app.tools.visual_understanding.VisualUnderstanding.execute_purely",
+        fake_execute_purely,
+    )
+
+    result = await DocumentImageUnderstander().understand(output_dir, ranges="1", max_images=1)
+    chunk_text = (chunks_dir / "chunk_0001.md").read_text(encoding="utf-8")
+
+    assert result["processed"][0]["ok"] is True
+    assert "Recognized text from page image." in chunk_text
+    assert (output_dir / "visual-results" / "page1.md").exists()
+    assert (output_dir / "document.reading_state.json").exists()
 
 
 @pytest.mark.asyncio
@@ -121,6 +234,120 @@ async def test_pdf_local_text_extracts_image_assets_without_visual_understanding
     assert (output_dir / extraction.assets[0].path).exists()
     assert structure.assets[0].metadata["page"] == 1
     assert f"![PDF page 1 image 1]({extraction.assets[0].path})" in extraction.chunks[0].content
+
+
+@pytest.mark.asyncio
+async def test_export_small_pdf_defaults_to_simple_artifacts(tmp_path: Path):
+    import fitz
+
+    source = tmp_path / "small.pdf"
+    doc = fitz.open()
+    for page_index in range(3):
+        page = doc.new_page(width=300, height=200)
+        page.insert_text((20, 40), f"Small PDF page {page_index + 1}")
+    doc.save(str(source))
+    doc.close()
+
+    output_dir = tmp_path / "small-output"
+    tool = ExportDocumentMarkdown()
+    result = await tool.execute(
+        None,
+        tool.get_params_class()(
+            input_path=str(source),
+            output_dir=str(output_dir),
+        ),
+    )
+
+    assert result.ok
+    assert result.extra_info["artifact_mode"] == "simple"
+    assert (output_dir / "document.md").exists()
+    assert not (output_dir / "chunks").exists()
+    assert not (output_dir / "document.index.json").exists()
+    assert not (output_dir / "document.outline.md").exists()
+    assert not (output_dir / "document.reading_state.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_export_small_scanned_pdf_simple_artifacts_keep_assets(tmp_path: Path):
+    import fitz
+    from PIL import Image
+
+    image_path = tmp_path / "scan.png"
+    Image.new("RGB", (80, 60), color="red").save(image_path)
+    source = tmp_path / "small-scanned.pdf"
+    doc = fitz.open()
+    for _ in range(3):
+        page = doc.new_page(width=200, height=150)
+        page.insert_image(fitz.Rect(0, 0, 200, 150), filename=str(image_path))
+    doc.save(str(source))
+    doc.close()
+
+    output_dir = tmp_path / "small-scanned-output"
+    tool = ExportDocumentMarkdown()
+    result = await tool.execute(
+        None,
+        tool.get_params_class()(
+            input_path=str(source),
+            output_dir=str(output_dir),
+        ),
+    )
+
+    assert result.ok
+    assert result.extra_info["artifact_mode"] == "simple"
+    assert (output_dir / "document.md").exists()
+    assert (output_dir / "assets").exists()
+    assert "![" in (output_dir / "document.md").read_text(encoding="utf-8")
+    assert not (output_dir / "chunks").exists()
+
+
+@pytest.mark.asyncio
+async def test_export_small_pdf_can_force_progressive_artifacts(tmp_path: Path):
+    import fitz
+
+    source = tmp_path / "small-progressive.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=300, height=200)
+    page.insert_text((20, 40), "Small PDF progressive export")
+    doc.save(str(source))
+    doc.close()
+
+    output_dir = tmp_path / "small-progressive-output"
+    tool = ExportDocumentMarkdown()
+    result = await tool.execute(
+        None,
+        tool.get_params_class()(
+            input_path=str(source),
+            output_dir=str(output_dir),
+            artifact_mode="progressive",
+        ),
+    )
+
+    assert result.ok
+    assert result.extra_info["artifact_mode"] == "progressive"
+    assert (output_dir / "document.md").exists()
+    assert (output_dir / "chunks").exists()
+    assert (output_dir / "document.index.json").exists()
+    assert (output_dir / "document.outline.md").exists()
+    assert (output_dir / "document.reading_state.json").exists()
+
+
+def test_artifact_mode_rejects_forced_simple_for_large_documents():
+    profile = DocumentProfile(
+        source_path="/tmp/large.pdf",
+        file_name="large.pdf",
+        file_type="pdf",
+        file_extension=".pdf",
+        file_size=1024,
+        unit_type="page",
+        total_units=146,
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        DocumentArtifactModeSelector.resolve("simple", profile)
+
+    assert "artifact_mode=simple is only allowed for small documents" in str(exc_info.value)
+    assert "146 page(s)" in str(exc_info.value)
+    assert DocumentArtifactModeSelector.resolve("auto", profile) == "progressive"
 
 
 @pytest.mark.asyncio

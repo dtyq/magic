@@ -203,6 +203,54 @@
         "zh_CN": "Markdown 导出",
         "en_US": "Markdown Export"
     },
+    "sample_document_content.before": {
+        "zh_CN": "正在抽样阅读 {{file_name}}",
+        "en_US": "Sampling {{file_name}}"
+    },
+    "sample_document_content.after_success": {
+        "zh_CN": "已完成 {{file_name}} 的抽样阅读",
+        "en_US": "Sampled {{file_name}}"
+    },
+    "sample_document_content.after_failed": {
+        "zh_CN": "{{file_name}} 抽样阅读失败",
+        "en_US": "Failed to sample {{file_name}}"
+    },
+    "sample_document_content.detail_title": {
+        "zh_CN": "文档抽样阅读",
+        "en_US": "Document Sample"
+    },
+    "plan_document_reading.before": {
+        "zh_CN": "正在规划 {{file_name}} 的阅读步骤",
+        "en_US": "Planning document reading for {{file_name}}"
+    },
+    "plan_document_reading.after_success": {
+        "zh_CN": "已规划 {{file_name}} 的阅读步骤",
+        "en_US": "Planned document reading for {{file_name}}"
+    },
+    "plan_document_reading.after_failed": {
+        "zh_CN": "{{file_name}} 阅读规划失败",
+        "en_US": "Failed to plan document reading for {{file_name}}"
+    },
+    "plan_document_reading.detail_title": {
+        "zh_CN": "文档阅读规划",
+        "en_US": "Document Reading Plan"
+    },
+    "understand_document_images.before": {
+        "zh_CN": "正在理解 {{file_name}} 中的文档图片",
+        "en_US": "Understanding document images in {{file_name}}"
+    },
+    "understand_document_images.after_success": {
+        "zh_CN": "已完成 {{file_name}} 中的文档图片理解",
+        "en_US": "Understood document images in {{file_name}}"
+    },
+    "understand_document_images.after_failed": {
+        "zh_CN": "{{file_name}} 文档图片理解失败",
+        "en_US": "Failed to understand document images in {{file_name}}"
+    },
+    "understand_document_images.detail_title": {
+        "zh_CN": "文档图片理解",
+        "en_US": "Document Image Understanding"
+    },
     "document_parse.detail_type": {
         "zh_CN": "类型",
         "en_US": "Type"
@@ -246,6 +294,26 @@
     "document_parse.detail_combined_file": {
         "zh_CN": "合并文件",
         "en_US": "Combined file"
+    },
+    "document_parse.detail_sample_file": {
+        "zh_CN": "抽样文件",
+        "en_US": "Sample file"
+    },
+    "document_parse.detail_sample_range": {
+        "zh_CN": "抽样范围",
+        "en_US": "Sample range"
+    },
+    "document_parse.detail_recommended_action": {
+        "zh_CN": "推荐动作",
+        "en_US": "Recommended action"
+    },
+    "document_parse.detail_recommended_range": {
+        "zh_CN": "推荐范围",
+        "en_US": "Recommended range"
+    },
+    "document_parse.detail_processed_images": {
+        "zh_CN": "处理图片数",
+        "en_US": "Processed images"
     },
     "write_file.error": {
         "zh_CN": "写入文件 {{file_path}} 时出错",

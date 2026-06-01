@@ -7,30 +7,45 @@ description: Use for reading, summarizing, analyzing, or converting large or com
 
 Use this workflow when the user asks to read, summarize, analyze, or convert a large or complex document.
 
-Do not start by converting the entire file into one large Markdown document. First build a lightweight understanding of the document, then read only the parts needed for the user's goal.
-
-When another prompt or tool error tells you to use this skill, first load it explicitly with `read_skills(['document-converter'])`, then follow this workflow in Code Mode.
+Do not start by converting the entire file into one large Markdown document. First build a lightweight understanding of the document, sample a few representative units, then decide how to read the rest.
 
 ## Default Approach
 
 1. Inspect the document first: identify its type, size, structure, outline, and representative samples.
-2. For large files, create a navigable outline before reading detailed content.
-3. Choose a targeted range based on the user's question: pages, sections, slides, sheets, ranges, images, or notebook cells.
-4. Extract only the selected parts into readable Markdown chunks.
-5. For summaries, summarize smaller chunks first, then combine them into section-level and document-level summaries.
-6. Only perform format conversion when the user explicitly asks for a converted file or when conversion is necessary for extraction.
+2. If the file is small, export it directly as one readable Markdown file.
+3. If the file is large, sample a few representative units before choosing a full reading strategy.
+4. Plan the next read from the sample result and the user's goal.
+5. Extract or understand only the selected ranges into reusable Markdown artifacts.
+6. Read `document.reading_state.json` between large-document steps to avoid rereading the same content.
+7. For summaries, summarize smaller chunks first, then combine them into section-level and document-level summaries.
+8. Only perform format conversion when the user explicitly asks for a converted file or when conversion is necessary for extraction.
 
 ## Large Document Rules
 
 - Do not read or convert a large document all at once unless the user explicitly requires a full export.
-- Use the outline and samples to decide what to read next.
+- Always sample first for large files, then choose the next batch from the sample result.
+- Use the outline, samples, and `document.reading_state.json` to decide what to read next.
 - Prefer text extraction for ordinary document body content.
-- Do not run visual understanding proactively. First extract readable text, outline, chunks, and image assets/links. Use visual understanding only later, when the user request or the already-read content shows that an image, chart, scan, signature, or visual layout is necessary to answer.
-- When visual understanding is used, save the recognition result as a Markdown file under the same source document output directory, preferably in `visual-results/`, and reference that file in the final answer or follow-up notes.
+- Do not use one strategy blindly for the whole file. If the sample shows extractable text, read text ranges. If the sample is image-dominant or scanned, understand document images in batches.
+- Do not call the generic visual understanding tool directly for document parsing. Use `understand_document_images` so results are saved and written back to chunks.
+- When image understanding is used, process at most 10 images per call. Results must stay under the same source document output directory in `visual-results/` and be written back to the related chunk.
+- Before starting a large visual-understanding workload, call `ask_user` to ask whether the user wants to continue because it may take a long time. This applies when many batches are needed, such as scanned PDFs or slide decks with many image-only pages.
+- Do not call `ask_user` for small visual reads, such as a document with only a few pages or a single batch of up to 10 images that is clearly needed for the user's request.
 - For spreadsheets, inspect sheets, headers, sample rows, and table size before extracting data.
 - For slide decks, treat each slide as a natural unit.
 - For Word-like documents, follow the heading structure when available.
 - For notebooks, preserve cell order and cell type.
+
+## Small Document Rules
+
+- Small files can use `export_document_markdown` directly with the default `artifact_mode: "auto"`.
+- For small files, prefer the simple output structure: `document.md`, plus `assets/` or `visual-results/` only when needed.
+- Do not create samples, chunks, indexes, or reading state just to read a small file.
+- A PDF, Word file, PowerPoint file, or image set with 10 or fewer pages/slides/images is usually small.
+- If a PDF, Word file, PowerPoint file, or image set has more than 10 pages/slides/images, do not force `artifact_mode: "simple"`. The tool will reject simple mode for these files; use progressive mode or targeted extraction.
+- Text, Markdown, and HTML files are small when they fit comfortably within one normal chunk.
+- Small scanned files can be extracted and visually understood directly when needed; do not call `ask_user` unless many visual-understanding batches are required.
+- Use `artifact_mode: "progressive"` only when the user wants the large-document workflow or when the file is small but structurally complex enough to need navigation state.
 
 ## When The User Wants A Summary
 
@@ -39,11 +54,12 @@ For a large document summary, do not send all extracted text into the model at o
 Use this sequence:
 
 1. Inspect the structure.
-2. Read the outline and representative samples.
-3. Extract relevant chunks, or extract all chunks in batches if a full summary is required.
-4. Summarize each chunk.
-5. Merge chunk summaries into section summaries.
-6. Merge section summaries into a final answer.
+2. Sample representative pages, slides, sheets, or sections.
+3. Plan the next read from the sample and the user's goal.
+4. Extract relevant chunks, or understand image pages in batches when the document is scanned.
+5. Summarize each chunk.
+6. Merge chunk summaries into section summaries.
+7. Merge section summaries into a final answer.
 
 ## Code Mode Use
 
@@ -53,7 +69,7 @@ Use `sdk.tool.call(...)` from Code Mode. Always check `result.ok` before using t
 
 All path parameters passed to these tools must be absolute paths.
 
-For the same source document, reuse one stable `output_dir` across all document-converter tool calls. Keep `document.index.json`, `document.outline.md`, `chunks/`, summaries, converted files, and combined Markdown exports under that same directory unless the user explicitly asks for a different location.
+For the same source document, reuse one stable `output_dir` across all document-converter tool calls. Keep `document.index.json`, `document.outline.md`, `document.reading_state.json`, `samples/`, `chunks/`, `visual-results/`, summaries, converted files, and combined Markdown exports under that same directory unless the user explicitly asks for a different location.
 
 When the user does not provide an output directory, create one under the current workspace output area and derive the directory name from the current full file name, including the extension. For example, use `sample_pdf` for `sample.pdf`, `sample_docx` for `sample.docx`, and `README_md` for `README.md`. Do not use only the file stem in batch jobs, because files such as `sample.pdf`, `sample.docx`, and `sample.png` would otherwise overwrite or mix artifacts in the same `sample/` directory.
 
@@ -71,7 +87,9 @@ Reuse existing artifacts when all of these are true:
 - The `source_path` in `document.index.json` points to the same source document.
 - The source document has not changed since the index was created, when timestamps or stored metadata are available.
 
-If valid parsed artifacts already exist, read `document.outline.md` and `document.index.json` first, then read only the needed chunk files or call `summarize_document` on that `output_dir`. Do not re-run `export_document_markdown` or `extract_document_content` just to rediscover content that is already available.
+If valid parsed artifacts already exist, read `document.reading_state.json` when present, then read `document.outline.md` and `document.index.json`. Read only the needed chunk files or call `summarize_document` on that `output_dir`. Do not re-run `export_document_markdown` or `extract_document_content` just to rediscover content that is already available.
+
+If only `samples/` and `document.reading_state.json` exist, treat the document as sampled but not fully extracted. Use `plan_document_reading` to choose the next bounded extraction or image-understanding step.
 
 Re-run extraction only when artifacts are missing, incomplete, point to a different source file, appear stale, do not cover the needed range, or the user explicitly asks to regenerate the Markdown.
 
@@ -97,9 +115,36 @@ Parameters:
 
 Do not use this tool to read full content or create Markdown chunks.
 
+### `sample_document_content`
+
+Use this after inspection for large or complex documents. It writes a small Markdown sample under `samples/` and updates `document.reading_state.json`. Use the sample to decide whether the rest should be read as text, spreadsheet ranges, slides, or document images.
+
+Parameters:
+
+- `input_path` (required): absolute path to the source document.
+- `output_dir` (required): absolute path to the stable output directory for this source document.
+- `strategy` (optional): sampling strategy. Use `auto` unless the user asked for specific pages or sections.
+- `ranges` (optional): range expression such as `1-3,8`.
+- `max_units` (optional): maximum sampled units. Use the default for first pass.
+- `include_images` (optional): whether image links should be included when supported. This does not run visual understanding.
+
+Do not treat a sample as the final extraction.
+
+### `plan_document_reading`
+
+Use this after sampling or partial extraction to decide the next bounded read.
+
+Parameters:
+
+- `output_dir` (required): absolute path to the stable output directory containing document-converter artifacts.
+- `goal` (optional): current user goal, such as summary, clause lookup, or extracting decisions.
+- `budget` (optional): reading budget such as `20 pages` or `10 images`.
+
+This tool only recommends the next action. It does not extract or summarize content.
+
 ### `build_document_index`
 
-Use this after inspection when you need a stable navigation map before deciding what to extract. It creates `document.index.json` and `document.outline.md`.
+Use this after inspection or sampling when you need a stable navigation map before extracting detailed content. It creates `document.index.json` and `document.outline.md`.
 
 Parameters:
 
@@ -125,9 +170,29 @@ Parameters:
 
 Do not use this as a blind whole-file converter unless the user explicitly requires a full export.
 
+### `understand_document_images`
+
+Use this when extracted chunks show image-only pages, scans, charts, signatures, stamps, or other visual content needed for the user's goal. It understands document image assets and writes the result back into the related chunk.
+
+This tool requires `document.index.json` and image assets under the same `output_dir`. If the document has only been sampled, first call `extract_document_content` for the selected range with image extraction enabled, then call this tool.
+
+Parameters:
+
+- `output_dir` (required): absolute path to the stable output directory containing `document.index.json`.
+- `images` (optional): absolute image paths to process. At most 10 images per call.
+- `ranges` (optional): page or slide range whose images should be processed, such as `1-10`.
+- `chunk_ids` (optional): chunk ids whose images should be processed.
+- `query` (optional): visual understanding instruction. Leave empty for normal document-image-to-Markdown reading.
+- `write_mode` (optional): use the default unless there is a specific reason.
+- `max_images` (optional): maximum images for this call. Never exceed 10.
+- `concurrency` (optional): internal concurrency. Use the default unless the environment is constrained.
+- `force` (optional): whether to reprocess images that already have results.
+
+Use this instead of the generic visual understanding tool when parsing document images.
+
 ### `export_document_markdown`
 
-Use this for the common request "convert this document to Markdown." It extracts the requested range, writes bounded chunk files, updates the index and outline, and can write a combined Markdown file for user download.
+Use this for the common request "convert this document to Markdown." For large files, inspect and sample first, then choose the export mode and range. It extracts the requested range, writes bounded chunk files, updates the index and outline, and can write a combined Markdown file for user download.
 
 Parameters:
 
@@ -137,10 +202,13 @@ Parameters:
 - `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text. Use `visual` only for selected scanned or visually complex PDF pages after confirming visual recognition is needed; visual results must be stored as files.
 - `max_chars` (optional): maximum characters per chunk.
 - `combined_filename` (optional): file name for the combined Markdown output. Use an empty string to skip the combined file.
+- `artifact_mode` (optional): output artifact mode. Use `auto` by default. Use `simple` only for flat small-file output and `progressive` for full index/chunk/reading-state output. Large files reject `simple`; when that happens, switch to progressive or targeted extraction.
 - `exclude_watermark_images` (optional): whether high-confidence watermark images should be skipped. Keep the default unless the user explicitly needs every raw image.
 - `deduplicate_repeated_images` (optional): whether repeated identical images, such as logos on every page, should be kept only once. Keep the default for normal reading/export tasks.
 
 This tool is a convenience workflow for Markdown export, not a replacement for targeted extraction when the user only needs specific content.
+
+In simple mode, the main artifact is `document.md`. Do not expect `chunks/`, `document.index.json`, `document.outline.md`, or `document.reading_state.json` to exist.
 
 In batch exports, `output_dir` must be unique for each source file and should include the source file extension in the directory name.
 
@@ -170,7 +238,7 @@ Do not use this tool for semantic extraction, chunking, indexing, or summarizati
 
 ## Code Mode Examples
 
-### Inspect before extracting
+### Sample and plan before reading a large document
 
 ```python
 import re
@@ -179,8 +247,8 @@ from sdk.tool import tool
 
 def document_output_dir(output_root: str, input_path: str) -> str:
     path = Path(input_path)
-    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", path.name).strip("._")
-    safe_name = safe_name.replace(".", "_")
+    safe_name = re.sub(r"[^\w.-]+", "_", path.name, flags=re.UNICODE).strip("._")
+    safe_name = safe_name.replace(".", "_") or "document"
     return str(Path(output_root) / safe_name)
 
 doc = "/absolute/path/to/uploads/report.pdf"
@@ -192,14 +260,24 @@ profile = tool.call("inspect_document", {
 if not profile.ok:
     raise SystemExit(profile.content)
 
-index = tool.call("build_document_index", {
+sample = tool.call("sample_document_content", {
     "input_path": doc,
     "output_dir": out,
+    "max_units": 5,
+    "include_images": True,
 })
-if not index.ok:
-    raise SystemExit(index.content)
+if not sample.ok:
+    raise SystemExit(sample.content)
 
-print(index.content)
+plan = tool.call("plan_document_reading", {
+    "output_dir": out,
+    "goal": "summarize the document",
+    "budget": "10 pages",
+})
+if not plan.ok:
+    raise SystemExit(plan.content)
+
+print(plan.content)
 ```
 
 ### Extract only the needed range
@@ -222,7 +300,36 @@ if not result.ok:
 print(result.content)
 ```
 
-Use `mode: "visual"` only for selected pages where layout, scans, charts, signatures, or visual details are required to answer. Do not use it during the first pass. When used, keep the generated visual recognition Markdown under the same document output directory.
+Use `understand_document_images` for image-only pages after chunks and image assets exist. Use `mode: "visual"` only for selected PDF pages when this dedicated image workflow is not enough.
+
+### Understand scanned or image-only pages
+
+```python
+from sdk.tool import tool
+
+doc = "/absolute/path/to/uploads/report.pdf"
+out = "/absolute/path/to/document-output/report_pdf"
+
+extract = tool.call("extract_document_content", {
+    "input_path": doc,
+    "output_dir": out,
+    "ranges": "1-10",
+    "mode": "local_text",
+    "extract_images": True,
+})
+if not extract.ok:
+    raise SystemExit(extract.content)
+
+result = tool.call("understand_document_images", {
+    "output_dir": out,
+    "ranges": "1-10",
+    "max_images": 10,
+})
+if not result.ok:
+    raise SystemExit(result.content)
+
+print(result.content)
+```
 
 ### Export a document to Markdown
 
@@ -233,8 +340,8 @@ from sdk.tool import tool
 
 def document_output_dir(output_root: str, input_path: str) -> str:
     path = Path(input_path)
-    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", path.name).strip("._")
-    safe_name = safe_name.replace(".", "_")
+    safe_name = re.sub(r"[^\w.-]+", "_", path.name, flags=re.UNICODE).strip("._")
+    safe_name = safe_name.replace(".", "_") or "document"
     return str(Path(output_root) / safe_name)
 
 doc = "/absolute/path/to/uploads/report.pdf"
@@ -243,8 +350,7 @@ out = document_output_dir("/absolute/path/to/document-output", doc)
 export = tool.call("export_document_markdown", {
     "input_path": doc,
     "output_dir": out,
-    "mode": "local_text",
-    "combined_filename": f"{Path(doc).stem}.md",
+    "artifact_mode": "auto",
 })
 if not export.ok:
     raise SystemExit(export.content)

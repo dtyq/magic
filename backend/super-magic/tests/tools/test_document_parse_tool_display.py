@@ -6,7 +6,10 @@ from app.tools.document_parse.convert_document_format import ConvertDocumentForm
 from app.tools.document_parse.export_document_markdown import ExportDocumentMarkdown
 from app.tools.document_parse.extract_document_content import ExtractDocumentContent
 from app.tools.document_parse.inspect_document import InspectDocument
+from app.tools.document_parse.plan_document_reading import PlanDocumentReading
+from app.tools.document_parse.sample_document_content import SampleDocumentContent
 from app.tools.document_parse.summarize_document import SummarizeDocument
+from app.tools.document_parse.understand_document_images import UnderstandDocumentImages
 
 
 @pytest.mark.asyncio
@@ -49,6 +52,24 @@ from app.tools.document_parse.summarize_document import SummarizeDocument
             {"input_path": "report.pdf"},
             ToolResult(content="ok", extra_info={"chunks": [], "index_path": "/tmp/out/document.index.json", "outline_path": "/tmp/out/document.outline.md", "combined_path": "/tmp/out/report.md"}),
         ),
+        (
+            SampleDocumentContent(),
+            "sample_document_content",
+            {"input_path": "report.pdf"},
+            ToolResult(content="ok", extra_info={"sample_path": "/tmp/out/samples/sample_page_1.md", "sample_range": "1", "recommendations": ["Read next range"]}),
+        ),
+        (
+            PlanDocumentReading(),
+            "plan_document_reading",
+            {"output_dir": "out/report"},
+            ToolResult(content="ok", extra_info={"recommended_action": "extract_document_content", "recommended_range": "1-10", "reason": "sample text"}),
+        ),
+        (
+            UnderstandDocumentImages(),
+            "understand_document_images",
+            {"output_dir": "out/report"},
+            ToolResult(content="ok", extra_info={"processed": [{"asset_path": "assets/page1.png", "result_path": "visual-results/page1.md"}]}),
+        ),
     ],
 )
 async def test_document_parse_tools_have_display_hooks(tool, tool_name, arguments, result):
@@ -77,6 +98,11 @@ async def test_document_parse_tools_have_display_hooks(tool, tool_name, argument
         (ConvertDocumentFormat(), {"input_path": "/tmp/slides.pptx", "output_dir": "relative/document-output/slides", "target_format": "pdf"}),
         (ExportDocumentMarkdown(), {"input_path": "relative/report.pdf", "output_dir": "/tmp/document-output/report"}),
         (ExportDocumentMarkdown(), {"input_path": "/tmp/report.pdf", "output_dir": "relative/document-output/report"}),
+        (SampleDocumentContent(), {"input_path": "relative/report.pdf", "output_dir": "/tmp/document-output/report"}),
+        (SampleDocumentContent(), {"input_path": "/tmp/report.pdf", "output_dir": "relative/document-output/report"}),
+        (PlanDocumentReading(), {"output_dir": "relative/document-output/report"}),
+        (UnderstandDocumentImages(), {"output_dir": "relative/document-output/report"}),
+        (UnderstandDocumentImages(), {"output_dir": "/tmp/document-output/report", "images": ["relative/page.png"]}),
     ],
 )
 async def test_document_parse_tools_require_absolute_path_params(tool, params):

@@ -57,6 +57,17 @@ from app.tools.magic_calendar import ManageCalendar, CreateCalendarProject
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.append_to_file import AppendToFile
 from app.tools.convert_pdf import ConvertPdf
+from app.tools.document_parse import (
+    BuildDocumentIndex,
+    ConvertDocumentFormat,
+    ExportDocumentMarkdown,
+    ExtractDocumentContent,
+    InspectDocument,
+    PlanDocumentReading,
+    SampleDocumentContent,
+    SummarizeDocument,
+    UnderstandDocumentImages,
+)
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
 from app.tools.video_understanding import VideoUnderstanding
@@ -154,7 +165,16 @@ __all__ = [
     "WaitWechatLogin",
     "CompactChatHistory",
     "ConvertPdf",
+    "BuildDocumentIndex",
+    "ConvertDocumentFormat",
     "ConvertToMarkdown",
+    "ExportDocumentMarkdown",
+    "ExtractDocumentContent",
+    "InspectDocument",
+    "PlanDocumentReading",
+    "SampleDocumentContent",
+    "SummarizeDocument",
+    "UnderstandDocumentImages",
     "CreateSlide",
     "CreateSlideProject",
     "CreateMemory",

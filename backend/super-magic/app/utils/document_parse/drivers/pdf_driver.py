@@ -37,7 +37,10 @@ class PdfDocumentDriver(DocumentDriver):
         outline = OutlineBuilder.build_tree(await PdfOutlineReader.read(path))
         if not outline:
             outline = VirtualOutlineBuilder.by_units("page", metadata["page_count"])
-        strategy = "local_text for bulk pages; visual only for selected complex/scanned pages"
+        if metadata.get("is_scanned_like"):
+            strategy = "sample first, extract image assets, then use understand_document_images in batches of at most 10 pages"
+        else:
+            strategy = "sample first; use local_text for readable ranges and image understanding only when needed"
         file_stat = await async_stat(path)
         return DocumentProfile(
             source_path=str(path),
