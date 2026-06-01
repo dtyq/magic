@@ -433,7 +433,10 @@ class AgentDomainService
         ]);
 
         $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization);
+        // Stamp the topic id onto the pod labels so the sandbox can be
+        // correlated back to its topic (warm pool stamps it at mount time).
+        $labels = $topicId !== null ? ['topic-id' => (string) $topicId] : [];
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization, $labels);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->debug('[Sandbox][App] Gateway result analysis', [
@@ -1469,7 +1472,8 @@ class AgentDomainService
                 projectId: (string) $agentContext->getProjectEntity()->getId(),
                 projectSpaceRootFileId: $projectSpaceRootFileId,
                 userSpaceRootFileId: $userSpaceRootFileId,
-                authorization: $authorization
+                authorization: $authorization,
+                labels: ['topic-id' => (string) $topicEntity->getId()]
             );
         } catch (Throwable $e) {
             // Fall back to the cold path on any unexpected error.

@@ -59,7 +59,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         string $workDir,
         string $projectSpaceRootFileId = '',
         string $userSpaceRootFileId = '',
-        string $authorization = ''
+        string $authorization = '',
+        array $labels = []
     ): GatewayResult {
         // In local debugging mode, return mock success result
         if (! $this->isEnabledSandbox()) {
@@ -84,6 +85,9 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'user_space_root_file_id' => $userSpaceRootFileId,
             'authorization' => $authorization,
         ];
+        if (! empty($labels)) {
+            $config['labels'] = $labels;
+        }
 
         $this->logger->debug('[Sandbox][Gateway] Creating sandbox', [
             'config' => [
@@ -93,6 +97,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'project_space_root_file_id' => $projectSpaceRootFileId,
                 'user_space_root_file_id' => $userSpaceRootFileId,
                 'authorization_provided' => $authorization !== '',
+                'labels' => $labels,
             ],
             'max_retries' => 5,
             'retry_delay' => 30000,
@@ -881,7 +886,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         string $projectId,
         string $projectSpaceRootFileID,
         string $userSpaceRootFileID,
-        string $authorization
+        string $authorization,
+        array $labels = []
     ): GatewayResult {
         if (! $this->isEnabledSandbox()) {
             $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping warm-pool sandbox mount', [
@@ -899,6 +905,9 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'user_space_root_file_id' => $userSpaceRootFileID,
             'authorization' => $authorization,
         ];
+        if (! empty($labels)) {
+            $payload['labels'] = $labels;
+        }
 
         $this->logger->debug('[Sandbox][Gateway] Mounting warm-pool sandbox', [
             'sandbox_id' => $sandboxId,
@@ -906,6 +915,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'project_space_root_file_id' => $projectSpaceRootFileID,
             'has_user_space_root' => $userSpaceRootFileID !== '',
             'authorization_provided' => $authorization !== '',
+            'labels' => $labels,
         ]);
 
         try {

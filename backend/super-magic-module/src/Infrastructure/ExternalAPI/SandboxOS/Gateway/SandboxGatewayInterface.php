@@ -43,9 +43,10 @@ interface SandboxGatewayInterface
      * @param string $projectSpaceRootFileId Project space root directory file ID
      * @param string $userSpaceRootFileId User space root directory file ID
      * @param string $authorization User authorization token, empty string means not provided
+     * @param array<string, string> $labels Extra pod labels (e.g. ['topic-id' => '123']); merged onto gateway-managed labels, reserved keys are ignored
      * @return GatewayResult 创建结果，成功时data包含sandbox_id
      */
-    public function createSandbox(string $projectId, string $sandboxId, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', string $authorization = ''): GatewayResult;
+    public function createSandbox(string $projectId, string $sandboxId, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', string $authorization = '', array $labels = []): GatewayResult;
 
     /**
      * 删除（停止）沙箱.
@@ -135,12 +136,14 @@ interface SandboxGatewayInterface
      * @param string $projectSpaceRootFileID 项目空间 root file id（来自 task_file 表）
      * @param string $userSpaceRootFileID 用户空间 root file id（可空）
      * @param string $authorization 用户 MagicToken
+     * @param array<string, string> $labels 额外 pod 标签（如 ['topic-id' => '123']）；合并到 bound-* 标签上，保留字段会被忽略
      */
     public function mountWarmPoolSandbox(
         string $sandboxId,
         string $projectId,
         string $projectSpaceRootFileID,
         string $userSpaceRootFileID,
-        string $authorization
+        string $authorization,
+        array $labels = []
     ): GatewayResult;
 }

@@ -204,13 +204,16 @@ class WarmPoolSandboxDomainService
      * non-success result) the row is retired (marked dead + best-effort
      * delete via gateway + DB row deleted), so a failed mount never
      * leaves a poisoned row in the pool.
+     *
+     * @param array<string, string> $labels Extra pod labels (e.g. ['topic-id' => '123']) stamped onto the pod at mount time
      */
     public function tryAcquireAndMount(
         string $userId,
         string $projectId,
         string $projectSpaceRootFileId,
         string $userSpaceRootFileId,
-        string $authorization
+        string $authorization,
+        array $labels = []
     ): ?string {
         $latestImage = $this->gateway->getLatestAgentImage();
         if ($latestImage === '') {
@@ -235,7 +238,8 @@ class WarmPoolSandboxDomainService
                 $projectId,
                 $projectSpaceRootFileId,
                 $userSpaceRootFileId,
-                $authorization
+                $authorization,
+                $labels
             );
         } catch (Throwable $e) {
             $this->logger->error('[WarmPoolSandbox] Mount threw, retiring claimed sandbox', [
