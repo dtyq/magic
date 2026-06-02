@@ -22,6 +22,30 @@ interface PPTProviderProps {
 	storeConfig: PPTStoreConfig
 }
 
+function getJsonSignature(value: unknown): string {
+	try {
+		return JSON.stringify(value ?? null)
+	} catch {
+		return String(value)
+	}
+}
+
+function getAttachmentListSignature(attachmentList: any[] | undefined): string {
+	if (!Array.isArray(attachmentList)) return ""
+
+	return getJsonSignature(
+		attachmentList.map((item) => ({
+			file_id: item?.file_id,
+			file_name: item?.file_name,
+			parent_id: item?.parent_id,
+			relative_file_path: item?.relative_file_path,
+			updated_at: item?.updated_at,
+			file_version: item?.file_version,
+			display_config: item?.display_config,
+		})),
+	)
+}
+
 /**
  * Provider for PPT components
  * Creates event bus and store instances for each PPTRender component.
@@ -41,7 +65,8 @@ export function PPTProvider({ children, storeConfig }: PPTProviderProps) {
 	// Track previous config to detect actual changes without deep comparison
 	const prevConfigRef = useRef<{
 		displayConfig: any
-		attachmentList: any[] | undefined
+		displayConfigSlidesSignature: string
+		attachmentListSignature: string
 		mainFileId: string | undefined
 		mainFileName: string | undefined
 	} | null>(null)
@@ -50,11 +75,12 @@ export function PPTProvider({ children, storeConfig }: PPTProviderProps) {
 	// This replaces the previous useDeepCompareEffect which added frame delay
 	useLayoutEffect(() => {
 		const prev = prevConfigRef.current
+		const displayConfigSlidesSignature = getJsonSignature(storeConfig.displayConfig?.slides)
+		const attachmentListSignature = getAttachmentListSignature(storeConfig.attachmentList)
 		const slidesChanged =
-			!prev ||
-			JSON.stringify(prev.displayConfig?.slides) !==
-				JSON.stringify(storeConfig.displayConfig?.slides)
-		const attachmentListChanged = !prev || prev.attachmentList !== storeConfig.attachmentList
+			!prev || prev.displayConfigSlidesSignature !== displayConfigSlidesSignature
+		const attachmentListChanged =
+			!prev || prev.attachmentListSignature !== attachmentListSignature
 		const mainFileChanged =
 			!prev ||
 			prev.mainFileId !== storeConfig.mainFileId ||
@@ -64,7 +90,8 @@ export function PPTProvider({ children, storeConfig }: PPTProviderProps) {
 		if (slidesChanged || attachmentListChanged || mainFileChanged || displayConfigChanged) {
 			prevConfigRef.current = {
 				displayConfig: storeConfig.displayConfig,
-				attachmentList: storeConfig.attachmentList,
+				displayConfigSlidesSignature,
+				attachmentListSignature,
 				mainFileId: storeConfig.mainFileId,
 				mainFileName: storeConfig.mainFileName,
 			}

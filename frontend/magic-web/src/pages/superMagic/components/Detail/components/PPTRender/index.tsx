@@ -95,6 +95,7 @@ interface PPTRenderProps {
  */
 const PPTRender = function PPTRender(props: PPTRenderProps) {
 	const {
+		slidePaths,
 		attachments,
 		attachmentList,
 		mainFileId,
@@ -107,6 +108,13 @@ const PPTRender = function PPTRender(props: PPTRenderProps) {
 
 	const { organizationCode } = useOrganization()
 	const resolvedProjectId = selectedProject?.id || projectId
+	const effectiveDisplayConfig = useMemo(() => {
+		if (!slidePaths?.length) return displayConfig
+		return {
+			...displayConfig,
+			slides: slidePaths,
+		}
+	}, [displayConfig, slidePaths])
 
 	const storeConfig = useMemo(
 		() => ({
@@ -115,7 +123,7 @@ const PPTRender = function PPTRender(props: PPTRenderProps) {
 			projectId: resolvedProjectId,
 			mainFileId,
 			mainFileName,
-			displayConfig,
+			displayConfig: effectiveDisplayConfig,
 			organizationCode,
 			selectedProjectId: selectedProject?.id,
 			enableCache: true,
@@ -127,7 +135,7 @@ const PPTRender = function PPTRender(props: PPTRenderProps) {
 			resolvedProjectId,
 			mainFileId,
 			mainFileName,
-			displayConfig,
+			effectiveDisplayConfig,
 			organizationCode,
 			selectedProject?.id,
 			allowDownload,

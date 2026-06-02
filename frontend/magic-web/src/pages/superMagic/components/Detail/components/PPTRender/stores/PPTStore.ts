@@ -71,6 +71,7 @@ export class PPTStore {
 	/** Path mapping service - public for optimistic updates */
 	pathMappingService: PPTPathMappingService
 	private incrementalUpdateService: PPTIncrementalUpdateService
+	private attachmentListSnapshot: AttachmentItem[] | undefined
 
 	// ==================== Optimization Fields ====================
 	private initializingPromise: Promise<void> | null = null
@@ -112,6 +113,7 @@ export class PPTStore {
 
 	constructor(config: PPTStoreConfig) {
 		this.config = config
+		this.attachmentListSnapshot = this.snapshotAttachmentList(config.attachmentList)
 
 		// Initialize services
 		this.loaderService = new SlideLoaderService()
@@ -167,6 +169,13 @@ export class PPTStore {
 		if (config.enableCache !== false) {
 			this.setupAutoSave()
 		}
+	}
+
+	private snapshotAttachmentList(
+		attachmentList: any[] | undefined,
+	): AttachmentItem[] | undefined {
+		if (!Array.isArray(attachmentList)) return undefined
+		return attachmentList.map((item) => ({ ...item }))
 	}
 
 	// ==================== Computed Values (Delegated to Managers) ====================
@@ -1353,7 +1362,7 @@ export class PPTStore {
 		})
 
 		const previousDisplayConfig = this.config.displayConfig
-		const previousAttachmentList = this.config.attachmentList
+		const previousAttachmentList = this.attachmentListSnapshot
 
 		this.config = { ...this.config, ...config }
 
@@ -1380,6 +1389,9 @@ export class PPTStore {
 
 		// Check if slides data needs incremental update
 		await this.handleIncrementalUpdate(config, previousDisplayConfig, previousAttachmentList)
+		if (config.attachmentList !== undefined) {
+			this.attachmentListSnapshot = this.snapshotAttachmentList(config.attachmentList)
+		}
 
 		// Update cache manager config if cache-related fields changed
 		if (
