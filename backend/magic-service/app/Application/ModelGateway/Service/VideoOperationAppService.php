@@ -678,7 +678,7 @@ readonly class VideoOperationAppService
     {
         $resolvedProbeResult = $probeResult ?? $this->probeGeneratedVideo($operation);
         if ($resolvedProbeResult !== null) {
-            $billingDetails = $this->videoBillingDetailsResolver->resolveFromMetadata($resolvedProbeResult['metadata']);
+            $billingDetails = $this->videoBillingDetailsResolver->resolveFromMetadataWithFallback($resolvedProbeResult['metadata'], $operation);
             $this->logger->info('video billing probe success', [
                 'operation_id' => $operation->getId(),
                 'organization_code' => $operation->getOrganizationCode(),

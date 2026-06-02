@@ -55,6 +55,26 @@ readonly class VideoBillingDetailsResolver
     }
 
     /**
+     * 实际视频元数据优先；仅当实际宽高无法映射到计费档位时，从请求/provider 参数补 resolution。
+     *
+     * @return array{duration_seconds: int, resolution: ?string, size: string, width: int, height: int}
+     */
+    public function resolveFromMetadataWithFallback(VideoMediaMetadata $metadata, VideoQueueOperationEntity $operation): array
+    {
+        $details = $this->resolveFromMetadata($metadata);
+        if ($details['resolution'] !== null) {
+            return $details;
+        }
+
+        $fallbackDetails = $this->resolveFromFallback($operation);
+        if ($fallbackDetails['resolution'] !== null) {
+            $details['resolution'] = $fallbackDetails['resolution'];
+        }
+
+        return $details;
+    }
+
+    /**
      * provider 结果缺少可下载视频时，从任务请求和 provider payload 里兜底解析计费维度。
      *
      * @return array{duration_seconds: int, resolution: ?string, size: ?string, width: ?int, height: ?int}
