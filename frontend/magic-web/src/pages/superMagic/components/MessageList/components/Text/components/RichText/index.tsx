@@ -8,13 +8,14 @@ import { cn } from "@/lib/utils"
 import schemaConfig from "./schemaConfig"
 import { parseContent } from "./utils"
 import type { RichTextProps } from "./types"
-import { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@tiptap/core"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { getMentionDisplayName } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { getDisplayText } from "@/pages/superMagic/components/MessageEditor/extensions/super-placeholder/utils"
 import { INSPECTOR_DETAIL_TYPE } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/const"
 import { transformInspectorContent } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/transform"
+import type { InspectorDetailAttrs } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail"
 import InlineMention from "./components/InlineMention"
 import { InspectorDetailReadOnly } from "./components/InspectorDetailReadOnly"
 
@@ -56,7 +57,9 @@ const RichText = memo(
 					dom.className = "inspector-detail-node-view"
 
 					const root = createRoot(dom)
-					root.render(<InspectorDetailReadOnly attrs={node.attrs} />)
+					root.render(
+						<InspectorDetailReadOnly attrs={node.attrs as InspectorDetailAttrs} />,
+					)
 
 					return {
 						dom,
@@ -294,7 +297,7 @@ const RichText = memo(
 				style={style}
 				className={cn(
 					"flex cursor-text flex-col overflow-hidden outline-none",
-					"[&_p]:break-all [&_p]:text-sm [&_p]:font-normal [&_p]:leading-[22px] [&_p]:text-foreground",
+					"[&_p]:whitespace-pre-wrap [&_p]:break-all [&_p]:text-sm [&_p]:font-normal [&_p]:leading-[22px] [&_p]:text-foreground",
 					"[&_p>.magic-mention:first-child]:ml-0",
 					"[&_p>.mention-node-view:first-child>.magic-marker-mention]:ml-0",
 					"[&_.mention-node-view]:inline [&_.mention-node-view]:align-baseline",
