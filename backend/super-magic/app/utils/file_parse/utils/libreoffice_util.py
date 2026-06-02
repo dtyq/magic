@@ -4,11 +4,10 @@ import asyncio
 import hashlib
 import subprocess
 import tempfile
-import shutil
 from pathlib import Path
-from typing import List
 
 from agentlang.logger import get_logger
+from app.utils.async_file_utils import async_copy2, async_mkdir
 
 logger = get_logger(__name__)
 
@@ -83,34 +82,36 @@ class LibreOfficeUtil:
             temp_dir_path = Path(temp_dir)
 
             # Create a unique subdirectory using MD5 hash of the original filename
-            # This ensures each file conversion has its own isolated directory,
-            # making the fallback glob logic reliable (only one file in the directory)
+            # This ensures each file conversion has its own isolated directories.
             filename_hash = hashlib.md5(input_file.name.encode('utf-8')).hexdigest()[:8]
-            conversion_dir = temp_dir_path / filename_hash
-            conversion_dir.mkdir(parents=True, exist_ok=True)
+            conversion_root = temp_dir_path / filename_hash
+            conversion_input_dir = conversion_root / "input"
+            conversion_output_dir = conversion_root / "output"
+            await async_mkdir(conversion_input_dir, parents=True, exist_ok=True)
+            await async_mkdir(conversion_output_dir, parents=True, exist_ok=True)
 
             # Use a safe random ASCII filename to avoid encoding issues with Chinese characters
             # in some Linux/Docker environments where LibreOffice may fail to handle
             # non-ASCII filenames properly
             safe_filename = f"{filename_hash}{input_file.suffix}"
-            temp_input_path = conversion_dir / safe_filename
-            await loop.run_in_executor(None, shutil.copy2, input_file, temp_input_path)
+            temp_input_path = conversion_input_dir / safe_filename
+            await async_copy2(input_file, temp_input_path)
 
             # Convert using LibreOffice headless mode
             await LibreOfficeUtil._run_libreoffice_conversion(
-                temp_input_path, conversion_dir, target_format
+                temp_input_path, conversion_output_dir, target_format
             )
 
             # Find the converted file using the safe filename stem
             safe_stem = Path(safe_filename).stem  # e.g. "a1b2c3d4"
-            converted_file_path = conversion_dir / f"{safe_stem}.{target_format}"
+            converted_file_path = conversion_output_dir / f"{safe_stem}.{target_format}"
 
             # Check file existence asynchronously
             file_exists = await loop.run_in_executor(None, converted_file_path.exists)
             if not file_exists:
                 # Fallback: try to find any file with the target format in the conversion directory
-                # This is reliable because the directory contains only one file
-                converted_files = list(conversion_dir.glob(f"*.{target_format}"))
+                # This is reliable because the output directory contains only converted files.
+                converted_files = list(conversion_output_dir.glob(f"*.{target_format}"))
                 if converted_files:
                     converted_file_path = converted_files[0]
                     logger.info(f"Found converted file via glob: {converted_file_path}")
@@ -128,7 +129,7 @@ class LibreOfficeUtil:
             final_temp_file.close()
 
             # Copy file asynchronously
-            await loop.run_in_executor(None, shutil.copy2, converted_file_path, final_temp_path)
+            await async_copy2(converted_file_path, final_temp_path)
 
             logger.info(f"Successfully converted {input_file.suffix} to {target_format}: {final_temp_path}")
             return final_temp_path
