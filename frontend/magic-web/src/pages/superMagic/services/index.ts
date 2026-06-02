@@ -1052,7 +1052,7 @@ class SuperMagicService {
 		onError,
 		onSuccess,
 		onNavigated,
-		topicMode,
+		sourceTopic,
 	}: {
 		selectedProject: ProjectListItem | null | undefined
 		targetProject?: ProjectListItem
@@ -1060,8 +1060,8 @@ class SuperMagicService {
 		onSuccess?: (topic: Topic) => Promise<void> | void
 		/** Called after navigateToState — safe moment to insert content into the new topic's editor */
 		onNavigated?: (topic: Topic) => void
-		/** Mode to set on the new topic (only applied if mode is available in the current project) */
-		topicMode?: import("../pages/Workspace/types").TopicMode
+		/** 新话题后端空创建；该字段只用于前端选中态继承员工/mode */
+		sourceTopic?: Topic | null
 	}): Promise<Topic | null> {
 		const project = targetProject ?? selectedProject
 
@@ -1073,7 +1073,7 @@ class SuperMagicService {
 			const newTopic = await this.topic.createTopic({
 				projectId: project.id,
 				topicName: "",
-				topicMode,
+				sourceTopic,
 			})
 
 			if (newTopic) {
