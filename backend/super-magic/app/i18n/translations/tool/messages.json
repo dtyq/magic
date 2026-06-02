@@ -1855,6 +1855,42 @@
         "zh_CN": "检索失败：{{query}}",
         "en_US": "Search failed: {{query}}"
     },
+    "search_knowledge.detail_title": {
+        "zh_CN": "知识检索结果",
+        "en_US": "Knowledge Search Results"
+    },
+    "search_knowledge.detail_query": {
+        "zh_CN": "查询",
+        "en_US": "Query"
+    },
+    "search_knowledge.detail_hit_count": {
+        "zh_CN": "命中片段",
+        "en_US": "Matched snippets"
+    },
+    "search_knowledge.detail_related_documents": {
+        "zh_CN": "相关文档",
+        "en_US": "Related Documents"
+    },
+    "search_knowledge.detail_no_results": {
+        "zh_CN": "没有检索到相关知识上下文。",
+        "en_US": "No relevant knowledge context was found."
+    },
+    "search_knowledge.detail_unknown_document": {
+        "zh_CN": "未命名文档",
+        "en_US": "Untitled document"
+    },
+    "search_knowledge.detail_snippet": {
+        "zh_CN": "片段 {{index}}",
+        "en_US": "Snippet {{index}}"
+    },
+    "search_knowledge.detail_error_title": {
+        "zh_CN": "知识检索失败",
+        "en_US": "Knowledge Search Failed"
+    },
+    "search_knowledge.detail_error_summary": {
+        "zh_CN": "这次没有成功获取知识检索结果，可以稍后重试，或先基于当前上下文继续处理。",
+        "en_US": "Knowledge search results could not be retrieved this time. Try again later, or continue with the current context."
+    },
     "mcp.list_servers.listing": {
         "zh_CN": "正在查看有哪些服务可以用",
         "en_US": "Checking available services"

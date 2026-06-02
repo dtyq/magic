@@ -1,11 +1,14 @@
 """知识检索工具。"""
 
+from typing import Any
+
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.core.context.agent_context import AgentContext
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
 from app.infrastructure.sdk.magic_service.parameter.search_knowledge_parameter import (
     SearchKnowledgeParameter,
@@ -14,6 +17,8 @@ from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
 
 logger = get_logger(__name__)
+
+MAX_DETAIL_SNIPPET_LENGTH = 500
 
 
 class SearchKnowledgeParams(BaseToolParams):
@@ -102,6 +107,82 @@ Negative examples:
     def is_visible_in_ui(self) -> bool:
         return False
 
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: dict[str, Any] | None = None,
+    ) -> ToolDetail:
+        query = (arguments or {}).get("query", "")
+        if not result.ok:
+            content = "\n".join(
+                [
+                    f"# {i18n.translate('search_knowledge.detail_error_title', category='tool.messages')}",
+                    "",
+                    i18n.translate("search_knowledge.detail_error_summary", category="tool.messages"),
+                ]
+            )
+            return ToolDetail(
+                type=DisplayType.MD,
+                data=FileContent(file_name="knowledge_search_error.md", content=content),
+            )
+
+        extra_info = result.extra_info or {}
+        documents = extra_info.get("documents") or []
+        hit_count = extra_info.get("hit_count", 0)
+        content = self._build_detail_markdown(query=query, hit_count=hit_count, documents=documents)
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(file_name="knowledge_search_results.md", content=content),
+        )
+
+    def _build_detail_markdown(
+        self,
+        *,
+        query: str,
+        hit_count: int,
+        documents: list[dict[str, Any]],
+    ) -> str:
+        lines = [
+            f"# {i18n.translate('search_knowledge.detail_title', category='tool.messages')}",
+            "",
+            f"- {i18n.translate('search_knowledge.detail_query', category='tool.messages')}: `{query}`",
+            f"- {i18n.translate('search_knowledge.detail_hit_count', category='tool.messages')}: {hit_count}",
+            "",
+        ]
+
+        if not documents or hit_count <= 0:
+            lines.append(i18n.translate("search_knowledge.detail_no_results", category="tool.messages"))
+            return "\n".join(lines)
+
+        lines.append(f"## {i18n.translate('search_knowledge.detail_related_documents', category='tool.messages')}")
+        lines.append("")
+        for document in documents:
+            snippets = document.get("snippets") or []
+            if not snippets:
+                continue
+            document_name = document.get("document_name") or i18n.translate(
+                "search_knowledge.detail_unknown_document",
+                category="tool.messages",
+            )
+            lines.append(f"### {document_name}")
+            lines.append("")
+            for index, snippet in enumerate(snippets, start=1):
+                snippet_text = self._truncate_snippet(str(snippet.get("text") or ""))
+                lines.append(
+                    f"**{i18n.translate('search_knowledge.detail_snippet', category='tool.messages', index=index)}**"
+                )
+                lines.append(snippet_text)
+                lines.append("")
+
+        return "\n".join(lines).rstrip()
+
+    def _truncate_snippet(self, text: str) -> str:
+        normalized = " ".join(text.split())
+        if len(normalized) <= MAX_DETAIL_SNIPPET_LENGTH:
+            return normalized
+        return normalized[:MAX_DETAIL_SNIPPET_LENGTH].rstrip() + "..."
+
     async def get_before_tool_call_friendly_action_and_remark(
         self,
         tool_name: str,
@@ -152,7 +233,7 @@ Negative examples:
             result = await magic_service.agent.search_knowledge_async(
                 SearchKnowledgeParameter(agent_code=agent_code, query=query)
             )
-            return ToolResult(content=result.to_string())
+            return ToolResult(content=result.to_string(), extra_info=result.to_dict())
         except Exception as exc:
             logger.error(f"Knowledge search failed: {exc}")
             return ToolResult.error(f"Knowledge search failed: {exc}")
