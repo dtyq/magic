@@ -204,6 +204,14 @@ def test_document_converter_tools_expose_only_intent_params():
     assert set(ConvertDocumentFormat().get_params_class().model_fields) == {"input_path", "output_dir", "target_format", "ranges"}
 
 
+def test_document_converter_skill_requires_using_converted_path():
+    skill_path = Path(__file__).resolve().parents[2] / "agents" / "skills" / "document-converter" / "SKILL.md"
+    skill = skill_path.read_text(encoding="utf-8")
+
+    assert 'converted.data["output_files"][0]' in skill
+    assert "Do not continue parsing, inspecting, extracting, or exporting with the original `input_path`" in skill
+
+
 @pytest.mark.asyncio
 async def test_inspect_document_corrects_unique_punctuation_only_path(tmp_path: Path, monkeypatch):
     actual = tmp_path / "mock-report-“quoted-title”.docx"
@@ -437,6 +445,8 @@ async def test_convert_document_format_allows_format_mismatch_before_conversion(
     assert result.ok
     assert calls == [(source, output_dir, "docx", None)]
     assert str(converted) in result.content
+    assert result.extra_info["output_files"] == [str(converted)]
+    assert result.extra_info["converted_files"] == [str(converted)]
 
 
 @pytest.mark.asyncio

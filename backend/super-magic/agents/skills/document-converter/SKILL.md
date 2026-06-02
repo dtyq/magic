@@ -226,6 +226,8 @@ Do not call this before extracting content.
 
 Use this only when the user explicitly asks for a converted file or conversion is required before extraction. It only changes file format.
 
+After this tool succeeds, continue with the converted file path returned in `result.data["output_files"][0]`. Do not continue parsing, inspecting, extracting, or exporting with the original `input_path`, because the original file may still have the same format mismatch that required conversion.
+
 Parameters:
 
 - `input_path` (required): absolute path to the source document.
@@ -234,6 +236,12 @@ Parameters:
 - `ranges` (optional): page range for conversion tasks that support ranges, such as rendering selected PDF pages to images.
 
 Do not use this tool for semantic extraction, chunking, indexing, or summarization.
+
+If this tool is used to fix a format mismatch, the next document-converter call should use the converted path:
+
+- `inspect_document.input_path = converted.data["output_files"][0]`
+- `export_document_markdown.input_path = converted.data["output_files"][0]`
+- `extract_document_content.input_path = converted.data["output_files"][0]`
 
 ## Code Mode Examples
 
@@ -388,5 +396,37 @@ if not converted.ok:
     raise SystemExit(converted.content)
 
 print(converted.content)
+""")
+```
+
+### Convert first, then export with the converted path
+
+Use this pattern when `inspect_document` reports a file format mismatch, such as a file named `.docx` whose real content is `.docm`.
+
+```python
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
+
+original_doc = "/absolute/path/to/uploads/report.docx"
+out = "/absolute/path/to/document-output/report_docx"
+
+converted = tool.call("convert_document_format", {
+    "input_path": original_doc,
+    "output_dir": out,
+    "target_format": "docx",
+})
+if not converted.ok:
+    raise SystemExit(converted.content)
+
+converted_doc = converted.data["output_files"][0]
+
+export = tool.call("export_document_markdown", {
+    "input_path": converted_doc,
+    "output_dir": out,
+})
+if not export.ok:
+    raise SystemExit(export.content)
+
+print(export.content)
 """)
 ```

@@ -86,7 +86,15 @@ class ConvertDocumentFormat(AbstractFileTool[ConvertDocumentFormatParams], Works
         except Exception as exc:
             return ToolResult.error(build_document_parse_model_error("convert_document_format", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
         content = "Format conversion completed:\n" + "\n".join(f"- `{path}`" for path in output_paths)
-        return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info={"output_files": output_paths})
+        return ToolResult(
+            content=prepend_correction_note(content, resolved.correction_note),
+            extra_info={
+                "output_files": output_paths,
+                # Alias kept so Code Mode snippets can reliably pass the converted path
+                # to the next document-converter tool instead of falling back to input_path.
+                "converted_files": output_paths,
+            },
+        )
 
     async def get_before_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] | None = None
