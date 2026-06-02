@@ -67,6 +67,8 @@ import { collectMentionItemsFromContent } from "@/pages/superMagic/components/Me
 import { transformMentions } from "@/pages/superMagic/components/MessageEditor/utils/mention"
 import { useFileOpen } from "@/pages/superMagic/components/TopicFilesButton/hooks/useFileOpen"
 import { useDefaultModeModelListRefreshOnMount } from "@/pages/superMagic/hooks"
+import { useMobileKnowledgeBasePreview } from "@/pages/superMagic/hooks/useMobileKnowledgeBasePreview"
+import KnowledgeBasePreviewPopup from "@/pages/superMagic/components/KnowledgeBasePreviewPopup"
 
 interface ClawMobileConversationPanelRef {
 	sendSkillInstallPrompt: (content: JSONContent) => void
@@ -577,6 +579,7 @@ function ClawPlaygroundMobile() {
 		topicFilesProps,
 		attachmentList,
 	})
+	const knowledgeBasePreviewState = useMobileKnowledgeBasePreview()
 
 	const resolveTopicFileRowDecoration = useMemoizedFn(
 		createClawPlaygroundFileRowDecorationResolver({
@@ -693,6 +696,7 @@ function ClawPlaygroundMobile() {
 					void 0
 				}}
 			/>
+			<KnowledgeBasePreviewPopup state={knowledgeBasePreviewState} />
 		</div>
 	)
 }

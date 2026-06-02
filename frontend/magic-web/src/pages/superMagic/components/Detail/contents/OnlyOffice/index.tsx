@@ -31,6 +31,8 @@ import type { DetailUniverData } from "../../types"
 import { MagicSpin } from "@/components/base"
 import { useFileOperations } from "@/pages/superMagic/components/TopicFilesButton/hooks/useFileOperations"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import { downloadFileContent } from "@/pages/superMagic/utils/api"
+import type { ActionContext } from "../../components/CommonHeaderV2/types"
 
 const bufferToString = (buffer: ArrayBuffer) => {
 	const bytes = new Uint8Array(buffer)
@@ -95,6 +97,14 @@ interface OnlyOfficeViewerProps {
 	allowDownload?: boolean
 }
 
+function buildOnlyOfficeContainerId(value: string) {
+	let hash = 0
+	for (let i = 0; i < value.length; i += 1) {
+		hash = (hash * 31 + value.charCodeAt(i)) | 0
+	}
+	return `onlyoffice-${Math.abs(hash).toString(36)}`
+}
+
 function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 	const {
 		data,
@@ -123,7 +133,7 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 		allowDownload,
 	} = props
 
-	const { file_name, file_id } = data
+	const { file_name, file_id, file_url: directFileUrl } = data
 
 	const responsive = useResponsive()
 	const isMobile = responsive.md === false
@@ -145,7 +155,7 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 		handleVersionRollback,
 		isNewestVersion,
 	} = useFileData({
-		file_id,
+		file_id: file_id || "",
 		responseType: "arrayBuffer",
 		activeFileId,
 		updatedAt,
@@ -155,13 +165,18 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
+	const [directFileData, setDirectFileData] = useState<ArrayBuffer | null>(null)
+	const [directFileLoading, setDirectFileLoading] = useState(false)
 	// 初始状态应该是只读模式（除非明确传入 isEditMode=true）
 	const [readOnly, setReadOnly] = useState(!isEditMode)
 	const initializedRef = useRef(false)
 	const containerRef = useRef<HTMLDivElement>(null)
 
 	// 生成唯一的容器ID（基于 file_id）
-	const containerId = `onlyoffice-${file_id}`
+	const containerId = useMemo(
+		() => buildOnlyOfficeContainerId(file_id || directFileUrl || file_name || "document"),
+		[directFileUrl, file_id, file_name],
+	)
 	// 获取对应的 EditorManager 实例
 	const editorManagerRef = useRef<EditorManager | null>(null)
 	const getEditorManager = useMemoizedFn(() => {
@@ -173,9 +188,10 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 
 	// 构造 currentFile，确保下载按钮可以显示
 	const fileForDownload = currentFile || {
-		id: file_id,
+		id: file_id || directFileUrl || "",
 		name: file_name,
 		type: type,
+		url: directFileUrl,
 	}
 
 	// 获取文件的 MIME type
@@ -233,7 +249,9 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 			// 将 ArrayBuffer 转换为 base64 字符串
 			const dataStr = bufferToString(result.data)
 			const enable_shadow = false
-			await saveEditContent?.(dataStr, file_id, enable_shadow, fetchFileVersions)
+			await saveEditContent?.(dataStr, file_id || "", enable_shadow, () =>
+				fetchFileVersions(file_id || ""),
+			)
 		} catch (error) {
 			console.error("保存文档失败:", error)
 		}
@@ -263,7 +281,8 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 		return ["xlsx", "xls", "csv", "docx", "doc", "pptx", "ppt"].includes(extension)
 	}
 
-	const canShowDownload = shouldShowDownload() && allowDownload !== false
+	const canShowDownload =
+		shouldShowDownload() && allowDownload !== false && Boolean(file_id || directFileUrl)
 
 	const headerActionConfig = useMemo(() => {
 		const canShowEditControls =
@@ -283,11 +302,11 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 				{
 					key: "onlyoffice-edit-controls",
 					zone: "primary" as const,
-					render: (context) => (
+					render: (context: ActionContext) => (
 						<Flex gap="small">
 							{!isEditMode ? (
 								<ActionButton
-									icon={IconEdit}
+									element={<IconEdit size={18} />}
 									onClick={handleEdit}
 									title={t("fileViewer.edit")}
 									text={t("fileViewer.edit")}
@@ -325,7 +344,11 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 	// 下载文件 - 使用 useFileOperations 的 handleDownloadFile
 	const handleDownload = useMemoizedFn(async () => {
 		try {
-			await handleDownloadFile(file_id, undefined, file_extension)
+			if (directFileUrl && !file_id) {
+				window.open(directFileUrl, "_blank", "noopener,noreferrer")
+				return
+			}
+			await handleDownloadFile(file_id || "", undefined, file_extension)
 		} catch (error) {
 			console.error("下载文件失败:", error)
 		}
@@ -348,6 +371,10 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 				lang: ONLYOFFICE_LANG_KEY.ZH,
 				containerId: containerId, // 传入唯一的容器ID
 				editorManager: editorManager, // 传入对应的编辑器管理器实例
+				user: {
+					id: "",
+					name: "Magic",
+				},
 			})
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "操作失败")
@@ -355,19 +382,56 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 		}
 	})
 
-	// 监控 fileData 变化（来自 useFileData）
 	useEffect(() => {
-		if (!fileData) return
+		if (!directFileUrl) {
+			setDirectFileData(null)
+			setDirectFileLoading(false)
+			return
+		}
+
+		let cancelled = false
+		setDirectFileLoading(true)
+		setDirectFileData(null)
+
+		downloadFileContent(directFileUrl, { responseType: "arrayBuffer" })
+			.then((content) => {
+				if (!cancelled) {
+					setDirectFileData(content as ArrayBuffer)
+				}
+			})
+			.catch((error) => {
+				if (!cancelled) {
+					console.error("OnlyOfficeViewer: 加载直链文件失败", error)
+					setError("加载文件失败")
+				}
+			})
+			.finally(() => {
+				if (!cancelled) {
+					setDirectFileLoading(false)
+				}
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [directFileUrl])
+
+	const resolvedFileData = directFileUrl ? directFileData : fileData
+	const resolvedFileDataLoading = directFileUrl ? directFileLoading : fileDataLoading
+
+	// 监控文件数据变化
+	useEffect(() => {
+		if (!resolvedFileData) return
 
 		const mimeType = getFileMimeType()
 		const extension = (file_extension || "").toLowerCase()
 		// 文本文件类型，不需要 base64 解码
 		const isTextFile = ["csv", "txt"].includes(extension)
 
-		if (fileData instanceof ArrayBuffer) {
+		if (resolvedFileData instanceof ArrayBuffer) {
 			console.log(
 				"🔍 [OnlyOfficeViewer] 收到 ArrayBuffer，大小:",
-				fileData.byteLength,
+				resolvedFileData.byteLength,
 				"bytes",
 			)
 
@@ -377,15 +441,15 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 				if (isTextFile) {
 					// 文本文件：直接解码为 UTF-8 文本
 					console.log("📝 [OnlyOfficeViewer] 检测到文本文件，直接解码为 UTF-8")
-					const text = new TextDecoder("utf-8").decode(fileData)
+					const text = new TextDecoder("utf-8").decode(resolvedFileData)
 					file = new File([text], file_name, { type: mimeType })
 					console.log("✅ [OnlyOfficeViewer] 文本文件创建成功:", file.size, "bytes")
 				} else {
 					// 二进制文件：检查是否是 ZIP 格式
 					let finalBuffer: ArrayBuffer
 
-					if (fileData.byteLength >= 4) {
-						const view = new DataView(fileData, 0, 4)
+					if (resolvedFileData.byteLength >= 4) {
+						const view = new DataView(resolvedFileData, 0, 4)
 						const signature = view.getUint32(0, true)
 
 						// ZIP 文件魔数: 0x504b0304 (PK\x03\x04)
@@ -393,12 +457,12 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 							console.log(
 								"✅ [OnlyOfficeViewer] 检测到 ZIP 文件头，直接使用二进制数据",
 							)
-							finalBuffer = fileData
+							finalBuffer = resolvedFileData
 						} else {
 							// 不是 ZIP 文件，尝试 base64 解码（可能是 base64 编码的二进制数据）
 							console.log("🔄 [OnlyOfficeViewer] 非 ZIP 文件，尝试 base64 解码")
 							try {
-								const text = new TextDecoder("utf-8").decode(fileData)
+								const text = new TextDecoder("utf-8").decode(resolvedFileData)
 								// 验证是否是有效的 base64 字符串
 								const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/
 								if (base64Regex.test(text.trim())) {
@@ -410,7 +474,7 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 									console.log(
 										"⚠️ [OnlyOfficeViewer] 不是 base64 编码，直接使用原始数据",
 									)
-									finalBuffer = fileData
+									finalBuffer = resolvedFileData
 								}
 							} catch (decodeError) {
 								// base64 解码失败，直接使用原始数据
@@ -418,12 +482,12 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 									"⚠️ [OnlyOfficeViewer] base64 解码失败，使用原始数据:",
 									decodeError,
 								)
-								finalBuffer = fileData
+								finalBuffer = resolvedFileData
 							}
 						}
 					} else {
 						// 数据太小，直接使用
-						finalBuffer = fileData
+						finalBuffer = resolvedFileData
 					}
 
 					// 创建 File 对象
@@ -439,23 +503,23 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 				setError("解析文件数据失败")
 				setLoading(false)
 			}
-		} else if (typeof fileData === "string") {
+		} else if (typeof resolvedFileData === "string") {
 			// 对于文本文件，创建 File 对象
-			const file = new File([fileData], file_name, {
+			const file = new File([resolvedFileData], file_name, {
 				type: mimeType,
 			})
 			setLoading(true)
 			handleView(file_name, file)
-		} else if (fileData) {
+		} else if (resolvedFileData) {
 			// 如果是其他类型的数据，转换为 File 对象
-			const file = new File([fileData], file_name, {
+			const file = new File([resolvedFileData], file_name, {
 				type: mimeType,
 			})
 			setLoading(true)
 			handleView(file_name, file)
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [fileData, file_name, file_extension])
+	}, [resolvedFileData, file_name, file_extension])
 
 	// 初始化 OnlyOffice
 	useEffect(() => {
@@ -567,13 +631,19 @@ function OnlyOfficeViewer(props: OnlyOfficeViewerProps) {
 						position: "absolute",
 						inset: 0,
 						zIndex: -999,
-						visibility: fileDataLoading || loading || !fileData ? "hidden" : "visible",
-						opacity: fileDataLoading || loading || !fileData ? 0 : 1,
-						pointerEvents: fileDataLoading || loading || !fileData ? "none" : "auto",
+						visibility:
+							resolvedFileDataLoading || loading || !resolvedFileData
+								? "hidden"
+								: "visible",
+						opacity: resolvedFileDataLoading || loading || !resolvedFileData ? 0 : 1,
+						pointerEvents:
+							resolvedFileDataLoading || loading || !resolvedFileData
+								? "none"
+								: "auto",
 					}}
 				/>
 				{/* 加载遮罩 - 覆盖在容器上方 */}
-				{(fileDataLoading || loading || !fileData) && (
+				{(resolvedFileDataLoading || loading || !resolvedFileData) && (
 					<div
 						style={{
 							height: "100%",

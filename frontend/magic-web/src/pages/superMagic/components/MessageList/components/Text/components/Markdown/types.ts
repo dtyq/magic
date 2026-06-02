@@ -1,6 +1,11 @@
 // 收口 Markdown 主入口和 HTML 预览增强链的类型定义，避免入口文件继续膨胀。
 
-import type { CitationSource } from "@/pages/superMagic/utils/parseCitations"
+export interface MarkdownResolvedLinkPayload {
+	href: string
+	text?: string
+	title?: string
+}
+import type { CitationSource } from "@/pages/superMagic/utils/citations"
 
 // Markdown 主入口 props。`isStreaming` 用于区分流式代码态和完成后的预览态。
 export interface MarkdownComponentProps {
@@ -18,6 +23,8 @@ export interface MarkdownComponentProps {
 	 */
 	allowRawHtml?: boolean
 	/** 引用来源数据（用于渲染 {{cite:N}} 标记） */
+	escapeRawHtml?: boolean
+	/** 引用来源数据（用于渲染 <citation index="N"></citation> 标记） */
 	citations?: CitationSource[]
 	/** 当前高亮的引用序号 */
 	highlightedCitation?: number | null

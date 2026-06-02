@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { IconBook2, IconChevronDown, IconExternalLink } from "@tabler/icons-react"
-import type { CitationSource } from "@/pages/superMagic/utils/parseCitations"
+import type { CitationSource } from "@/pages/superMagic/utils/citations"
 import { useTranslation } from "react-i18next"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 

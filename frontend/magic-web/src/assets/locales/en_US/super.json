@@ -3372,7 +3372,45 @@
 		"workspaceNotFound": "Workspace not found",
 		"workspaces": "Workspaces"
 	},
+	"knowledgeBase": {
+		"sourceUnavailable": "Source unavailable",
+		"fetchFailed": "Unable to fetch knowledge base file",
+		"loadError": "Failed to load knowledge base file",
+		"sourceLabel": "Source knowledge base",
+		"openInNewWindow": "Open in new window",
+		"unsupportedPreview": "Preview is not supported for this knowledge source file. Open it in a new window."
+	},
+	"knowledgeSearch": {
+		"action": "Search knowledge",
+		"running": "Searching…",
+		"hits": "hits",
+		"empty": "No relevant entries found",
+		"error": "Search failed: knowledge base is unavailable.",
+		"untitledDocument": "Untitled document",
+		"wordCount": "{{count}} words",
+		"openSourceAria": "Open source {{title}}",
+		"toggleResults": "Expand or collapse search results",
+		"detailEmpty": "No knowledge search details",
+		"detailTitle": "Knowledge Search Details",
+		"queryLabel": "Query: {{query}}",
+		"documentCount": "Documents {{shown}}/{{total}}",
+		"snippetCount": "Snippets {{shown}}/{{total}}",
+		"detailTruncated": "Results were truncated. Only part of the recalled content is shown.",
+		"detailErrorFallback": "Knowledge search failed",
+		"detailEmptyFallback": "No matching knowledge content found",
+		"documentCodeLabel": "document_code: {{code}}",
+		"fileKeyLabel": "file_key: {{fileKey}}",
+		"noSnippet": "This document did not return snippet details",
+		"snippetRank": "Snippet #{{rank}}",
+		"scoreLabel": "Score {{score}}",
+		"truncatedTag": "Truncated",
+		"statusSuccess": "Search succeeded",
+		"statusEmpty": "No results",
+		"statusError": "Search failed",
+		"statusFallback": "Details"
+	},
 	"citations": {
+		"badgeAria": "Citation {{index}}",
 		"sourceCount": "{{count}} knowledge base citations",
 		"openSource": "Open source"
 	}

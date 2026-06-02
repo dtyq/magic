@@ -1,9 +1,9 @@
 import { useCallback, useMemo, type MouseEvent, lazy } from "react"
 import { observer } from "mobx-react-lite"
 import DefaultTool from "./tools/DefaultTool"
+import KnowledgeSearchTool from "./tools/KnowledgeSearchTool"
 import WriteFileTool from "./tools/WriteFile"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import { useTranslation } from "react-i18next"
 import { isEmpty, pick } from "lodash-es"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { getToolDesignProjectInfo } from "@/pages/superMagic/components/Detail/contents/Design/utils/toolDesignProjectInfo"
@@ -12,6 +12,12 @@ import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { MCPTool } from "./tools/MCPTool"
 
 const AskUserToolCall = lazy(() => import("./tools/askUser"))
+
+interface ToolDetail {
+	type?: string
+	data?: Record<string, unknown>
+	[key: string]: unknown
+}
 
 interface ToolCallItem {
 	id: string
@@ -27,7 +33,7 @@ interface ToolCallItem {
 		action?: string
 		status?: string
 		remark?: string
-		detail?: Record<string, unknown>
+		detail?: ToolDetail
 		attachments?: Array<any> | null
 		[key: string]: unknown
 	}
@@ -57,36 +63,57 @@ export const ToolCall = observer(function ToolCall(props: ToolCallProps) {
 		selectedTopic,
 		isShare,
 	} = props
-	const { t } = useTranslation("super")
-
 	const toolResponse = superMagicStore.toolResponseMap.get(topicId)?.get(toolCall?.id)
 	const effectiveResponse = toolResponse || toolCall?.tool
-	const isToolLoading = !effectiveResponse?.status || effectiveResponse?.status === "running"
+	const effectiveDetail = useMemo(
+		() =>
+			isRecord(effectiveResponse?.detail)
+				? (effectiveResponse.detail as ToolDetail)
+				: undefined,
+		[effectiveResponse],
+	)
+	const effectiveStatus = useMemo(
+		() => resolveToolStatus(effectiveResponse, effectiveDetail),
+		[effectiveResponse, effectiveDetail],
+	)
+	const isToolLoading = effectiveStatus ? effectiveStatus === "running" : !effectiveResponse
 
 	const toolData = useMemo(() => {
+		const action =
+			typeof effectiveResponse?.action === "string"
+				? effectiveResponse.action
+				: toolCall?.function?.label
+		const remark =
+			typeof effectiveResponse?.remark === "string"
+				? effectiveResponse.remark
+				: toolCall?.tool?.remark
+		const attachments = Array.isArray(effectiveResponse?.attachments)
+			? effectiveResponse.attachments
+			: []
+
 		return {
 			id: toolCall?.id,
 			name: toolCall?.function?.name,
-			action: effectiveResponse?.action || toolCall?.function?.label,
-			remark: effectiveResponse?.remark || toolCall?.tool?.remark,
-			status: effectiveResponse?.status,
-			attachments: effectiveResponse?.attachments || [],
+			action,
+			remark,
+			status: effectiveStatus,
+			attachments,
 			rawArguments: toolCall?.function?.arguments,
-			detail: effectiveResponse?.detail as { data?: Record<string, unknown> } | undefined,
+			detail: effectiveDetail,
 		}
 	}, [
 		toolCall?.id,
 		toolCall?.function?.name,
 		toolCall?.function?.arguments,
 		toolCall?.tool,
-		t,
 		effectiveResponse,
+		effectiveDetail,
+		effectiveStatus,
 	])
 
 	const onClick = useCallback(() => {
 		const toolInfo = pick(toolData, ["name", "url", "action", "remark", "id"])
-		const toolResponse = superMagicStore.toolResponseMap.get(topicId)?.get(toolCall?.id)
-		const newDetail = { ...toolResponse?.detail, ...toolInfo }
+		const newDetail = { ...toolData?.detail, ...toolInfo }
 
 		if (DisabledDetailToolTypes.includes(toolData?.name) || isEmpty(toolData?.detail)) return
 
@@ -111,14 +138,15 @@ export const ToolCall = observer(function ToolCall(props: ToolCallProps) {
 
 		if (toolName && designToolNames.includes(toolName)) {
 			const { designProjectId, designProject, elements } = getToolDesignProjectInfo(toolData)
+			const canvasDesignId = String(designProjectId || "")
 			pubsub.publish(PubSubEvents.Open_File_Tab, {
 				...designProject,
-				fileId: designProjectId,
+				fileId: canvasDesignId,
 			})
-			if (elements.length > 0 && designProjectId) {
+			if (elements.length > 0 && canvasDesignId) {
 				setTimeout(() => {
 					pubsub.publish(PubSubEvents.Super_Magic_Focus_Canvas_Element, {
-						canvasDesignId: designProjectId,
+						canvasDesignId,
 						elementIds: elements.map((item) => item.id),
 						selectElement: [elements[0].id],
 						animated: false,
@@ -148,7 +176,7 @@ export const ToolCall = observer(function ToolCall(props: ToolCallProps) {
 				onClick={onClick}
 				toolData={toolData}
 				loading={isToolLoading}
-				classNames={classNames}
+				classNames={classNames ? { markdown: classNames } : undefined}
 				onSelectDetail={onSelectDetail}
 				onMouseEnter={onMouseEnter}
 				onMouseLeave={onMouseLeave}
@@ -183,6 +211,22 @@ export const ToolCall = observer(function ToolCall(props: ToolCallProps) {
 			/>
 		)
 	}
+	if (
+		toolCall?.function?.name === "search_knowledge" ||
+		toolData.detail?.type === "knowledge_search" ||
+		toolData.detail?.data?.type === "knowledge_search"
+	) {
+		return (
+			<KnowledgeSearchTool
+				onClick={onClick}
+				toolData={toolData}
+				loading={isToolLoading}
+				classNames={classNames}
+				onMouseEnter={onMouseEnter}
+				onMouseLeave={onMouseLeave}
+			/>
+		)
+	}
 	return (
 		<DefaultTool
 			onClick={onClick}
@@ -195,3 +239,23 @@ export const ToolCall = observer(function ToolCall(props: ToolCallProps) {
 		/>
 	)
 })
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === "object" && !Array.isArray(value)
+}
+
+function resolveToolStatus(response: unknown, detail?: ToolDetail) {
+	const responseRecord = isRecord(response) ? response : undefined
+	const detailData = isRecord(detail?.data) ? detail.data : undefined
+
+	return (
+		getStringValue(responseRecord, "status") ||
+		getStringValue(detail, "status") ||
+		getStringValue(detailData, "status")
+	)
+}
+
+function getStringValue(record: Record<string, unknown> | undefined, key: string) {
+	const value = record?.[key]
+	return typeof value === "string" ? value : undefined
+}

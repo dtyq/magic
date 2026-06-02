@@ -35,6 +35,7 @@ import PreviewDetailPopup, {
 import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import { useMobileFilePreviewPubSub } from "@/pages/superMagic/hooks/useMobileFilePreviewPubSub"
+import { useMobileKnowledgeBasePreview } from "@/pages/superMagic/hooks/useMobileKnowledgeBasePreview"
 import { LongMemory } from "@/types/longMemory"
 import { cn } from "@/lib/utils"
 import ProjectPageInputContainer from "@/pages/superMagic/components/ProjectPageInputContainer"
@@ -47,6 +48,7 @@ import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { MessageListContextState } from "@/pages/superMagic/components/MessageList/context"
 import { useTopicConversationLoading } from "@/pages/superMagic/hooks/useTopicConversationLoading"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
+import KnowledgeBasePreviewPopup from "@/pages/superMagic/components/KnowledgeBasePreviewPopup"
 
 interface TopicPageProps {
 	onHistoryClick?: () => void
@@ -458,6 +460,7 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 		setUserSelectDetail,
 		onFileClick,
 	})
+	const knowledgeBasePreviewState = useMobileKnowledgeBasePreview()
 
 	return (
 		<div className={cn(styles.container, className)}>
@@ -536,6 +539,7 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 					// 关闭链接弹层时不做任何操作
 				}}
 			/>
+			<KnowledgeBasePreviewPopup state={knowledgeBasePreviewState} />
 		</div>
 	)
 }

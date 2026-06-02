@@ -150,7 +150,8 @@ export function useTopicDetailPanelController({
 		const handleOpenKnowledgeBaseTab = (data: unknown) => {
 			const payload = data as {
 				knowledgeBaseId: string
-				fileKey: string
+				documentCode?: string
+				fileKey?: string
 				title: string
 				knowledgeBaseName?: string
 				fileExtension?: string

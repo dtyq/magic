@@ -222,6 +222,24 @@ export const generateKnowledgeApi = (fetch: HttpClient) => ({
 	},
 
 	/**
+	 * 获取知识库源文件打开链接
+	 */
+	getKnowledgeSourceFileLink(params: Knowledge.GetKnowledgeSourceFileLinkParams) {
+		return fetch.post<{ data: Knowledge.KnowledgeSourceFileLink }>(
+			genRequestUrl(
+				"/go/api/v1/knowledge-bases/${knowledge_base_code}/documents/${document_code}/source-file-link",
+				{
+					knowledge_base_code: params.knowledgeBaseCode,
+					document_code: params.documentCode,
+				},
+			),
+			{
+				file_key: params.fileKey,
+			},
+		)
+	},
+
+	/**
 	 * 获取知识库的文档详情
 	 */
 	getKnowledgeDocumentDetail(params: { knowledge_code: string; document_code: string }) {

@@ -6,9 +6,10 @@ import MarkdownComponent from "../../Text/components/Markdown"
 import { useStyles } from "./styles"
 import { isEmpty } from "lodash-es"
 import { cn } from "@/lib/utils"
-import { parseCitations, trimIncompleteCiteMarker } from "@/pages/superMagic/utils/parseCitations"
+import { extractCitations, trimIncompleteCitationTag } from "@/pages/superMagic/utils/citations"
 import { CitationCard } from "../../Citations"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { hasKnowledgeBaseTabTarget } from "@/pages/superMagic/events/openFileTab"
 
 interface AgentReplyNode {
 	content?: string
@@ -16,7 +17,7 @@ interface AgentReplyNode {
 }
 
 function AgentReply(props: NodeProps) {
-	const { onMouseEnter, onMouseLeave, classNames, onFileClick } = props
+	const { onMouseEnter, onMouseLeave, classNames, selectedTopic } = props
 	const { styles, cx } = useStyles()
 
 	const [highlightedCitation, setHighlightedCitation] = useState<number | null>(null)
@@ -29,17 +30,21 @@ function AgentReply(props: NodeProps) {
 		| undefined
 
 	const rawContent = node?.content || ""
+	const topicId = props?.node?.topic_id || selectedTopic?.chat_topic_id || ""
+	const correlationId = props?.node?.correlation_id || ""
+	const messageId = props?.node?.app_message_id || ""
+	const streamState =
+		superMagicStore.getStreamState(topicId, correlationId)?.stage ||
+		superMagicStore.getStreamState(topicId, messageId)?.stage
+	const isContentStreaming = streamState === "content"
 
-	// 解析引用数据：分离 <references> 块和正文
-	const { content, citations, isReferencesStreaming } = useMemo(
-		() => parseCitations(rawContent),
-		[rawContent],
-	)
+	// 解析引用数据；references/ref 标签由 Markdown 自定义组件隐藏
+	const citations = useMemo(() => extractCitations(rawContent), [rawContent])
 
-	// 流式阶段：截断末尾不完整的 {{cite: 标记
+	// 流式阶段：截断末尾不完整的 <citation> 标签，避免原生 HTML 解析吞掉后续文本
 	const displayContent = useMemo(
-		() => (isReferencesStreaming ? trimIncompleteCiteMarker(content) : content),
-		[content, isReferencesStreaming],
+		() => (isContentStreaming ? trimIncompleteCitationTag(rawContent) : rawContent),
+		[rawContent, isContentStreaming],
 	)
 
 	return (
@@ -63,7 +68,7 @@ function AgentReply(props: NodeProps) {
 				<MarkdownComponent
 					content={displayContent}
 					className={cx(styles.githubMarkdown, classNames?.markdown, "text-foreground")}
-					isStreaming={false}
+					isStreaming={isContentStreaming}
 					showCursor={false}
 					citations={citations}
 					highlightedCitation={highlightedCitation}
@@ -78,11 +83,16 @@ function AgentReply(props: NodeProps) {
 					onFileClick={(citation) => {
 						if (
 							citation.type === "knowledge_base" &&
-							(citation.knowledge_base_id || citation.file_key)
+							hasKnowledgeBaseTabTarget({
+								knowledgeBaseId: citation.knowledge_base_id || "",
+								documentCode: citation.document_code,
+								fileKey: citation.file_key,
+							})
 						) {
 							pubsub.publish(PubSubEvents.Open_Knowledge_Base_Tab, {
 								knowledgeBaseId: citation.knowledge_base_id || "",
-								fileKey: citation.file_key || "",
+								documentCode: citation.document_code,
+								fileKey: citation.file_key,
 								title: citation.title,
 								knowledgeBaseName: citation.knowledge_base_name,
 								fileExtension: citation.file_extension,

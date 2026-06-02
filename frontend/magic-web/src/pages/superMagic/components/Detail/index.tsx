@@ -57,7 +57,8 @@ export interface DetailRef {
 	closePlaybackTab: () => void
 	openKnowledgeBaseTab: (data: {
 		knowledgeBaseId: string
-		fileKey: string
+		documentCode?: string
+		fileKey?: string
 		title: string
 		knowledgeBaseName?: string
 		fileExtension?: string

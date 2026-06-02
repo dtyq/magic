@@ -1,4 +1,5 @@
 import { memo } from "react"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 
 interface CitationBadgeProps {
@@ -18,6 +19,8 @@ function CitationBadge({
 	clickable = true,
 	onClick,
 }: CitationBadgeProps) {
+	const { t } = useTranslation("super")
+
 	return (
 		<button
 			type="button"
@@ -33,7 +36,10 @@ function CitationBadge({
 						? "bg-primary/10 text-primary hover:bg-primary/20"
 						: "bg-muted-foreground/15 text-muted-foreground",
 			)}
-			aria-label={`引用 ${index}`}
+			aria-label={t("citations.badgeAria", {
+				index,
+				defaultValue: "引用 {{index}}",
+			})}
 		>
 			{index}
 		</button>
