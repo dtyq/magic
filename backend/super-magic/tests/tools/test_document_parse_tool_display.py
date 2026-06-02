@@ -171,8 +171,8 @@ def test_document_converter_tools_expose_only_intent_params():
 
 @pytest.mark.asyncio
 async def test_inspect_document_corrects_unique_punctuation_only_path(tmp_path: Path, monkeypatch):
-    actual = tmp_path / "关于审定《关于全域推进“莞香家园”住宅小区建设》的请示.docx"
-    requested = tmp_path / "关于审定《关于全域推进\"莞香家园\"住宅小区建设》的请示.docx"
+    actual = tmp_path / "mock-report-“quoted-title”.docx"
+    requested = tmp_path / "mock-report-\"quoted-title\".docx"
     _write_minimal_docx(actual)
 
     async def fake_inspect(self, path: Path):
@@ -205,9 +205,9 @@ async def test_inspect_document_corrects_unique_punctuation_only_path(tmp_path: 
 
 @pytest.mark.asyncio
 async def test_inspect_document_does_not_guess_when_punctuation_match_is_ambiguous(tmp_path: Path):
-    requested = tmp_path / "关于\"事项\"的请示.docx"
-    _write_minimal_docx(tmp_path / "关于“事项”的请示.docx")
-    _write_minimal_docx(tmp_path / "关于”事项“的请示.docx")
+    requested = tmp_path / "mock-\"subject\"-request.docx"
+    _write_minimal_docx(tmp_path / "mock-“subject”-request.docx")
+    _write_minimal_docx(tmp_path / "mock-”subject“-request.docx")
 
     result = await InspectDocument().execute(
         None,

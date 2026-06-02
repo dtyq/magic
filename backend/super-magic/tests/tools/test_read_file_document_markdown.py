@@ -55,11 +55,11 @@ async def test_read_file_still_reads_direct_text_files(tmp_path):
 
 @pytest.mark.asyncio
 async def test_read_file_fuzzy_matches_medium_risk_filename_symbols(tmp_path):
-    file_path = tmp_path / "关于《事项》 - 1.TXT"
+    file_path = tmp_path / "mock《title》 - 1.TXT"
     file_path.write_text("matched content\n", encoding="utf-8")
 
     tool = ReadFile(base_dir=tmp_path)
-    result = await tool.execute_purely(ReadFileParams(file_path='关于"事项"_1.txt', limit=-1))
+    result = await tool.execute_purely(ReadFileParams(file_path='mock"title"_1.txt', limit=-1))
 
     assert result.ok
     assert "matched content" in result.content

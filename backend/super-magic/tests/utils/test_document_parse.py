@@ -703,7 +703,7 @@ async def test_pdf_visual_mode_persists_recognition_result(tmp_path: Path, monke
         return []
 
     async def fake_visual(path: Path, pages, query=None):
-        return "## 第 1 页\n\nChart recognition result."
+        return "## Page 1\n\nMock chart recognition result."
 
     monkeypatch.setattr("app.utils.document_parse.drivers.pdf_driver.PdfMetadata.inspect", fake_metadata)
     monkeypatch.setattr("app.utils.document_parse.drivers.pdf_driver.PdfOutlineReader.read", fake_outline)
@@ -712,7 +712,7 @@ async def test_pdf_visual_mode_persists_recognition_result(tmp_path: Path, monke
     extraction = await PdfDocumentDriver().extract(source, output_dir, ranges="1", mode="visual")
 
     assert extraction.metadata["visual_result_path"] == "visual-results/pdf_pages_1.md"
-    assert (output_dir / "visual-results" / "pdf_pages_1.md").read_text(encoding="utf-8") == "## 第 1 页\n\nChart recognition result."
+    assert (output_dir / "visual-results" / "pdf_pages_1.md").read_text(encoding="utf-8") == "## Page 1\n\nMock chart recognition result."
     assert extraction.chunks[0].path == "chunks/chunk_0001.md"
 
 
