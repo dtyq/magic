@@ -3,28 +3,29 @@ from pathlib import Path
 import pytest
 
 from agentlang.tools.tool_result import ToolResult
-from app.utils.document_parse.service.document_extractor import DocumentExtractor
+from app.tools.document_parse.export_document_markdown import ExportDocumentMarkdown
+from app.utils.document_parse.drivers.generic import GenericMarkItDownDriver
+from app.utils.document_parse.drivers.pdf_driver import PdfDocumentDriver
+from app.utils.document_parse.drivers.powerpoint_driver import PowerPointDocumentDriver
+from app.utils.document_parse.drivers.registry import get_document_driver_registry
+from app.utils.document_parse.drivers.spreadsheet_driver import SpreadsheetDocumentDriver
+from app.utils.document_parse.drivers.word_driver import WordDocumentDriver
+from app.utils.document_parse.models import DocumentAsset, DocumentChunk, DocumentProfile, ExtractionResult
 from app.utils.document_parse.service.document_artifact_mode import DocumentArtifactModeSelector
+from app.utils.document_parse.service.document_extractor import DocumentExtractor
+from app.utils.document_parse.service.document_format_converter import DocumentFormatConverter
+from app.utils.document_parse.service.document_image_understander import DocumentImageUnderstander
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.document_inspector import DocumentInspector
-from app.utils.document_parse.service.document_image_understander import DocumentImageUnderstander
 from app.utils.document_parse.service.document_reading_planner import DocumentReadingPlanner
 from app.utils.document_parse.service.document_sampler import DocumentSampler
 from app.utils.document_parse.service.document_summarizer import DocumentSummarizer
-from app.utils.document_parse.drivers.pdf_driver import PdfDocumentDriver
-from app.utils.document_parse.drivers.generic import GenericMarkItDownDriver
-from app.utils.document_parse.drivers.registry import get_document_driver_registry
-from app.utils.document_parse.drivers.word_driver import WordDocumentDriver
-from app.utils.document_parse.drivers.spreadsheet_driver import SpreadsheetDocumentDriver
-from app.utils.document_parse.drivers.powerpoint_driver import PowerPointDocumentDriver
-from app.utils.document_parse.models import DocumentAsset, DocumentChunk, DocumentProfile, ExtractionResult
 from app.utils.document_parse.structure.chunk_store import ChunkStore
 from app.utils.document_parse.structure.range_parser import RangeParser
-from app.utils.file_parse.driver.interfaces.file_parser_driver_interface import ParseMetadata, ParseResult
-from app.utils.file_parse.driver.word_driver import WordDriver as FileParseWordDriver
 from app.utils.file_parse.driver.excel_driver import ExcelDriver as FileParseExcelDriver
+from app.utils.file_parse.driver.interfaces.file_parser_driver_interface import ParseMetadata, ParseResult
 from app.utils.file_parse.driver.powerpoint_driver import PowerPointDriver as FileParsePowerPointDriver
-from app.tools.document_parse.export_document_markdown import ExportDocumentMarkdown
+from app.utils.file_parse.driver.word_driver import WordDriver as FileParseWordDriver
 
 
 def test_range_parser_compacts_numeric_ranges():
@@ -56,6 +57,94 @@ def test_presentation_like_formats_route_to_powerpoint_document_driver(suffix: s
     driver = get_document_driver_registry().get_driver(Path(f"/tmp/sample{suffix}"))
 
     assert isinstance(driver, PowerPointDocumentDriver)
+
+
+@pytest.mark.asyncio
+async def test_async_move_file_falls_back_to_copy_unlink_on_cross_device(tmp_path: Path, monkeypatch):
+    import errno
+
+    from app.utils.async_file_utils import async_move_file
+
+    source = tmp_path / "source.tmp"
+    destination = tmp_path / "nested" / "destination.tmp"
+    source.write_text("converted content", encoding="utf-8")
+
+    async def fake_rename(src, dst):
+        raise OSError(errno.EXDEV, "Invalid cross-device link")
+
+    monkeypatch.setattr("app.utils.async_file_utils.aiofiles.os.rename", fake_rename)
+
+    await async_move_file(source, destination)
+
+    assert not source.exists()
+    assert destination.read_text(encoding="utf-8") == "converted content"
+
+
+@pytest.mark.asyncio
+async def test_document_format_converter_moves_office_output_with_cross_device_safe_move(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source.docx"
+    source.write_bytes(b"docx")
+    output_dir = tmp_path / "output"
+    converted = tmp_path / "converted-from-libreoffice.docx"
+    converted.write_bytes(b"converted")
+    moves: list[tuple[Path, Path]] = []
+
+    async def fake_convert_document(input_file: Path, target_format: str, output_filename_prefix: str = "converted") -> Path:
+        return converted
+
+    async def fake_move_file(src: Path, dst: Path) -> None:
+        moves.append((src, dst))
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(src.read_bytes())
+        src.unlink()
+
+    monkeypatch.setattr(
+        "app.utils.file_parse.utils.libreoffice_util.LibreOfficeUtil.convert_document",
+        fake_convert_document,
+    )
+    monkeypatch.setattr("app.utils.document_parse.service.document_format_converter.async_move_file", fake_move_file)
+
+    result = await DocumentFormatConverter().convert(source, output_dir, "docx")
+
+    expected = output_dir / converted.name
+    assert result == [expected]
+    assert moves == [(converted, expected)]
+    assert expected.read_bytes() == b"converted"
+    assert not converted.exists()
+
+
+@pytest.mark.asyncio
+async def test_document_format_converter_moves_pdf_page_images_with_cross_device_safe_move(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source.pdf"
+    source.write_bytes(b"%PDF-1.7")
+    output_dir = tmp_path / "output"
+    page_image = tmp_path / "page-1.png"
+    page_image.write_bytes(b"png")
+    moves: list[tuple[Path, Path]] = []
+
+    async def fake_inspect(path: Path):
+        return {"page_count": 1}
+
+    async def fake_render_pages(path: Path, pages):
+        return [(1, page_image)]
+
+    async def fake_move_file(src: Path, dst: Path) -> None:
+        moves.append((src, dst))
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(src.read_bytes())
+        src.unlink()
+
+    monkeypatch.setattr("app.utils.document_parse.pdf.pdf_metadata.PdfMetadata.inspect", fake_inspect)
+    monkeypatch.setattr("app.utils.document_parse.pdf.pdf_page_renderer.PdfPageRenderer.render_pages", fake_render_pages)
+    monkeypatch.setattr("app.utils.document_parse.service.document_format_converter.async_move_file", fake_move_file)
+
+    result = await DocumentFormatConverter().convert(source, output_dir, "png", ranges="1")
+
+    expected = output_dir / "source_page_001.png"
+    assert result == [expected]
+    assert moves == [(page_image, expected)]
+    assert expected.read_bytes() == b"png"
+    assert not page_image.exists()
 
 
 @pytest.mark.asyncio
@@ -400,7 +489,9 @@ async def test_sampler_recommends_text_extraction_for_text_pdf(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_document_image_understander_writes_visual_results_back_to_chunk(tmp_path: Path, monkeypatch):
     import json
+
     from PIL import Image
+
     from app.utils.async_file_utils import async_write_json
 
     output_dir = tmp_path / "doc.document"
@@ -469,7 +560,9 @@ async def test_document_image_understander_writes_visual_results_back_to_chunk(t
 @pytest.mark.asyncio
 async def test_document_image_understander_reuses_existing_visual_result_for_chunk_writeback(tmp_path: Path, monkeypatch):
     import json
+
     from PIL import Image
+
     from app.utils.async_file_utils import async_write_json
 
     output_dir = tmp_path / "doc.document"
@@ -551,7 +644,9 @@ async def test_document_image_understander_reuses_existing_visual_result_for_chu
 @pytest.mark.asyncio
 async def test_document_image_understander_serializes_multiple_images_in_one_chunk(tmp_path: Path, monkeypatch):
     import json
+
     from PIL import Image
+
     from app.utils.async_file_utils import async_write_json
 
     output_dir = tmp_path / "doc.document"
@@ -620,7 +715,9 @@ async def test_document_image_understander_serializes_multiple_images_in_one_chu
 @pytest.mark.asyncio
 async def test_document_image_understander_keeps_failed_result_out_of_chunk(tmp_path: Path, monkeypatch):
     import json
+
     from PIL import Image
+
     from app.utils.async_file_utils import async_write_json
 
     output_dir = tmp_path / "doc.document"

@@ -7,17 +7,18 @@
 """
 
 import asyncio
-import re
-import aiofiles
-import aiofiles.os
-import shutil
+import errno
 import json
 import os
+import re
+import shutil
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Callable, Union, Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
+import aiofiles
+import aiofiles.os
 import yaml
 
 from agentlang.logger import get_logger
@@ -294,6 +295,48 @@ async def async_rename(src: Union[str, Path], dst: Union[str, Path]) -> None:
     except Exception as e:
         logger.error(f"异步重命名失败 {src_str} -> {dst_str}: {e}")
         raise
+
+
+async def async_move_file(src: Union[str, Path], dst: Union[str, Path]) -> None:
+    """
+    异步移动文件，支持跨文件系统移动。
+
+    与 async_rename 不同，本函数只用于文件移动语义：优先使用 rename；
+    如果源和目标位于不同设备（例如 /tmp -> S3 挂载的 .workspace），
+    则回退为复制文件内容后删除源文件。
+
+    Args:
+        src: 源文件路径
+        dst: 目标文件路径
+
+    Raises:
+        FileNotFoundError: 源路径不存在
+        IsADirectoryError: 源路径或目标路径是目录
+        PermissionError: 权限不足
+        OSError: 移动失败
+    """
+    src_path = Path(src)
+    dst_path = Path(dst)
+    src_str = str(src_path)
+    dst_str = str(dst_path)
+
+    try:
+        logger.debug(f"开始异步移动文件: {src_str} -> {dst_str}")
+        await async_mkdir(dst_path.parent, parents=True, exist_ok=True)
+        await aiofiles.os.rename(src_str, dst_str)
+        logger.debug(f"异步移动文件完成(rename): {src_str} -> {dst_str}")
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            logger.error(f"异步移动文件失败 {src_str} -> {dst_str}: {e}")
+            raise
+        logger.warning(f"跨设备移动文件，改用复制后删除: {src_str} -> {dst_str}")
+        try:
+            await asyncio.to_thread(shutil.copyfile, src_path, dst_path)
+            await aiofiles.os.remove(src_str)
+            logger.debug(f"异步移动文件完成(copy+unlink): {src_str} -> {dst_str}")
+        except Exception as copy_error:
+            logger.error(f"跨设备移动文件失败 {src_str} -> {dst_str}: {copy_error}")
+            raise
 
 
 async def async_rmdir(path: Union[str, Path]) -> None:

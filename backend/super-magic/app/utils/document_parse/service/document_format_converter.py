@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from app.utils.async_file_utils import async_mkdir, async_rename
+from app.utils.async_file_utils import async_mkdir, async_move_file
 
 from ..constants import POWERPOINT_EXTENSIONS, SPREADSHEET_EXTENSIONS, WORD_EXTENSIONS
 from ..pdf.pdf_page_renderer import PdfPageRenderer
@@ -27,7 +27,7 @@ class DocumentFormatConverter:
             output_paths: list[Path] = []
             for page_no, temp_path in rendered:
                 out = output_dir / f"{input_path.stem}_page_{page_no:03d}.{target}"
-                await async_rename(temp_path, out)
+                await async_move_file(temp_path, out)
                 output_paths.append(out)
             return output_paths
 
@@ -38,7 +38,7 @@ class DocumentFormatConverter:
             converted = await LibreOfficeUtil.convert_document(input_path, target, output_dir.name)
             final_path = output_dir / converted.name
             if converted != final_path:
-                await async_rename(converted, final_path)
+                await async_move_file(converted, final_path)
             return [final_path]
 
         raise ValueError(f"unsupported format conversion: {suffix} -> {target_format}")
