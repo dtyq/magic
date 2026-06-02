@@ -1,4 +1,6 @@
 import pytest
+import zipfile
+from pathlib import Path
 
 from agentlang.tools.tool_result import ToolResult
 from app.tools.document_parse.build_document_index import BuildDocumentIndex
@@ -10,6 +12,13 @@ from app.tools.document_parse.plan_document_reading import PlanDocumentReading
 from app.tools.document_parse.sample_document_content import SampleDocumentContent
 from app.tools.document_parse.summarize_document import SummarizeDocument
 from app.tools.document_parse.understand_document_images import UnderstandDocumentImages
+from app.utils.document_parse.models import DocumentProfile
+
+
+def _write_minimal_docx(path: Path) -> None:
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types></Types>")
+        archive.writestr("word/document.xml", "<w:document></w:document>")
 
 
 @pytest.mark.asyncio
@@ -131,3 +140,67 @@ def test_document_converter_tools_expose_only_intent_params():
     assert set(PlanDocumentReading().get_params_class().model_fields) == {"output_dir", "goal"}
     assert set(SummarizeDocument().get_params_class().model_fields) == {"output_dir"}
     assert set(ConvertDocumentFormat().get_params_class().model_fields) == {"input_path", "output_dir", "target_format", "ranges"}
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_corrects_unique_punctuation_only_path(tmp_path: Path, monkeypatch):
+    actual = tmp_path / "关于审定《关于全域推进“莞香家园”住宅小区建设》的请示.docx"
+    requested = tmp_path / "关于审定《关于全域推进\"莞香家园\"住宅小区建设》的请示.docx"
+    _write_minimal_docx(actual)
+
+    async def fake_inspect(self, path: Path):
+        return DocumentProfile(
+            source_path=str(path),
+            file_name=path.name,
+            file_type="word",
+            file_extension=".docx",
+            file_size=actual.stat().st_size,
+            unit_type="section",
+            total_units=1,
+            recommended_strategy="test",
+        )
+
+    monkeypatch.setattr(
+        "app.tools.document_parse.inspect_document.DocumentInspector.inspect",
+        fake_inspect,
+    )
+
+    result = await InspectDocument().execute(
+        None,
+        InspectDocument().get_params_class()(input_path=str(requested)),
+    )
+
+    assert result.ok
+    assert "Path auto-correction applied" in result.content
+    assert str(actual) in result.content
+    assert result.extra_info["source_path"] == str(actual)
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_does_not_guess_when_punctuation_match_is_ambiguous(tmp_path: Path):
+    requested = tmp_path / "关于\"事项\"的请示.docx"
+    _write_minimal_docx(tmp_path / "关于“事项”的请示.docx")
+    _write_minimal_docx(tmp_path / "关于”事项“的请示.docx")
+
+    result = await InspectDocument().execute(
+        None,
+        InspectDocument().get_params_class()(input_path=str(requested)),
+    )
+
+    assert not result.ok
+    assert "File does not exist" in result.content
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_rejects_obvious_extension_signature_mismatch(tmp_path: Path):
+    wrong_pdf = tmp_path / "report.pdf"
+    wrong_pdf.write_bytes(b"not a pdf")
+
+    result = await InspectDocument().execute(
+        None,
+        InspectDocument().get_params_class()(input_path=str(wrong_pdf)),
+    )
+
+    assert not result.ok
+    assert "File format mismatch" in result.content
+    assert "Expected a %PDF header" in result.content

@@ -22,9 +22,8 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_is_dir
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
-from .path_utils import require_absolute_path
+from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class BuildDocumentIndexParams(BaseToolParams):
@@ -49,22 +48,26 @@ class BuildDocumentIndex(AbstractFileTool[BuildDocumentIndexParams], WorkspaceTo
 
     async def execute(self, tool_context: ToolContext, params: BuildDocumentIndexParams) -> ToolResult:
         """Write an empty index/outline based on document structure only."""
-        input_path, error = require_absolute_path(params.input_path, "input_path")
+        _, error = require_absolute_path(params.input_path, "input_path")
         if error:
             return error
         output_dir, error = require_absolute_path(params.output_dir, "output_dir")
         if error:
             return error
-        if not await async_exists(input_path):
-            return ToolResult.error(f"File does not exist: {params.input_path}")
-        if await async_is_dir(input_path):
-            return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
+        resolved, error = await require_valid_input_file(params.input_path, "input_path")
+        if error:
+            return error
+        assert resolved is not None
+        input_path = resolved.path
         structure = await DocumentIndexer().build_empty(input_path, output_dir)
         if tool_context:
             await self._dispatch_file_event(tool_context, str(output_dir / "document.index.json"), EventType.FILE_CREATED)
             await self._dispatch_file_event(tool_context, str(output_dir / "document.outline.md"), EventType.FILE_CREATED)
         return ToolResult(
-            content=f"Document index generated: `{output_dir}/document.index.json` and `{output_dir}/document.outline.md`",
+            content=prepend_correction_note(
+                f"Document index generated: `{output_dir}/document.index.json` and `{output_dir}/document.outline.md`",
+                resolved.correction_note,
+            ),
             extra_info={"output_dir": str(output_dir), "structure": structure.to_dict()},
         )
 

@@ -21,9 +21,8 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_is_dir
 from app.utils.document_parse.service.document_format_converter import DocumentFormatConverter
-from .path_utils import require_absolute_path
+from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class ConvertDocumentFormatParams(BaseToolParams):
@@ -58,22 +57,24 @@ class ConvertDocumentFormat(AbstractFileTool[ConvertDocumentFormatParams], Works
 
     async def execute(self, tool_context: ToolContext, params: ConvertDocumentFormatParams) -> ToolResult:
         """Convert the source file into the requested output format."""
-        input_path, error = require_absolute_path(params.input_path, "input_path")
+        _, error = require_absolute_path(params.input_path, "input_path")
         if error:
             return error
         output_dir, error = require_absolute_path(params.output_dir, "output_dir")
         if error:
             return error
-        if not await async_exists(input_path):
-            return ToolResult.error(f"File does not exist: {params.input_path}")
-        if await async_is_dir(input_path):
-            return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
+        resolved, error = await require_valid_input_file(params.input_path, "input_path")
+        if error:
+            return error
+        assert resolved is not None
+        input_path = resolved.path
         outputs = await DocumentFormatConverter().convert(input_path, output_dir, params.target_format, params.ranges)
         output_paths = [str(path) for path in outputs]
         if tool_context:
             for path in outputs:
                 await self._dispatch_file_event(tool_context, str(path), EventType.FILE_CREATED)
-        return ToolResult(content="Format conversion completed:\n" + "\n".join(f"- `{path}`" for path in output_paths), extra_info={"output_files": output_paths})
+        content = "Format conversion completed:\n" + "\n".join(f"- `{path}`" for path in output_paths)
+        return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info={"output_files": output_paths})
 
     async def get_before_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None

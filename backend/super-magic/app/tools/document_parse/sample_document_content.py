@@ -22,11 +22,10 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_is_dir
 from app.utils.document_parse.constants import DEFAULT_SAMPLE_MAX_UNITS
 from app.utils.document_parse.service.document_sampler import DocumentSampler
 
-from .path_utils import require_absolute_path
+from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class SampleDocumentContentParams(BaseToolParams):
@@ -56,16 +55,17 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
 
     async def execute(self, tool_context: ToolContext, params: SampleDocumentContentParams) -> ToolResult:
         """Write bounded document samples and update progressive reading state."""
-        input_path, error = require_absolute_path(params.input_path, "input_path")
+        _, error = require_absolute_path(params.input_path, "input_path")
         if error:
             return error
         output_dir, error = require_absolute_path(params.output_dir, "output_dir")
         if error:
             return error
-        if not await async_exists(input_path):
-            return ToolResult.error(f"File does not exist: {params.input_path}")
-        if await async_is_dir(input_path):
-            return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
+        resolved, error = await require_valid_input_file(params.input_path, "input_path")
+        if error:
+            return error
+        assert resolved is not None
+        input_path = resolved.path
 
         result = await DocumentSampler().sample(
             input_path,
@@ -93,7 +93,7 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
             f"- Reading state: `{output_dir}/document.reading_state.json`",
         ])
         return ToolResult(
-            content=content,
+            content=prepend_correction_note(content, resolved.correction_note),
             extra_info={
                 "profile": asdict(profile),
                 "sample_path": result["sample_path"],

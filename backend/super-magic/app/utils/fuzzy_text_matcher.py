@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 import re
+import unicodedata
 
 @dataclass
 class TextMatchResult:
@@ -55,10 +56,12 @@ class NormalizedText:
 
     text: 归一化后的文本
     index_map: 归一化后每个字符对应原文中的起始索引
+    end_index_map: 归一化后每个字符对应原文中的结束索引（开区间）
     """
 
     text: str
     index_map: list[int]
+    end_index_map: list[int]
 
 
 # 合并自原 file_path_fuzzy_matcher.py 和 punctuation_matcher.py 的中文标点表
@@ -72,6 +75,10 @@ PUNCTUATION_MAP: dict[str, str] = {
     '？': '?',
     '（': '(',
     '）': ')',
+    '“': '"',
+    '”': '"',
+    '‘': "'",
+    '’': "'",
     '"': '"',
     '"': '"',
     ''': "'",
@@ -82,10 +89,26 @@ PUNCTUATION_MAP: dict[str, str] = {
     '】': ']',
     '、': ',',
     '—': '-',
+    '–': '-',
+    '−': '-',
+    '―': '-',
+    '﹣': '-',
     '－': '-',
+    '…': '...',
     '｛': '{',
     '｝': '}',
 }
+
+# 零宽和格式控制字符：常见于复制粘贴或模型生成，不应影响匹配。
+_IGNORABLE_CHARS: frozenset[str] = frozenset({
+    '\ufeff',  # byte order mark
+    '\u200b',  # zero width space
+    '\u200c',  # zero width non-joiner
+    '\u200d',  # zero width joiner
+    '\u2060',  # word joiner
+    '\ufe0e',  # variation selector text style
+    '\ufe0f',  # variation selector emoji style
+})
 
 # Unicode 特殊空白字符，统一映射为普通空格
 # 参考 clawhub apply-patch-update.ts normalizePunctuation 的覆盖范围
@@ -123,12 +146,30 @@ def normalize_for_match(text: str) -> str:
     return normalize_with_index_map(text).text
 
 
+def normalize_filename_for_match(filename: str) -> str:
+    """文件名匹配键。
+
+    在通用文本归一化基础上，仅额外忽略扩展名大小写。
+    不全量 lowercase 文件名主体，避免在大小写敏感路径中误匹配不同文件。
+    """
+    normalized = normalize_for_match(filename)
+    suffix = Path(normalized).suffix
+    if not suffix:
+        return normalized
+    return normalized[: -len(suffix)] + suffix.lower()
+
+
 def _normalize_char(ch: str) -> str:
     """归一化单个字符，保持 1:1 映射。"""
+    if ch in _IGNORABLE_CHARS:
+        return ""
     if ch in PUNCTUATION_MAP:
         return PUNCTUATION_MAP[ch]
     if ch in _UNICODE_SPACES or ch == "\t":
         return " "
+    code = ord(ch)
+    if 0xFF01 <= code <= 0xFF5E:
+        return chr(code - 0xFEE0)
     return ch
 
 
@@ -151,18 +192,36 @@ def normalize_with_index_map(text: str) -> NormalizedText:
     """
     stage1_chars: list[str] = []
     stage1_indexes: list[int] = []
+    stage1_end_indexes: list[int] = []
     for idx, ch in enumerate(text):
-        stage1_chars.append(_normalize_char(ch))
-        stage1_indexes.append(idx)
+        normalized_char = _normalize_char(ch)
+        if not normalized_char:
+            continue
+
+        # Unicode 组合形式归一：例如 "e" + "\u0301" 与 "é" 视为等价。
+        if unicodedata.combining(ch) and stage1_chars:
+            composed = unicodedata.normalize("NFC", stage1_chars[-1] + ch)
+            if len(composed) == 1:
+                stage1_chars[-1] = composed
+                stage1_end_indexes[-1] = idx + 1
+                continue
+
+        normalized_char = unicodedata.normalize("NFC", normalized_char)
+        for normalized_piece in normalized_char:
+            stage1_chars.append(normalized_piece)
+            stage1_indexes.append(idx)
+            stage1_end_indexes.append(idx + 1)
 
     result_chars: list[str] = []
     result_indexes: list[int] = []
+    result_end_indexes: list[int] = []
     i = 0
     while i < len(stage1_chars):
         current = stage1_chars[i]
         if current != " ":
             result_chars.append(current)
             result_indexes.append(stage1_indexes[i])
+            result_end_indexes.append(stage1_end_indexes[i])
             i += 1
             continue
 
@@ -179,9 +238,10 @@ def normalize_with_index_map(text: str) -> NormalizedText:
         for j in range(i, run_end + 1):
             result_chars.append(" ")
             result_indexes.append(stage1_indexes[j])
+            result_end_indexes.append(stage1_end_indexes[j])
         i = run_end + 1
 
-    return NormalizedText(text="".join(result_chars), index_map=result_indexes)
+    return NormalizedText(text="".join(result_chars), index_map=result_indexes, end_index_map=result_end_indexes)
 
 
 def _find_all_occurrences(haystack: str, needle: str) -> list[int]:
@@ -238,7 +298,7 @@ def find_in_text(
             start = positions[0]
             end = start + len(normalized_needle)
             start_index = normalized_haystack.index_map[start]
-            end_index = normalized_haystack.index_map[end - 1] + 1
+            end_index = normalized_haystack.end_index_map[end - 1]
             actual = haystack[start_index:end_index]
             if actual != needle:
                 return TextMatchResult(
@@ -262,12 +322,12 @@ def find_unique_in_filenames(
     if not directory.exists() or not directory.is_dir():
         return None
 
-    target_norm = normalize_for_match(target_name)
+    target_norm = normalize_filename_for_match(target_name)
 
     matches: list[Path] = []
     try:
         for entry in directory.iterdir():
-            if entry.is_file() and normalize_for_match(entry.name) == target_norm:
+            if entry.is_file() and normalize_filename_for_match(entry.name) == target_norm:
                 matches.append(entry)
     except OSError:
         return None

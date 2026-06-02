@@ -22,12 +22,11 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_is_dir
 from app.utils.document_parse.constants import DEFAULT_CHUNK_MAX_CHARS
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.reading_state import ReadingStateStore
-from .path_utils import require_absolute_path
+from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class ExtractDocumentContentParams(BaseToolParams):
@@ -57,16 +56,17 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
 
     async def execute(self, tool_context: ToolContext, params: ExtractDocumentContentParams) -> ToolResult:
         """Extract selected document ranges into bounded Markdown chunks."""
-        input_path, error = require_absolute_path(params.input_path, "input_path")
+        _, error = require_absolute_path(params.input_path, "input_path")
         if error:
             return error
         output_dir, error = require_absolute_path(params.output_dir, "output_dir")
         if error:
             return error
-        if not await async_exists(input_path):
-            return ToolResult.error(f"File does not exist: {params.input_path}")
-        if await async_is_dir(input_path):
-            return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
+        resolved, error = await require_valid_input_file(params.input_path, "input_path")
+        if error:
+            return error
+        assert resolved is not None
+        input_path = resolved.path
         extraction = await DocumentExtractor().extract(
             input_path,
             output_dir,
@@ -104,7 +104,7 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
         extra["index_path"] = f"{output_dir_str}/document.index.json"
         extra["outline_path"] = f"{output_dir_str}/document.outline.md"
         extra["structure"] = structure.to_dict()
-        return ToolResult(content=content, extra_info=extra)
+        return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info=extra)
 
     async def get_before_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None

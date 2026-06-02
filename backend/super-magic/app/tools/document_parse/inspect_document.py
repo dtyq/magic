@@ -21,9 +21,8 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_is_dir
 from app.utils.document_parse.service.document_inspector import DocumentInspector
-from .path_utils import require_absolute_path
+from .path_utils import prepend_correction_note, require_valid_input_file
 
 
 class InspectDocumentParams(BaseToolParams):
@@ -43,13 +42,11 @@ class InspectDocument(AbstractFileTool[InspectDocumentParams], WorkspaceTool[Ins
 
     async def execute(self, tool_context: ToolContext, params: InspectDocumentParams) -> ToolResult:
         """Return a lightweight document profile for planning later reads."""
-        path, error = require_absolute_path(params.input_path, "input_path")
+        resolved, error = await require_valid_input_file(params.input_path, "input_path")
         if error:
             return error
-        if not await async_exists(path):
-            return ToolResult.error(f"File does not exist: {params.input_path}")
-        if await async_is_dir(path):
-            return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
+        assert resolved is not None
+        path = resolved.path
         profile = await DocumentInspector().inspect(path)
         data = asdict(profile)
         outline_count = len(profile.outline)
@@ -61,7 +58,7 @@ class InspectDocument(AbstractFileTool[InspectDocumentParams], WorkspaceTool[Ins
             f"- Outline nodes: {outline_count}\n"
             f"- Recommended strategy: {profile.recommended_strategy}"
         )
-        return ToolResult(content=content, extra_info=data)
+        return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info=data)
 
     async def get_before_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None

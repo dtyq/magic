@@ -33,7 +33,7 @@ from app.utils.document_parse.service.document_inspector import DocumentInspecto
 from app.utils.document_parse.service.reading_state import ReadingStateStore
 from app.utils.document_parse.structure.range_parser import RangeParser
 
-from .path_utils import require_absolute_path
+from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class ExportDocumentMarkdownParams(BaseToolParams):
@@ -63,16 +63,17 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
 
     async def execute(self, tool_context: ToolContext, params: ExportDocumentMarkdownParams) -> ToolResult:
         """Export selected or full document content as Markdown artifacts."""
-        input_path, error = require_absolute_path(params.input_path, "input_path")
+        _, error = require_absolute_path(params.input_path, "input_path")
         if error:
             return error
         output_dir, error = require_absolute_path(params.output_dir, "output_dir")
         if error:
             return error
-        if not await async_exists(input_path):
-            return ToolResult.error(f"File does not exist: {params.input_path}")
-        if await async_is_dir(input_path):
-            return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
+        resolved, error = await require_valid_input_file(params.input_path, "input_path")
+        if error:
+            return error
+        assert resolved is not None
+        input_path = resolved.path
         try:
             profile = await DocumentInspector().inspect(input_path)
             artifact_mode = DocumentArtifactModeSelector.resolve("auto", profile, DEFAULT_CHUNK_MAX_CHARS)
@@ -80,9 +81,9 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             return ToolResult.error(str(exc))
 
         if artifact_mode == "simple":
-            return await self._execute_simple(tool_context, params, input_path, output_dir, profile.file_type)
+            return await self._execute_simple(tool_context, params, input_path, output_dir, profile.file_type, resolved.correction_note)
 
-        return await self._execute_progressive(tool_context, params, input_path, output_dir)
+        return await self._execute_progressive(tool_context, params, input_path, output_dir, resolved.correction_note)
 
     async def _execute_progressive(
         self,
@@ -90,10 +91,11 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         params: ExportDocumentMarkdownParams,
         input_path: Path,
         output_dir: Path,
+        correction_note: str | None,
     ) -> ToolResult:
         existing_chunks = await self._load_existing_chunks_for_export(input_path, output_dir, params.ranges)
         if existing_chunks:
-            return await self._write_existing_progressive_export(tool_context, input_path, output_dir, existing_chunks)
+            return await self._write_existing_progressive_export(tool_context, input_path, output_dir, existing_chunks, correction_note)
 
         extraction = await DocumentExtractor().extract(
             input_path,
@@ -145,7 +147,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         extra["combined_path"] = combined_path_str
         extra["artifact_mode"] = "progressive"
         extra["structure"] = structure.to_dict()
-        return ToolResult(content="\n".join(content_lines), extra_info=extra)
+        return ToolResult(content=prepend_correction_note("\n".join(content_lines), correction_note), extra_info=extra)
 
     async def _write_existing_progressive_export(
         self,
@@ -153,6 +155,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         input_path: Path,
         output_dir: Path,
         chunks: list[DocumentChunk],
+        correction_note: str | None,
     ) -> ToolResult:
         combined_path = await MarkdownWriter.write_combined(output_dir / "document.md", chunks, input_path.stem)
         if tool_context:
@@ -170,7 +173,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             f"- Combined Markdown: `{combined_path_str}`",
         ]
         return ToolResult(
-            content="\n".join(content_lines),
+            content=prepend_correction_note("\n".join(content_lines), correction_note),
             extra_info={
                 "chunks": [asdict(chunk) for chunk in chunks],
                 "index_path": f"{output_dir_str}/document.index.json",
@@ -188,6 +191,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         input_path: Path,
         output_dir: Path,
         file_type: str,
+        correction_note: str | None,
     ) -> ToolResult:
         await async_mkdir(output_dir, parents=True, exist_ok=True)
         temp_dir = output_dir / ".simple-export-tmp"
@@ -236,7 +240,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         extra["index_path"] = None
         extra["outline_path"] = None
         extra["reading_state_path"] = None
-        return ToolResult(content="\n".join(content_lines), extra_info=extra)
+        return ToolResult(content=prepend_correction_note("\n".join(content_lines), correction_note), extra_info=extra)
 
     @staticmethod
     async def _copy_simple_optional_dir(temp_dir: Path, output_dir: Path, dirname: str) -> None:

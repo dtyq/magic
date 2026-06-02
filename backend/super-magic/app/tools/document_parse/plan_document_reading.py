@@ -20,10 +20,9 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_is_dir
 from app.utils.document_parse.service.document_reading_planner import DocumentReadingPlanner
 
-from .path_utils import require_absolute_path
+from .path_utils import prepend_correction_note, require_existing_output_dir
 
 
 class PlanDocumentReadingParams(BaseToolParams):
@@ -48,13 +47,11 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
 
     async def execute(self, tool_context: ToolContext, params: PlanDocumentReadingParams) -> ToolResult:
         """Return the next recommended bounded document reading step."""
-        output_dir, error = require_absolute_path(params.output_dir, "output_dir")
+        resolved, error = await require_existing_output_dir(params.output_dir, "output_dir")
         if error:
             return error
-        if not await async_exists(output_dir):
-            return ToolResult.error(f"Output directory does not exist: {params.output_dir}")
-        if not await async_is_dir(output_dir):
-            return ToolResult.error(f"Output path is not a directory: {params.output_dir}")
+        assert resolved is not None
+        output_dir = resolved.path
 
         plan = await DocumentReadingPlanner().plan(output_dir, goal=params.goal, budget=None)
         content = "\n".join([
@@ -68,7 +65,7 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
         ])
         if plan.get("risks"):
             content += "\n" + "\n".join(f"- Risk: {risk}" for risk in plan["risks"])
-        return ToolResult(content=content, extra_info=plan)
+        return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info=plan)
 
     async def get_before_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
