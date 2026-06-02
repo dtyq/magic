@@ -78,6 +78,7 @@ db.sqlite3-journal
 config/mcp.json
 .mcp/
 .compare/
+config/config.local.yaml
 config/dynamic_config.yaml
 .client_message/
 config/tool_definitions.json
