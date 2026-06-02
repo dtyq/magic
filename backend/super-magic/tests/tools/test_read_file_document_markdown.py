@@ -54,6 +54,20 @@ async def test_read_file_still_reads_direct_text_files(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_read_file_fuzzy_matches_medium_risk_filename_symbols(tmp_path):
+    file_path = tmp_path / "关于《事项》 - 1.TXT"
+    file_path.write_text("matched content\n", encoding="utf-8")
+
+    tool = ReadFile(base_dir=tmp_path)
+    result = await tool.execute_purely(ReadFileParams(file_path='关于"事项"_1.txt', limit=-1))
+
+    assert result.ok
+    assert "matched content" in result.content
+    assert "Path Auto-Correction Applied" in result.content
+    assert result.extra_info["read_path"] == str(file_path)
+
+
+@pytest.mark.asyncio
 async def test_read_file_after_remark_includes_paged_line_range(tmp_path):
     file_path = tmp_path / "notes.md"
     file_path.write_text("\n".join([f"line {i}" for i in range(1, 21)]), encoding="utf-8")

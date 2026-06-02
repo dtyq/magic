@@ -131,6 +131,10 @@ _UNICODE_SPACES: frozenset[str] = frozenset({
 # CJK 统一汉字基本区 + 扩展 A
 _CJK_RANGE = r'\u4e00-\u9fff\u3400-\u4dbf'
 _CJK_RE = re.compile(rf'[{_CJK_RANGE}]')
+_FILENAME_LEADING_NUMBER_RE = re.compile(r"^([0-9一二三四五六七八九十]+)[,.]\s*")
+_FILENAME_SOFT_WRAPPERS_RE = re.compile(r"\s*[<>\"']\s*")
+_FILENAME_SEPARATOR_RE = re.compile(r"\s*[-_:|]+\s*")
+_FILENAME_PUNCTUATION_SPACE_RE = re.compile(r"\s*([,.;!?()\[\]{}])\s*")
 
 
 def normalize_for_match(text: str) -> str:
@@ -149,14 +153,31 @@ def normalize_for_match(text: str) -> str:
 def normalize_filename_for_match(filename: str) -> str:
     """文件名匹配键。
 
-    在通用文本归一化基础上，仅额外忽略扩展名大小写。
+    在通用文本归一化基础上，额外处理文件名中常见的中风险符号差异：
+    - 扩展名大小写
+    - 标点周围多余空格
+    - 书名号/引号这类软包裹符
+    - `-` / `_` / `:` / `|` 这类常见文件名分隔符
+    - 开头编号分隔符（如 `1、` vs `1.`）
+
     不全量 lowercase 文件名主体，避免在大小写敏感路径中误匹配不同文件。
     """
     normalized = normalize_for_match(filename)
     suffix = Path(normalized).suffix
     if not suffix:
-        return normalized
-    return normalized[: -len(suffix)] + suffix.lower()
+        return _normalize_filename_body_for_match(normalized)
+    body = normalized[: -len(suffix)]
+    return _normalize_filename_body_for_match(body) + suffix.lower()
+
+
+def _normalize_filename_body_for_match(body: str) -> str:
+    """文件名主体的软符号归一化，仅用于路径候选唯一匹配。"""
+    text = re.sub(r"\s+", " ", body).strip()
+    text = _FILENAME_SOFT_WRAPPERS_RE.sub("", text)
+    text = _FILENAME_SEPARATOR_RE.sub("-", text)
+    text = _FILENAME_PUNCTUATION_SPACE_RE.sub(r"\1", text)
+    text = _FILENAME_LEADING_NUMBER_RE.sub(r"\1.", text)
+    return text
 
 
 def _normalize_char(ch: str) -> str:
