@@ -7,6 +7,7 @@
 2. 标签未正确闭合或嵌套错误（如 <limit>10 缺少 </limit>）
 3. 根节点名称错误（如 <search> 而非 <requirements>）
 4. 纯文本（LLM 完全跳过 XML 直接给出搜索词）
+5. 参数在 <query> 文本后截断，缺少 </query> 及后续闭合标签
 """
 
 import re
@@ -22,7 +23,8 @@ def fallback_parse_requirements_xml(xml_string: str) -> Tuple[List[Dict[str, Any
     依次尝试以下策略：
     1. 从字符串中正则提取 <requirements>...</requirements> 片段后重新解析
     2. 用正则逐个提取 <query> 标签内容
-    3. 将纯文本按行作为搜索关键词
+    3. 用正则提取未闭合 <query> 后的文本
+    4. 将纯文本按行作为搜索关键词
 
     Args:
         xml_string: 可能格式不正确的 XML 字符串
@@ -57,9 +59,10 @@ def fallback_parse_requirements_xml(xml_string: str) -> Tuple[List[Dict[str, Any
         except ET.ParseError:
             pass
 
-    # 策略2: 用正则逐个提取 <query>...</query> 内容
+    # 策略2: 用正则逐个提取 <query>...</query> 内容，并补充最后被截断的 <query>
     query_matches = re.findall(r'<query[^>]*>(.*?)</query>', xml_string, re.DOTALL | re.IGNORECASE)
     name_matches = re.findall(r'<name[^>]*>(.*?)</name>', xml_string, re.DOTALL | re.IGNORECASE)
+    seen_queries = set()
 
     if query_matches:
         for i, query_text in enumerate(query_matches):
@@ -72,10 +75,32 @@ def fallback_parse_requirements_xml(xml_string: str) -> Tuple[List[Dict[str, Any
                 else query_text[:20]
             )
             requirements.append(_build_default_requirement(name=name_text, query=query_text))
+            seen_queries.add(query_text)
+
+    # 策略3: <query> 已打开但未闭合，常见于参数在 query 文本后被截断
+    open_query_matches = re.findall(r'<query[^>]*>([^<]+)', xml_string, re.DOTALL | re.IGNORECASE)
+    if open_query_matches:
+        added_unclosed_query = False
+        for i, query_text in enumerate(open_query_matches):
+            query_text = query_text.strip()
+            if not query_text or query_text in seen_queries:
+                continue
+            name_text = (
+                name_matches[i].strip()
+                if i < len(name_matches) and name_matches[i].strip()
+                else query_text[:20]
+            )
+            requirements.append(_build_default_requirement(name=name_text, query=query_text))
+            seen_queries.add(query_text)
+            added_unclosed_query = True
         if requirements:
+            if query_matches and added_unclosed_query:
+                return requirements, "XML格式异常，已通过正则提取query字段并补充未闭合query兜底解析"
+            if added_unclosed_query:
+                return requirements, "XML格式异常，已通过未闭合query字段兜底解析"
             return requirements, "XML格式异常，已通过正则提取query字段兜底解析"
 
-    # 策略3: 整个字符串不包含任何 XML 标签，可能 LLM 直接传了纯文本搜索词
+    # 策略4: 整个字符串不包含任何 XML 标签，可能 LLM 直接传了纯文本搜索词
     stripped = xml_string.strip()
     if stripped and not re.search(r'<[a-zA-Z/]', stripped):
         lines = [line.strip() for line in stripped.split('\n') if line.strip()]
