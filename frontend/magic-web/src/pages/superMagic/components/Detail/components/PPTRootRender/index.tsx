@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import { Flex } from "antd"
 import PPTRender from "../PPTRender"
@@ -21,6 +21,10 @@ function normalizeFolderPath(relativePath?: string, fileName?: string): string {
 
 function getAttachmentFileName(item: any): string {
 	return item?.file_name || item?.name || item?.filename || item?.display_filename || ""
+}
+
+function getSlidesSignature(slides: string[] | undefined): string {
+	return JSON.stringify(slides || [])
 }
 
 /**
@@ -70,6 +74,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 	const [currentAttachmentList, setCurrentAttachmentList] = useState<any>([])
 	const [magicProjectContent, setMagicProjectContent] = useState<string>()
 	const [magicProjectLoading, setMagicProjectLoading] = useState(false)
+	const pendingLocalSlidePathsRef = useRef<string[] | null>(null)
 	// 标记是否至少完成过一次内容解析，避免路径计算中误展示空态
 	const [hasProcessedContent, setHasProcessedContent] = useState(false)
 	const processAttachments = attachments || attachmentList || []
@@ -225,6 +230,19 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 				displayConfig,
 			})
 
+			if (shouldUseMagicProject && pendingLocalSlidePathsRef.current) {
+				const pendingSlidePaths = pendingLocalSlidePathsRef.current
+				const isMagicProjectCaughtUp =
+					getSlidesSignature(result.originalSlidesPaths) ===
+					getSlidesSignature(pendingSlidePaths)
+
+				if (!isMagicProjectCaughtUp) {
+					return
+				}
+
+				pendingLocalSlidePathsRef.current = null
+			}
+
 			setFilePathMapping(result.filePathMapping)
 			setOriginalSlidesPaths(result.originalSlidesPaths)
 		} catch (error) {
@@ -263,6 +281,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 
 	// Handle sort panel save
 	const handleSortSave = useCallback((newSlidesPaths: string[]) => {
+		pendingLocalSlidePathsRef.current = newSlidesPaths
 		setOriginalSlidesPaths(newSlidesPaths)
 	}, [])
 

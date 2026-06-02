@@ -45,14 +45,6 @@ export class PPTScreenshotManager {
 		})
 
 		try {
-			// Mark as loading
-			runInAction(() => {
-				if (slides[index]) {
-					slides[index].thumbnailLoading = true
-					slides[index].thumbnailError = undefined
-				}
-			})
-
 			// Use URL as cache key if available
 			const cacheKey = slide.url || `slide-${index}`
 
@@ -73,11 +65,21 @@ export class PPTScreenshotManager {
 				runInAction(() => {
 					if (slides[index]) {
 						slides[index].thumbnailUrl = cachedUrl
-						slides[index].thumbnailLoading = false
+						if (slides[index].thumbnailLoading) {
+							slides[index].thumbnailLoading = false
+						}
 					}
 				})
 				return
 			}
+
+			// Mark as loading only when a new screenshot actually needs to be generated.
+			runInAction(() => {
+				if (slides[index]) {
+					slides[index].thumbnailLoading = true
+					slides[index].thumbnailError = undefined
+				}
+			})
 
 			// Generate new screenshot
 			this.logger.debug("生成新的截图", {

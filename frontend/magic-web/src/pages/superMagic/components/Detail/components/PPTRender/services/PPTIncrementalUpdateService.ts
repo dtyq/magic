@@ -3,15 +3,20 @@ import type { SlideItem } from "../PPTSidebar/types"
 import type { PPTLoggerService } from "./PPTLoggerService"
 import type { PPTPathMappingService } from "./PPTPathMappingService"
 import type { SlideScreenshotService } from "./SlideScreenshotService"
-import { AttachmentItem } from "../../../../TopicFilesButton/hooks/types"
+import type { AttachmentItem } from "../../../../TopicFilesButton/hooks/types"
 
 export interface IncrementalUpdateContext {
 	slides: SlideItem[]
 	activeIndex: number
 	autoLoadAndGenerate: boolean
 	loadSlideContent: (url: string, index: number) => Promise<string>
+	loadSlideContentByFileId?: (
+		fileId: string,
+		options?: { path?: string; url?: string; indexHint?: number },
+	) => Promise<string>
 	loadSlideContentSilently?: (url: string, index: number) => Promise<string>
 	generateSlideScreenshot: (index: number, targetContent?: string) => Promise<void>
+	ensureSlideScreenshot?: (index: number) => Promise<void>
 	setSlides: (slides: SlideItem[]) => void
 	setActiveIndex: (index: number) => void
 	isSlideManuallySaved?: (fileId: string) => boolean
@@ -310,8 +315,15 @@ export class PPTIncrementalUpdateService {
 
 		// Load new slides if autoLoadAndGenerate is enabled
 		if (context.autoLoadAndGenerate) {
-			const newSlideIndices = added.map(({ index }) => index)
-			await this.loadSpecificSlides(newSlideIndices, context)
+			await this.loadSpecificSlides(
+				added.map(({ path, index }) => ({
+					index,
+					path,
+					fileId: this.pathMappingService.getFileIdByPath(path),
+					url: context.slides[index]?.url,
+				})),
+				context,
+			)
 		}
 	}
 
@@ -405,8 +417,14 @@ export class PPTIncrementalUpdateService {
 						context.notifyServerUpdate(fileId, newContent)
 					}
 
-					// 使用新的内容重新生成截图
-					context.generateSlideScreenshot(index, newContent)
+					// 使用新的内容重新生成截图；截图前按 fileId 重新定位，避免插入/删除导致 index 漂移。
+					const currentIndex = context.slides.findIndex(
+						(slide) => this.pathMappingService.getFileIdByPath(slide.path) === fileId,
+					)
+					context.generateSlideScreenshot(
+						currentIndex === -1 ? index : currentIndex,
+						newContent,
+					)
 				} catch (error) {
 					this.logger.error("加载正在编辑的幻灯片的新内容失败", error, {
 						operation: "handleFileUpdates",
@@ -440,7 +458,20 @@ export class PPTIncrementalUpdateService {
 
 		// Reload affected slides (only non-editing ones)
 		if (affectedSlideIndices.length > 0) {
-			await this.loadSpecificSlides(affectedSlideIndices, context)
+			await this.loadSpecificSlides(
+				affectedSlideIndices.map((index) => {
+					const slide = context.slides[index]
+					return {
+						index,
+						path: slide?.path,
+						fileId: slide
+							? this.pathMappingService.getFileIdByPath(slide.path)
+							: undefined,
+						url: slide?.url,
+					}
+				}),
+				context,
+			)
 		}
 
 		// Clear manual save marks for skipped slides
@@ -459,27 +490,53 @@ export class PPTIncrementalUpdateService {
 	 * Load specific slides by indices
 	 */
 	private async loadSpecificSlides(
-		indices: number[],
+		targets: Array<{ index: number; path?: string; fileId?: string; url?: string }>,
 		context: IncrementalUpdateContext,
 	): Promise<void> {
-		if (indices.length === 0) return
+		if (targets.length === 0) return
 
 		this.logger.info("加载指定幻灯片", {
 			operation: "loadSpecificSlides",
-			metadata: { slideIndices: indices },
+			metadata: { slideIndices: targets.map(({ index }) => index) },
 		})
 
 		await Promise.all(
-			indices.map(async (index) => {
+			targets.map(async ({ index, path, fileId, url }) => {
 				const slide = context.slides[index]
-				if (!slide || !slide.url) return
+				const targetFileId =
+					fileId ||
+					(slide ? this.pathMappingService.getFileIdByPath(slide.path) : undefined)
+				const targetPath = path || slide?.path
+				const targetUrl = url || slide?.url
+				if (!targetFileId && (!slide || !targetUrl)) return
 
 				try {
-					await context.loadSlideContent(slide.url, index)
+					if (targetFileId && context.loadSlideContentByFileId) {
+						await context.loadSlideContentByFileId(targetFileId, {
+							path: targetPath,
+							url: targetUrl,
+							indexHint: index,
+						})
+					} else if (targetUrl) {
+						await context.loadSlideContent(targetUrl, index)
+					}
 
 					// Generate screenshot if needed
 					if (context.autoLoadAndGenerate) {
-						await context.generateSlideScreenshot(index)
+						const screenshotIndex = targetFileId
+							? context.slides.findIndex(
+									(slide) =>
+										this.pathMappingService.getFileIdByPath(slide.path) ===
+										targetFileId,
+								)
+							: context.slides.findIndex((slide) => slide.path === targetPath)
+						const stableScreenshotIndex =
+							screenshotIndex === -1 ? index : screenshotIndex
+						if (context.ensureSlideScreenshot) {
+							await context.ensureSlideScreenshot(stableScreenshotIndex)
+						} else {
+							await context.generateSlideScreenshot(stableScreenshotIndex)
+						}
 					}
 				} catch (error) {
 					this.logger.error("加载幻灯片失败", error, {

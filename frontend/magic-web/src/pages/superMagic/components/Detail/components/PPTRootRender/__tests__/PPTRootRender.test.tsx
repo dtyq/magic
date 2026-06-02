@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ReactNode } from "react"
 import PPTRootRender from "../index"
@@ -47,8 +47,26 @@ vi.mock("../../../contents/HTML/utils/fetchInterceptor", () => ({
 }))
 
 vi.mock("../../PPTRender", () => ({
-	default: ({ slidePaths }: { slidePaths?: string[] }) => (
-		<div data-testid="ppt-render" data-slide-paths={JSON.stringify(slidePaths || [])} />
+	default: ({
+		slidePaths,
+		onSortSave,
+	}: {
+		slidePaths?: string[]
+		onSortSave?: (slidePaths: string[]) => void
+	}) => (
+		<div data-testid="ppt-render" data-slide-paths={JSON.stringify(slidePaths || [])}>
+			<button
+				type="button"
+				data-testid="local-insert"
+				onClick={() =>
+					onSortSave?.([
+						"slides/slide-1.html",
+						"slides/new-slide.html",
+						"slides/slide-2.html",
+					])
+				}
+			/>
+		</div>
 	),
 }))
 
@@ -70,7 +88,7 @@ function createDeckFiles(magicUpdatedAt: string) {
 	]
 }
 
-function renderRoot(magicUpdatedAt: string) {
+function renderRoot(magicUpdatedAt: string, slides = ["slides/slide-1.html"]) {
 	const attachmentList = createDeckFiles(magicUpdatedAt)
 
 	return render(
@@ -83,7 +101,7 @@ function renderRoot(magicUpdatedAt: string) {
 			attachments={attachmentList}
 			displayConfig={{
 				type: "slide",
-				slides: ["slides/slide-1.html"],
+				slides,
 			}}
 			activeFileId="index-file"
 		/>,
@@ -141,5 +159,67 @@ describe("PPTRootRender", () => {
 
 		expect(screen.queryByTestId("ppt-render")).not.toBeNull()
 		expect(screen.queryByTestId("magic-spin")).toBeNull()
+	})
+
+	it("does not let stale magic.project.js content roll back a local slide insertion", async () => {
+		const oldSlides = ["slides/slide-1.html", "slides/slide-2.html"]
+		const insertedSlides = [
+			"slides/slide-1.html",
+			"slides/new-slide.html",
+			"slides/slide-2.html",
+		]
+
+		mockState.processHtmlContent.mockImplementation(async () => ({
+			filePathMapping: new Map(),
+			originalSlidesPaths: oldSlides,
+		}))
+		mockState.getFileContentById
+			.mockResolvedValueOnce("window.magicProjectConfig = { slides: ['slide-1', 'slide-2'] }")
+			.mockResolvedValueOnce(
+				"window.magicProjectConfig = { slides: ['slide-1', 'slide-2'] }; // stale",
+			)
+
+		const { rerender } = renderRoot("1", oldSlides)
+
+		await waitFor(() => {
+			expect(screen.getByTestId("ppt-render").dataset.slidePaths).toBe(
+				JSON.stringify(oldSlides),
+			)
+		})
+
+		fireEvent.click(screen.getByTestId("local-insert"))
+
+		await waitFor(() => {
+			expect(screen.getByTestId("ppt-render").dataset.slidePaths).toBe(
+				JSON.stringify(insertedSlides),
+			)
+		})
+
+		const updatedAttachmentList = createDeckFiles("2")
+		rerender(
+			<PPTRootRender
+				data={{
+					file_id: "index-file",
+					file_name: "index.html",
+				}}
+				attachmentList={updatedAttachmentList}
+				attachments={updatedAttachmentList}
+				displayConfig={{
+					type: "slide",
+					slides: oldSlides,
+				}}
+				activeFileId="index-file"
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(mockState.getFileContentById).toHaveBeenCalledTimes(2)
+		})
+
+		await waitFor(() => {
+			expect(screen.getByTestId("ppt-render").dataset.slidePaths).toBe(
+				JSON.stringify(insertedSlides),
+			)
+		})
 	})
 })
