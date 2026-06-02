@@ -27,17 +27,30 @@ function buildInlineFragment({ schema, text }: BuildInlineFragmentParams): Fragm
 interface BuildBlockFragmentParams {
 	schema: Schema
 	text: string
+	preserveProseMirrorBlocks?: boolean
 }
 
-function buildBlockFragment({ schema, text }: BuildBlockFragmentParams): Fragment | null {
+function buildParagraphContent(schema: Schema, text: string): Fragment | null {
+	const inlineFragment = buildInlineFragment({ schema, text })
+	return inlineFragment.size > 0 ? inlineFragment : null
+}
+
+function buildBlockFragment({
+	schema,
+	text,
+	preserveProseMirrorBlocks = false,
+}: BuildBlockFragmentParams): Fragment | null {
 	const paragraphType = schema.nodes.paragraph
 	if (!paragraphType) return null
 
 	const normalized = text.replace(/\r\n?/g, "\n")
-	const lines = normalized.split("\n")
-	const blockNodes = lines.map((line) => {
-		if (!line.length) return paragraphType.create()
-		return paragraphType.create(null, schema.text(line))
+	const blocks = preserveProseMirrorBlocks ? normalized.split("\n\n") : normalized.split("\n")
+	const blockNodes = blocks.map((block) => {
+		if (!block.length) return paragraphType.create()
+		const content = preserveProseMirrorBlocks
+			? buildParagraphContent(schema, block)
+			: schema.text(block)
+		return paragraphType.create(null, content)
 	})
 
 	return Fragment.fromArray(blockNodes)
@@ -47,15 +60,42 @@ export interface BuildPasteSliceParams {
 	schema: Schema
 	text: string
 	isTextBlock: boolean
+	preserveProseMirrorBlocks?: boolean
+}
+
+type ClipboardPasteMode = "externalText" | "proseMirrorText" | "proseMirrorSlice"
+
+function isProseMirrorClipboardHTML(html: string): boolean {
+	return html.includes("data-pm-slice")
+}
+
+function hasRichEditorClipboardContent(html: string): boolean {
+	return [
+		/\bmagic-mention\b/,
+		/data-mention-suggestion-char=/,
+		/data-type=["'](?:super-placeholder|inspector-detail)["']/,
+	].some((pattern) => pattern.test(html))
+}
+
+export function getClipboardPasteMode(text: string, html: string): ClipboardPasteMode | null {
+	if (!html) return text ? "externalText" : null
+	if (isProseMirrorClipboardHTML(html)) {
+		return hasRichEditorClipboardContent(html) || !text ? "proseMirrorSlice" : "proseMirrorText"
+	}
+	return /\r?\n/.test(text) ? "externalText" : null
 }
 
 export function shouldHandlePlainTextPaste(text: string, html: string): boolean {
-	if (!text) return false
-	if (!html) return true
-	return /\r?\n/.test(text)
+	const pasteMode = getClipboardPasteMode(text, html)
+	return pasteMode === "externalText" || pasteMode === "proseMirrorText"
 }
 
-export function buildPasteSlice({ schema, text, isTextBlock }: BuildPasteSliceParams): Slice {
+export function buildPasteSlice({
+	schema,
+	text,
+	isTextBlock,
+	preserveProseMirrorBlocks = false,
+}: BuildPasteSliceParams): Slice {
 	const normalized = text.replace(/\r\n?/g, "\n")
 
 	if (!normalized.includes("\n")) {
@@ -63,7 +103,11 @@ export function buildPasteSlice({ schema, text, isTextBlock }: BuildPasteSlicePa
 		return new Slice(inlineFragment, 0, 0)
 	}
 
-	const blockFragment = buildBlockFragment({ schema, text: normalized })
+	const blockFragment = buildBlockFragment({
+		schema,
+		text: normalized,
+		preserveProseMirrorBlocks,
+	})
 	if (!blockFragment) {
 		const inlineFragment = buildInlineFragment({ schema, text: normalized })
 		return new Slice(inlineFragment, 0, 0)
@@ -85,17 +129,16 @@ const CodeAwarePasteExtension = Extension.create({
 			new Plugin({
 				key: new PluginKey("codeAwarePaste"),
 				props: {
-					handlePaste: (view, event) => {
+					handlePaste: (view, event, parsedSlice) => {
 						const clipboardData = event.clipboardData
 						if (!clipboardData) return false
 
 						const text = clipboardData.getData("text/plain")
 						const html = clipboardData.getData("text/html")
-						if (!shouldHandlePlainTextPaste(text, html)) {
+						const pasteMode = getClipboardPasteMode(text, html)
+						if (!pasteMode) {
 							return false
 						}
-
-						if (!text) return false
 
 						event.preventDefault()
 
@@ -103,9 +146,22 @@ const CodeAwarePasteExtension = Extension.create({
 						const { schema } = state
 						if (!schema.nodes.hardBreak) return false
 
+						if (pasteMode === "proseMirrorSlice") {
+							const tr = state.tr.replaceSelection(parsedSlice)
+							dispatch(tr.scrollIntoView())
+							return true
+						}
+
+						if (!text) return false
+
 						const parent = state.selection.$from.parent
 						const isTextBlock = parent.type.isTextblock
-						const slice = buildPasteSlice({ schema, text, isTextBlock })
+						const slice = buildPasteSlice({
+							schema,
+							text,
+							isTextBlock,
+							preserveProseMirrorBlocks: pasteMode === "proseMirrorText",
+						})
 
 						const tr = state.tr
 						tr.replaceSelection(slice)
