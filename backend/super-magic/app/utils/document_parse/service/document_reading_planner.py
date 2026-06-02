@@ -14,7 +14,7 @@ from typing import Any
 
 from app.utils.async_file_utils import async_exists, async_try_read_json
 
-from ..constants import INDEX_FILENAME, READING_STATE_FILENAME
+from ..constants import DEFAULT_IMAGE_UNDERSTANDING_MAX_IMAGES, INDEX_FILENAME, READING_STATE_FILENAME
 from ..structure.range_parser import RangeParser, compact_numeric_ranges
 from .reading_state import ReadingStateStore
 
@@ -27,7 +27,6 @@ class DocumentReadingPlanner:
         index = await async_try_read_json(output_dir / INDEX_FILENAME) if await async_exists(output_dir / INDEX_FILENAME) else None
         source = state or self._state_from_index(index or {}, output_dir)
         max_units = self._budget_number(budget, "page", "unit", default=10)
-        max_images = self._budget_number(budget, "image", default=10)
         action = self._choose_action(source, goal)
         next_range = self._next_range(source, max_units)
         plan = {
@@ -36,7 +35,6 @@ class DocumentReadingPlanner:
             "recommended_action": action,
             "recommended_range": next_range,
             "recommended_mode": self._mode_for_action(action),
-            "max_images": min(max_images, 10),
             "reason": self._reason(source, action),
             "risks": self._risks(source, action),
             "state_path": str(output_dir / READING_STATE_FILENAME),
@@ -129,7 +127,10 @@ class DocumentReadingPlanner:
     @staticmethod
     def _risks(state: dict[str, Any], action: str) -> list[str]:
         if action == "understand_document_images":
-            return ["Do not process more than 10 images per call.", "Visual results must be written back before summarizing."]
+            return [
+                f"understand_document_images processes at most {DEFAULT_IMAGE_UNDERSTANDING_MAX_IMAGES} images per call.",
+                "Visual results must be written back before summarizing.",
+            ]
         if not state.get("metadata", {}).get("last_sample"):
             return ["No sample has been recorded yet; planning confidence is low."]
         return []

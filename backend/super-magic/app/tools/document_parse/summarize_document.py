@@ -9,7 +9,7 @@ Internal responsibility:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pydantic import Field
 
@@ -22,6 +22,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_exists, async_is_dir
+from app.utils.document_parse.constants import DEFAULT_SUMMARY_CHUNK_MAX_CHARS
 from app.utils.document_parse.service.document_summarizer import DocumentSummarizer
 from .path_utils import require_absolute_path
 
@@ -31,11 +32,6 @@ class SummarizeDocumentParams(BaseToolParams):
         ...,
         description="""<!--zh: 包含 document.index.json 和 chunks/ 的输出目录绝对路径，不接受相对路径-->
 Absolute output directory containing document.index.json and chunks/. Relative paths are not accepted"""
-    )
-    max_chunk_chars: int = Field(
-        1200,
-        description="""<!--zh: 摘要草稿中每个 chunk 最多复制的字符数-->
-Maximum characters copied from each chunk into the summary draft"""
     )
 
 
@@ -55,7 +51,7 @@ class SummarizeDocument(AbstractFileTool[SummarizeDocumentParams], WorkspaceTool
             return ToolResult.error(f"Output directory does not exist: {params.output_dir}")
         if not await async_is_dir(output_dir):
             return ToolResult.error(f"Output path is not a directory: {params.output_dir}")
-        summary = await DocumentSummarizer().summarize(output_dir, params.max_chunk_chars)
+        summary = await DocumentSummarizer().summarize(output_dir, DEFAULT_SUMMARY_CHUNK_MAX_CHARS)
         summary_path = output_dir / "document.summary.md"
         if tool_context:
             await self._dispatch_file_event(tool_context, str(summary_path), EventType.FILE_CREATED)

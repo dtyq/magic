@@ -23,6 +23,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_exists, async_is_dir
+from app.utils.document_parse.constants import DEFAULT_CHUNK_MAX_CHARS
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.reading_state import ReadingStateStore
@@ -45,31 +46,6 @@ Absolute output directory for document.index.json, document.outline.md, and chun
         description="""<!--zh: 可选范围表达式，例如页码 `1-3,8`，也可表示 slides、sections、sheets 或 cells-->
 Optional range expression, e.g. pages `1-3,8`, slides, sections, sheets, or cells"""
     )
-    mode: str = Field(
-        "auto",
-        description="""<!--zh: 提取模式。PDF 可使用 local_text 或 visual-->
-Extraction mode. For PDF use local_text or visual"""
-    )
-    max_chars: int = Field(
-        12000,
-        description="""<!--zh: 每个 chunk 的最大字符数-->
-Maximum characters per chunk"""
-    )
-    extract_images: bool = Field(
-        True,
-        description="""<!--zh: 支持时是否提取图片资源-->
-Whether to extract images when supported"""
-    )
-    exclude_watermark_images: bool = Field(
-        True,
-        description="""<!--zh: 支持时是否跳过高置信水印图片-->
-Whether to skip high-confidence watermark images when supported"""
-    )
-    deduplicate_repeated_images: bool = Field(
-        True,
-        description="""<!--zh: 支持时是否对重复图片只保留首个资源，例如每页重复出现的 logo-->
-Whether to keep only the first copy of repeated images such as logos on every page"""
-    )
 
 
 @tool()
@@ -91,18 +67,15 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
             return ToolResult.error(f"File does not exist: {params.input_path}")
         if await async_is_dir(input_path):
             return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
-        if params.mode not in {"auto", "local_text", "visual"}:
-            return ToolResult.error("Unsupported extraction mode. For PDF, use local_text or visual.")
-
         extraction = await DocumentExtractor().extract(
             input_path,
             output_dir,
             ranges=params.ranges,
-            mode=params.mode,
-            max_chars=params.max_chars,
-            extract_images=params.extract_images,
-            exclude_watermark_images=params.exclude_watermark_images,
-            deduplicate_repeated_images=params.deduplicate_repeated_images,
+            mode="auto",
+            max_chars=DEFAULT_CHUNK_MAX_CHARS,
+            extract_images=True,
+            exclude_watermark_images=True,
+            deduplicate_repeated_images=True,
         )
         structure = await DocumentIndexer().build_from_extraction(input_path, output_dir, extraction)
         await ReadingStateStore().mark_extracted(

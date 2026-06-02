@@ -14,15 +14,16 @@ from app.utils.async_file_utils import async_read_text
 class SpreadsheetProfiler:
     @staticmethod
     async def profile(path: Path) -> Dict[str, Any]:
-        if path.suffix.lower() == ".csv":
-            return await SpreadsheetProfiler._profile_csv(path)
+        if path.suffix.lower() in {".csv", ".tsv"}:
+            return await SpreadsheetProfiler._profile_delimited_text(path)
         return await asyncio.to_thread(SpreadsheetProfiler._profile_excel, path)
 
     @staticmethod
-    async def _profile_csv(path: Path) -> Dict[str, Any]:
+    async def _profile_delimited_text(path: Path) -> Dict[str, Any]:
         rows: List[list[str]] = []
         content = await async_read_text(path, encoding="utf-8-sig")
-        reader = csv.reader(io.StringIO(content, newline=""))
+        delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
+        reader = csv.reader(io.StringIO(content, newline=""), delimiter=delimiter)
         for _, row in zip(range(6), reader):
             rows.append(row)
         return {

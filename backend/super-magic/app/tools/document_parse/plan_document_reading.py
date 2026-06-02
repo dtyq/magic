@@ -9,7 +9,7 @@ Internal responsibility:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pydantic import Field
 
@@ -37,11 +37,6 @@ Absolute document output directory containing samples, index, or chunks"""
         description="""<!--zh: 当前阅读目标，例如总结全文、查找条款、提取审批意见-->
 Current reading goal, such as summarizing, finding clauses, or extracting decisions"""
     )
-    budget: Optional[str] = Field(
-        None,
-        description="""<!--zh: 可选阅读预算，例如 `20 pages` 或 `10 images`-->
-Optional reading budget such as `20 pages` or `10 images`"""
-    )
 
 
 @tool()
@@ -61,14 +56,13 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
         if not await async_is_dir(output_dir):
             return ToolResult.error(f"Output path is not a directory: {params.output_dir}")
 
-        plan = await DocumentReadingPlanner().plan(output_dir, goal=params.goal, budget=params.budget)
+        plan = await DocumentReadingPlanner().plan(output_dir, goal=params.goal, budget=None)
         content = "\n".join([
             "Document reading plan completed.",
             "",
             f"- Recommended action: `{plan['recommended_action']}`",
             f"- Recommended mode: `{plan['recommended_mode']}`",
             f"- Recommended range: `{plan.get('recommended_range') or 'not specified'}`",
-            f"- Max images: {plan.get('max_images')}",
             f"- Reason: {plan.get('reason')}",
             f"- State: `{plan.get('state_path')}`",
         ])

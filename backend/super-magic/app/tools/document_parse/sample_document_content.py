@@ -23,6 +23,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_exists, async_is_dir
+from app.utils.document_parse.constants import DEFAULT_SAMPLE_MAX_UNITS
 from app.utils.document_parse.service.document_sampler import DocumentSampler
 
 from .path_utils import require_absolute_path
@@ -39,25 +40,10 @@ Absolute document path to sample. Relative paths are not accepted"""
         description="""<!--zh: 输出目录的绝对路径，用于保存 samples/ 和 document.reading_state.json-->
 Absolute output directory for samples/ and document.reading_state.json"""
     )
-    strategy: str = Field(
-        "auto",
-        description="""<!--zh: 抽样策略，默认 auto-->
-Sampling strategy. Use auto unless a specific range is needed"""
-    )
     ranges: Optional[str] = Field(
         None,
         description="""<!--zh: 可选范围表达式，例如页码或 slide 范围 `1-3,8`-->
 Optional range expression such as pages or slides `1-3,8`"""
-    )
-    max_units: int = Field(
-        5,
-        description="""<!--zh: 最多抽样的结构单位数量，例如页、slide 或 sheet，默认 5-->
-Maximum sampled units, such as pages, slides, or sheets. Default is 5"""
-    )
-    include_images: bool = Field(
-        True,
-        description="""<!--zh: 支持时是否提取图片链接；不会主动进行视觉理解-->
-Whether to include image links when supported. This does not run visual understanding"""
     )
 
 
@@ -84,10 +70,10 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
         result = await DocumentSampler().sample(
             input_path,
             output_dir,
-            strategy=params.strategy,
+            strategy="auto",
             ranges=params.ranges,
-            max_units=params.max_units,
-            include_images=params.include_images,
+            max_units=DEFAULT_SAMPLE_MAX_UNITS,
+            include_images=True,
         )
 
         if tool_context:

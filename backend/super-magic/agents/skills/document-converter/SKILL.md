@@ -28,7 +28,7 @@ Do not start by converting the entire file into one large Markdown document. Fir
 - Prefer text extraction for ordinary document body content.
 - Do not use one strategy blindly for the whole file. If the sample shows extractable text, read text ranges. If the sample is image-dominant or scanned, understand document images in batches.
 - Do not call the generic visual understanding tool directly for document parsing. Use `understand_document_images` so results are saved and written back to chunks.
-- When image understanding is used, process at most 10 images per call. Results must stay under the same source document output directory in `visual-results/` and be written back to the related chunk.
+- When image understanding is used, process at most 10 images per call. Successful results are written back to the related chunk, and `visual-results/` is preserved as the per-image recognition record.
 - Before starting a large visual-understanding workload, call `ask_user` to ask whether the user wants to continue because it may take a long time. This applies when many batches are needed, such as scanned PDFs or slide decks with many image-only pages.
 - Do not call `ask_user` for small visual reads, such as a document with only a few pages or a single batch of up to 10 images that is clearly needed for the user's request.
 - For spreadsheets, inspect sheets, headers, sample rows, and table size before extracting data.
@@ -38,14 +38,14 @@ Do not start by converting the entire file into one large Markdown document. Fir
 
 ## Small Document Rules
 
-- Small files can use `export_document_markdown` directly with the default `artifact_mode: "auto"`.
-- For small files, prefer the simple output structure: `document.md`, plus `assets/` or `visual-results/` only when needed.
+- Small files can use `export_document_markdown` directly. The tool chooses the output artifact mode automatically.
+- For small files, prefer the simple output structure: `document.md`, plus `assets/` when needed. If visual understanding runs, keep `visual-results/` as the recognition record.
 - Do not create samples, chunks, indexes, or reading state just to read a small file.
 - A PDF, Word file, PowerPoint file, or image set with 10 or fewer pages/slides/images is usually small.
-- If a PDF, Word file, PowerPoint file, or image set has more than 10 pages/slides/images, do not force `artifact_mode: "simple"`. The tool will reject simple mode for these files; use progressive mode or targeted extraction.
+- If a PDF, Word file, PowerPoint file, or image set has more than 10 pages/slides/images, use the large-document workflow instead of expecting a flat one-file result.
 - Text, Markdown, and HTML files are small when they fit comfortably within one normal chunk.
 - Small scanned files can be extracted and visually understood directly when needed; do not call `ask_user` unless many visual-understanding batches are required.
-- Use `artifact_mode: "progressive"` only when the user wants the large-document workflow or when the file is small but structurally complex enough to need navigation state.
+- Large-document exports automatically use progressive artifacts.
 
 ## When The User Wants A Summary
 
@@ -65,7 +65,28 @@ Use this sequence:
 
 Use Code Mode as the execution path for this workflow. Keep the user-facing response focused on what was inspected, what was extracted, where the readable result is, and what can be done next. Do not expose internal class names, package paths, implementation details, or raw metadata unless the user asks for debugging details.
 
-Use `sdk.tool.call(...)` from Code Mode. Always check `result.ok` before using the result.
+All document-converter SDK tool calls must be executed through the `run_sdk_snippet` tool by passing code in its `python_code` parameter.
+
+Inside that `python_code`, use `from sdk.tool import tool` and call document-converter tools with `tool.call(...)`. Always check `result.ok` before using the result.
+
+Do not use `run_python_snippet` for document-converter tool calls. `run_python_snippet` is only a generic Python executor; it is not the intended execution path for Code Mode tools that require `sdk.tool.call(...)`.
+
+When a code example below starts with `run_sdk_snippet(...)`, call that tool directly. Do not paste that wrapper into `run_python_snippet`.
+
+Correct execution shape:
+
+```python
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
+
+result = tool.call("inspect_document", {
+    "input_path": "/absolute/path/to/uploads/report.pdf",
+})
+if not result.ok:
+    raise SystemExit(result.content)
+print(result.content)
+""")
+```
 
 All path parameters passed to these tools must be absolute paths.
 
@@ -96,6 +117,7 @@ Re-run extraction only when artifacts are missing, incomplete, point to a differ
 ## Batch Conversion Rules
 
 - Process every file requested by the user. Do not invent a local supported-extension whitelist.
+- Office-like documents may include Microsoft Office, WPS Office, OpenDocument, RTF, templates, macro-enabled files, and slide-show files. Try the document-converter tools first and rely on the tool result to decide whether a specific file can be parsed in the current environment.
 - Prefer calling `inspect_document` or `export_document_markdown` and record the returned error when a file is unsupported.
 - Do not skip images, CSS, logs, configuration files, code files, or small text-like files just because they look different from office documents.
 - Keep the source directory clean. Write reports, summaries, indexes, chunks, and combined Markdown files under the chosen output root, not inside the input directory.
@@ -123,10 +145,7 @@ Parameters:
 
 - `input_path` (required): absolute path to the source document.
 - `output_dir` (required): absolute path to the stable output directory for this source document.
-- `strategy` (optional): sampling strategy. Use `auto` unless the user asked for specific pages or sections.
 - `ranges` (optional): range expression such as `1-3,8`.
-- `max_units` (optional): maximum sampled units. Use the default for first pass.
-- `include_images` (optional): whether image links should be included when supported. This does not run visual understanding.
 
 Do not treat a sample as the final extraction.
 
@@ -138,7 +157,6 @@ Parameters:
 
 - `output_dir` (required): absolute path to the stable output directory containing document-converter artifacts.
 - `goal` (optional): current user goal, such as summary, clause lookup, or extracting decisions.
-- `budget` (optional): reading budget such as `20 pages` or `10 images`.
 
 This tool only recommends the next action. It does not extract or summarize content.
 
@@ -162,11 +180,6 @@ Parameters:
 - `input_path` (required): absolute path to the source document.
 - `output_dir` (required): absolute path to the directory where `chunks/`, `document.index.json`, and `document.outline.md` should be written.
 - `ranges` (optional): range expression for the needed content, such as `1-3,8,10-12`. The range may refer to pages, slides, sections, sheets, or cells depending on file type.
-- `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text and `auto` when no specific mode is needed. Use `visual` only after reading the outline/chunks and confirming that selected scanned or visually complex PDF pages are necessary; visual results must be stored as files.
-- `max_chars` (optional): maximum characters per chunk. Use the default unless the user needs smaller or larger chunk files.
-- `extract_images` (optional): whether image assets should be extracted when supported.
-- `exclude_watermark_images` (optional): whether high-confidence watermark images should be skipped. Keep the default unless the user explicitly needs every raw image.
-- `deduplicate_repeated_images` (optional): whether repeated identical images, such as logos on every page, should be kept only once. Keep the default for normal reading/export tasks.
 
 Do not use this as a blind whole-file converter unless the user explicitly requires a full export.
 
@@ -179,36 +192,23 @@ This tool requires `document.index.json` and image assets under the same `output
 Parameters:
 
 - `output_dir` (required): absolute path to the stable output directory containing `document.index.json`.
-- `images` (optional): absolute image paths to process. At most 10 images per call.
-- `ranges` (optional): page or slide range whose images should be processed, such as `1-10`.
-- `chunk_ids` (optional): chunk ids whose images should be processed.
-- `query` (optional): visual understanding instruction. Leave empty for normal document-image-to-Markdown reading.
-- `write_mode` (optional): use the default unless there is a specific reason.
-- `max_images` (optional): maximum images for this call. Never exceed 10.
-- `concurrency` (optional): internal concurrency. Use the default unless the environment is constrained.
-- `force` (optional): whether to reprocess images that already have results.
+- `ranges` (optional): page or slide range whose images should be processed, such as `1-10`. Omit it to process the next unread image batch.
 
 Use this instead of the generic visual understanding tool when parsing document images.
 
 ### `export_document_markdown`
 
-Use this for the common request "convert this document to Markdown." For large files, inspect and sample first, then choose the export mode and range. It extracts the requested range, writes bounded chunk files, updates the index and outline, and can write a combined Markdown file for user download.
+Use this for the common request "convert this document to Markdown." For large files, inspect and sample first, then export the needed range or let the tool create progressive artifacts. It extracts the requested range, writes bounded chunk files when needed, updates the index and outline for progressive outputs, and writes `document.md` for user reading.
 
 Parameters:
 
 - `input_path` (required): absolute path to the source document.
 - `output_dir` (required): absolute path to the directory where Markdown export artifacts should be written.
 - `ranges` (optional): range expression to export. Omit it when the user explicitly wants the whole document.
-- `mode` (optional): extraction mode. Use `local_text` for ordinary PDF body text. Use `visual` only for selected scanned or visually complex PDF pages after confirming visual recognition is needed; visual results must be stored as files.
-- `max_chars` (optional): maximum characters per chunk.
-- `combined_filename` (optional): file name for the combined Markdown output. Use an empty string to skip the combined file.
-- `artifact_mode` (optional): output artifact mode. Use `auto` by default. Use `simple` only for flat small-file output and `progressive` for full index/chunk/reading-state output. Large files reject `simple`; when that happens, switch to progressive or targeted extraction.
-- `exclude_watermark_images` (optional): whether high-confidence watermark images should be skipped. Keep the default unless the user explicitly needs every raw image.
-- `deduplicate_repeated_images` (optional): whether repeated identical images, such as logos on every page, should be kept only once. Keep the default for normal reading/export tasks.
 
 This tool is a convenience workflow for Markdown export, not a replacement for targeted extraction when the user only needs specific content.
 
-In simple mode, the main artifact is `document.md`. Do not expect `chunks/`, `document.index.json`, `document.outline.md`, or `document.reading_state.json` to exist.
+For small files, the main artifact is `document.md`. Do not expect `chunks/`, `document.index.json`, `document.outline.md`, or `document.reading_state.json` to exist.
 
 In batch exports, `output_dir` must be unique for each source file and should include the source file extension in the directory name.
 
@@ -219,7 +219,6 @@ Use this after chunks already exist. It summarizes from `document.index.json` an
 Parameters:
 
 - `output_dir` (required): absolute path to the directory containing `document.index.json` and `chunks/`.
-- `max_chunk_chars` (optional): maximum characters copied from each chunk into the summary draft.
 
 Do not call this before extracting content.
 
@@ -241,6 +240,7 @@ Do not use this tool for semantic extraction, chunking, indexing, or summarizati
 ### Sample and plan before reading a large document
 
 ```python
+run_sdk_snippet(python_code="""
 import re
 from pathlib import Path
 from sdk.tool import tool
@@ -263,8 +263,6 @@ if not profile.ok:
 sample = tool.call("sample_document_content", {
     "input_path": doc,
     "output_dir": out,
-    "max_units": 5,
-    "include_images": True,
 })
 if not sample.ok:
     raise SystemExit(sample.content)
@@ -272,17 +270,18 @@ if not sample.ok:
 plan = tool.call("plan_document_reading", {
     "output_dir": out,
     "goal": "summarize the document",
-    "budget": "10 pages",
 })
 if not plan.ok:
     raise SystemExit(plan.content)
 
 print(plan.content)
+""")
 ```
 
 ### Extract only the needed range
 
 ```python
+run_sdk_snippet(python_code="""
 from sdk.tool import tool
 
 doc = "/absolute/path/to/uploads/report.pdf"
@@ -292,19 +291,20 @@ result = tool.call("extract_document_content", {
     "input_path": doc,
     "output_dir": out,
     "ranges": "1-3,8,10-12",
-    "mode": "local_text",
 })
 if not result.ok:
     raise SystemExit(result.content)
 
 print(result.content)
+""")
 ```
 
-Use `understand_document_images` for image-only pages after chunks and image assets exist. Use `mode: "visual"` only for selected PDF pages when this dedicated image workflow is not enough.
+Use `understand_document_images` for image-only pages after chunks and image assets exist.
 
 ### Understand scanned or image-only pages
 
 ```python
+run_sdk_snippet(python_code="""
 from sdk.tool import tool
 
 doc = "/absolute/path/to/uploads/report.pdf"
@@ -314,8 +314,6 @@ extract = tool.call("extract_document_content", {
     "input_path": doc,
     "output_dir": out,
     "ranges": "1-10",
-    "mode": "local_text",
-    "extract_images": True,
 })
 if not extract.ok:
     raise SystemExit(extract.content)
@@ -323,17 +321,18 @@ if not extract.ok:
 result = tool.call("understand_document_images", {
     "output_dir": out,
     "ranges": "1-10",
-    "max_images": 10,
 })
 if not result.ok:
     raise SystemExit(result.content)
 
 print(result.content)
+""")
 ```
 
 ### Export a document to Markdown
 
 ```python
+run_sdk_snippet(python_code="""
 import re
 from pathlib import Path
 from sdk.tool import tool
@@ -350,17 +349,18 @@ out = document_output_dir("/absolute/path/to/document-output", doc)
 export = tool.call("export_document_markdown", {
     "input_path": doc,
     "output_dir": out,
-    "artifact_mode": "auto",
 })
 if not export.ok:
     raise SystemExit(export.content)
 
 print(export.content)
+""")
 ```
 
 ### Summarize from the index and chunks
 
 ```python
+run_sdk_snippet(python_code="""
 from sdk.tool import tool
 
 summary = tool.call("summarize_document", {
@@ -370,11 +370,13 @@ if not summary.ok:
     raise SystemExit(summary.content)
 
 print(summary.content)
+""")
 ```
 
 ### Convert format only when conversion is the user's goal
 
 ```python
+run_sdk_snippet(python_code="""
 from sdk.tool import tool
 
 converted = tool.call("convert_document_format", {
@@ -386,4 +388,5 @@ if not converted.ok:
     raise SystemExit(converted.content)
 
 print(converted.content)
+""")
 ```

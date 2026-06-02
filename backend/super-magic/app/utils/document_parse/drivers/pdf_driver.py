@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable, List, Optional
 
 from app.utils.async_file_utils import async_mkdir, async_stat, async_write_bytes, async_write_text
-from ..constants import DEFAULT_VISUAL_MAX_PAGES, PDF_EXTENSIONS, VISUAL_RESULTS_DIRNAME
+from ..constants import DEFAULT_VIRTUAL_PAGE_GROUP_SIZE, DEFAULT_VISUAL_MAX_PAGES, PDF_EXTENSIONS, VISUAL_RESULTS_DIRNAME
 from ..models import DocumentAsset, DocumentChunk, DocumentNode, DocumentProfile, ExtractionResult, stable_document_id
 from ..pdf.pdf_metadata import PdfMetadata
 from ..pdf.pdf_outline_reader import PdfOutlineReader
@@ -289,6 +289,8 @@ class PdfDocumentDriver(DocumentDriver):
         for page_no, page_text in segments:
             page_markdown = PdfDocumentDriver._page_markdown(page_no, page_text, assets_by_page.get(page_no, []))
             page_len = len(page_markdown) + 2
+            if current_parts and current_pages and (page_no - current_pages[0]) >= DEFAULT_VIRTUAL_PAGE_GROUP_SIZE:
+                flush()
             if current_parts and current_len + page_len > max_chars:
                 flush()
             current_parts.append(page_markdown)

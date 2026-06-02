@@ -102,7 +102,6 @@ async def test_document_parse_tools_have_display_hooks(tool, tool_name, argument
         (SampleDocumentContent(), {"input_path": "/tmp/report.pdf", "output_dir": "relative/document-output/report"}),
         (PlanDocumentReading(), {"output_dir": "relative/document-output/report"}),
         (UnderstandDocumentImages(), {"output_dir": "relative/document-output/report"}),
-        (UnderstandDocumentImages(), {"output_dir": "/tmp/document-output/report", "images": ["relative/page.png"]}),
     ],
 )
 async def test_document_parse_tools_require_absolute_path_params(tool, params):
@@ -110,3 +109,25 @@ async def test_document_parse_tools_require_absolute_path_params(tool, params):
 
     assert not result.ok
     assert "must be an absolute path" in result.content
+
+
+def test_understand_document_images_hides_internal_runtime_params():
+    fields = set(UnderstandDocumentImages().get_params_class().model_fields)
+
+    assert fields == {"output_dir", "ranges"}
+    assert "concurrency" not in fields
+    assert "write_mode" not in fields
+    assert "force" not in fields
+    assert "images" not in fields
+    assert "chunk_ids" not in fields
+    assert "query" not in fields
+    assert "max_images" not in fields
+
+
+def test_document_converter_tools_expose_only_intent_params():
+    assert set(SampleDocumentContent().get_params_class().model_fields) == {"input_path", "output_dir", "ranges"}
+    assert set(ExtractDocumentContent().get_params_class().model_fields) == {"input_path", "output_dir", "ranges"}
+    assert set(ExportDocumentMarkdown().get_params_class().model_fields) == {"input_path", "output_dir", "ranges"}
+    assert set(PlanDocumentReading().get_params_class().model_fields) == {"output_dir", "goal"}
+    assert set(SummarizeDocument().get_params_class().model_fields) == {"output_dir"}
+    assert set(ConvertDocumentFormat().get_params_class().model_fields) == {"input_path", "output_dir", "target_format", "ranges"}

@@ -124,7 +124,7 @@ class ReadingStateStore:
         state = await self.load(output_dir)
         understood = list(state.get("visually_understood_images") or [])
         for image_path, result_path in zip(image_paths, result_paths):
-            entry = {"image_path": image_path, "result_path": result_path}
+            entry = {"image_path": image_path, **({"result_path": result_path} if result_path else {})}
             if entry not in understood:
                 understood.append(entry)
         state["visually_understood_images"] = understood

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.utils.async_file_utils import async_mkdir, async_rename
+from ..constants import POWERPOINT_EXTENSIONS, SPREADSHEET_EXTENSIONS, WORD_EXTENSIONS
 from ..pdf.pdf_page_renderer import PdfPageRenderer
 
 
@@ -29,7 +30,8 @@ class DocumentFormatConverter:
                 output_paths.append(out)
             return output_paths
 
-        if suffix in {".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx"} and target in {"pdf", "docx", "pptx", "xlsx"}:
+        office_suffixes = WORD_EXTENSIONS | POWERPOINT_EXTENSIONS | SPREADSHEET_EXTENSIONS
+        if suffix in office_suffixes and target in {"pdf", "docx", "pptx", "xlsx"}:
             from app.utils.file_parse.utils.libreoffice_util import LibreOfficeUtil
 
             converted = await LibreOfficeUtil.convert_document(input_path, target, output_dir.name)

@@ -22,14 +22,16 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import CopyConflict, async_copytree, async_exists, async_is_dir, async_mkdir, async_rmtree
-from app.utils.document_parse.constants import ASSETS_DIRNAME, VISUAL_RESULTS_DIRNAME
+from app.utils.async_file_utils import CopyConflict, async_copytree, async_exists, async_is_dir, async_mkdir, async_read_json, async_read_text, async_rmtree
+from app.utils.document_parse.constants import ASSETS_DIRNAME, DEFAULT_CHUNK_MAX_CHARS, INDEX_FILENAME, VISUAL_RESULTS_DIRNAME
+from app.utils.document_parse.models import DocumentChunk
 from app.utils.document_parse.output.markdown_writer import MarkdownWriter
 from app.utils.document_parse.service.document_artifact_mode import DocumentArtifactModeSelector
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.document_inspector import DocumentInspector
 from app.utils.document_parse.service.reading_state import ReadingStateStore
+from app.utils.document_parse.structure.range_parser import RangeParser
 
 from .path_utils import require_absolute_path
 
@@ -49,36 +51,6 @@ Absolute output directory for Markdown export artifacts"""
         None,
         description="""<!--zh: 可选范围表达式；为空表示导出整个文档-->
 Optional range expression. Omit to export the whole document"""
-    )
-    mode: str = Field(
-        "auto",
-        description="""<!--zh: 提取模式。PDF 可使用 local_text 或 visual-->
-Extraction mode. For PDF use local_text or visual"""
-    )
-    max_chars: int = Field(
-        12000,
-        description="""<!--zh: 每个 chunk 的最大字符数-->
-Maximum characters per chunk"""
-    )
-    combined_filename: str = Field(
-        "document.md",
-        description="""<!--zh: 合并版 Markdown 文件名，留空则不生成合并版文件-->
-Combined Markdown file name. Leave empty to skip writing a combined file"""
-    )
-    artifact_mode: str = Field(
-        "auto",
-        description="""<!--zh: 输出产物模式。auto 自动选择；simple 为小文件生成扁平 Markdown；progressive 生成完整索引、chunk 和阅读状态-->
-Artifact mode. Use auto, simple, or progressive"""
-    )
-    exclude_watermark_images: bool = Field(
-        True,
-        description="""<!--zh: 支持时是否跳过高置信水印图片-->
-Whether to skip high-confidence watermark images when supported"""
-    )
-    deduplicate_repeated_images: bool = Field(
-        True,
-        description="""<!--zh: 支持时是否对重复图片只保留首个资源，例如每页重复出现的 logo-->
-Whether to keep only the first copy of repeated images such as logos on every page"""
     )
 
 
@@ -101,11 +73,9 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             return ToolResult.error(f"File does not exist: {params.input_path}")
         if await async_is_dir(input_path):
             return ToolResult.error(f"Input path is a directory, not a file: {params.input_path}")
-        if params.mode not in {"auto", "local_text", "visual"}:
-            return ToolResult.error("Unsupported extraction mode. For PDF, use local_text or visual.")
         try:
             profile = await DocumentInspector().inspect(input_path)
-            artifact_mode = DocumentArtifactModeSelector.resolve(params.artifact_mode, profile, params.max_chars)
+            artifact_mode = DocumentArtifactModeSelector.resolve("auto", profile, DEFAULT_CHUNK_MAX_CHARS)
         except ValueError as exc:
             return ToolResult.error(str(exc))
 
@@ -121,15 +91,19 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         input_path: Path,
         output_dir: Path,
     ) -> ToolResult:
+        existing_chunks = await self._load_existing_chunks_for_export(input_path, output_dir, params.ranges)
+        if existing_chunks:
+            return await self._write_existing_progressive_export(tool_context, input_path, output_dir, existing_chunks)
+
         extraction = await DocumentExtractor().extract(
             input_path,
             output_dir,
             ranges=params.ranges,
-            mode=params.mode,
-            max_chars=params.max_chars,
+            mode="auto",
+            max_chars=DEFAULT_CHUNK_MAX_CHARS,
             extract_images=True,
-            exclude_watermark_images=params.exclude_watermark_images,
-            deduplicate_repeated_images=params.deduplicate_repeated_images,
+            exclude_watermark_images=True,
+            deduplicate_repeated_images=True,
         )
         structure = await DocumentIndexer().build_from_extraction(input_path, output_dir, extraction)
         await ReadingStateStore().mark_extracted(
@@ -142,7 +116,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         )
 
         combined_path: Path | None = None
-        combined_filename = params.combined_filename.strip()
+        combined_filename = "document.md"
         if combined_filename:
             combined_path = await MarkdownWriter.write_combined(output_dir / combined_filename, extraction.chunks, input_path.stem)
             if tool_context:
@@ -173,6 +147,40 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         extra["structure"] = structure.to_dict()
         return ToolResult(content="\n".join(content_lines), extra_info=extra)
 
+    async def _write_existing_progressive_export(
+        self,
+        tool_context: ToolContext,
+        input_path: Path,
+        output_dir: Path,
+        chunks: list[DocumentChunk],
+    ) -> ToolResult:
+        combined_path = await MarkdownWriter.write_combined(output_dir / "document.md", chunks, input_path.stem)
+        if tool_context:
+            await self._dispatch_file_event(tool_context, str(combined_path), EventType.FILE_CREATED)
+            await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)
+        output_dir_str = str(output_dir)
+        combined_path_str = str(combined_path)
+        content_lines = [
+            f"Document Markdown export completed from existing chunks: `{input_path.name}`",
+            "",
+            f"- Output directory: `{output_dir_str}`",
+            f"- Chunk count: {len(chunks)}",
+            f"- Index: `{output_dir_str}/document.index.json`",
+            f"- Outline: `{output_dir_str}/document.outline.md`",
+            f"- Combined Markdown: `{combined_path_str}`",
+        ]
+        return ToolResult(
+            content="\n".join(content_lines),
+            extra_info={
+                "chunks": [asdict(chunk) for chunk in chunks],
+                "index_path": f"{output_dir_str}/document.index.json",
+                "outline_path": f"{output_dir_str}/document.outline.md",
+                "combined_path": combined_path_str,
+                "artifact_mode": "progressive",
+                "reused_existing_chunks": True,
+            },
+        )
+
     async def _execute_simple(
         self,
         tool_context: ToolContext,
@@ -191,11 +199,11 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
                 input_path,
                 temp_dir,
                 ranges=params.ranges,
-                mode=params.mode,
-                max_chars=params.max_chars,
+                mode="auto",
+                max_chars=DEFAULT_CHUNK_MAX_CHARS,
                 extract_images=True,
-                exclude_watermark_images=params.exclude_watermark_images,
-                deduplicate_repeated_images=params.deduplicate_repeated_images,
+                exclude_watermark_images=True,
+                deduplicate_repeated_images=True,
             )
             await MarkdownWriter.write_combined(combined_path, extraction.chunks, input_path.stem)
             await self._copy_simple_optional_dir(temp_dir, output_dir, ASSETS_DIRNAME)
@@ -235,6 +243,66 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         source = temp_dir / dirname
         if await async_exists(source) and await async_is_dir(source):
             await async_copytree(source, output_dir / dirname, on_conflict=CopyConflict.OVERWRITE)
+
+    async def _load_existing_chunks_for_export(
+        self,
+        input_path: Path,
+        output_dir: Path,
+        ranges: Optional[str],
+    ) -> list[DocumentChunk]:
+        index_path = output_dir / INDEX_FILENAME
+        if not await async_exists(index_path):
+            return []
+        index = await async_read_json(index_path)
+        if str(index.get("source_path") or "") != str(input_path):
+            return []
+        chunks_data = index.get("chunks") or []
+        if not chunks_data:
+            return []
+        total_units = int(index.get("total_units") or 0)
+        if not self._chunks_cover_requested_range(chunks_data, ranges, total_units):
+            return []
+        chunks: list[DocumentChunk] = []
+        for item in chunks_data:
+            chunk_path_text = str(item.get("path") or "")
+            chunk_path = output_dir / chunk_path_text
+            if not chunk_path_text or not await async_exists(chunk_path):
+                return []
+            chunks.append(DocumentChunk(
+                chunk_id=str(item.get("chunk_id") or ""),
+                title=str(item.get("title") or ""),
+                content=await async_read_text(chunk_path, errors="ignore"),
+                source_range=str(item.get("source_range") or ""),
+                path=chunk_path_text,
+                parent_node_id=item.get("parent_node_id"),
+                previous_chunk_id=item.get("previous_chunk_id"),
+                next_chunk_id=item.get("next_chunk_id"),
+                metadata=dict(item.get("metadata") or {}),
+            ))
+        return chunks
+
+    @staticmethod
+    def _chunks_cover_requested_range(chunks: list[dict], ranges: Optional[str], total_units: int) -> bool:
+        if not chunks:
+            return False
+        if total_units <= 0:
+            return ranges is None
+        requested = set(RangeParser.parse_numeric(ranges, total_units) if ranges else range(1, total_units + 1))
+        covered: set[int] = set()
+        for chunk in chunks:
+            source_range = str(chunk.get("source_range") or "")
+            normalized = (
+                source_range
+                .removeprefix("pages:")
+                .removeprefix("slides:")
+                .removeprefix("sections:")
+                .strip()
+            )
+            if normalized == "all":
+                covered.update(range(1, total_units + 1))
+            else:
+                covered.update(RangeParser.parse_numeric(normalized, total_units))
+        return bool(requested) and requested.issubset(covered)
 
     async def get_before_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None

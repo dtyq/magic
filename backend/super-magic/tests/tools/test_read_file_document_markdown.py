@@ -10,10 +10,21 @@ from app.tools.read_files import FileReadOperation, ReadFiles, ReadFilesParams
     "slides.pptx",
     "legacy.doc",
     "legacy.docx",
+    "macro.docm",
+    "template.dotx",
+    "open.odt",
+    "rich.rtf",
+    "legacy.wps",
     "legacy.xls",
     "legacy.xlsx",
+    "macro.xlsm",
+    "open.ods",
+    "data.tsv",
+    "show.odp",
+    "deck.ppsx",
     "notebook.ipynb",
     "image.png",
+    "scan.tif",
 ])
 async def test_read_file_rejects_complex_documents_with_skill_hint(tmp_path, file_name):
     file_path = tmp_path / file_name
