@@ -100,7 +100,7 @@ tools:
   - web_search
   - visual_understanding
   - video_understanding
-  - convert_to_markdown
+  - run_python_snippet
   - download_from_url
 ```
 
@@ -173,7 +173,7 @@ tools:
 
 | Tool | Description |
 |------|-------------|
-| `convert_to_markdown` | Convert documents (Excel, DOCX, PDF, CSV) to Markdown |
+| `run_python_snippet` | Use Code Mode; document parsing services are called from the `document-converter` skill |
 | `convert_pdf` | Convert files to/from PDF format |
 
 <!--zh

@@ -1,15 +1,10 @@
 from app.i18n import i18n
-import asyncio
 import math
 import os
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import aiofiles
-import aiofiles.os  # Keep this for os.path.exists etc.
-from markitdown import MarkItDown, StreamInfo
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
@@ -20,14 +15,11 @@ from app.core.entity.message.server_message import (DisplayType, FileContent,
                                                     ToolDetail)
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.markitdown_plugins.csv_plugin import CSVConverter
-from app.tools.markitdown_plugins.docx_plugin import DocxConverter
-from app.tools.markitdown_plugins.excel_plugin import ExcelConverter
 from app.tools.utils.display_content_utils import truncate_content_for_display
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.file_constants import CONVERSION_RECOMMENDED_TYPES
+from app.utils.async_file_utils import async_exists, async_is_dir, async_read_text
+from app.utils.file_constants import CONVERTIBLE_EXTENSIONS
 from app.utils.file_utils import is_binary_file
-from app.utils.file_parse.utils.libreoffice_util import LibreOfficeUtil
 
 logger = get_logger(__name__) # noqa: F811
 
@@ -40,6 +32,10 @@ MIN_MAX_TOKENS = 5000
 
 # 超大文件阈值：超过这个Token数的文件，强烈建议使用 grep_search
 LARGE_FILE_TOKEN_THRESHOLD = 100000
+
+# CSV is directly readable text. Other convertible formats need the structured
+# document-converter workflow instead of implicit read_file conversion.
+DOCUMENT_CONVERTER_TYPES = CONVERTIBLE_EXTENSIONS - {'.csv'}
 
 def _compute_max_tokens(tool_context: Optional["ToolContext"]) -> int:
     """根据剩余上下文窗口动态计算本次读取上限。
@@ -65,23 +61,6 @@ def _get_context_remaining(tool_context: Optional["ToolContext"]) -> int:
         return agent_context.horizon.get_context_usage().remaining
     except Exception:
         return 0
-
-
-async def get_or_create_converted_dir(original_file_path: Path) -> Path:
-    """获取或创建转换文件目录，目录跟随原文件位置
-
-    Args:
-        original_file_path: 原始文件的路径
-
-    Returns:
-        Path: 转换文件的输出目录
-    """
-    # 返回转换文件的输出目录
-    return original_file_path.parent
-
-def _get_converted_filename(file_path: Path) -> str:
-    """根据文件路径生成转换后的文件名：原文件名.md"""
-    return f"{file_path.name}.md"
 
 
 @dataclass
@@ -293,473 +272,46 @@ class ReadFile(AbstractFileTool[ReadFileParams], WorkspaceTool[ReadFileParams]):
     Read file content
     """
 
-    # Initialize MarkItDown with converters
-    md = MarkItDown()
-    md.register_converter(ExcelConverter())
-    md.register_converter(CSVConverter())
-    md.register_converter(DocxConverter())
-
     def get_prompt_hint(self) -> str:
         return """\
 <!--zh
 支持的文件类型：
-- 文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml等）
-- PDF文件（.pdf）
-- Word文档（.doc、.docx）
-- Excel文件（.xls、.xlsx、.csv）
-- PowerPoint（.ppt、.pptx）
-- Jupyter笔记本（.ipynb）
+- 可直接读取的文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml、.csv等）
 
 注意：
 - 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
-- 无法读取支持的文件类型以外的文件，尤其是二进制文件
-- 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
+- 无法直接读取二进制文件和复杂文档
+- 对于CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
 - 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
-- PDF、PowerPoint 等文档会自动转换为 Markdown（如 `report.pdf` -> `report.pdf.md`）
+- PDF、PowerPoint、Notebook、Word、Excel、图片等复杂或二进制文档不会自动转换；遇到这类文件时，先调用 `read_skills(['document-converter'])` 加载 skill，再按其中流程处理
 - 文本读取结果会用「行号 + 制表符 + 内容」展示行号；复制到任何编辑工具参数时，只复制制表符之后的真实文件内容，不要带行号前缀
 
 建议：
 - 当你需要读取多个文件时，强烈建议使用 read_files 工具，而非多次调用本工具，这将会极大提升任务效率
 -->
 Supported file types:
-- Text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, etc.)
-- PDF files (.pdf)
-- Word documents (.doc, .docx)
-- Excel files (.xls, .xlsx, .csv)
-- PowerPoint (.ppt, .pptx)
-- Jupyter notebooks (.ipynb)
+- Directly readable text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, .csv, etc.)
 
 Notes:
 - Relative paths resolve to .workspace; use absolute paths for files outside .workspace
-- Cannot read unsupported file types, especially binary files
-- For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python script for data analysis
+- Cannot directly read binary files or complex documents
+- For CSV files, use this tool to read first 10 lines to understand structure, then use Python script for data analysis
 - To avoid excessive context length, large files may be auto-truncated; if complete reading necessary, you can read in multiple passes
-- Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report.pdf` -> `report.pdf.md`)
+- For complex or unreadable document formats such as PDF, PowerPoint, notebooks, Word, Excel, and images, do not auto-convert. Return an error that tells the model to call `read_skills(['document-converter'])` first, then follow that skill workflow.
 - Text read output displays line numbers as line number + tab + content; when copying into any edit tool parameter, copy only the real file content after the tab and omit the line-number prefix
 
 Suggestions:
 - When reading multiple files, strongly recommend using read_files tool instead of calling this tool multiple times, greatly improves efficiency"""
 
 
-    async def _convert_legacy_format(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> Optional[Path]:
-        """
-        转换旧格式文件到新格式（.xls -> .xlsx, .doc -> .docx）
-
-        Args:
-            file_path: 原始文件路径
-
-        Returns:
-            Optional[Path]: 转换后的文件路径，失败返回 None
-        """
-        file_extension = file_path.suffix.lower()
-
-        # 定义需要转换的格式映射
-        conversion_map = {
-            '.xls': 'xlsx',
-            '.doc': 'docx'
-        }
-
-        if file_extension not in conversion_map:
-            return None
-
-        try:
-            import hashlib
-            import tempfile
-
-            # 使用系统临时目录
-            temp_base = Path(tempfile.gettempdir())
-            conversion_dir = temp_base / 'super-magic' / 'libreoffice_conversions'
-            conversion_dir.mkdir(parents=True, exist_ok=True)
-
-            # 生成转换后的文件路径（使用文件路径哈希避免冲突）
-            target_format = conversion_map[file_extension]
-            file_hash = hashlib.md5(str(file_path).encode()).hexdigest()[:8]
-            converted_filename = f"{file_path.stem}_{file_hash}.{target_format}"
-            converted_path = conversion_dir / converted_filename
-
-            # 检查是否已有转换结果且文件未修改
-            if await aiofiles.os.path.exists(converted_path):
-                # 检查原文件是否有修改
-                is_valid = False
-                if tool_context:
-                    is_valid, _ = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
-                if is_valid:
-                    logger.info(f"使用已存在的转换文件: {converted_filename}")
-                    return converted_path
-                else:
-                    logger.info(f"原文件已修改，需要重新转换: {file_path.name}")
-
-            # 执行转换
-            logger.info(f"使用 LibreOffice 转换 {file_extension} -> {target_format}: {file_path.name}")
-            temp_converted_path = await LibreOfficeUtil.convert_document(
-                file_path,
-                target_format,
-                output_filename_prefix="converted"
-            )
-
-            # 将临时文件移动到转换目录
-            import shutil
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, shutil.move, str(temp_converted_path), str(converted_path))
-
-            logger.info(f"转换完成: {file_path.name} -> {converted_filename}")
-            return converted_path
-
-        except Exception as e:
-            logger.error(f"使用 LibreOffice 转换文件失败: {file_path.name}, error={e}")
-            return None
-
-    async def _try_read_with_plugin(self, file_path: Path, params: ReadFileParams, tool_context: Optional[ToolContext] = None) -> Optional[ToolResult]:
-        """
-        尝试使用 MarkItDown plugin 读取文件
-
-        判断逻辑：
-        1. 文件扩展名在 plugin 列表中
-        2. 或者是二进制文件且不是已知的文本类型（兜底处理）
-
-        注意：建议转换的文件类型（如 PDF、PPT 等）不会使用 plugin 读取，而是走转换逻辑
-
-        对于旧格式（.xls, .doc）：
-        1. 先使用 LibreOffice 转换为新格式
-        2. 然后使用 MarkItDown 读取转换后的文件
-
-        Args:
-            file_path: 文件路径
-            params: 读取参数
-
-        Returns:
-            Optional[ToolResult]: 如果适合用 plugin 读取则返回 ToolResult，否则返回 None
-        """
-        file_extension = file_path.suffix.lower()
-
-        # 如果文件类型在建议转换列表中，不使用 plugin 读取，而是走转换逻辑
-        if file_extension in CONVERSION_RECOMMENDED_TYPES:
-            return None
-
-        # 检查是否是二进制文件
-        is_binary = await is_binary_file(file_path)
-
-        # 定义需要用 plugin 处理的扩展名
-        plugin_extensions = {'.xlsx', '.xls', '.csv', '.docx', '.doc', '.ipynb'}
-
-        # 定义已知的文本文件扩展名
-        text_extensions = {'.md', '.txt', '.py', '.js', '.json', '.yaml', '.yml',
-                         '.html', '.css', '.xml', '.toml', '.ini', '.conf',
-                         '.log', '.sh', '.bat', '.c', '.cpp', '.h', '.java',
-                         '.go', '.rs', '.php', '.rb', '.ts', '.tsx', '.jsx'}
-
-        # 判断是否使用 plugin：
-        # 1. 文件扩展名在 plugin 列表中
-        # 2. 或者是二进制文件且不是已知的文本类型（兜底处理）
-        use_plugin = (
-            file_extension in plugin_extensions or
-            (is_binary and file_extension not in text_extensions)
+    def _build_document_converter_skill_error(self, file_path: Path) -> str:
+        return (
+            f"read_file cannot directly read this document format: `{file_path.name}` ({file_path.suffix.lower()}).\n\n"
+            "Call `read_skills(['document-converter'])` first. Then use the document-converter skill to inspect the document, "
+            "then extract only the needed pages, "
+            "sections, slides, sheets, ranges, images, or notebook cells. Do not try to auto-convert the whole file "
+            "inside read_file."
         )
-
-        if not use_plugin:
-            return None
-
-        # 对于旧格式，先转换（隐式转换，不告知用户）
-        actual_read_path = file_path
-
-        if file_extension in ['.xls', '.doc']:
-            logger.info(f"检测到旧格式文件，尝试转换: {file_path.name}")
-            converted_path = await self._convert_legacy_format(file_path, tool_context)
-
-            # 使用 LibreOffice 转换旧格式文件失败，提示大模型让用户手动进行转换
-            if not converted_path:
-                return ToolResult.error(
-                    f"该文件是旧格式（{file_extension}），无法直接读取: {file_path.name}\n"
-                    f"请建议用户使用 Office 软件将文件转换为新格式（.xls -> .xlsx, .doc -> .docx）后重新上传"
-                )
-
-            actual_read_path = converted_path
-            logger.info(f"使用转换后的文件: {converted_path.name}")
-
-        # 使用 plugin 读取
-        logger.info(f"使用 plugin 读取文件: {actual_read_path.name} (原文件: {file_path.name}, 扩展名: {file_extension}, 二进制: {is_binary})")
-
-        markdown_content = await self._read_using_plugin(actual_read_path, params.offset, params.limit)
-
-        if not markdown_content:
-            return ToolResult.error(
-                f"读取文件工具不支持该文件格式（{file_extension}）: {file_path.name}\n"
-                f"请尝试使用其它合适的工具或其它方式来处理该文件"
-            )
-
-        # 构建返回结果
-        content_tokens = num_tokens_from_string(markdown_content)
-
-        # 添加文件元信息
-        # 注意：不显示Token数，避免大模型混淆（Token数对大模型无实际意义）
-        meta_info = f"# 文件: {file_path.name}\n\n"
-        meta_info += f"**文件信息**: 通过插件读取，内容已转换为 Markdown 格式\n\n---\n\n"
-
-        content_with_meta = meta_info + markdown_content
-
-        # 如果是完整读取（从头读取整个文件），添加完整性提示
-        is_complete_read = params.offset == 0 and (params.limit is None or params.limit <= 0)
-        if is_complete_read:
-            content_with_meta += "\n\n---\n\n**[文件已完整读取]**"
-
-        extra_info = {
-            "raw_content": markdown_content,
-            "raw_content_without_line_numbers": markdown_content,
-            "original_file_path": str(file_path),
-            "read_path": str(actual_read_path),  # 使用实际读取的路径
-            "read_method": "markitdown",
-            "is_converted": False,  # 旧格式隐式转换，不标记为已转换（不告知用户）
-            "conversion_strategy": None
-        }
-
-        # 读取文件后更新时间戳
-        if tool_context:
-            await self.get_horizon(tool_context).update_timestamp(file_path)
-
-        return ToolResult(
-            content=content_with_meta,
-            extra_info=extra_info
-        )
-
-    async def _read_using_plugin(self, file_path: Path, offset: int, limit: int) -> Optional[str]:
-        """
-        使用 MarkItDown 的 plugin 读取文件内容
-
-        支持的文件类型：
-        - Excel: .xlsx, .xls
-        - CSV: .csv
-        - Word: .docx
-
-        Args:
-            file_path: 文件路径
-            offset: 偏移行数
-            limit: 限制行数
-
-        Returns:
-            Optional[str]: 转换后的 Markdown 内容，如果失败返回 None
-        """
-        try:
-            file_extension = file_path.suffix.lower()
-
-            # 定义同步转换函数（在线程池中执行）
-            def convert_sync():
-                with open(file_path, 'rb') as f:
-                    result = self.md.convert(
-                        f,
-                        stream_info=StreamInfo(extension=file_extension),
-                        offset=offset,
-                        limit=limit
-                    )
-                    return result.markdown if result else None
-
-            # 在线程池中执行同步文件操作和转换
-            loop = asyncio.get_event_loop()
-            markdown_content = await loop.run_in_executor(None, convert_sync)
-
-            if not markdown_content:
-                logger.warning(f"MarkItDown conversion returned empty result for: {file_path.name}")
-
-            return markdown_content
-
-        except Exception as e:
-            logger.error(f"Error using MarkItDown to read file {file_path.name}: {e}")
-            return None
-
-    async def _check_and_get_converted_path(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> tuple[Optional[Path], Optional[str], Optional[str]]:
-        """
-        检查和获取转换后的文件路径
-
-        逻辑：
-        1. 检查是否已有转换结果
-        2. 如果没有则调用 convert_to_markdown 工具自动转换
-        3. 返回转换后的文件路径和转换策略
-
-        转换文件命名规则：
-        - 文件名：原文件名.md（例如：report.pdf -> report.pdf.md）
-
-        Args:
-            file_path: 原始文件路径
-
-        Returns:
-            tuple[Optional[Path], Optional[str], Optional[str]]: (转换后文件路径, 错误信息, 转换策略)
-            - 如果返回 (None, None, None)，表示不需要转换，继续原始逻辑
-            - 如果返回 (None, error_msg, None)，表示转换失败
-            - 如果返回 (converted_path, None, strategy)，表示找到了转换后的文件路径
-        """
-        try:
-            file_extension = file_path.suffix.lower()
-
-            # 如果不是需要转换的文件类型，直接继续原始逻辑
-            if file_extension not in CONVERSION_RECOMMENDED_TYPES:
-                return None, None, None
-
-            # 1. 检查是否已有转换结果
-            converted_path = await self._check_converted_file(file_path, tool_context)
-            if converted_path:
-                logger.info(f"使用已存在的转换结果: {file_path.name} -> {converted_path.name}")
-                return converted_path, None, None
-
-            # 2. 执行自动转换
-            converted_file_path, conversion_strategy = await self._perform_auto_conversion(file_path, tool_context)
-            if converted_file_path:
-                logger.info(f"执行自动转换成功: {file_path.name} -> {converted_file_path.name}, 策略: {conversion_strategy}")
-                return converted_file_path, None, conversion_strategy
-
-            # 3. 转换失败，返回错误
-            error_msg = f"""自动转换失败，请使用 `convert_to_markdown` 工具手动转换。
-
-**文件**: `{file_path.name}` ({file_extension})
-
-**说明**: PDF、Word、PowerPoint 等文档格式需要转换为 Markdown 格式才能更好地阅读和理解。
-转换后的文件命名为 `{file_path.name}.md`。"""
-            return None, error_msg, None
-
-        except Exception as e:
-            logger.error(f"检查转换文件时出错: '{file_path}', error={e}")
-            error_msg = f"处理文件转换时出错，请使用 `convert_to_markdown` 工具手动转换文件 `{file_path.name}`。"
-            return None, error_msg, None
-
-    async def _check_converted_file(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> Optional[Path]:
-        """
-        检查是否已有转换文件
-
-        逻辑：
-        1. 检查文件是否未被修改
-        2. 如果没有修改，检查转换后的 原文件名.md 是否存在
-
-        Args:
-            file_path: 原始文件路径
-            tool_context: 工具上下文
-
-        Returns:
-            Optional[Path]: 转换文件路径，如果不存在则返回 None
-        """
-        try:
-            # 检查文件是否未被修改
-            is_file_valid = False
-            if tool_context:
-                is_file_valid, _ = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
-            if not is_file_valid:
-                logger.debug(f"文件已修改，缓存失效: {file_path.name}")
-                return None
-
-            # 生成转换文件名
-            converted_filename = _get_converted_filename(file_path)
-            converted_dir = await get_or_create_converted_dir(file_path)
-            converted_file_path = converted_dir / converted_filename
-
-            # 检查转换文件是否存在
-            if await aiofiles.os.path.exists(converted_file_path):
-                return converted_file_path
-            else:
-                logger.debug(f"转换文件不存在: {converted_filename}")
-                return None
-
-        except Exception as e:
-            logger.debug(f"检查转换文件时出错: {file_path}, error={e}")
-            return None
-
-    async def _validate_converted_file(self, converted_file_path: str) -> bool:
-        """验证转换后文件是否有效"""
-        try:
-            workspace_root = self.base_dir
-            full_converted_path = workspace_root / converted_file_path
-            return await aiofiles.os.path.exists(full_converted_path)
-        except Exception as e:
-            logger.debug(f"验证转换后文件失败: {converted_file_path}, error={e}")
-            return False
-
-    async def _perform_auto_conversion(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> tuple[Optional[Path], Optional[str]]:
-        """
-        执行自动转换并保存，带缓存检查
-
-        步骤：
-        1. 检查文件是否有变动，如果没有变动且转换文件存在，直接返回缓存
-        2. 如果需要转换，使用 原文件名.md 作为转换文件名
-        3. 调用 convert_to_markdown 工具进行文件转换
-        4. 更新文件时间戳记录
-        5. 返回转换后文件路径和转换策略
-
-        Returns:
-            tuple[Optional[Path], Optional[str]]: (转换后文件路径, 转换策略)
-        """
-        try:
-            from app.path_manager import PathManager
-            workspace_root = PathManager.get_workspace_dir()
-
-            # 1. 检查缓存：文件是否有变动
-            try:
-                is_file_valid = False
-                if tool_context:
-                    is_file_valid, _ = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
-                if is_file_valid:
-                    # 文件没有变动，检查转换文件是否存在
-                    converted_filename = _get_converted_filename(file_path)
-                    converted_dir = await get_or_create_converted_dir(file_path)
-                    converted_file_path = converted_dir / converted_filename
-
-                    if await aiofiles.os.path.exists(converted_file_path):
-                        logger.info(f"使用缓存的转换结果: {file_path.name} -> {converted_filename}")
-                        return converted_file_path, None
-
-                logger.debug(f"需要重新转换文件: {file_path.name}")
-            except Exception:
-                # 如果时间戳检查失败（比如第一次访问文件），继续转换流程
-                logger.debug(f"时间戳检查失败，继续转换流程: {file_path.name}")
-
-            # 2. 执行新的转换
-            # 延迟导入以避免循环依赖
-            from app.tools.convert_to_markdown import ConvertToMarkdown, ConvertToMarkdownParams
-
-            # 创建转换目录
-            converted_dir = await get_or_create_converted_dir(file_path)
-
-            # 生成转换文件名
-            converted_filename = _get_converted_filename(file_path)
-
-            # 计算相对路径（相对于工作区根目录）
-            input_file_relative_path = str(file_path.relative_to(workspace_root))
-            output_file_relative_path = str((converted_dir / converted_filename).relative_to(workspace_root))
-
-            # 创建 convert_to_markdown 工具参数
-            convert_params = ConvertToMarkdownParams(
-                input_path=input_file_relative_path,
-                output_path=output_file_relative_path,
-                override=True,  # 允许覆盖
-                force_refresh=True,  # 强制转换，因为缓存检查已经在上面完成
-                extract_images=True  # 提取图片
-            )
-
-            # 创建并执行转换工具
-            converter = ConvertToMarkdown()
-            # 设置 base_dir 以确保路径解析正确
-            converter.base_dir = workspace_root
-
-            # 执行转换
-            convert_result = await converter.execute_purely(convert_params)
-
-            if not convert_result.ok:
-                logger.warning(f"自动转换失败: {file_path.name}, error={convert_result.content}")
-                return None, None
-
-            # 获取转换策略
-            conversion_strategy = None
-            if convert_result.extra_info:
-                conversion_strategy = convert_result.extra_info.get("conversion_strategy")
-
-            # 获取转换后的文件路径
-            output_file_path = converted_dir / converted_filename
-
-            if not await aiofiles.os.path.exists(output_file_path):
-                logger.warning(f"转换后文件不存在: {output_file_path}")
-                return None, None
-
-            logger.info(f"自动转换完成: {file_path.name} -> {converted_filename}, 策略: {conversion_strategy}")
-            return output_file_path, conversion_strategy
-
-        except Exception as e:
-            logger.error(f"执行自动转换时出错: {file_path.name}, error={e}")
-            return None, None
 
     async def execute(
         self,
@@ -792,8 +344,8 @@ Suggestions:
         执行文件读取操作，专注于读取可读文件
 
         逻辑流程：
-        1. 对于建议转换的文件类型，检查是否有转换结果，没有则自动转换
-        2. 对于其他文件类型，直接进行文件读取
+        1. 对于可以直接读取的文本文件类型，直接读取
+        2. 对于复杂或无法直接读取的文档格式，返回错误并提示先调用 read_skills(['document-converter'])
 
         Args:
             params: 文件读取参数
@@ -807,64 +359,40 @@ Suggestions:
             file_path = resolved.path
             fuzzy_warning = resolved.warning
             # 检查文件是否存在
-            if not await aiofiles.os.path.exists(file_path):
+            if not await async_exists(file_path):
                 if tool_context:
                     tool_context.set_metadata("error_type", "read_file.error_file_not_exist")
                     tool_context.set_metadata("error_file_path", params.file_path)
-                return ToolResult.error(f"无法找到要读取的文件: {params.file_path}")
-            if await aiofiles.os.path.isdir(file_path):
+                return ToolResult.error(f"File does not exist: {params.file_path}")
+            if await async_is_dir(file_path):
                 if tool_context:
                     tool_context.set_metadata("error_type", "read_file.error_is_directory")
                     tool_context.set_metadata("error_file_path", params.file_path)
-                return ToolResult.error(f"指定路径是个文件夹: {params.file_path}，请使用 list_dir 工具获取文件夹内容")
+                return ToolResult.error(f"The specified path is a directory, not a file: {params.file_path}. Use list_dir to inspect directory contents.")
 
-            # === 第一步：尝试使用 plugin 直接读取 ===
-            plugin_result = await self._try_read_with_plugin(file_path, params, tool_context)
-            if plugin_result is not None:
-                # 如果有模糊匹配警告，添加到 plugin 读取结果的末尾
-                if fuzzy_warning and plugin_result.ok:
-                    plugin_result.content = f"{plugin_result.content}\n\n---\n\n{fuzzy_warning}"
-                return plugin_result
-
-            # === 第二步：对于其他文件类型，继续原有的转换逻辑 ===
+            # === 第一步：复杂文档或二进制文件不在 read_file 内自动转换 ===
             original_file_name = file_path.name
             read_path = file_path  # 默认读取原始文件路径
-            conversion_strategy = None  # 记录转换策略
 
-            # 检查是否有转换后的文件可以读取
-            converted_path, error_msg, strategy = await self._check_and_get_converted_path(file_path, tool_context)
-            if error_msg:
-                # 转换失败，直接返回错误
+            if file_path.suffix.lower() in DOCUMENT_CONVERTER_TYPES or await is_binary_file(file_path):
                 if tool_context:
-                    tool_context.set_metadata("error_type", "read_file.error_conversion_failed")
+                    tool_context.set_metadata("error_type", "read_file.error_unsupported_document")
                     tool_context.set_metadata("error_file_path", str(file_path))
-                return ToolResult.error(error_msg)
-            elif converted_path:
-                # 找到了转换后的文件，修改读取路径
-                read_path = converted_path
-                conversion_strategy = strategy
-                logger.info(f"使用转换后的文件进行读取: '{original_file_name}' -> '{read_path.name}'")
+                return ToolResult.error(self._build_document_converter_skill_error(file_path))
 
-            # === 第三步：执行实际的文件读取逻辑 ===
+            # === 第二步：执行实际的文本读取逻辑 ===
 
-            # 检查要读取的文件是否存在（可能是转换后的文件）
-            if not await aiofiles.os.path.exists(read_path):
-                if str(read_path) != str(file_path):
-                    # 转换后的文件不存在
-                    if tool_context:
-                        tool_context.set_metadata("error_type", "read_file.error_conversion_failed")
-                        tool_context.set_metadata("error_file_path", str(file_path))
-                    return ToolResult.error(f"转换后的文件不存在: {read_path.name}，请尝试重新转换或直接读取原文件")
-                else:
-                    if tool_context:
-                        tool_context.set_metadata("error_type", "read_file.error_file_not_exist")
-                        tool_context.set_metadata("error_file_path", params.file_path)
-                    return ToolResult.error(f"无法找到要读取的文件: {params.file_path}")
-            if await aiofiles.os.path.isdir(read_path):
+            # 检查要读取的文件是否存在
+            if not await async_exists(read_path):
+                if tool_context:
+                    tool_context.set_metadata("error_type", "read_file.error_file_not_exist")
+                    tool_context.set_metadata("error_file_path", params.file_path)
+                return ToolResult.error(f"File does not exist: {params.file_path}")
+            if await async_is_dir(read_path):
                 if tool_context:
                     tool_context.set_metadata("error_type", "read_file.error_is_directory")
                     tool_context.set_metadata("error_file_path", params.file_path)
-                return ToolResult.error(f"指定路径是个文件夹: {params.file_path}，请使用 list_dir 工具获取文件夹内容")
+                return ToolResult.error(f"The specified path is a directory, not a file: {params.file_path}. Use list_dir to inspect directory contents.")
 
             # --- 内容读取逻辑 ---
             logger.info(f"使用文本读取逻辑读取文件: {read_path}")
@@ -945,12 +473,6 @@ Suggestions:
             # 构建元信息
             meta_info = f"# 文件: {original_file_name}\n\n"
 
-            # 如果读取的是转换后的文件，明确告知
-            if str(read_path) != str(file_path):
-                converted_filename = _get_converted_filename(file_path)
-                meta_info += f"**注意**: 该文件已自动转换为 Markdown 格式，读取的是转换后的文件 `{converted_filename}`\n\n"
-                meta_info += f"**重要提示**: 后续读取该文档时，请直接使用 `{converted_filename}` 路径，避免重复转换，可大幅减少上下文长度。\n\n"
-
             # 元信息中不再显示Token数，避免大模型混淆（Token数对大模型无意义）
             meta_info += f"**文件信息**: 总字符数: {total_chars}，本次读取字符数: {shown_chars}{truncation_status}\n\n---\n\n"
             raw_content = content # 存储未加 meta_info 的原始内容
@@ -968,8 +490,7 @@ Suggestions:
                 "original_file_path": str(file_path),
                 "read_path": str(read_path),
                 "read_method": read_method,  # 标识读取方式：统一为 text(纯文本)
-                "is_converted": str(read_path) != str(file_path),  # 是否读取的是转换后的文件
-                "conversion_strategy": conversion_strategy,  # 转换策略
+                "read_range": self._extract_read_range(raw_content),
                 # 截断信息（如果被截断）
                 "was_truncated": content_truncated,
                 "truncation_info": truncation_info if content_truncated else None
@@ -1033,17 +554,12 @@ Suggestions:
         """
         lines_with_numbers = []
         lines_without_numbers = []
-        async with aiofiles.open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            line_number = 1
-            async for line in f:
-                # 移除行尾换行符
-                line_content = line.rstrip('\n\r')
-                # 添加行号前缀，格式: lineNumber\tcontent (cat -n 的输出格式)
-                formatted_line = f"{line_number}\t{line_content}\n"
-                lines_with_numbers.append(formatted_line)
-                # 不带行号的版本，保持原始换行符
-                lines_without_numbers.append(line_content + "\n")
-                line_number += 1
+        content = await async_read_text(file_path, errors="replace")
+        for line_number, line in enumerate(content.splitlines(), start=1):
+            line_content = line.rstrip('\n\r')
+            formatted_line = f"{line_number}\t{line_content}\n"
+            lines_with_numbers.append(formatted_line)
+            lines_without_numbers.append(line_content + "\n")
 
         return TextReadResult(
             with_line_numbers="".join(lines_with_numbers),
@@ -1066,11 +582,8 @@ Suggestions:
         target_lines_with_numbers = []
         target_lines_without_numbers = []
 
-        async with aiofiles.open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            line_idx = 0
-            async for line in f:
-                all_lines.append(line)
-                line_idx += 1
+        all_lines = await async_read_text(file_path, errors="replace")
+        all_lines = all_lines.splitlines()
 
         total_lines = len(all_lines)
 
@@ -1147,6 +660,28 @@ Suggestions:
             without_line_numbers=content_without_numbers
         )
 
+    def _extract_read_range(self, content: str) -> Optional[Dict[str, int]]:
+        """从带行号的读取内容中提取实际展示的起止行号"""
+        start_line = None
+        end_line = None
+        for line in content.splitlines():
+            if "\t" not in line:
+                continue
+            line_number_text = line.split("\t", 1)[0]
+            if not line_number_text.isdigit():
+                continue
+            line_number = int(line_number_text)
+            if start_line is None:
+                start_line = line_number
+            end_line = line_number
+
+        if start_line is None or end_line is None:
+            return None
+        return {
+            "start_line": start_line,
+            "end_line": end_line,
+        }
+
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
         """
         根据工具执行结果获取对应的ToolDetail
@@ -1180,14 +715,8 @@ Suggestions:
 
         original_file_name = os.path.basename(original_file_path_str)
 
-        # 根据读取方式确定显示类型
-        read_method = result.extra_info.get("read_method", "unknown")
-        if read_method == "markitdown":
-            # markitdown 处理的文件（Excel、CSV、Word等）使用 MD 显示类型
-            display_type = DisplayType.MD
-        else:
-            # 纯文本文件根据转换后的文件扩展名确定显示类型
-            display_type = self.get_display_type_by_extension(read_path_str)
+        # 纯文本文件根据实际读取路径的扩展名确定显示类型
+        display_type = self.get_display_type_by_extension(read_path_str)
 
         # 优先使用不带行号的内容版本，如果不存在则回退到带行号的版本
         content_for_display = (
@@ -1211,7 +740,41 @@ Suggestions:
         """获取备注内容"""
         file_path_str = arguments.get("file_path", "")
         file_name = os.path.basename(file_path_str) if file_path_str else i18n.translate("read_file.default_file_label", category="tool.messages")
+        range_remark = self._get_read_range_remark(result, arguments)
+        if range_remark:
+            return i18n.translate(
+                "read_file.single_success_with_range",
+                category="tool.messages",
+                file_name=file_name,
+                range=range_remark,
+            )
         return file_name
+
+    def _get_read_range_remark(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
+        if not self._is_paged_read(arguments):
+            return ""
+        if not result.extra_info:
+            return ""
+        read_range = result.extra_info.get("read_range")
+        if not read_range:
+            return ""
+        start_line = read_range.get("start_line")
+        end_line = read_range.get("end_line")
+        if not start_line or not end_line:
+            return ""
+        return i18n.translate(
+            "read_file.line_range",
+            category="tool.messages",
+            start=start_line,
+            end=end_line,
+        )
+
+    def _is_paged_read(self, arguments: Dict[str, Any] = None) -> bool:
+        if not arguments:
+            return False
+        offset = arguments.get("offset", 0) or 0
+        limit = arguments.get("limit", 200)
+        return offset != 0 or (limit is not None and limit > 0)
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """
@@ -1252,24 +815,6 @@ Suggestions:
             }
 
         remark = self._get_remark_content(result, arguments)
-
-        # 如果是转换后的文件，在 remark 中添加转换标识和策略
-        if result.extra_info and result.extra_info.get("is_converted"):
-            conversion_strategy = result.extra_info.get("conversion_strategy")
-            if conversion_strategy and isinstance(conversion_strategy, str) and conversion_strategy != "balanced":
-                # 获取转换策略的翻译
-                strategy_code_mapping = {
-                    "performance": "read_file.conversion_strategy_performance",
-                    "quality": "read_file.conversion_strategy_quality",
-                    "balanced": "read_file.conversion_strategy_balanced"
-                }
-                strategy_code = strategy_code_mapping.get(conversion_strategy, "read_file.conversion_strategy_balanced")
-                strategy_display = i18n.translate(strategy_code, category="tool.messages")
-                conversion_info = i18n.translate("read_file.converted_and_read_with_strategy", category="tool.messages", strategy=strategy_display)
-                remark = f"{conversion_info} {remark}"
-            else:
-                conversion_info = i18n.translate("read_file.converted_and_read", category="tool.messages")
-                remark = f"{conversion_info} {remark}"
 
         return {
             "action": i18n.translate("read_file", category="tool.actions"),

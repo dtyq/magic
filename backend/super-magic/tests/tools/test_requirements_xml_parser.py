@@ -12,6 +12,54 @@ from app.tools.web_search_utils.requirements_xml_parser import fallback_parse_re
 class TestFallbackFromDebugLog(unittest.TestCase):
     """真实失败 case 还原"""
 
+    def test_query_truncated_after_query_text(self):
+        """参数在 <query> 文本后截断，缺少所有闭合标签"""
+        xml = (
+            "<requirements>\n"
+            "    <requirement>\n"
+            "        <name>示例搜索需求</name>\n"
+            "        <query>示例关键词 2025 2026"
+        )
+        requirements, msg = fallback_parse_requirements_xml(xml)
+        assert len(requirements) == 1
+        assert requirements[0]['query'] == "示例关键词 2025 2026"
+        assert requirements[0]['name'] == "示例搜索需求"
+        assert "未闭合query" in msg
+
+    def test_query_truncated_with_minimal_name(self):
+        """name 完整、query 未闭合且 JSON 字符串到此结束"""
+        xml = (
+            "<requirements>\n"
+            "    <requirement>\n"
+            "        <name>简短需求</name>\n"
+            "        <query>简短关键词"
+        )
+        requirements, msg = fallback_parse_requirements_xml(xml)
+        assert len(requirements) == 1
+        assert requirements[0]['query'] == "简短关键词"
+        assert requirements[0]['name'] == "简短需求"
+        assert "未闭合query" in msg
+
+    def test_complete_queries_with_trailing_truncated_query(self):
+        """多个 query 中，前面完整、最后一个在 query 文本后截断"""
+        xml = (
+            "<requirements>\n"
+            "    <requirement>\n"
+            "        <name>第一组需求</name>\n"
+            "        <query>第一组关键词</query>\n"
+            "    </requirement>\n"
+            "    <requirement>\n"
+            "        <name>第二组需求</name>\n"
+            "        <query>第二组关键词"
+        )
+        requirements, msg = fallback_parse_requirements_xml(xml)
+        assert len(requirements) == 2
+        assert requirements[0]['query'] == "第一组关键词"
+        assert requirements[0]['name'] == "第一组需求"
+        assert requirements[1]['query'] == "第二组关键词"
+        assert requirements[1]['name'] == "第二组需求"
+        assert "补充未闭合query" in msg
+
     def test_case1_limit_tag_not_closed(self):
         """第1次失败: <limit> 标签未闭合（缺少 </limit>）"""
         xml = (

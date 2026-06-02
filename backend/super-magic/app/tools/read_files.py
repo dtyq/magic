@@ -75,6 +75,7 @@ class FileReadingResult(BaseModel):
     # 截断信息（如果被截断）
     was_truncated: bool = False  # 是否被截断
     truncation_info: Optional[Union[TruncationInfo, Dict[str, Any]]] = None  # 截断详情（用于生成提示）
+    read_range: Optional[Dict[str, int]] = None  # 实际读取的行号范围
 
 
 @tool()
@@ -89,35 +90,27 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         return """\
 <!--zh
 支持的文件类型：
-- 文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml等）
-- PDF文件（.pdf）
-- Word文档（.doc、.docx）
-- Excel文件（.xls、.xlsx、.csv）
-- PowerPoint（.ppt、.pptx）
-- Jupyter笔记本（.ipynb）
+- 可直接读取的文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml、.csv等）
 
 注意：
 - 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
-- 无法读取支持的文件类型以外的文件，尤其是二进制文件
-- 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
+- 无法直接读取二进制文件和复杂文档
+- 对于CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
 - 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
+- PDF、PowerPoint、Notebook、Word、Excel、图片等复杂或二进制文档不会自动转换；遇到这类文件时，先调用 `read_skills(['document-converter'])` 加载 skill，再按其中流程处理
 - 文本读取结果会用「行号 + 制表符 + 内容」展示行号；复制到任何编辑工具参数时，只复制制表符之后的真实文件内容，不要带行号前缀
 
 强烈建议在需要批量读取多个参考文件时使用此工具一次性读取，而非多次调用工具逐个读取，这将会极大提升任务效率
 -->
 Supported file types:
-- Text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, etc.)
-- PDF files (.pdf)
-- Word documents (.doc, .docx)
-- Excel files (.xls, .xlsx, .csv)
-- PowerPoint (.ppt, .pptx)
-- Jupyter notebooks (.ipynb)
+- Directly readable text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, .csv, etc.)
 
 Notes:
 - Relative paths resolve to .workspace; use absolute paths for files outside .workspace
-- Cannot read files other than supported types, especially binary files
-- For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python scripts for data analysis
+- Cannot directly read binary files or complex documents
+- For CSV files, use this tool to read first 10 lines to understand structure, then use Python scripts for data analysis
 - Large files may be auto-truncated to avoid exceeding context window; read in multiple operations if full content needed
+- For complex or unreadable document formats such as PDF, PowerPoint, notebooks, Word, Excel, and images, do not auto-convert. Return an error that tells the model to call `read_skills(['document-converter'])` first, then follow that skill workflow.
 - Text read output displays line numbers as line number + tab + content; when copying into any edit tool parameter, copy only the real file content after the tab and omit the line-number prefix
 
 Strongly recommended to use this tool for batch reading multiple reference files at once, rather than calling tools multiple times individually, which will greatly improve task efficiency"""
@@ -173,15 +166,9 @@ Strongly recommended to use this tool for batch reading multiple reference files
                         raw_content_without_line_numbers = result.extra_info["raw_content_without_line_numbers"]
                         # 确保原始内容不为 None，如果为 None 则使用带行号的原始内容作为备用
                         safe_raw_content = raw_content_without_line_numbers if raw_content_without_line_numbers is not None else result.extra_info.get("raw_content", "")
-                        read_method = result.extra_info.get("read_method", "unknown")  # 获取读取方式
-                        is_converted = result.extra_info.get("is_converted", False)  # 是否转换
-                        conversion_strategy = result.extra_info.get("conversion_strategy")  # 转换策略
                         files_without_line_numbers.append({
                             "file_path": operation.file_path,
                             "content": safe_raw_content,
-                            "read_method": read_method,
-                            "is_converted": is_converted,
-                            "conversion_strategy": conversion_strategy
                         })
 
                     # ReadFile 工具已经设置了时间戳，这里不需要重复设置
@@ -196,7 +183,8 @@ Strongly recommended to use this tool for batch reading multiple reference files
                         is_success=True,
                         tokens=tokens,
                         was_truncated=was_truncated_by_read_file,
-                        truncation_info=truncation_info_from_read_file  # 直接使用从read_file获取的TruncationInfo对象
+                        truncation_info=truncation_info_from_read_file,  # 直接使用从read_file获取的TruncationInfo对象
+                        read_range=result.extra_info.get("read_range") if result.extra_info else None,
                     )
 
                     results.append(file_result)
@@ -206,7 +194,7 @@ Strongly recommended to use this tool for batch reading multiple reference files
                         content="",
                         is_success=False,
                         error_message=result.content,  # 失败时，content 实际是错误信息
-                        error_type=tool_context.get_metadata("error_type"),
+                        error_type=tool_context.get_metadata("error_type") if tool_context else None,
                         tokens=0
                     ))
                     read_failure_count += 1
@@ -266,6 +254,7 @@ Strongly recommended to use this tool for batch reading multiple reference files
                         "file_path": item.file_path,
                         "is_success": item.is_success,
                         "error_type": item.error_type,
+                        "read_range": item.read_range,
                     }
                     for item in results
                 ],
@@ -473,8 +462,8 @@ Strongly recommended to use this tool for batch reading multiple reference files
             key = "read_file.detail_reason_not_exist"
         elif error_type == "read_file.error_is_directory":
             key = "read_file.detail_reason_is_directory"
-        elif error_type == "read_file.error_conversion_failed":
-            key = "read_file.detail_reason_conversion_failed"
+        elif error_type == "read_file.error_unsupported_document":
+            key = "read_file.detail_reason_unsupported_document"
         elif error_type == "read_file.error_unexpected":
             key = "read_file.detail_reason_unexpected"
         else:
@@ -587,15 +576,7 @@ Strongly recommended to use this tool for batch reading multiple reference files
                     file_path = file_data["file_path"]
                     file_name = os.path.basename(file_path)
 
-                    # 根据读取方式确定显示类型，与 read_file.py 保持一致
-                    read_method = file_data.get("read_method", "unknown")
-
-                    if read_method == "markitdown":
-                        # markitdown 处理的文件使用 MD 显示类型
-                        display_type = DisplayType.MD
-                    else:
-                        # 纯文本文件根据文件扩展名确定显示类型
-                        display_type = self.get_display_type_by_extension(file_path)
+                    display_type = self.get_display_type_by_extension(file_path)
 
                     # 对展示内容做预处理：替换 base64 数据、超长截断
                     # HTML 截断后结构残缺，display_type 会被降级为 TEXT
@@ -623,26 +604,18 @@ Strongly recommended to use this tool for batch reading multiple reference files
 
                 display_parts.append(f"## {file_data['file_path']}\n\n")
 
-                # 根据读取方式决定是否需要转义和包围代码块
+                # 根据文件扩展名决定展示类型。
                 raw_content = file_data["content"]
-                read_method = file_data.get("read_method", "unknown")
 
                 # 确定该文件的展示类型，用于 base64 替换和超长截断
-                file_display_type = (
-                    DisplayType.MD if read_method == "markitdown"
-                    else self.get_display_type_by_extension(file_data["file_path"])
-                )
+                file_display_type = self.get_display_type_by_extension(file_data["file_path"])
                 # 对每个文件的展示内容做预处理：替换 base64 数据、超长截断
                 # 多文件场景外层类型固定为 MD，per-file 的降级类型不影响外层，丢弃
                 content, _ = truncate_content_for_display(raw_content, file_display_type)
 
-                # markitdown 处理的文件已经有完整格式，不需要额外处理和转义
-                if read_method == "markitdown":
-                    display_parts.append(content)
-                else:
-                    # 纯文本文件需要转义代码块并用代码块包围
-                    escaped_content = self._escape_code_blocks_for_display(content)
-                    display_parts.append(f"```\n{escaped_content}\n```")
+                # 纯文本文件需要转义代码块并用代码块包围
+                escaped_content = self._escape_code_blocks_for_display(content)
+                display_parts.append(f"```\n{escaped_content}\n```")
 
             content_for_display = "".join(display_parts)
             if failure_count > 0:
@@ -679,13 +652,98 @@ Strongly recommended to use this tool for batch reading multiple reference files
             if not result.ok:
                 return i18n.translate("read_file.single_failed", category="tool.messages", file_name=file_name)
             else:
+                range_remark = self._get_single_read_range_remark(result, operations[0])
+                if range_remark:
+                    return i18n.translate(
+                        "read_file.single_success_with_range",
+                        category="tool.messages",
+                        file_name=file_name,
+                        range=range_remark,
+                    )
                 return i18n.translate("read_file.single_success", category="tool.messages", file_name=file_name)
         else:
             main_file = os.path.basename(file_paths[0])
             if not result.ok:
                 return i18n.translate("read_file.multiple_failed", category="tool.messages", main_file=main_file, count=file_count)
             else:
-                return i18n.translate("read_file.multiple_success", category="tool.messages", main_file=main_file, count=file_count)
+                base_remark = i18n.translate("read_file.multiple_success", category="tool.messages", main_file=main_file, count=file_count)
+                ranges_remark = self._get_multiple_read_ranges_remark(result, operations)
+                if ranges_remark:
+                    return i18n.translate(
+                        "read_file.multiple_success_with_ranges",
+                        category="tool.messages",
+                        summary=base_remark,
+                        ranges=ranges_remark,
+                    )
+                return base_remark
+
+    def _get_single_read_range_remark(self, result: ToolResult, operation: Any) -> str:
+        range_items = self._get_read_range_items(result, [operation])
+        if not range_items:
+            return ""
+        return range_items[0]["range_text"]
+
+    def _get_multiple_read_ranges_remark(self, result: ToolResult, operations: List[Any]) -> str:
+        range_items = self._get_read_range_items(result, operations)
+        if not range_items:
+            return ""
+
+        visible_items = range_items[:3]
+        parts = [
+            f"{os.path.basename(item['file_path'])} {item['range_text']}"
+            for item in visible_items
+        ]
+        if len(range_items) > len(visible_items):
+            parts.append(i18n.translate(
+                "read_file.more_ranges",
+                category="tool.messages",
+                count=len(range_items) - len(visible_items),
+            ))
+        return "；".join(parts)
+
+    def _get_read_range_items(self, result: ToolResult, operations: List[Any]) -> List[Dict[str, str]]:
+        if not result.extra_info:
+            return []
+
+        file_results = result.extra_info.get("file_results") or []
+        items = []
+        for index, file_result in enumerate(file_results):
+            if index >= len(operations):
+                break
+            operation = operations[index]
+            if not self._is_paged_operation(operation):
+                continue
+            read_range = file_result.get("read_range")
+            if not read_range:
+                continue
+            start_line = read_range.get("start_line")
+            end_line = read_range.get("end_line")
+            if not start_line or not end_line:
+                continue
+            file_path = file_result.get("file_path") or self._get_operation_file_path(operation)
+            items.append({
+                "file_path": file_path,
+                "range_text": i18n.translate(
+                    "read_file.line_range",
+                    category="tool.messages",
+                    start=start_line,
+                    end=end_line,
+                ),
+            })
+        return items
+
+    def _is_paged_operation(self, operation: Any) -> bool:
+        offset = self._get_operation_value(operation, "offset", 0) or 0
+        limit = self._get_operation_value(operation, "limit", 200)
+        return offset != 0 or (limit is not None and limit > 0)
+
+    def _get_operation_file_path(self, operation: Any) -> str:
+        return self._get_operation_value(operation, "file_path", "")
+
+    def _get_operation_value(self, operation: Any, key: str, default: Any = None) -> Any:
+        if isinstance(operation, dict):
+            return operation.get(key, default)
+        return getattr(operation, key, default)
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """
@@ -735,31 +793,6 @@ Strongly recommended to use this tool for batch reading multiple reference files
             }
 
         remark = self._get_remark_content(result, arguments)
-
-        # 检查是否有转换的文件，并在 remark 中体现
-        if result.extra_info and "files_without_line_numbers" in result.extra_info:
-            files_data = result.extra_info["files_without_line_numbers"]
-
-            # 统计转换信息
-            converted_files = [f for f in files_data if f.get("is_converted")]
-
-            if converted_files:
-                # 如果只有一个文件且被转换了，显示转换信息和策略
-                if len(files_data) == 1 and len(converted_files) == 1:
-                    conversion_strategy = converted_files[0].get("conversion_strategy")
-                    if conversion_strategy and isinstance(conversion_strategy, str) and conversion_strategy != "balanced":
-                        strategy_code_mapping = {
-                            "performance": "read_file.conversion_strategy_performance",
-                            "quality": "read_file.conversion_strategy_quality",
-                            "balanced": "read_file.conversion_strategy_balanced"
-                        }
-                        strategy_code = strategy_code_mapping.get(conversion_strategy, "read_file.conversion_strategy_balanced")
-                        strategy_display = i18n.translate(strategy_code, category="tool.messages")
-                        conversion_info = i18n.translate("read_file.converted_and_read_with_strategy", category="tool.messages", strategy=strategy_display)
-                        remark = f"{conversion_info} {remark}"
-                    else:
-                        conversion_info = i18n.translate("read_file.converted_and_read", category="tool.messages")
-                        remark = f"{conversion_info} {remark}"
 
         return {
             "action": i18n.translate("read_files", category="tool.actions"),

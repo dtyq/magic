@@ -58,11 +58,12 @@ def clean_noise_content(content: str, url: str) -> str:
             replacement += "此 URL 指向一个 PDF 文件，但返回了 base64 编码的原始数据。\n\n"
             replacement += "**建议操作**：\n"
             replacement += "1. 先使用 `download_from_url` 工具下载 PDF 文件到本地\n"
-            replacement += "2. 然后使用 `convert_to_markdown` 工具转换为 Markdown：\n"
+            replacement += "2. 然后先探测文档结构，再按范围提取 Markdown chunks：\n"
             replacement += "   ```\n"
             replacement += "   {\n"
             replacement += '     "input_path": "downloads/your-file.pdf",\n'
-            replacement += '     "output_path": "converted/your-file.md"\n'
+            replacement += '     "output_dir": "converted/your-file.document",\n'
+            replacement += '     "mode": "local_text"\n'
             replacement += "   }\n"
             replacement += "   ```\n\n"
             replacement += "原始 base64 数据过大，已省略显示。\n\n---\n\n"
@@ -71,7 +72,7 @@ def clean_noise_content(content: str, url: str) -> str:
             replacement += "此内容包含大量 base64 编码数据（可能是嵌入的图片或其他二进制文件）。\n\n"
             replacement += "为避免传输大量无意义数据，已省略显示。如需处理此文件，请考虑：\n"
             replacement += "1. 使用 `download_from_url` 工具先下载文件到本地\n"
-            replacement += "2. 使用 `convert_to_markdown` 工具处理已下载的文件\n\n---\n\n"
+            replacement += "2. 先探测文档结构，再使用结构化提取工具处理已下载的文件\n\n---\n\n"
 
         logger.info(f"检测到并替换了 base64 内容: URL={url}, 大小={size_kb:.1f}KB, 类型={'PDF' if is_pdf else '未知'}")
         return replacement

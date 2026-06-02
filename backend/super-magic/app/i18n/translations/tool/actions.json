@@ -51,9 +51,41 @@
         "zh_CN": "转换PDF",
         "en_US": "Convert PDF"
     },
-    "convert_to_markdown": {
-        "zh_CN": "转换文档",
-        "en_US": "Convert document"
+    "inspect_document": {
+        "zh_CN": "探测文档",
+        "en_US": "Inspect document"
+    },
+    "extract_document_content": {
+        "zh_CN": "提取文档",
+        "en_US": "Extract document"
+    },
+    "build_document_index": {
+        "zh_CN": "建立文档索引",
+        "en_US": "Build document index"
+    },
+    "summarize_document": {
+        "zh_CN": "总结文档",
+        "en_US": "Summarize document"
+    },
+    "convert_document_format": {
+        "zh_CN": "转换文档格式",
+        "en_US": "Convert document format"
+    },
+    "export_document_markdown": {
+        "zh_CN": "导出 Markdown",
+        "en_US": "Export Markdown"
+    },
+    "sample_document_content": {
+        "zh_CN": "抽样阅读文档",
+        "en_US": "Sample document"
+    },
+    "plan_document_reading": {
+        "zh_CN": "规划文档阅读",
+        "en_US": "Plan document reading"
+    },
+    "understand_document_images": {
+        "zh_CN": "理解文档图片",
+        "en_US": "Understand document images"
     },
     "download_from_markdown": {
         "zh_CN": "下载资源",

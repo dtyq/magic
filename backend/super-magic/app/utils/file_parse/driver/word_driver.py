@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Union, List, Optional
 
 from agentlang.logger import get_logger
+from app.utils.document_parse.constants import WORD_EXTENSIONS
 from .abstract_driver import AbstractDriver
 from .interfaces.file_parser_driver_interface import ParseResult, ParseMetadata
 from .interfaces.word_driver_interface import WordDriverInterface
@@ -18,19 +19,20 @@ logger = get_logger(__name__)
 class WordDriver(AbstractDriver, WordDriverInterface):
     """Word document parser driver using MarkItDown integration.
 
-    Supports both .docx and .doc formats:
+    Supports Word-like office formats:
     - .docx: Direct processing through existing DocxConverter plugin
-    - .doc: Converted to .docx using LibreOffice/unoconv, then processed
+    - Other Word/WPS/ODT/RTF/template/macro formats: Converted to .docx
+      using LibreOffice, then processed. Macros are never executed.
     """
 
     # Supported Word document extensions
-    supported_extensions = ['.doc', '.docx']
+    supported_extensions = sorted(WORD_EXTENSIONS)
 
     async def parse(self, file_path: Union[str, Path], result: ParseResult, **kwargs) -> None:
         """Parse Word document and update the provided ParseResult object.
 
         Args:
-            file_path: Path to the Word document (.doc or .docx)
+            file_path: Path to the Word-like document
             result: ParseResult object to update with parsed content and metadata
             **kwargs: Additional parsing options:
                 - offset (int): Starting offset for conversion, default 0
@@ -38,17 +40,18 @@ class WordDriver(AbstractDriver, WordDriverInterface):
                 - extract_images (bool): Whether to extract images from document, default True
         """
         file_path_obj = Path(file_path)
-        is_doc_format = file_path_obj.suffix.lower() == '.doc'
+        original_format = file_path_obj.suffix.lower().lstrip(".")
+        requires_conversion = file_path_obj.suffix.lower() != '.docx'
 
-        logger.info(f"Parsing Word document: {file_path_obj} (format: {'DOC' if is_doc_format else 'DOCX'})")
+        logger.info(f"Parsing Word document: {file_path_obj} (format: {original_format.upper()})")
 
         # Get local file path
         local_file_path = await self._get_file_path(file_path)
 
-        # Handle .doc files by converting to .docx first
+        # Convert non-.docx inputs to the stable DOCX path used by MarkItDown.
         converted_file_path = None
         try:
-            if is_doc_format:
+            if requires_conversion:
                 from ..utils.libreoffice_util import LibreOfficeUtil
                 converted_file_path = await LibreOfficeUtil.convert_document(
                     local_file_path, 'docx', 'converted'
@@ -120,9 +123,9 @@ class WordDriver(AbstractDriver, WordDriverInterface):
             result.metadata.additional_info = {
                 'word_count': len(final_content.split()),
                 'character_count': len(final_content),
-                'document_format': 'doc' if is_doc_format else 'docx',
-                'original_format': 'doc' if is_doc_format else 'docx',
-                'conversion_required': is_doc_format,
+                'document_format': original_format,
+                'original_format': original_format,
+                'conversion_required': requires_conversion,
                 'images_extracted': extract_images
             }
         finally:
