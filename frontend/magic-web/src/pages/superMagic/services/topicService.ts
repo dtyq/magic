@@ -54,7 +54,6 @@ const FRONTEND_MODE_PATCH_TTL_MS = 30 * 60 * 1000
 
 type TopicFrontendModePatch = Pick<Topic, "project_id" | "topic_mode" | "agent_code"> & {
 	createdAt: number
-	topicUpdatedAtAtPatch?: number
 	expiresAt: number
 }
 type TopicFrontendModePatchStorage = Record<string, TopicFrontendModePatch>
@@ -65,13 +64,17 @@ function inheritTopicFrontendMode<T extends Topic>(
 	topic: T,
 	sourceTopic?: Pick<Topic, "project_id" | "topic_mode" | "agent_code"> | null,
 ): T {
-	if (!sourceTopic?.topic_mode) return topic
+	if (!sourceTopic?.topic_mode || !canApplyFrontendModePatchToTopic(topic)) return topic
 
 	return {
 		...topic,
 		topic_mode: sourceTopic.topic_mode,
 		agent_code: sourceTopic.agent_code,
 	}
+}
+
+function canApplyFrontendModePatchToTopic(topic: Pick<Topic, "topic_mode">) {
+	return !topic.topic_mode || topic.topic_mode === TopicMode.Empty
 }
 
 class TopicService {
@@ -238,13 +241,12 @@ class TopicService {
 			})
 			const updatedTopics = Array.isArray(topicsRes?.list) ? topicsRes?.list : []
 			const targetTopic = updatedTopics.find((topic: Topic) => topic?.id === newTopic?.id)
-			const selectedTopic = targetTopic
-				? inheritTopicFrontendMode(targetTopic, sourceTopic)
-				: newTopic
-					? inheritTopicFrontendMode(newTopic, sourceTopic)
-					: null
-			if (selectedTopic) {
-				this.rememberFrontendModePatch(selectedTopic.id, sourceTopic, selectedTopic)
+			const backendTopic = targetTopic ?? newTopic ?? null
+			const selectedTopic = backendTopic
+				? inheritTopicFrontendMode(backendTopic, sourceTopic)
+				: null
+			if (backendTopic && selectedTopic !== backendTopic) {
+				this.rememberFrontendModePatch(selectedTopic.id, sourceTopic)
 			}
 			const topicsWithFrontendMode = selectedTopic
 				? updatedTopics.map((topic: Topic) =>
@@ -270,7 +272,7 @@ class TopicService {
 		if (!topic?.id || !mode) return
 
 		const patchSource = this.resolveManualFrontendModeSource(topic, mode)
-		this.rememberFrontendModePatch(topic.id, patchSource, topic)
+		this.rememberFrontendModePatch(topic.id, patchSource)
 		runInAction(() => {
 			this.topicStore.mergeTopic(topic.id, {
 				topic_mode: patchSource.topic_mode,
@@ -305,7 +307,6 @@ class TopicService {
 	private rememberFrontendModePatch(
 		topicId: string,
 		sourceTopic?: Pick<Topic, "project_id" | "topic_mode" | "agent_code"> | null,
-		topicAtPatch?: Pick<Topic, "updated_at"> | null,
 	) {
 		if (!sourceTopic?.topic_mode) return
 
@@ -315,7 +316,6 @@ class TopicService {
 			topic_mode: sourceTopic.topic_mode,
 			agent_code: sourceTopic.agent_code,
 			createdAt: now,
-			topicUpdatedAtAtPatch: this.parseTopicUpdatedAt(topicAtPatch),
 			expiresAt: now + FRONTEND_MODE_PATCH_TTL_MS,
 		}
 		this.frontendModePatches.set(topicId, patch)
@@ -323,14 +323,12 @@ class TopicService {
 	}
 
 	private applyFrontendModePatch<T extends Topic>(topic: T): T {
-		if (topic.agent_code?.trim()) {
-			this.forgetFrontendModePatch(topic.id)
-			return topic
-		}
-
 		const patch = this.getFrontendModePatch(topic)
 		if (!patch) return topic
-		if (this.isBackendTopicNewerThanPatch(topic, patch)) {
+
+		// 只有后端仍返回空/占位 mode 时，前端 patch 才能补齐员工选择。
+		// 后端一旦返回明确 topic_mode（包含内置模式和带 agent_code 的 custom_agent），就以后端为准。
+		if (!this.canApplyFrontendModePatch(topic)) {
 			this.forgetFrontendModePatch(topic.id)
 			return topic
 		}
@@ -362,21 +360,8 @@ class TopicService {
 		return patch.project_id === topic.project_id && patch.expiresAt > Date.now()
 	}
 
-	private isBackendTopicNewerThanPatch(topic: Topic, patch: TopicFrontendModePatch) {
-		if (!topic.topic_mode) return false
-
-		const backendUpdatedAt = this.parseTopicUpdatedAt(topic)
-		if (backendUpdatedAt === undefined) return false
-
-		// 后端在 patch 创建后写入了明确 mode 时，以后端返回为准。
-		// 这覆盖了后端切回普通模式、没有 agent_code 的场景；仅 updated_at 变化不清理。
-		return backendUpdatedAt > (patch.topicUpdatedAtAtPatch ?? patch.createdAt)
-	}
-
-	private parseTopicUpdatedAt(topic?: Pick<Topic, "updated_at"> | null) {
-		if (!topic?.updated_at) return undefined
-		const updatedAt = Date.parse(topic.updated_at)
-		return Number.isNaN(updatedAt) ? undefined : updatedAt
+	private canApplyFrontendModePatch(topic: Topic) {
+		return canApplyFrontendModePatchToTopic(topic)
 	}
 
 	private persistFrontendModePatch(topicId: string, patch: TopicFrontendModePatch) {

@@ -43,6 +43,13 @@ function createTopic(id: string, topicName: string): Topic {
 	}
 }
 
+function createEmptyModeTopic(id: string, topicName: string): Topic {
+	return {
+		...createTopic(id, topicName),
+		topic_mode: TopicMode.Empty,
+	}
+}
+
 describe("TopicService", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -56,7 +63,7 @@ describe("TopicService", () => {
 			topic_mode: TopicMode.CustomAgent,
 			agent_code: "employee-code-1",
 		}
-		const newTopic = createTopic("topic-2", "New Topic")
+		const newTopic = createEmptyModeTopic("topic-2", "New Topic")
 		const setTopics = vi.fn()
 		const setSelectedTopic = vi.fn()
 		const service = new TopicService({
@@ -103,7 +110,7 @@ describe("TopicService", () => {
 			topic_mode: TopicMode.CustomAgent,
 			agent_code: "employee-code-1",
 		}
-		const newTopic = createTopic("topic-2", "New Topic")
+		const newTopic = createEmptyModeTopic("topic-2", "New Topic")
 		const service = new TopicService({
 			store: {
 				setTopics: vi.fn(),
@@ -137,7 +144,7 @@ describe("TopicService", () => {
 			topic_mode: TopicMode.CustomAgent,
 			agent_code: "employee-code-1",
 		}
-		const newTopic = createTopic("topic-2", "New Topic")
+		const newTopic = createEmptyModeTopic("topic-2", "New Topic")
 		const service = new TopicService({
 			store: {
 				setTopics: vi.fn(),
@@ -192,7 +199,7 @@ describe("TopicService", () => {
 			topic_mode: TopicMode.CustomAgent,
 			agent_code: "employee-code-1",
 		}
-		const newTopic = createTopic("topic-2", "New Topic")
+		const newTopic = createEmptyModeTopic("topic-2", "New Topic")
 		const backendTopic = {
 			...newTopic,
 			topic_mode: TopicMode.CustomAgent,
@@ -221,13 +228,46 @@ describe("TopicService", () => {
 		await expect(service.getTopicDetail("topic-2")).resolves.toEqual(backendTopic)
 	})
 
+	it("keeps backend built-in topic mode even when updated_at has not advanced past the patch", async () => {
+		const storageKey = platformKey("super_magic/topic_frontend_mode_patch/org-1/user-1")
+		const sourceTopic = {
+			...createTopic("topic-1", "Existing Topic"),
+			topic_mode: TopicMode.CustomAgent,
+			agent_code: "employee-code-1",
+		}
+		const emptyNewTopic = createEmptyModeTopic("topic-2", "New Topic")
+		const backendTopic = createTopic("topic-2", "New Topic")
+		const service = new TopicService({
+			store: {
+				setTopics: vi.fn(),
+				setSelectedTopic: vi.fn(),
+			} as never,
+		})
+
+		vi.mocked(SuperMagicApi.createTopic).mockResolvedValue(emptyNewTopic)
+		vi.mocked(SuperMagicApi.getTopicsByProjectId).mockResolvedValue({
+			list: [emptyNewTopic],
+			total: 1,
+		})
+		vi.mocked(SuperMagicApi.getTopicDetail).mockResolvedValue(backendTopic)
+
+		await service.createTopic({
+			projectId: "project-1",
+			topicName: "",
+			sourceTopic,
+		})
+
+		await expect(service.getTopicDetail("topic-2")).resolves.toEqual(backendTopic)
+		expect(window.sessionStorage.getItem(storageKey)).toBe("{}")
+	})
+
 	it("restores inherited employee selection from session storage after service recreation", async () => {
 		const sourceTopic = {
 			...createTopic("topic-1", "Existing Topic"),
 			topic_mode: TopicMode.CustomAgent,
 			agent_code: "employee-code-1",
 		}
-		const newTopic = createTopic("topic-2", "New Topic")
+		const newTopic = createEmptyModeTopic("topic-2", "New Topic")
 		const service = new TopicService({
 			store: {
 				setTopics: vi.fn(),
@@ -264,7 +304,7 @@ describe("TopicService", () => {
 
 	it("does not restore expired inherited employee selection from session storage", async () => {
 		const storageKey = platformKey("super_magic/topic_frontend_mode_patch/org-1/user-1")
-		const newTopic = createTopic("topic-2", "New Topic")
+		const newTopic = createEmptyModeTopic("topic-2", "New Topic")
 		window.sessionStorage.setItem(
 			storageKey,
 			JSON.stringify({
@@ -294,7 +334,7 @@ describe("TopicService", () => {
 			topic_mode: TopicMode.CustomAgent,
 			agent_code: "employee-code-1",
 		}
-		const newTopic = createTopic("topic-2", "New Topic")
+		const newTopic = createEmptyModeTopic("topic-2", "New Topic")
 		const service = new TopicService({
 			store: {
 				setTopics: vi.fn(),
@@ -372,7 +412,7 @@ describe("TopicService", () => {
 			agent_code: "employee-code-1",
 		}
 		const newTopic = {
-			...createTopic("topic-2", "New Topic"),
+			...createEmptyModeTopic("topic-2", "New Topic"),
 			updated_at: "2026-04-08T00:00:00.000Z",
 		}
 		const backendUpdatedTopic = {
@@ -414,7 +454,7 @@ describe("TopicService", () => {
 			agent_code: "employee-code-1",
 		}
 		const newTopic = {
-			...createTopic("topic-2", "New Topic"),
+			...createEmptyModeTopic("topic-2", "New Topic"),
 			updated_at: "2026-04-08T00:00:00.000Z",
 		}
 		const backendUpdatedTopic = {
