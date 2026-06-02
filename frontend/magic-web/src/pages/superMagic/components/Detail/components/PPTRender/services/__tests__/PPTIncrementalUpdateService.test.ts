@@ -8,6 +8,7 @@ describe("PPTIncrementalUpdateService", () => {
 		extractFileIdFromPath: ReturnType<typeof vi.fn>
 		setPathFileIdMapping: ReturnType<typeof vi.fn>
 		fetchUrlsForFileIds: ReturnType<typeof vi.fn>
+		getPPTFolderFileIds: ReturnType<typeof vi.fn>
 	}
 	let screenshotService: {
 		clearCache: ReturnType<typeof vi.fn>
@@ -30,6 +31,7 @@ describe("PPTIncrementalUpdateService", () => {
 						["file-2", "https://example.com/slide-2"],
 					]),
 			),
+			getPPTFolderFileIds: vi.fn(() => new Set(["file-1", "file-2"])),
 		}
 		screenshotService = {
 			clearCache: vi.fn(),
@@ -165,5 +167,56 @@ describe("PPTIncrementalUpdateService", () => {
 
 		expect(ensureSlideScreenshot).toHaveBeenCalledWith(1)
 		expect(generateSlideScreenshot).not.toHaveBeenCalled()
+	})
+
+	it("detects updated files inside nested attachment items", () => {
+		const previousList = [
+			{
+				file_id: "folder-1",
+				file_name: "deck",
+				updated_at: "1",
+				children: [
+					{
+						file_id: "file-1",
+						file_name: "slide-1.html",
+						updated_at: "1",
+					},
+				],
+			},
+		]
+		const newList = [
+			{
+				file_id: "folder-1",
+				file_name: "deck",
+				updated_at: "1",
+				children: [
+					{
+						file_id: "file-1",
+						file_name: "slide-1.html",
+						updated_at: "2",
+					},
+					{
+						file_id: "file-2",
+						file_name: "slide-2.html",
+						updated_at: "1",
+					},
+					{
+						file_id: "outside-file",
+						file_name: "notes.html",
+						updated_at: "2",
+					},
+				],
+			},
+		]
+
+		const updatedFileIds = incrementalUpdateService.detectUpdatedFiles(
+			previousList as never,
+			newList as never,
+		)
+
+		expect(updatedFileIds.has("file-1")).toBe(true)
+		expect(updatedFileIds.has("file-2")).toBe(true)
+		expect(updatedFileIds.has("outside-file")).toBe(false)
+		expect(updatedFileIds.has("folder-1")).toBe(false)
 	})
 })

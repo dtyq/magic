@@ -182,7 +182,13 @@ export class PPTStore {
 		attachmentList: any[] | undefined,
 	): AttachmentItem[] | undefined {
 		if (!Array.isArray(attachmentList)) return undefined
-		return attachmentList.map((item) => ({ ...item }))
+		return attachmentList.map((item) => {
+			const snapshot = { ...item }
+			if (Array.isArray(item?.children)) {
+				snapshot.children = this.snapshotAttachmentList(item.children)
+			}
+			return snapshot
+		})
 	}
 
 	private findAttachmentByFileId(fileId: string, list: any[] | undefined): any | undefined {
@@ -196,14 +202,33 @@ export class PPTStore {
 	}
 
 	private hasAttachmentFileId(fileId: string, list: any[] | undefined): boolean {
-		return Boolean(this.findAttachmentByFileId(fileId, list))
+		const pptFolderPath = this.pathMappingService.getPPTFolderPath()
+		if (!pptFolderPath) return Boolean(this.findAttachmentByFileId(fileId, list))
+		return Boolean(this.findAttachmentByFileIdInFolder(fileId, list, pptFolderPath))
+	}
+
+	private findAttachmentByFileIdInFolder(
+		fileId: string,
+		list: any[] | undefined,
+		folderPath: string,
+	): any | undefined {
+		if (!Array.isArray(list)) return undefined
+		for (const item of list) {
+			if (
+				item?.file_id === fileId &&
+				typeof item?.relative_file_path === "string" &&
+				item.relative_file_path.startsWith(folderPath)
+			) {
+				return item
+			}
+			const child = this.findAttachmentByFileIdInFolder(fileId, item?.children, folderPath)
+			if (child) return child
+		}
+		return undefined
 	}
 
 	private getRelativeFilePathByFileId(fileId?: string): string | undefined {
-		if (!fileId) return undefined
-		const fileItem = this.findAttachmentByFileId(fileId, this.config.attachmentList)
-		if (!fileItem?.relative_file_path || !fileItem?.file_name) return undefined
-		return fileItem.relative_file_path.replace(fileItem.file_name, "")
+		return this.pathMappingService.getRelativeFilePathByFileId(fileId)
 	}
 
 	private getSlideFileId(slide: SlideItem | undefined): string | undefined {
@@ -573,12 +598,19 @@ export class PPTStore {
 			const slideRawData: Array<{
 				url: string
 				index: number
+				path: string
+				fileId?: string
 				content: string
 				relativeFilePath?: string
 			}> = []
 
 			await Promise.all(
 				this.slides.map(async (slide, index) => {
+					const target = {
+						indexHint: index,
+						path: slide.path,
+						fileId: this.getSlideFileId(slide),
+					}
 					try {
 						const url = slide.url || ""
 						if (!url) {
@@ -588,9 +620,10 @@ export class PPTStore {
 							})
 
 							runInAction(() => {
-								if (this.slides[index]) {
-									this.slides[index].loadingState = "error"
-									this.slides[index].loadingError = new Error(
+								const currentIndex = this.findSlideIndexByLoadTarget(target)
+								if (currentIndex !== -1 && this.slides[currentIndex]) {
+									this.slides[currentIndex].loadingState = "error"
+									this.slides[currentIndex].loadingError = new Error(
 										"No URL available for slide",
 									)
 								}
@@ -600,21 +633,32 @@ export class PPTStore {
 
 						const rawContent = await this.loaderService.loadSlide(url)
 
-						const slidePath = this.slides[index]?.path
-						const fileId = this.pathMappingService.getFileIdByPath(slidePath)
-						const fileItem = this.config.attachmentList?.find(
-							(item: any) => item.file_id === fileId,
-						)
-						const relativeFilePath = fileItem?.relative_file_path?.replace(
-							fileItem?.file_name,
-							"",
-						)
+						const currentIndex = this.findSlideIndexByLoadTarget(target)
+						if (currentIndex === -1) {
+							this.logger.warn("幻灯片在原始内容加载后已不存在，丢弃结果", {
+								operation: "loadAllSlides",
+								slideIndex: index,
+								metadata: { path: target.path, fileId: target.fileId },
+							})
+							return
+						}
 
-						slideRawData.push({ url, index, content: rawContent, relativeFilePath })
+						const currentSlide = this.slides[currentIndex]
+						const fileId = target.fileId || this.getSlideFileId(currentSlide)
+						const relativeFilePath = this.getRelativeFilePathByFileId(fileId)
+
+						slideRawData.push({
+							url,
+							index: currentIndex,
+							path: target.path,
+							fileId,
+							content: rawContent,
+							relativeFilePath,
+						})
 
 						const fileIds = this.processorService.collectFileIds(
 							rawContent,
-							index,
+							currentIndex,
 							relativeFilePath,
 						)
 						fileIds.forEach((id) => allFileIds.add(id))
@@ -625,9 +669,10 @@ export class PPTStore {
 						})
 
 						runInAction(() => {
-							if (this.slides[index]) {
-								this.slides[index].loadingState = "error"
-								this.slides[index].loadingError = error as Error
+							const currentIndex = this.findSlideIndexByLoadTarget(target)
+							if (currentIndex !== -1 && this.slides[currentIndex]) {
+								this.slides[currentIndex].loadingState = "error"
+								this.slides[currentIndex].loadingError = error as Error
 							}
 						})
 					}
@@ -656,45 +701,64 @@ export class PPTStore {
 
 			// Phase 3: Process slides with URL mapping
 			const currentIndex = this.activeIndex
-			// Use actual slide indices from slideRawData, not array positions
-			const allIndices = slideRawData.map((s) => s.index)
-			const priorityIndices = [
-				currentIndex,
-				currentIndex - 1,
-				currentIndex + 1,
-				...allIndices.filter((i) => Math.abs(i - currentIndex) > 1),
-			].filter((i) => allIndices.includes(i))
+			const prioritizedSlideData = [...slideRawData].sort((a, b) => {
+				const aIndex = this.findSlideIndexByLoadTarget({
+					indexHint: a.index,
+					path: a.path,
+					fileId: a.fileId,
+				})
+				const bIndex = this.findSlideIndexByLoadTarget({
+					indexHint: b.index,
+					path: b.path,
+					fileId: b.fileId,
+				})
+				const aDistance =
+					aIndex === -1 ? Number.MAX_SAFE_INTEGER : Math.abs(aIndex - currentIndex)
+				const bDistance =
+					bIndex === -1 ? Number.MAX_SAFE_INTEGER : Math.abs(bIndex - currentIndex)
+				return aDistance - bDistance
+			})
 
 			const processingPromises: Promise<void>[] = []
 
-			for (const priorityIndex of priorityIndices) {
-				const slideData = slideRawData.find((s) => s.index === priorityIndex)
-				if (!slideData) continue
-
-				const { index, content, relativeFilePath } = slideData
+			for (const slideData of prioritizedSlideData) {
+				const { index, path, fileId, content, relativeFilePath } = slideData
+				const target = { indexHint: index, path, fileId }
 
 				const promise = (async () => {
 					try {
 						runInAction(() => {
-							if (this.slides[index]) {
-								this.slides[index].loadingState = "loading"
+							const currentIndex = this.findSlideIndexByLoadTarget(target)
+							if (currentIndex !== -1 && this.slides[currentIndex]) {
+								this.slides[currentIndex].loadingState = "loading"
 							}
 						})
+
+						const processIndex = this.findSlideIndexByLoadTarget(target)
+						if (processIndex === -1) {
+							this.logger.warn("幻灯片在内容处理前已不存在，丢弃结果", {
+								operation: "loadAllSlides",
+								slideIndex: index,
+								metadata: { path, fileId },
+							})
+							return
+						}
 
 						const processedContent =
 							await this.processorService.processSlideWithUrlMapping(
 								content,
-								index,
+								processIndex,
 								relativeFilePath,
 								urlMapping,
 							)
 
 						runInAction(() => {
-							if (this.slides[index]) {
-								this.slides[index].rawContent = content
-								this.slides[index].content = processedContent
-								this.slides[index].loadingState = "loaded"
-								this.slides[index].lastLoadedAt = Date.now()
+							const currentIndex = this.findSlideIndexByLoadTarget(target)
+							if (currentIndex !== -1 && this.slides[currentIndex]) {
+								this.slides[currentIndex].rawContent = content
+								this.slides[currentIndex].content = processedContent
+								this.slides[currentIndex].loadingState = "loaded"
+								this.slides[currentIndex].lastLoadedAt = Date.now()
 							}
 						})
 
@@ -707,9 +771,10 @@ export class PPTStore {
 						})
 
 						runInAction(() => {
-							if (this.slides[index]) {
-								this.slides[index].loadingState = "error"
-								this.slides[index].loadingError = error as Error
+							const currentIndex = this.findSlideIndexByLoadTarget(target)
+							if (currentIndex !== -1 && this.slides[currentIndex]) {
+								this.slides[currentIndex].loadingState = "error"
+								this.slides[currentIndex].loadingError = error as Error
 							}
 						})
 					}
@@ -926,32 +991,49 @@ export class PPTStore {
 			}
 
 			// Update URL mapping
-			this.pathMappingService.setPathUrlMapping(slide.path, latestUrl)
+			const slidePath = slide.path
+			this.pathMappingService.setPathUrlMapping(slidePath, latestUrl)
 
 			// Update slide URL if different
-			if (slide.url !== latestUrl) {
-				runInAction(() => {
-					if (this.slides[slideIndex]) {
-						this.slides[slideIndex].url = latestUrl
+			runInAction(() => {
+				const currentIndex = this.slides.findIndex(
+					(candidate) => this.getSlideFileId(candidate) === fileId,
+				)
+				const currentSlide = currentIndex === -1 ? undefined : this.slides[currentIndex]
+				if (currentSlide) {
+					if (currentSlide.url !== latestUrl) {
+						currentSlide.url = latestUrl
 					}
-				})
-			}
+					this.pathMappingService.setPathUrlMapping(currentSlide.path, latestUrl)
+				}
+			})
 
 			// Reload slide content with latest URL, anchored by fileId to avoid index drift.
 			await this.loadSlideContentByFileId(fileId, {
-				path: slide.path,
+				path: slidePath,
 				url: latestUrl,
 				indexHint: slideIndex,
 			})
 
-			// Regenerate screenshot after content refresh
-			const refreshedSlide = this.slides[slideIndex]
-			if (refreshedSlide?.content) {
-				this.generateSlideScreenshot(slideIndex, refreshedSlide.content)
+			// Regenerate screenshot after content refresh. Resolve by fileId again because
+			// a slide insertion/removal may have shifted indices while content was loading.
+			const refreshedSlideIndex = this.slides.findIndex(
+				(candidate) => this.getSlideFileId(candidate) === fileId,
+			)
+			const refreshedSlide = this.slides[refreshedSlideIndex]
+			if (this.config.autoLoadAndGenerate !== false && refreshedSlide?.content) {
+				await this.generateSlideScreenshot(refreshedSlideIndex, refreshedSlide.content)
 			}
 
 			this.logger.logOperationSuccess("refreshSlideByFileId", {
-				metadata: { fileId, slideIndex, latestUrl, screenshotRegenerated: true },
+				metadata: {
+					fileId,
+					slideIndex,
+					latestUrl,
+					screenshotRegenerated:
+						this.config.autoLoadAndGenerate !== false &&
+						Boolean(refreshedSlide?.content),
+				},
 			})
 		} catch (error) {
 			this.logger.logOperationError("refreshSlideByFileId", error, {
@@ -988,10 +1070,7 @@ export class PPTStore {
 
 			const slidePath = this.slides[index]?.path
 			const fileId = this.pathMappingService.getFileIdByPath(slidePath)
-			const fileItem = this.config.attachmentList?.find(
-				(item: any) => item.file_id === fileId,
-			)
-			const relativeFilePath = fileItem?.relative_file_path?.replace(fileItem?.file_name, "")
+			const relativeFilePath = this.getRelativeFilePathByFileId(fileId)
 
 			// Process content without modifying slide state
 			const processedContent = await this.processorService.processSlide(
@@ -1382,11 +1461,17 @@ export class PPTStore {
 	async generateSlideScreenshot(index: number, targetContent?: string): Promise<void> {
 		const slide = this.slides[index]
 		if (!slide) return
+		const generationKey = this.getSlideStableKey(slide, index)
 		await this.screenshotManager.generateSlideScreenshot(
 			slide,
 			index,
 			this.slides,
 			targetContent,
+			() =>
+				this.slides.findIndex(
+					(candidate, candidateIndex) =>
+						this.getSlideStableKey(candidate, candidateIndex) === generationKey,
+				),
 		)
 	}
 
@@ -1735,10 +1820,15 @@ export class PPTStore {
 						if (!fileId) return
 						const recoveredUrl = urlMap.get(fileId)
 						if (!recoveredUrl) return
-						const target = this.slides[pending.index]
+						const targetIndex = this.slides.findIndex(
+							(slide) =>
+								this.getSlideFileId(slide) === fileId ||
+								slide.path === pending.path,
+						)
+						const target = targetIndex === -1 ? undefined : this.slides[targetIndex]
 						if (!target || target.path !== pending.path) return
 						target.url = recoveredUrl
-						recoveredIndices.push(pending.index)
+						recoveredIndices.push(targetIndex)
 					})
 				})
 
@@ -1809,19 +1899,27 @@ export class PPTStore {
 						if (!latestUrl) return
 
 						// Update URL if changed
-						if (slide.url !== latestUrl) {
-							runInAction(() => {
-								if (this.slides[index]) {
-									this.slides[index].url = latestUrl
-								}
-							})
-						}
+						let currentIndex = -1
+						let currentPath = slide.path
+						runInAction(() => {
+							currentIndex = this.slides.findIndex(
+								(candidate) => this.getSlideFileId(candidate) === fileId,
+							)
+							const currentSlide =
+								currentIndex === -1 ? undefined : this.slides[currentIndex]
+							if (!currentSlide) return
+							currentPath = currentSlide.path
+							if (currentSlide.url !== latestUrl) {
+								currentSlide.url = latestUrl
+							}
+							this.pathMappingService.setPathUrlMapping(currentSlide.path, latestUrl)
+						})
 
 						try {
 							await this.loadSlideContentByFileId(fileId, {
-								path: slide.path,
+								path: currentPath,
 								url: latestUrl,
-								indexHint: index,
+								indexHint: currentIndex === -1 ? index : currentIndex,
 							})
 							recoveredCount++
 						} catch (error) {

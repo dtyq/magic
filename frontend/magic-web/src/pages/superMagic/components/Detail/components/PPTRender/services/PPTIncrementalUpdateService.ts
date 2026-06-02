@@ -36,6 +36,51 @@ export class PPTIncrementalUpdateService {
 		private logger: PPTLoggerService,
 	) {}
 
+	private flattenAttachmentItems(list: AttachmentItem[] | undefined): AttachmentItem[] {
+		if (!Array.isArray(list)) return []
+		const result: AttachmentItem[] = []
+		for (const item of list) {
+			result.push(item)
+			const children = (item as AttachmentItem & { children?: AttachmentItem[] }).children
+			if (Array.isArray(children) && children.length > 0) {
+				result.push(...this.flattenAttachmentItems(children))
+			}
+		}
+		return result
+	}
+
+	private collectAttachmentItemsByFileIds(
+		list: AttachmentItem[] | undefined,
+		fileIds: Set<string>,
+	): AttachmentItem[] {
+		if (!Array.isArray(list) || fileIds.size === 0) return []
+		const result: AttachmentItem[] = []
+		const remainingFileIds = new Set(fileIds)
+
+		const visit = (items: AttachmentItem[] | undefined) => {
+			if (!Array.isArray(items) || remainingFileIds.size === 0) return
+			for (const item of items) {
+				if (item.file_id && remainingFileIds.has(item.file_id)) {
+					result.push(item)
+					remainingFileIds.delete(item.file_id)
+				}
+				const children = (item as AttachmentItem & { children?: AttachmentItem[] }).children
+				visit(children)
+			}
+		}
+
+		visit(list)
+		return result
+	}
+
+	private getScopedAttachmentItems(list: AttachmentItem[] | undefined): AttachmentItem[] {
+		const pptFolderFileIds = this.pathMappingService.getPPTFolderFileIds()
+		if (pptFolderFileIds.size === 0) {
+			return this.flattenAttachmentItems(list)
+		}
+		return this.collectAttachmentItemsByFileIds(list, pptFolderFileIds)
+	}
+
 	/**
 	 * Detect slide changes (added, removed, reordered)
 	 */
@@ -102,9 +147,11 @@ export class PPTIncrementalUpdateService {
 			return updatedFileIds
 		}
 
-		const previousMap = new Map(previousList.map((item) => [item.file_id, item]))
+		const previousItems = this.getScopedAttachmentItems(previousList)
+		const newItems = this.getScopedAttachmentItems(newList)
+		const previousMap = new Map(previousItems.map((item) => [item.file_id, item]))
 
-		newList.forEach((newItem) => {
+		newItems.forEach((newItem) => {
 			if (!newItem.file_id) return
 			const prevItem = previousMap.get(newItem.file_id)
 			if (!prevItem) {
@@ -340,7 +387,7 @@ export class PPTIncrementalUpdateService {
 		})
 
 		// Find slides that need to be reloaded
-		const affectedSlideIndices: number[] = []
+		const affectedSlides: Array<{ fileId: string; index: number; path: string }> = []
 		const fileIdsToFetch: string[] = []
 		const manuallySavedFileIds: Set<string> = new Set()
 		const editingSlides: Array<{ fileId: string; index: number; isManuallySaved: boolean }> = []
@@ -367,7 +414,7 @@ export class PPTIncrementalUpdateService {
 					})
 				} else {
 					// Not editing, normal reload
-					affectedSlideIndices.push(index)
+					affectedSlides.push({ fileId, index, path: slide.path })
 					fileIdsToFetch.push(fileId)
 				}
 			}
@@ -383,13 +430,16 @@ export class PPTIncrementalUpdateService {
 
 		// Handle editing slides - load content silently without affecting UI state
 		for (const { fileId, index, isManuallySaved } of editingSlides) {
-			const slide = context.slides[index]
+			const currentIndex = context.slides.findIndex(
+				(slide) => this.pathMappingService.getFileIdByPath(slide.path) === fileId,
+			)
+			const slide = currentIndex === -1 ? undefined : context.slides[currentIndex]
 			const newUrl = urlMap.get(fileId)
 			if (newUrl && slide) {
 				try {
 					// Use silent loading method to avoid triggering UI updates
 					const loadMethod = context.loadSlideContentSilently || context.loadSlideContent
-					const newContent = await loadMethod(newUrl, index)
+					const newContent = await loadMethod(newUrl, currentIndex)
 					const isManualSaveEcho =
 						isManuallySaved &&
 						typeof newContent === "string" &&
@@ -400,14 +450,14 @@ export class PPTIncrementalUpdateService {
 						context.clearManualSaveMark?.(fileId)
 						this.logger.info("编辑态更新后清除手动保存标记", {
 							operation: "handleFileUpdates",
-							metadata: { fileId, index, isManualSaveEcho },
+							metadata: { fileId, index: currentIndex, isManualSaveEcho },
 						})
 					}
 
 					if (isManualSaveEcho) {
 						this.logger.info("检测到编辑态手动保存回流，忽略冲突提示", {
 							operation: "handleFileUpdates",
-							metadata: { fileId, index },
+							metadata: { fileId, index: currentIndex },
 						})
 						continue
 					}
@@ -418,11 +468,11 @@ export class PPTIncrementalUpdateService {
 					}
 
 					// 使用新的内容重新生成截图；截图前按 fileId 重新定位，避免插入/删除导致 index 漂移。
-					const currentIndex = context.slides.findIndex(
+					const screenshotIndex = context.slides.findIndex(
 						(slide) => this.pathMappingService.getFileIdByPath(slide.path) === fileId,
 					)
 					context.generateSlideScreenshot(
-						currentIndex === -1 ? index : currentIndex,
+						screenshotIndex === -1 ? index : screenshotIndex,
 						newContent,
 					)
 				} catch (error) {
@@ -436,10 +486,19 @@ export class PPTIncrementalUpdateService {
 
 		// Update slide URLs and reset loading state for non-editing slides
 		runInAction(() => {
-			affectedSlideIndices.forEach((index) => {
-				const slide = context.slides[index]
-				const fileId = this.pathMappingService.getFileIdByPath(slide.path)
-				const newUrl = fileId ? urlMap.get(fileId) : undefined
+			affectedSlides.forEach(({ fileId, path, index }) => {
+				const currentIndex = context.slides.findIndex(
+					(slide) => this.pathMappingService.getFileIdByPath(slide.path) === fileId,
+				)
+				const pathIndex =
+					currentIndex === -1
+						? context.slides.findIndex((slide) => slide.path === path)
+						: -1
+				const stableIndex = currentIndex !== -1 ? currentIndex : pathIndex
+				const slide =
+					stableIndex === -1 ? context.slides[index] : context.slides[stableIndex]
+				if (!slide || slide.path !== path) return
+				const newUrl = urlMap.get(fileId)
 
 				if (newUrl) {
 					slide.url = newUrl
@@ -457,17 +516,28 @@ export class PPTIncrementalUpdateService {
 		})
 
 		// Reload affected slides (only non-editing ones)
-		if (affectedSlideIndices.length > 0) {
+		if (affectedSlides.length > 0) {
 			await this.loadSpecificSlides(
-				affectedSlideIndices.map((index) => {
-					const slide = context.slides[index]
+				affectedSlides.map(({ fileId, index, path }) => {
+					const currentIndex = context.slides.findIndex(
+						(slide) => this.pathMappingService.getFileIdByPath(slide.path) === fileId,
+					)
+					const pathIndex =
+						currentIndex === -1
+							? context.slides.findIndex((slide) => slide.path === path)
+							: -1
+					const stableIndex =
+						currentIndex !== -1 ? currentIndex : pathIndex !== -1 ? pathIndex : index
+					const slide = context.slides[stableIndex]
+					const isTargetSlide =
+						!!slide &&
+						(this.pathMappingService.getFileIdByPath(slide.path) === fileId ||
+							slide.path === path)
 					return {
-						index,
-						path: slide?.path,
-						fileId: slide
-							? this.pathMappingService.getFileIdByPath(slide.path)
-							: undefined,
-						url: slide?.url,
+						index: stableIndex,
+						path: slide?.path || path,
+						fileId,
+						url: isTargetSlide ? slide?.url : undefined,
 					}
 				}),
 				context,

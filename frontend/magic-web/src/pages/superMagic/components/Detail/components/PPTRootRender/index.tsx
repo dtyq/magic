@@ -14,6 +14,10 @@ import { getFileContentById } from "@/pages/superMagic/utils/api"
 
 const MAGIC_PROJECT_FILE_NAME = "magic.project.js"
 
+interface PendingLocalSlidePaths {
+	slidePaths: string[]
+}
+
 function normalizeFolderPath(relativePath?: string, fileName?: string): string {
 	if (!relativePath || !fileName) return ""
 	return relativePath.replace(fileName, "")
@@ -74,7 +78,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 	const [currentAttachmentList, setCurrentAttachmentList] = useState<any>([])
 	const [magicProjectContent, setMagicProjectContent] = useState<string>()
 	const [magicProjectLoading, setMagicProjectLoading] = useState(false)
-	const pendingLocalSlidePathsRef = useRef<string[] | null>(null)
+	const pendingLocalSlidePathsRef = useRef<PendingLocalSlidePaths | null>(null)
 	// 标记是否至少完成过一次内容解析，避免路径计算中误展示空态
 	const [hasProcessedContent, setHasProcessedContent] = useState(false)
 	const processAttachments = attachments || attachmentList || []
@@ -141,6 +145,10 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 		content: displayData?.content || "",
 		disabledUrlCache: isPlaybackMode,
 	})
+
+	useEffect(() => {
+		pendingLocalSlidePathsRef.current = null
+	}, [displayData?.file_id, magicProjectFile?.file_id])
 
 	useEffect(() => {
 		const fileId = magicProjectFile?.file_id
@@ -231,10 +239,10 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 			})
 
 			if (shouldUseMagicProject && pendingLocalSlidePathsRef.current) {
-				const pendingSlidePaths = pendingLocalSlidePathsRef.current
+				const pendingLocalSlidePaths = pendingLocalSlidePathsRef.current
 				const isMagicProjectCaughtUp =
 					getSlidesSignature(result.originalSlidesPaths) ===
-					getSlidesSignature(pendingSlidePaths)
+					getSlidesSignature(pendingLocalSlidePaths.slidePaths)
 
 				if (!isMagicProjectCaughtUp) {
 					return
@@ -281,7 +289,9 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 
 	// Handle sort panel save
 	const handleSortSave = useCallback((newSlidesPaths: string[]) => {
-		pendingLocalSlidePathsRef.current = newSlidesPaths
+		pendingLocalSlidePathsRef.current = {
+			slidePaths: newSlidesPaths,
+		}
 		setOriginalSlidesPaths(newSlidesPaths)
 	}, [])
 
