@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -16,6 +17,36 @@ class LibreOfficeUtil:
     """Utility class for LibreOffice document conversion operations."""
 
     @staticmethod
+    def _get_libreoffice_commands() -> list[str]:
+        """Return LibreOffice executable candidates in a stable preference order."""
+        command_names = ["libreoffice", "soffice"]
+        resolved_commands = [
+            resolved
+            for name in command_names
+            if (resolved := shutil.which(name))
+        ]
+        absolute_candidates = [
+            "/opt/homebrew/bin/libreoffice",
+            "/opt/homebrew/bin/soffice",
+            "/usr/local/bin/libreoffice",
+            "/usr/local/bin/soffice",
+            "/usr/bin/libreoffice",
+            "/usr/bin/soffice",
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        ]
+
+        commands: list[str] = []
+        existing_absolute_candidates = [
+            candidate
+            for candidate in absolute_candidates
+            if Path(candidate).exists()
+        ]
+        for candidate in [*resolved_commands, *existing_absolute_candidates]:
+            if candidate not in commands:
+                commands.append(candidate)
+        return commands
+
+    @staticmethod
     async def check_libreoffice_available() -> bool:
         """Check if LibreOffice is available on the system.
 
@@ -23,16 +54,13 @@ class LibreOfficeUtil:
             bool: True if LibreOffice is available, False otherwise
         """
         try:
-            # Try different common LibreOffice command names
-            libreoffice_commands = ['libreoffice', 'soffice', '/Applications/LibreOffice.app/Contents/MacOS/soffice']
-
-            for cmd in libreoffice_commands:
+            for cmd in LibreOfficeUtil._get_libreoffice_commands():
                 try:
                     result = subprocess.run(
                         [cmd, '--version'],
                         capture_output=True,
                         text=True,
-                        timeout=10
+                        timeout=3
                     )
                     if result.returncode == 0:
                         logger.debug(f"Found LibreOffice: {cmd}, version: {result.stdout.strip()}")
@@ -68,11 +96,10 @@ class LibreOfficeUtil:
         """
         logger.info(f"Converting {input_file.suffix} to {target_format}: {input_file}")
 
-        # Check if LibreOffice is available
         if not await LibreOfficeUtil.check_libreoffice_available():
-            raise RuntimeError(
-                f"LibreOffice is not available. Please install LibreOffice to support {input_file.suffix} files.\n"
-                "Installation: https://www.libreoffice.org/download/"
+            logger.warning(
+                "LibreOffice availability check failed; attempting conversion anyway. "
+                "The availability probe can be a false negative in restricted macOS contexts."
             )
 
         # Create temporary directory for conversion
@@ -87,8 +114,10 @@ class LibreOfficeUtil:
             conversion_root = temp_dir_path / filename_hash
             conversion_input_dir = conversion_root / "input"
             conversion_output_dir = conversion_root / "output"
+            conversion_profile_dir = conversion_root / "profile"
             await async_mkdir(conversion_input_dir, parents=True, exist_ok=True)
             await async_mkdir(conversion_output_dir, parents=True, exist_ok=True)
+            await async_mkdir(conversion_profile_dir, parents=True, exist_ok=True)
 
             # Use a safe random ASCII filename to avoid encoding issues with Chinese characters
             # in some Linux/Docker environments where LibreOffice may fail to handle
@@ -99,7 +128,7 @@ class LibreOfficeUtil:
 
             # Convert using LibreOffice headless mode
             await LibreOfficeUtil._run_libreoffice_conversion(
-                temp_input_path, conversion_output_dir, target_format
+                temp_input_path, conversion_output_dir, target_format, conversion_profile_dir
             )
 
             # Find the converted file using the safe filename stem
@@ -135,33 +164,42 @@ class LibreOfficeUtil:
             return final_temp_path
 
     @staticmethod
-    async def _run_libreoffice_conversion(input_file: Path, output_dir: Path, target_format: str) -> None:
+    async def _run_libreoffice_conversion(
+        input_file: Path,
+        output_dir: Path,
+        target_format: str,
+        profile_dir: Path | None = None,
+    ) -> None:
         """Run LibreOffice conversion command.
 
         Args:
             input_file: Path to the input file
             output_dir: Directory to save the converted file
             target_format: Target format (e.g., 'docx', 'pptx')
+            profile_dir: Isolated LibreOffice user profile directory
 
         Raises:
             RuntimeError: If conversion fails
         """
         try:
-            # Try different LibreOffice command names
-            libreoffice_commands = ['libreoffice', 'soffice', '/Applications/LibreOffice.app/Contents/MacOS/soffice']
-
             conversion_successful = False
+            last_error = ""
 
-            for cmd in libreoffice_commands:
+            for cmd in LibreOfficeUtil._get_libreoffice_commands():
                 try:
-                    # LibreOffice command to convert document
                     command = [
                         cmd,
                         '--headless',  # Run without GUI
+                        '--nologo',
+                        '--nodefault',
+                        '--nolockcheck',
+                        '--nofirststartwizard',
                         '--convert-to', target_format,  # Convert to target format
                         '--outdir', str(output_dir),  # Output directory
                         str(input_file)  # Input file
                     ]
+                    if profile_dir is not None:
+                        command.insert(2, f"-env:UserInstallation={profile_dir.resolve().as_uri()}")
 
                     logger.debug(f"Running LibreOffice conversion: {' '.join(command)}")
 
@@ -181,17 +219,23 @@ class LibreOfficeUtil:
                         conversion_successful = True
                         break
                     else:
+                        last_error = (
+                            f"command={cmd}, returncode={result.returncode}, "
+                            f"stdout={result.stdout.strip()}, stderr={result.stderr.strip()}"
+                        )
                         logger.debug(f"LibreOffice command {cmd} failed with return code {result.returncode}")
+                        logger.debug(f"LibreOffice stdout: {result.stdout}")
                         logger.debug(f"LibreOffice stderr: {result.stderr}")
 
                 except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+                    last_error = f"command={cmd}, error={e}"
                     logger.debug(f"LibreOffice command {cmd} not available or timed out: {e}")
                     continue
 
             if not conversion_successful:
                 raise RuntimeError(
                     f"LibreOffice conversion failed for {input_file}. "
-                    "Please ensure LibreOffice is properly installed and accessible."
+                    f"Please ensure LibreOffice is properly installed and accessible. Last error: {last_error}"
                 )
 
         except Exception as e:
