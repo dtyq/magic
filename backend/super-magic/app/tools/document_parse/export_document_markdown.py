@@ -50,6 +50,7 @@ from app.utils.document_parse.structure.range_parser import RangeParser
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_absolute_path,
     require_valid_input_file,
@@ -99,12 +100,16 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             profile = await DocumentInspector().inspect(input_path)
             artifact_mode = DocumentArtifactModeSelector.resolve("auto", profile, DEFAULT_CHUNK_MAX_CHARS)
         except ValueError as exc:
-            return ToolResult.error(str(exc))
+            return ToolResult.error(build_document_parse_model_error("export_document_markdown", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("export_document_markdown", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
 
-        if artifact_mode == "simple":
-            return await self._execute_simple(tool_context, params, input_path, output_dir, profile.file_type, resolved.correction_note)
-
-        return await self._execute_progressive(tool_context, params, input_path, output_dir, resolved.correction_note)
+        try:
+            if artifact_mode == "simple":
+                return await self._execute_simple(tool_context, params, input_path, output_dir, profile.file_type, resolved.correction_note)
+            return await self._execute_progressive(tool_context, params, input_path, output_dir, resolved.correction_note)
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("export_document_markdown", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
 
     async def _execute_progressive(
         self,

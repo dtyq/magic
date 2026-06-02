@@ -111,6 +111,28 @@ def prepend_correction_note(content: str, correction_note: str | None) -> str:
     return f"{correction_note}\n\n{content}"
 
 
+def build_document_parse_model_error(tool_name: str, error: str, *, input_path: str | None = None, output_dir: str | None = None) -> str:
+    """Build model-facing failure content with concrete next-step guidance."""
+    lines = [
+        f"Document-converter tool failed: `{tool_name}`",
+        "",
+    ]
+    if input_path:
+        lines.append(f"- Input path: `{input_path}`")
+    if output_dir:
+        lines.append(f"- Output directory: `{output_dir}`")
+    lines.extend([
+        f"- Error: {error}",
+        "",
+        "Recommended next actions:",
+        "1. If the error mentions `File format mismatch`, call `convert_document_format` with the original `input_path`, a stable `output_dir`, and `target_format` `docx`, `pptx`, `xlsx`, or `pdf` according to the detected document family.",
+        "2. Run `inspect_document` on the converted file returned by `convert_document_format`.",
+        "3. If the error says the file or output directory does not exist, correct the absolute path and run the same tool again.",
+        "4. After inspection succeeds, follow the returned next actions such as `sample_document_content`, `plan_document_reading`, `extract_document_content`, or `export_document_markdown`.",
+    ])
+    return "\n".join(lines)
+
+
 def build_document_parse_after_remark(
     tool_name: str,
     action_key: str,
@@ -145,7 +167,7 @@ def build_document_parse_error_detail(
         for key, value in args.items()
         if key in {"input_path", "output_dir", "ranges", "target_format", "goal"} and value not in (None, "")
     }
-    error_text = str(result.content or "Unknown document-converter tool error.")
+    error_text = _frontend_error_text(str(result.content or "Unknown document-converter tool error."))
     if len(error_text) > 4000:
         error_text = f"{error_text[:4000]}\n... (truncated)"
 
@@ -167,10 +189,17 @@ def build_document_parse_error_detail(
         "~~~text",
         error_text,
         "~~~",
-        "",
-        i18n.translate("document_parse.detail_error_next_step", category="tool.messages"),
     ])
     return ToolDetail(
         type=DisplayType.MD,
         data=FileContent(file_name="document_converter_error.md", content="\n".join(lines)),
     )
+
+
+def _frontend_error_text(content: str) -> str:
+    """Return a concise user-facing error summary without model planning guidance."""
+    text = content.split("Recommended next actions:", 1)[0].strip()
+    for line in text.splitlines():
+        if line.startswith("- Error: "):
+            return line.removeprefix("- Error: ").strip()
+    return text

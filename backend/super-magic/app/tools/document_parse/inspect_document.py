@@ -29,6 +29,7 @@ from app.utils.document_parse.service.document_inspector import DocumentInspecto
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_valid_input_file,
 )
@@ -56,7 +57,10 @@ class InspectDocument(AbstractFileTool[InspectDocumentParams], WorkspaceTool[Ins
             return error
         assert resolved is not None
         path = resolved.path
-        profile = await DocumentInspector().inspect(path)
+        try:
+            profile = await DocumentInspector().inspect(path)
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("inspect_document", str(exc), input_path=str(path)))
         data = asdict(profile)
         format_check = _build_format_check(profile, path)
         next_actions = _build_next_actions(profile)
@@ -97,7 +101,6 @@ class InspectDocument(AbstractFileTool[InspectDocumentParams], WorkspaceTool[Ins
             return None
         info = result.extra_info
         format_check = info.get("format_check") or {}
-        next_actions = info.get("next_actions") or []
         lines = [
             f"# {i18n.translate('inspect_document.detail_title', category='tool.messages')}",
             "",
@@ -110,12 +113,6 @@ class InspectDocument(AbstractFileTool[InspectDocumentParams], WorkspaceTool[Ins
             f"- {i18n.translate('document_parse.detail_total_units', category='tool.messages')}: `{info.get('total_units')}`",
             f"- {i18n.translate('document_parse.detail_strategy', category='tool.messages')}: {info.get('recommended_strategy', '')}",
         ]
-        if next_actions:
-            lines.extend([
-                "",
-                f"## {i18n.translate('document_parse.detail_next_actions', category='tool.messages')}",
-            ])
-            lines.extend(f"{index}. {action}" for index, action in enumerate(next_actions, start=1))
         return ToolDetail(type=DisplayType.MD, data=FileContent(file_name="document_inspection.md", content="\n".join(lines)))
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] | None = None) -> Dict:

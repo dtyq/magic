@@ -30,6 +30,7 @@ from app.utils.document_parse.service.reading_state import ReadingStateStore
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_absolute_path,
     require_valid_input_file,
@@ -75,28 +76,31 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
             return error
         assert resolved is not None
         input_path = resolved.path
-        extraction = await DocumentExtractor().extract(
-            input_path,
-            output_dir,
-            ranges=params.ranges,
-            mode="auto",
-            max_chars=DEFAULT_CHUNK_MAX_CHARS,
-            extract_images=True,
-            exclude_watermark_images=True,
-            deduplicate_repeated_images=True,
-        )
-        structure = await DocumentIndexer().build_from_extraction(input_path, output_dir, extraction)
-        await ReadingStateStore().mark_extracted(
-            output_dir,
-            source_path=str(input_path),
-            total_units=extraction.total_units,
-            unit_type=structure.unit_type,
-            file_type=structure.file_type,
-            extracted_range=str(extraction.metadata.get("source_range") or params.ranges or "all"),
-        )
+        try:
+            extraction = await DocumentExtractor().extract(
+                input_path,
+                output_dir,
+                ranges=params.ranges,
+                mode="auto",
+                max_chars=DEFAULT_CHUNK_MAX_CHARS,
+                extract_images=True,
+                exclude_watermark_images=True,
+                deduplicate_repeated_images=True,
+            )
+            structure = await DocumentIndexer().build_from_extraction(input_path, output_dir, extraction)
+            await ReadingStateStore().mark_extracted(
+                output_dir,
+                source_path=str(input_path),
+                total_units=extraction.total_units,
+                unit_type=structure.unit_type,
+                file_type=structure.file_type,
+                extracted_range=str(extraction.metadata.get("source_range") or params.ranges or "all"),
+            )
 
-        if tool_context:
-            await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)
+            if tool_context:
+                await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("extract_document_content", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
 
         output_dir_str = str(output_dir)
         content = (

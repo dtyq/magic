@@ -25,6 +25,7 @@ from app.utils.document_parse.service.document_reading_planner import DocumentRe
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_existing_output_dir,
 )
@@ -58,7 +59,10 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
         assert resolved is not None
         output_dir = resolved.path
 
-        plan = await DocumentReadingPlanner().plan(output_dir, goal=params.goal, budget=None)
+        try:
+            plan = await DocumentReadingPlanner().plan(output_dir, goal=params.goal, budget=None)
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("plan_document_reading", str(exc), output_dir=str(output_dir)))
         content = "\n".join([
             "Document reading plan completed.",
             "",
@@ -91,9 +95,7 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
         lines = [
             f"# {i18n.translate('plan_document_reading.detail_title', category='tool.messages')}",
             "",
-            f"- {i18n.translate('document_parse.detail_recommended_action', category='tool.messages')}: `{info.get('recommended_action')}`",
             f"- {i18n.translate('document_parse.detail_recommended_range', category='tool.messages')}: `{info.get('recommended_range') or ''}`",
-            f"- {i18n.translate('document_parse.detail_strategy', category='tool.messages')}: {info.get('reason', '')}",
         ]
         return ToolDetail(type=DisplayType.MD, data=FileContent(file_name="document_reading_plan.md", content="\n".join(lines)))
 

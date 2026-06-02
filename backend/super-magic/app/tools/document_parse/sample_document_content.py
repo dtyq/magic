@@ -28,6 +28,7 @@ from app.utils.document_parse.service.document_sampler import DocumentSampler
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_absolute_path,
     require_valid_input_file,
@@ -74,17 +75,20 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
         assert resolved is not None
         input_path = resolved.path
 
-        result = await DocumentSampler().sample(
-            input_path,
-            output_dir,
-            strategy="auto",
-            ranges=params.ranges,
-            max_units=DEFAULT_SAMPLE_MAX_UNITS,
-            include_images=True,
-        )
+        try:
+            result = await DocumentSampler().sample(
+                input_path,
+                output_dir,
+                strategy="auto",
+                ranges=params.ranges,
+                max_units=DEFAULT_SAMPLE_MAX_UNITS,
+                include_images=True,
+            )
 
-        if tool_context:
-            await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)
+            if tool_context:
+                await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("sample_document_content", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
 
         profile = result["profile"]
         signal = result["text_signal"]
@@ -132,8 +136,6 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
             f"- {i18n.translate('document_parse.detail_sample_file', category='tool.messages')}: `{result.extra_info.get('sample_path', '')}`",
             f"- {i18n.translate('document_parse.detail_sample_range', category='tool.messages')}: `{result.extra_info.get('sample_range', '')}`",
         ]
-        for action in result.extra_info.get("recommendations") or []:
-            lines.append(f"- {action}")
         return ToolDetail(type=DisplayType.MD, data=FileContent(file_name="document_sample.md", content="\n".join(lines)))
 
     async def get_after_tool_call_friendly_action_and_remark(

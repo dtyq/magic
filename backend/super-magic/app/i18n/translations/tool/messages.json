@@ -343,10 +343,6 @@
         "zh_CN": "格式检查",
         "en_US": "Format check"
     },
-    "document_parse.detail_next_actions": {
-        "zh_CN": "建议下一步",
-        "en_US": "Recommended next actions"
-    },
     "document_parse.detail_error_title": {
         "zh_CN": "document-converter 工具失败",
         "en_US": "document-converter Tool Failed"
@@ -362,10 +358,6 @@
     "document_parse.detail_error_message": {
         "zh_CN": "错误信息",
         "en_US": "Error"
-    },
-    "document_parse.detail_error_next_step": {
-        "zh_CN": "请根据错误信息修正路径、格式或输出目录；如果是大文档，请先使用 inspect_document、sample_document_content 和 plan_document_reading 规划后续处理。",
-        "en_US": "Fix the path, file format, or output directory from the error. For large documents, use inspect_document, sample_document_content, and plan_document_reading before further processing."
     },
     "write_file.error": {
         "zh_CN": "写入文件 {{file_path}} 时出错",

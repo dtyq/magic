@@ -26,6 +26,7 @@ from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_absolute_path,
     require_valid_input_file,
@@ -66,10 +67,13 @@ class BuildDocumentIndex(AbstractFileTool[BuildDocumentIndexParams], WorkspaceTo
             return error
         assert resolved is not None
         input_path = resolved.path
-        structure = await DocumentIndexer().build_empty(input_path, output_dir)
-        if tool_context:
-            await self._dispatch_file_event(tool_context, str(output_dir / "document.index.json"), EventType.FILE_CREATED)
-            await self._dispatch_file_event(tool_context, str(output_dir / "document.outline.md"), EventType.FILE_CREATED)
+        try:
+            structure = await DocumentIndexer().build_empty(input_path, output_dir)
+            if tool_context:
+                await self._dispatch_file_event(tool_context, str(output_dir / "document.index.json"), EventType.FILE_CREATED)
+                await self._dispatch_file_event(tool_context, str(output_dir / "document.outline.md"), EventType.FILE_CREATED)
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("build_document_index", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
         return ToolResult(
             content=prepend_correction_note(
                 f"Document index generated: `{output_dir}/document.index.json` and `{output_dir}/document.outline.md`",

@@ -26,9 +26,10 @@ from app.utils.document_parse.service.document_format_converter import DocumentF
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_absolute_path,
-    require_valid_input_file,
+    require_existing_input_file,
 )
 
 
@@ -71,16 +72,19 @@ class ConvertDocumentFormat(AbstractFileTool[ConvertDocumentFormatParams], Works
         if error:
             return error
         assert output_dir is not None
-        resolved, error = await require_valid_input_file(params.input_path, "input_path")
+        resolved, error = await require_existing_input_file(params.input_path, "input_path")
         if error:
             return error
         assert resolved is not None
         input_path = resolved.path
-        outputs = await DocumentFormatConverter().convert(input_path, output_dir, params.target_format, params.ranges)
-        output_paths = [str(path) for path in outputs]
-        if tool_context:
-            for path in outputs:
-                await self._dispatch_file_event(tool_context, str(path), EventType.FILE_CREATED)
+        try:
+            outputs = await DocumentFormatConverter().convert(input_path, output_dir, params.target_format, params.ranges)
+            output_paths = [str(path) for path in outputs]
+            if tool_context:
+                for path in outputs:
+                    await self._dispatch_file_event(tool_context, str(path), EventType.FILE_CREATED)
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("convert_document_format", str(exc), input_path=str(input_path), output_dir=str(output_dir)))
         content = "Format conversion completed:\n" + "\n".join(f"- `{path}`" for path in output_paths)
         return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info={"output_files": output_paths})
 

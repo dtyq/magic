@@ -137,7 +137,12 @@ async def test_document_parse_failed_after_hooks_use_human_custom_remark(tool, t
     ],
 )
 async def test_document_parse_failed_tools_return_visible_detail(tool, tool_name, arguments):
-    result = ToolResult.error("File does not exist: /tmp/missing-report.pdf")
+    result = ToolResult.error(
+        "Document-converter tool failed: `mock_tool`\n\n"
+        "- Error: File does not exist: /tmp/missing-report.pdf\n\n"
+        "Recommended next actions:\n"
+        "1. Use inspect_document.\n"
+    )
 
     detail = await tool.get_tool_detail(None, result, arguments)
 
@@ -146,6 +151,8 @@ async def test_document_parse_failed_tools_return_visible_detail(tool, tool_name
     assert "document-converter" in detail.data.content
     assert tool_name in detail.data.content
     assert "File does not exist" in detail.data.content
+    assert "Recommended next actions" not in detail.data.content
+    assert "inspect_document" not in detail.data.content or tool_name == "inspect_document"
 
 
 @pytest.mark.asyncio
@@ -267,6 +274,49 @@ async def test_inspect_document_returns_next_actions_for_large_pdf(tmp_path: Pat
     assert any("plan_document_reading" in action for action in result.extra_info["next_actions"])
     assert any("extract_document_content" in action for action in result.extra_info["next_actions"])
 
+    detail = await InspectDocument().get_tool_detail(None, result, {"input_path": str(source)})
+    assert detail is not None
+    assert "Recommended next actions" not in detail.data.content
+    assert "sample_document_content" not in detail.data.content
+    assert "plan_document_reading" not in detail.data.content
+    assert "extract_document_content" not in detail.data.content
+
+
+@pytest.mark.asyncio
+async def test_sample_document_detail_hides_model_recommendations():
+    result = ToolResult(
+        content="Document sample completed.\n\n- Recommended next actions: Use extract_document_content.",
+        extra_info={
+            "sample_path": "/tmp/out/samples/sample.md",
+            "sample_range": "1-3",
+            "recommendations": ["Use extract_document_content for readable ranges."],
+        },
+    )
+
+    detail = await SampleDocumentContent().get_tool_detail(None, result, {"input_path": "/tmp/mock.pdf"})
+
+    assert detail is not None
+    assert "Use extract_document_content" not in detail.data.content
+    assert "Recommended next actions" not in detail.data.content
+
+
+@pytest.mark.asyncio
+async def test_plan_document_detail_hides_tool_action_guidance():
+    result = ToolResult(
+        content="Document reading plan completed.\n\n- Recommended action: `extract_document_content`",
+        extra_info={
+            "recommended_action": "extract_document_content",
+            "recommended_range": "1-10",
+            "reason": "sample text is readable",
+        },
+    )
+
+    detail = await PlanDocumentReading().get_tool_detail(None, result, {"output_dir": "/tmp/out"})
+
+    assert detail is not None
+    assert "extract_document_content" not in detail.data.content
+    assert "1-10" in detail.data.content
+
 
 @pytest.mark.asyncio
 async def test_inspect_document_does_not_guess_when_punctuation_match_is_ambiguous(tmp_path: Path):
@@ -315,4 +365,207 @@ async def test_inspect_document_reports_docm_content_when_doc_extension_is_wrong
     assert "File format mismatch" in result.content
     assert "Word OOXML macro-enabled document" in result.content
     assert "`.docm`" in result.content
-    assert "run inspect_document again" in result.content
+    assert "1. Call `convert_document_format`" in result.content
+    assert "`target_format` `docx` or `pdf`" in result.content
+    assert "Rename or copy" not in result.content
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_reports_docm_content_when_docx_extension_is_wrong(tmp_path: Path):
+    wrong_docx = tmp_path / "mock-macro-document.docx"
+    with zipfile.ZipFile(wrong_docx, "w") as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            (
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                '<Override PartName="/word/document.xml" '
+                'ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/>'
+                "</Types>"
+            ),
+        )
+        archive.writestr("word/document.xml", "<w:document></w:document>")
+
+    result = await InspectDocument().execute(
+        None,
+        InspectDocument().get_params_class()(input_path=str(wrong_docx)),
+    )
+
+    assert not result.ok
+    assert "File format mismatch" in result.content
+    assert "Word OOXML macro-enabled document" in result.content
+    assert "`.docm`" in result.content
+    assert "Recommended next actions" in result.content
+    assert "1. Call `convert_document_format`" in result.content
+    assert "`target_format` `docx` or `pdf`" in result.content
+    assert "Rename or copy" not in result.content
+
+
+@pytest.mark.asyncio
+async def test_convert_document_format_allows_format_mismatch_before_conversion(tmp_path: Path, monkeypatch):
+    source = tmp_path / "mock-macro-document.docx"
+    output_dir = tmp_path / "mock-output"
+    output_dir.mkdir()
+    converted = output_dir / "mock-macro-document.docx"
+    converted.write_bytes(b"converted")
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            (
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                '<Override PartName="/word/document.xml" '
+                'ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/>'
+                "</Types>"
+            ),
+        )
+        archive.writestr("word/document.xml", "<w:document></w:document>")
+    calls = []
+
+    async def fake_convert(self, input_path: Path, output_path: Path, target_format: str, ranges=None):
+        calls.append((input_path, output_path, target_format, ranges))
+        return [converted]
+
+    monkeypatch.setattr(
+        "app.tools.document_parse.convert_document_format.DocumentFormatConverter.convert",
+        fake_convert,
+    )
+
+    result = await ConvertDocumentFormat().execute(
+        None,
+        ConvertDocumentFormat().get_params_class()(input_path=str(source), output_dir=str(output_dir), target_format="docx"),
+    )
+
+    assert result.ok
+    assert calls == [(source, output_dir, "docx", None)]
+    assert str(converted) in result.content
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_internal_failure_returns_model_facing_next_actions(tmp_path: Path, monkeypatch):
+    source = tmp_path / "mock-report.docx"
+    _write_minimal_docx(source)
+
+    async def fake_inspect(self, path: Path):
+        raise ValueError("mock parser rejected the document")
+
+    monkeypatch.setattr(
+        "app.tools.document_parse.inspect_document.DocumentInspector.inspect",
+        fake_inspect,
+    )
+
+    result = await InspectDocument().execute(
+        None,
+        InspectDocument().get_params_class()(input_path=str(source)),
+    )
+
+    assert not result.ok
+    assert "Document-converter tool failed: `inspect_document`" in result.content
+    assert "mock parser rejected the document" in result.content
+    assert "Recommended next actions" in result.content
+    assert "convert_document_format" in result.content
+    assert "rename or copy" not in result.content.lower()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool", "params_factory", "patch_target"),
+    [
+        (
+            BuildDocumentIndex(),
+            lambda source, output_dir: {"input_path": str(source), "output_dir": str(output_dir)},
+            "app.tools.document_parse.build_document_index.DocumentIndexer.build_empty",
+        ),
+        (
+            ConvertDocumentFormat(),
+            lambda source, output_dir: {"input_path": str(source), "output_dir": str(output_dir), "target_format": "pdf"},
+            "app.tools.document_parse.convert_document_format.DocumentFormatConverter.convert",
+        ),
+        (
+            ExtractDocumentContent(),
+            lambda source, output_dir: {"input_path": str(source), "output_dir": str(output_dir)},
+            "app.tools.document_parse.extract_document_content.DocumentExtractor.extract",
+        ),
+        (
+            SampleDocumentContent(),
+            lambda source, output_dir: {"input_path": str(source), "output_dir": str(output_dir)},
+            "app.tools.document_parse.sample_document_content.DocumentSampler.sample",
+        ),
+        (
+            PlanDocumentReading(),
+            lambda source, output_dir: {"output_dir": str(output_dir), "goal": "summarize"},
+            "app.tools.document_parse.plan_document_reading.DocumentReadingPlanner.plan",
+        ),
+        (
+            SummarizeDocument(),
+            lambda source, output_dir: {"output_dir": str(output_dir)},
+            "app.tools.document_parse.summarize_document.DocumentSummarizer.summarize",
+        ),
+        (
+            UnderstandDocumentImages(),
+            lambda source, output_dir: {"output_dir": str(output_dir)},
+            "app.tools.document_parse.understand_document_images.DocumentImageUnderstander.understand",
+        ),
+    ],
+)
+async def test_document_parse_internal_failures_return_model_facing_content(tmp_path: Path, monkeypatch, tool, params_factory, patch_target):
+    source = tmp_path / "mock-report.docx"
+    output_dir = tmp_path / "mock-output"
+    output_dir.mkdir()
+    _write_minimal_docx(source)
+
+    async def fake_failure(*args, **kwargs):
+        raise ValueError("mock service failure")
+
+    monkeypatch.setattr(patch_target, fake_failure)
+
+    result = await tool.execute(None, tool.get_params_class()(**params_factory(source, output_dir)))
+
+    assert not result.ok
+    assert "Document-converter tool failed" in result.content
+    assert "mock service failure" in result.content
+    assert "Recommended next actions" in result.content
+
+    detail = await tool.get_tool_detail(None, result, params_factory(source, output_dir))
+    assert detail is not None
+    assert "mock service failure" in detail.data.content
+    assert "Recommended next actions" not in detail.data.content
+
+
+@pytest.mark.asyncio
+async def test_export_document_internal_failure_returns_model_facing_content(tmp_path: Path, monkeypatch):
+    source = tmp_path / "mock-report.docx"
+    output_dir = tmp_path / "mock-output"
+    output_dir.mkdir()
+    _write_minimal_docx(source)
+
+    async def fake_inspect(self, path: Path):
+        return DocumentProfile(
+            source_path=str(path),
+            file_name=path.name,
+            file_type="word",
+            file_extension=".docx",
+            file_size=source.stat().st_size,
+            unit_type="section",
+            total_units=1,
+            recommended_strategy="test",
+        )
+
+    async def fake_export_failure(*args, **kwargs):
+        raise ValueError("mock export failure")
+
+    monkeypatch.setattr("app.tools.document_parse.export_document_markdown.DocumentInspector.inspect", fake_inspect)
+    monkeypatch.setattr(ExportDocumentMarkdown, "_execute_simple", fake_export_failure)
+
+    result = await ExportDocumentMarkdown().execute(
+        None,
+        ExportDocumentMarkdown().get_params_class()(input_path=str(source), output_dir=str(output_dir)),
+    )
+
+    assert not result.ok
+    assert "Document-converter tool failed: `export_document_markdown`" in result.content
+    assert "mock export failure" in result.content
+    assert "Recommended next actions" in result.content
+
+    detail = await ExportDocumentMarkdown().get_tool_detail(None, result, {"input_path": str(source), "output_dir": str(output_dir)})
+    assert detail is not None
+    assert "mock export failure" in detail.data.content
+    assert "Recommended next actions" not in detail.data.content

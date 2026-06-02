@@ -27,6 +27,7 @@ from app.utils.document_parse.service.document_image_understander import Documen
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_existing_output_dir,
 )
@@ -66,10 +67,10 @@ class UnderstandDocumentImages(AbstractFileTool[UnderstandDocumentImagesParams],
                 ranges=params.ranges,
                 max_images=DEFAULT_IMAGE_UNDERSTANDING_MAX_IMAGES,
             )
-        except FileNotFoundError as exc:
-            return ToolResult.error(str(exc))
-        except ValueError as exc:
-            return ToolResult.error(str(exc))
+        except (FileNotFoundError, ValueError) as exc:
+            return ToolResult.error(build_document_parse_model_error("understand_document_images", str(exc), output_dir=str(output_dir)))
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("understand_document_images", str(exc), output_dir=str(output_dir)))
 
         if tool_context:
             await self._dispatch_file_event(tool_context, str(output_dir), EventType.FILE_CREATED)

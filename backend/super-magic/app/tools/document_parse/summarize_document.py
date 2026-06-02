@@ -27,6 +27,7 @@ from app.utils.document_parse.service.document_summarizer import DocumentSummari
 from .path_utils import (
     build_document_parse_after_remark,
     build_document_parse_error_detail,
+    build_document_parse_model_error,
     prepend_correction_note,
     require_existing_output_dir,
 )
@@ -54,10 +55,13 @@ class SummarizeDocument(AbstractFileTool[SummarizeDocumentParams], WorkspaceTool
             return error
         assert resolved is not None
         output_dir = resolved.path
-        summary = await DocumentSummarizer().summarize(output_dir, DEFAULT_SUMMARY_CHUNK_MAX_CHARS)
-        summary_path = output_dir / "document.summary.md"
-        if tool_context:
-            await self._dispatch_file_event(tool_context, str(summary_path), EventType.FILE_CREATED)
+        try:
+            summary = await DocumentSummarizer().summarize(output_dir, DEFAULT_SUMMARY_CHUNK_MAX_CHARS)
+            summary_path = output_dir / "document.summary.md"
+            if tool_context:
+                await self._dispatch_file_event(tool_context, str(summary_path), EventType.FILE_CREATED)
+        except Exception as exc:
+            return ToolResult.error(build_document_parse_model_error("summarize_document", str(exc), output_dir=str(output_dir)))
         summary_path_str = str(summary_path)
         content = f"Document summary draft generated: `{summary_path_str}`"
         return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info={"summary_path": summary_path_str, "summary": summary})
