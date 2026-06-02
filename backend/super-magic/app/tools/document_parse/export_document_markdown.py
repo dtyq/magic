@@ -33,7 +33,7 @@ from app.utils.document_parse.service.document_inspector import DocumentInspecto
 from app.utils.document_parse.service.reading_state import ReadingStateStore
 from app.utils.document_parse.structure.range_parser import RangeParser
 
-from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
+from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class ExportDocumentMarkdownParams(BaseToolParams):
@@ -339,9 +339,4 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
-        key = "export_document_markdown.after_success" if result.ok else "export_document_markdown.after_failed"
-        return {
-            "tool_name": tool_name,
-            "action": i18n.translate("export_document_markdown", category="tool.actions"),
-            "remark": i18n.translate(key, category="tool.messages", file_name=name),
-        }
+        return build_document_parse_after_remark(tool_name, "export_document_markdown", "export_document_markdown", result, name)

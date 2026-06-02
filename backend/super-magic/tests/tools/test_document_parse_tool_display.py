@@ -95,6 +95,33 @@ async def test_document_parse_tools_have_display_hooks(tool, tool_name, argument
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
+    ("tool", "tool_name", "arguments"),
+    [
+        (InspectDocument(), "inspect_document", {"input_path": "report.pdf"}),
+        (ExtractDocumentContent(), "extract_document_content", {"input_path": "report.pdf"}),
+        (BuildDocumentIndex(), "build_document_index", {"input_path": "report.pdf"}),
+        (SummarizeDocument(), "summarize_document", {"output_dir": "out/report"}),
+        (ConvertDocumentFormat(), "convert_document_format", {"input_path": "slides.pptx"}),
+        (ExportDocumentMarkdown(), "export_document_markdown", {"input_path": "report.pdf"}),
+        (SampleDocumentContent(), "sample_document_content", {"input_path": "report.pdf"}),
+        (PlanDocumentReading(), "plan_document_reading", {"output_dir": "out/report"}),
+        (UnderstandDocumentImages(), "understand_document_images", {"output_dir": "out/report"}),
+    ],
+)
+async def test_document_parse_failed_after_hooks_use_human_custom_remark(tool, tool_name, arguments):
+    result = ToolResult.error("internal parsing stack trace")
+
+    after = await tool.get_after_tool_call_friendly_action_and_remark(tool_name, None, result, 0.1, arguments)
+
+    assert result.use_custom_remark is True
+    assert after["action"]
+    assert after["remark"]
+    assert "internal parsing stack trace" not in after["remark"]
+    assert "遇到问题" not in after["remark"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
     ("tool", "params"),
     [
         (InspectDocument(), {"input_path": "relative/report.pdf"}),

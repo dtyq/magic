@@ -22,7 +22,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.document_parse.service.document_reading_planner import DocumentReadingPlanner
 
-from .path_utils import prepend_correction_note, require_existing_output_dir
+from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_existing_output_dir
 
 
 class PlanDocumentReadingParams(BaseToolParams):
@@ -94,9 +94,4 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
         self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None
     ) -> Dict:
         name = Path((arguments or {}).get("output_dir", "document")).name
-        key = "plan_document_reading.after_success" if result.ok else "plan_document_reading.after_failed"
-        return {
-            "tool_name": tool_name,
-            "action": i18n.translate("plan_document_reading", category="tool.actions"),
-            "remark": i18n.translate(key, category="tool.messages", file_name=name),
-        }
+        return build_document_parse_after_remark(tool_name, "plan_document_reading", "plan_document_reading", result, name)

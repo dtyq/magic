@@ -25,7 +25,7 @@ from app.tools.workspace_tool import WorkspaceTool
 from app.utils.document_parse.constants import DEFAULT_SAMPLE_MAX_UNITS
 from app.utils.document_parse.service.document_sampler import DocumentSampler
 
-from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
+from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class SampleDocumentContentParams(BaseToolParams):
@@ -131,9 +131,4 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
         self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None
     ) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
-        key = "sample_document_content.after_success" if result.ok else "sample_document_content.after_failed"
-        return {
-            "tool_name": tool_name,
-            "action": i18n.translate("sample_document_content", category="tool.actions"),
-            "remark": i18n.translate(key, category="tool.messages", file_name=name),
-        }
+        return build_document_parse_after_remark(tool_name, "sample_document_content", "sample_document_content", result, name)

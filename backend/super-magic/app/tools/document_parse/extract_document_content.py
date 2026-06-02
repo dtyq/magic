@@ -26,7 +26,7 @@ from app.utils.document_parse.constants import DEFAULT_CHUNK_MAX_CHARS
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.reading_state import ReadingStateStore
-from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
+from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class ExtractDocumentContentParams(BaseToolParams):
@@ -131,9 +131,4 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
-        key = "extract_document_content.after_success" if result.ok else "extract_document_content.after_failed"
-        return {
-            "tool_name": tool_name,
-            "action": i18n.translate("extract_document_content", category="tool.actions"),
-            "remark": i18n.translate(key, category="tool.messages", file_name=name),
-        }
+        return build_document_parse_after_remark(tool_name, "extract_document_content", "extract_document_content", result, name)

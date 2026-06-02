@@ -24,7 +24,7 @@ from app.tools.workspace_tool import WorkspaceTool
 from app.utils.document_parse.constants import DEFAULT_IMAGE_UNDERSTANDING_MAX_IMAGES
 from app.utils.document_parse.service.document_image_understander import DocumentImageUnderstander
 
-from .path_utils import prepend_correction_note, require_existing_output_dir
+from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_existing_output_dir
 
 
 class UnderstandDocumentImagesParams(BaseToolParams):
@@ -109,9 +109,4 @@ class UnderstandDocumentImages(AbstractFileTool[UnderstandDocumentImagesParams],
         self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None
     ) -> Dict:
         name = Path((arguments or {}).get("output_dir", "document")).name
-        key = "understand_document_images.after_success" if result.ok else "understand_document_images.after_failed"
-        return {
-            "tool_name": tool_name,
-            "action": i18n.translate("understand_document_images", category="tool.actions"),
-            "remark": i18n.translate(key, category="tool.messages", file_name=name),
-        }
+        return build_document_parse_after_remark(tool_name, "understand_document_images", "understand_document_images", result, name)

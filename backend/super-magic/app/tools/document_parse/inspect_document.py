@@ -22,7 +22,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.document_parse.service.document_inspector import DocumentInspector
-from .path_utils import prepend_correction_note, require_valid_input_file
+from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_valid_input_file
 
 
 class InspectDocumentParams(BaseToolParams):
@@ -88,9 +88,4 @@ class InspectDocument(AbstractFileTool[InspectDocumentParams], WorkspaceTool[Ins
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
-        key = "inspect_document.after_success" if result.ok else "inspect_document.after_failed"
-        return {
-            "tool_name": tool_name,
-            "action": i18n.translate("inspect_document", category="tool.actions"),
-            "remark": i18n.translate(key, category="tool.messages", file_name=name),
-        }
+        return build_document_parse_after_remark(tool_name, "inspect_document", "inspect_document", result, name)

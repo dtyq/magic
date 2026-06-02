@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agentlang.tools.tool_result import ToolResult
+from app.i18n import i18n
 from app.utils.async_file_utils import async_exists, async_is_dir, async_is_file, async_iterdir
 from app.utils.document_parse.file_signature import DocumentFileSignature
 from app.utils.fuzzy_text_matcher import normalize_filename_for_match
@@ -106,3 +107,25 @@ def prepend_correction_note(content: str, correction_note: str | None) -> str:
     if not correction_note:
         return content
     return f"{correction_note}\n\n{content}"
+
+
+def build_document_parse_after_remark(
+    tool_name: str,
+    action_key: str,
+    message_prefix: str,
+    result: ToolResult,
+    file_name: str,
+) -> dict:
+    """Build consistent after-call UI remarks for document-converter tools.
+
+    Failed document-converter calls must use a custom remark so the UI shows the
+    concrete tool failure instead of the generic retry wording.
+    """
+    if not result.ok:
+        result.use_custom_remark = True
+    message_key = f"{message_prefix}.after_success" if result.ok else f"{message_prefix}.after_failed"
+    return {
+        "tool_name": tool_name,
+        "action": i18n.translate(action_key, category="tool.actions"),
+        "remark": i18n.translate(message_key, category="tool.messages", file_name=file_name),
+    }

@@ -23,7 +23,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
-from .path_utils import prepend_correction_note, require_absolute_path, require_valid_input_file
+from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_absolute_path, require_valid_input_file
 
 
 class BuildDocumentIndexParams(BaseToolParams):
@@ -98,9 +98,4 @@ class BuildDocumentIndex(AbstractFileTool[BuildDocumentIndexParams], WorkspaceTo
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
-        key = "build_document_index.after_success" if result.ok else "build_document_index.after_failed"
-        return {
-            "tool_name": tool_name,
-            "action": i18n.translate("build_document_index", category="tool.actions"),
-            "remark": i18n.translate(key, category="tool.messages", file_name=name),
-        }
+        return build_document_parse_after_remark(tool_name, "build_document_index", "build_document_index", result, name)
