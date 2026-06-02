@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable, List
 
 from app.utils.async_file_utils import async_exists, async_is_file, async_iterdir, async_write_text
+
 from ..constants import CHUNKS_DIRNAME
 from ..models import DocumentChunk
 

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
 from app.utils.async_file_utils import async_exists, async_read_json, async_read_text
+
 from ..constants import INDEX_FILENAME
 from ..output.summary_writer import SummaryWriter
 

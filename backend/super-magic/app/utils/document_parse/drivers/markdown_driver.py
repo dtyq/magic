@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.utils.async_file_utils import async_read_text, async_stat
+
 from ..constants import MARKDOWN_EXTENSIONS
 from ..models import DocumentProfile, ExtractionResult, stable_document_id
 from ..structure.chunk_store import ChunkStore

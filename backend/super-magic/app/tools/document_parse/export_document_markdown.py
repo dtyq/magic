@@ -22,8 +22,22 @@ from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import CopyConflict, async_copytree, async_exists, async_is_dir, async_mkdir, async_read_json, async_read_text, async_rmtree
-from app.utils.document_parse.constants import ASSETS_DIRNAME, DEFAULT_CHUNK_MAX_CHARS, INDEX_FILENAME, VISUAL_RESULTS_DIRNAME
+from app.utils.async_file_utils import (
+    CopyConflict,
+    async_copytree,
+    async_exists,
+    async_is_dir,
+    async_mkdir,
+    async_read_json,
+    async_read_text,
+    async_rmtree,
+)
+from app.utils.document_parse.constants import (
+    ASSETS_DIRNAME,
+    DEFAULT_CHUNK_MAX_CHARS,
+    INDEX_FILENAME,
+    VISUAL_RESULTS_DIRNAME,
+)
 from app.utils.document_parse.models import DocumentChunk
 from app.utils.document_parse.output.markdown_writer import MarkdownWriter
 from app.utils.document_parse.service.document_artifact_mode import DocumentArtifactModeSelector
@@ -33,7 +47,13 @@ from app.utils.document_parse.service.document_inspector import DocumentInspecto
 from app.utils.document_parse.service.reading_state import ReadingStateStore
 from app.utils.document_parse.structure.range_parser import RangeParser
 
-from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_absolute_path, require_valid_input_file
+from .path_utils import (
+    build_document_parse_after_remark,
+    build_document_parse_error_detail,
+    prepend_correction_note,
+    require_absolute_path,
+    require_valid_input_file,
+)
 
 
 class ExportDocumentMarkdownParams(BaseToolParams):
@@ -69,6 +89,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         output_dir, error = require_absolute_path(params.output_dir, "output_dir")
         if error:
             return error
+        assert output_dir is not None
         resolved, error = await require_valid_input_file(params.input_path, "input_path")
         if error:
             return error
@@ -223,7 +244,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         content_lines = [
             f"Document Markdown export completed: `{input_path.name}`",
             "",
-            f"- Artifact mode: simple",
+            "- Artifact mode: simple",
             f"- Output directory: `{output_dir}`",
             f"- Main Markdown: `{combined_path}`",
             f"- Chunk count: {len(extraction.chunks)}",
@@ -309,7 +330,7 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
         return bool(requested) and requested.issubset(covered)
 
     async def get_before_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] | None = None
     ) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
         return {
@@ -318,8 +339,10 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             "remark": i18n.translate("export_document_markdown.before", category="tool.messages", file_name=name),
         }
 
-    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
-        if not result.ok or not result.extra_info:
+    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] | None = None) -> Optional[ToolDetail]:
+        if not result.ok:
+            return build_document_parse_error_detail("export_document_markdown", result, arguments)
+        if not result.extra_info:
             return None
         chunks = result.extra_info.get("chunks") or []
         lines = [
@@ -337,6 +360,6 @@ class ExportDocumentMarkdown(AbstractFileTool[ExportDocumentMarkdownParams], Wor
             lines.append(f"- {i18n.translate('document_parse.detail_combined_file', category='tool.messages')}: `{combined_path}`")
         return ToolDetail(type=DisplayType.MD, data=FileContent(file_name="document_markdown_export.md", content="\n".join(lines)))
 
-    async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
+    async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] | None = None) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
         return build_document_parse_after_remark(tool_name, "export_document_markdown", "export_document_markdown", result, name)

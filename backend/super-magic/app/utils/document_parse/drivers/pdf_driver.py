@@ -10,7 +10,13 @@ from pathlib import Path
 from typing import Any, Iterable, List, Optional
 
 from app.utils.async_file_utils import async_mkdir, async_stat, async_write_bytes, async_write_text
-from ..constants import DEFAULT_VIRTUAL_PAGE_GROUP_SIZE, DEFAULT_VISUAL_MAX_PAGES, PDF_EXTENSIONS, VISUAL_RESULTS_DIRNAME
+
+from ..constants import (
+    DEFAULT_VIRTUAL_PAGE_GROUP_SIZE,
+    DEFAULT_VISUAL_MAX_PAGES,
+    PDF_EXTENSIONS,
+    VISUAL_RESULTS_DIRNAME,
+)
 from ..models import DocumentAsset, DocumentChunk, DocumentNode, DocumentProfile, ExtractionResult, stable_document_id
 from ..pdf.pdf_metadata import PdfMetadata
 from ..pdf.pdf_outline_reader import PdfOutlineReader

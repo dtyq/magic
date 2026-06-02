@@ -9,7 +9,7 @@ Internal responsibility:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from pydantic import Field
 
@@ -22,7 +22,12 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.document_parse.service.document_reading_planner import DocumentReadingPlanner
 
-from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_existing_output_dir
+from .path_utils import (
+    build_document_parse_after_remark,
+    build_document_parse_error_detail,
+    prepend_correction_note,
+    require_existing_output_dir,
+)
 
 
 class PlanDocumentReadingParams(BaseToolParams):
@@ -68,7 +73,7 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
         return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info=plan)
 
     async def get_before_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] | None = None
     ) -> Dict:
         name = Path((arguments or {}).get("output_dir", "document")).name
         return {
@@ -77,8 +82,10 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
             "remark": i18n.translate("plan_document_reading.before", category="tool.messages", file_name=name),
         }
 
-    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
-        if not result.ok or not result.extra_info:
+    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] | None = None) -> Optional[ToolDetail]:
+        if not result.ok:
+            return build_document_parse_error_detail("plan_document_reading", result, arguments)
+        if not result.extra_info:
             return None
         info = result.extra_info
         lines = [
@@ -91,7 +98,7 @@ class PlanDocumentReading(AbstractFileTool[PlanDocumentReadingParams], Workspace
         return ToolDetail(type=DisplayType.MD, data=FileContent(file_name="document_reading_plan.md", content="\n".join(lines)))
 
     async def get_after_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None
+        self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] | None = None
     ) -> Dict:
         name = Path((arguments or {}).get("output_dir", "document")).name
         return build_document_parse_after_remark(tool_name, "plan_document_reading", "plan_document_reading", result, name)

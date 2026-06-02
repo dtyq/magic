@@ -1,6 +1,7 @@
-import pytest
 import zipfile
 from pathlib import Path
+
+import pytest
 
 from agentlang.tools.tool_result import ToolResult
 from app.tools.document_parse.build_document_index import BuildDocumentIndex
@@ -122,6 +123,33 @@ async def test_document_parse_failed_after_hooks_use_human_custom_remark(tool, t
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
+    ("tool", "tool_name", "arguments"),
+    [
+        (InspectDocument(), "inspect_document", {"input_path": "/tmp/missing-report.pdf"}),
+        (ExtractDocumentContent(), "extract_document_content", {"input_path": "/tmp/missing-report.pdf", "output_dir": "/tmp/out"}),
+        (BuildDocumentIndex(), "build_document_index", {"input_path": "/tmp/missing-report.pdf", "output_dir": "/tmp/out"}),
+        (SummarizeDocument(), "summarize_document", {"output_dir": "/tmp/missing-out"}),
+        (ConvertDocumentFormat(), "convert_document_format", {"input_path": "/tmp/missing-slides.pptx", "output_dir": "/tmp/out", "target_format": "pdf"}),
+        (ExportDocumentMarkdown(), "export_document_markdown", {"input_path": "/tmp/missing-report.pdf", "output_dir": "/tmp/out"}),
+        (SampleDocumentContent(), "sample_document_content", {"input_path": "/tmp/missing-report.pdf", "output_dir": "/tmp/out"}),
+        (PlanDocumentReading(), "plan_document_reading", {"output_dir": "/tmp/missing-out", "goal": "summarize"}),
+        (UnderstandDocumentImages(), "understand_document_images", {"output_dir": "/tmp/missing-out", "ranges": "1-3"}),
+    ],
+)
+async def test_document_parse_failed_tools_return_visible_detail(tool, tool_name, arguments):
+    result = ToolResult.error("File does not exist: /tmp/missing-report.pdf")
+
+    detail = await tool.get_tool_detail(None, result, arguments)
+
+    assert detail is not None
+    assert detail.data.file_name == "document_converter_error.md"
+    assert "document-converter" in detail.data.content
+    assert tool_name in detail.data.content
+    assert "File does not exist" in detail.data.content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
     ("tool", "params"),
     [
         (InspectDocument(), {"input_path": "relative/report.pdf"}),
@@ -204,6 +232,43 @@ async def test_inspect_document_corrects_unique_punctuation_only_path(tmp_path: 
 
 
 @pytest.mark.asyncio
+async def test_inspect_document_returns_next_actions_for_large_pdf(tmp_path: Path, monkeypatch):
+    source = tmp_path / "large-report.pdf"
+    source.write_bytes(b"%PDF-1.7\nmock")
+
+    async def fake_inspect(self, path: Path):
+        return DocumentProfile(
+            source_path=str(path),
+            file_name=path.name,
+            file_type="pdf",
+            file_extension=".pdf",
+            file_size=source.stat().st_size,
+            unit_type="page",
+            total_units=42,
+            recommended_strategy="sample first",
+            metadata={"text_density": "medium", "has_images_in_sample": True},
+        )
+
+    monkeypatch.setattr(
+        "app.tools.document_parse.inspect_document.DocumentInspector.inspect",
+        fake_inspect,
+    )
+
+    result = await InspectDocument().execute(
+        None,
+        InspectDocument().get_params_class()(input_path=str(source)),
+    )
+
+    assert result.ok
+    assert result.extra_info["format_check"]["detected_type"] == "pdf"
+    assert "Format check: passed" in result.content
+    assert "Recommended next actions" in result.content
+    assert any("sample_document_content" in action for action in result.extra_info["next_actions"])
+    assert any("plan_document_reading" in action for action in result.extra_info["next_actions"])
+    assert any("extract_document_content" in action for action in result.extra_info["next_actions"])
+
+
+@pytest.mark.asyncio
 async def test_inspect_document_does_not_guess_when_punctuation_match_is_ambiguous(tmp_path: Path):
     requested = tmp_path / "mock-\"subject\"-request.docx"
     _write_minimal_docx(tmp_path / "mock-“subject”-request.docx")
@@ -231,3 +296,23 @@ async def test_inspect_document_rejects_obvious_extension_signature_mismatch(tmp
     assert not result.ok
     assert "File format mismatch" in result.content
     assert "Expected a %PDF header" in result.content
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_reports_docm_content_when_doc_extension_is_wrong(tmp_path: Path):
+    wrong_doc = tmp_path / "mock-macro-document.doc"
+    with zipfile.ZipFile(wrong_doc, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types></Types>")
+        archive.writestr("word/document.xml", "<w:document></w:document>")
+        archive.writestr("word/vbaProject.bin", b"mock macro")
+
+    result = await InspectDocument().execute(
+        None,
+        InspectDocument().get_params_class()(input_path=str(wrong_doc)),
+    )
+
+    assert not result.ok
+    assert "File format mismatch" in result.content
+    assert "Word OOXML macro-enabled document" in result.content
+    assert "`.docm`" in result.content
+    assert "run inspect_document again" in result.content

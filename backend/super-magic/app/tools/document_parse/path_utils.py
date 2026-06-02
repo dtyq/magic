@@ -2,8 +2,10 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Dict
 
 from agentlang.tools.tool_result import ToolResult
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.i18n import i18n
 from app.utils.async_file_utils import async_exists, async_is_dir, async_is_file, async_iterdir
 from app.utils.document_parse.file_signature import DocumentFileSignature
@@ -129,3 +131,46 @@ def build_document_parse_after_remark(
         "action": i18n.translate(action_key, category="tool.actions"),
         "remark": i18n.translate(message_key, category="tool.messages", file_name=file_name),
     }
+
+
+def build_document_parse_error_detail(
+    tool_name: str,
+    result: ToolResult,
+    arguments: Dict[str, Any] | None = None,
+) -> ToolDetail:
+    """Build a visible after-call detail panel for failed document-converter tools."""
+    args = arguments or {}
+    display_args = {
+        key: value
+        for key, value in args.items()
+        if key in {"input_path", "output_dir", "ranges", "target_format", "goal"} and value not in (None, "")
+    }
+    error_text = str(result.content or "Unknown document-converter tool error.")
+    if len(error_text) > 4000:
+        error_text = f"{error_text[:4000]}\n... (truncated)"
+
+    lines = [
+        f"# {i18n.translate('document_parse.detail_error_title', category='tool.messages')}",
+        "",
+        f"- {i18n.translate('document_parse.detail_error_tool', category='tool.messages')}: `{tool_name}`",
+    ]
+    if display_args:
+        lines.extend([
+            "",
+            f"## {i18n.translate('document_parse.detail_error_inputs', category='tool.messages')}",
+        ])
+        lines.extend(f"- `{key}`: `{value}`" for key, value in display_args.items())
+    lines.extend([
+        "",
+        f"## {i18n.translate('document_parse.detail_error_message', category='tool.messages')}",
+        "",
+        "~~~text",
+        error_text,
+        "~~~",
+        "",
+        i18n.translate("document_parse.detail_error_next_step", category="tool.messages"),
+    ])
+    return ToolDetail(
+        type=DisplayType.MD,
+        data=FileContent(file_name="document_converter_error.md", content="\n".join(lines)),
+    )

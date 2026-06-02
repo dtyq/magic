@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.utils.async_file_utils import async_mkdir
+
 from ..drivers import get_document_driver_registry
 from ..models import ExtractionResult
 

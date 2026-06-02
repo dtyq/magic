@@ -25,7 +25,13 @@ from app.tools.workspace_tool import WorkspaceTool
 from app.utils.document_parse.constants import DEFAULT_SAMPLE_MAX_UNITS
 from app.utils.document_parse.service.document_sampler import DocumentSampler
 
-from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_absolute_path, require_valid_input_file
+from .path_utils import (
+    build_document_parse_after_remark,
+    build_document_parse_error_detail,
+    prepend_correction_note,
+    require_absolute_path,
+    require_valid_input_file,
+)
 
 
 class SampleDocumentContentParams(BaseToolParams):
@@ -61,6 +67,7 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
         output_dir, error = require_absolute_path(params.output_dir, "output_dir")
         if error:
             return error
+        assert output_dir is not None
         resolved, error = await require_valid_input_file(params.input_path, "input_path")
         if error:
             return error
@@ -105,7 +112,7 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
         )
 
     async def get_before_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] | None = None
     ) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
         return {
@@ -114,8 +121,10 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
             "remark": i18n.translate("sample_document_content.before", category="tool.messages", file_name=name),
         }
 
-    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
-        if not result.ok or not result.extra_info:
+    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] | None = None) -> Optional[ToolDetail]:
+        if not result.ok:
+            return build_document_parse_error_detail("sample_document_content", result, arguments)
+        if not result.extra_info:
             return None
         lines = [
             f"# {i18n.translate('sample_document_content.detail_title', category='tool.messages')}",
@@ -128,7 +137,7 @@ class SampleDocumentContent(AbstractFileTool[SampleDocumentContentParams], Works
         return ToolDetail(type=DisplayType.MD, data=FileContent(file_name="document_sample.md", content="\n".join(lines)))
 
     async def get_after_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None
+        self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] | None = None
     ) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
         return build_document_parse_after_remark(tool_name, "sample_document_content", "sample_document_content", result, name)

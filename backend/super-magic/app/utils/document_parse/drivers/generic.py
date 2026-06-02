@@ -7,11 +7,21 @@ a bounded metadata chunk instead of breaking the whole document-converter flow.
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Optional
 
-from app.utils.async_file_utils import async_copy2, async_exists, async_is_dir, async_iterdir, async_read_bytes, async_read_text, async_stat, async_unlink
+from app.utils.async_file_utils import (
+    async_copy2,
+    async_exists,
+    async_is_dir,
+    async_iterdir,
+    async_read_bytes,
+    async_read_text,
+    async_stat,
+    async_unlink,
+)
+
 from ..models import DocumentAsset, DocumentChunk, DocumentProfile, ExtractionResult, stable_document_id
 from ..structure.asset_store import AssetStore
 from ..structure.chunk_store import ChunkStore
@@ -21,9 +31,10 @@ from ..structure.image_feature_analyzer import ImageFeatureAnalyzer
 from ..structure.image_watermark_detector import ImageWatermarkDetector
 from ..structure.outline_builder import OutlineBuilder
 from ..structure.virtual_outline_builder import VirtualOutlineBuilder
+from .base import DocumentDriver
 
 
-class GenericMarkItDownDriver:
+class GenericMarkItDownDriver(DocumentDriver):
     """Driver that reuses the existing FileParser for whole-file extraction."""
 
     file_type = "document"

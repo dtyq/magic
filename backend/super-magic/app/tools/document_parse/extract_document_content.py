@@ -26,7 +26,14 @@ from app.utils.document_parse.constants import DEFAULT_CHUNK_MAX_CHARS
 from app.utils.document_parse.service.document_extractor import DocumentExtractor
 from app.utils.document_parse.service.document_indexer import DocumentIndexer
 from app.utils.document_parse.service.reading_state import ReadingStateStore
-from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_absolute_path, require_valid_input_file
+
+from .path_utils import (
+    build_document_parse_after_remark,
+    build_document_parse_error_detail,
+    prepend_correction_note,
+    require_absolute_path,
+    require_valid_input_file,
+)
 
 
 class ExtractDocumentContentParams(BaseToolParams):
@@ -62,6 +69,7 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
         output_dir, error = require_absolute_path(params.output_dir, "output_dir")
         if error:
             return error
+        assert output_dir is not None
         resolved, error = await require_valid_input_file(params.input_path, "input_path")
         if error:
             return error
@@ -107,7 +115,7 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
         return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info=extra)
 
     async def get_before_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] | None = None
     ) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
         return {
@@ -116,8 +124,10 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
             "remark": i18n.translate("extract_document_content.before", category="tool.messages", file_name=name),
         }
 
-    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
-        if not result.ok or not result.extra_info:
+    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] | None = None) -> Optional[ToolDetail]:
+        if not result.ok:
+            return build_document_parse_error_detail("extract_document_content", result, arguments)
+        if not result.extra_info:
             return None
         chunks = result.extra_info.get("chunks") or []
         lines = [
@@ -129,6 +139,6 @@ class ExtractDocumentContent(AbstractFileTool[ExtractDocumentContentParams], Wor
             lines.append(f"- `{chunk.get('path')}`: {chunk.get('title')}")
         return ToolDetail(type=DisplayType.MD, data=FileContent(file_name="document_extraction.md", content="\n".join(lines)))
 
-    async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
+    async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] | None = None) -> Dict:
         name = Path((arguments or {}).get("input_path", "document")).name
         return build_document_parse_after_remark(tool_name, "extract_document_content", "extract_document_content", result, name)

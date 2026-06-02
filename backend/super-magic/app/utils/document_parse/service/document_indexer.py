@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.utils.async_file_utils import async_exists, async_read_json, async_read_text
+
 from ..constants import INDEX_FILENAME
 from ..drivers import get_document_driver_registry
 from ..models import DocumentAsset, DocumentChunk, DocumentNode, DocumentStructure, ExtractionResult, stable_document_id

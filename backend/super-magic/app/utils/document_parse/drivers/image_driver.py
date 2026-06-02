@@ -11,6 +11,7 @@ import asyncio
 from pathlib import Path
 
 from app.utils.async_file_utils import async_copy2, async_stat
+
 from ..constants import IMAGE_EXTENSIONS
 from ..models import DocumentAsset, DocumentChunk, DocumentNode, DocumentProfile, ExtractionResult, stable_document_id
 from ..structure.asset_store import AssetStore

@@ -24,7 +24,12 @@ from app.tools.workspace_tool import WorkspaceTool
 from app.utils.document_parse.constants import DEFAULT_IMAGE_UNDERSTANDING_MAX_IMAGES
 from app.utils.document_parse.service.document_image_understander import DocumentImageUnderstander
 
-from .path_utils import build_document_parse_after_remark, prepend_correction_note, require_existing_output_dir
+from .path_utils import (
+    build_document_parse_after_remark,
+    build_document_parse_error_detail,
+    prepend_correction_note,
+    require_existing_output_dir,
+)
 
 
 class UnderstandDocumentImagesParams(BaseToolParams):
@@ -83,7 +88,7 @@ class UnderstandDocumentImages(AbstractFileTool[UnderstandDocumentImagesParams],
         return ToolResult(content=prepend_correction_note(content, resolved.correction_note), extra_info=result)
 
     async def get_before_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] | None = None
     ) -> Dict:
         name = Path((arguments or {}).get("output_dir", "document")).name
         return {
@@ -92,8 +97,10 @@ class UnderstandDocumentImages(AbstractFileTool[UnderstandDocumentImagesParams],
             "remark": i18n.translate("understand_document_images.before", category="tool.messages", file_name=name),
         }
 
-    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
-        if not result.ok or not result.extra_info:
+    async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] | None = None) -> Optional[ToolDetail]:
+        if not result.ok:
+            return build_document_parse_error_detail("understand_document_images", result, arguments)
+        if not result.extra_info:
             return None
         processed = result.extra_info.get("processed") or []
         lines = [
@@ -106,7 +113,7 @@ class UnderstandDocumentImages(AbstractFileTool[UnderstandDocumentImagesParams],
         return ToolDetail(type=DisplayType.MD, data=FileContent(file_name="document_image_understanding.md", content="\n".join(lines)))
 
     async def get_after_tool_call_friendly_action_and_remark(
-        self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None
+        self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] | None = None
     ) -> Dict:
         name = Path((arguments or {}).get("output_dir", "document")).name
         return build_document_parse_after_remark(tool_name, "understand_document_images", "understand_document_images", result, name)

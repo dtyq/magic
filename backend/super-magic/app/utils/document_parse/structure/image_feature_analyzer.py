@@ -8,7 +8,7 @@ when needed for transparent or blank-image checks.
 from __future__ import annotations
 
 from io import BytesIO
-from typing import Any
+from typing import Any, cast
 
 from app.utils.async_file_utils import async_read_bytes
 
@@ -61,11 +61,11 @@ class ImageFeatureAnalyzer:
                 sample.thumbnail(cls.THUMBNAIL_SIZE)
                 rgba = sample.convert("RGBA")
                 alpha = rgba.getchannel("A")
-                alpha_min, alpha_max = alpha.getextrema()
+                alpha_min, alpha_max = cast(tuple[int, int], alpha.getextrema())
                 features["is_transparent"] = alpha_max <= cls.TRANSPARENT_ALPHA_MAX
 
                 rgb = rgba.convert("RGB")
-                extrema = rgb.getextrema()
+                extrema = cast(tuple[tuple[int, int], tuple[int, int], tuple[int, int]], rgb.getextrema())
                 channel_delta = max(high - low for low, high in extrema)
                 features["channel_delta"] = channel_delta
                 features["is_solid_or_blank"] = channel_delta <= cls.SOLID_CHANNEL_DELTA_MAX
