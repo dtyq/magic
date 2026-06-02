@@ -10,6 +10,7 @@ vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		createTopic: vi.fn(),
 		getTopicsByProjectId: vi.fn(),
+		getSidebarTopicsByProjectId: vi.fn(),
 		getTopicDetail: vi.fn(),
 	},
 }))
@@ -127,6 +128,61 @@ describe("TopicService", () => {
 			...newTopic,
 			topic_mode: TopicMode.CustomAgent,
 			agent_code: "employee-code-1",
+		})
+	})
+
+	it("preserves inherited employee selection in the sidebar topic list", async () => {
+		const sourceTopic = {
+			...createTopic("topic-1", "Existing Topic"),
+			topic_mode: TopicMode.CustomAgent,
+			agent_code: "employee-code-1",
+		}
+		const newTopic = createTopic("topic-2", "New Topic")
+		const service = new TopicService({
+			store: {
+				setTopics: vi.fn(),
+				setSelectedTopic: vi.fn(),
+			} as never,
+		})
+
+		vi.mocked(SuperMagicApi.createTopic).mockResolvedValue(newTopic)
+		vi.mocked(SuperMagicApi.getTopicsByProjectId).mockResolvedValue({
+			list: [newTopic],
+			total: 1,
+		})
+		vi.mocked(SuperMagicApi.getSidebarTopicsByProjectId).mockResolvedValue({
+			list: [newTopic],
+			total: 1,
+		})
+
+		await service.createTopic({
+			projectId: "project-1",
+			topicName: "",
+			sourceTopic,
+		})
+
+		await expect(
+			service.getSidebarTopicsByProjectId({
+				projectId: "project-1",
+				page: 1,
+				pageSize: 20,
+			}),
+		).resolves.toEqual({
+			list: [
+				{
+					...newTopic,
+					status: TaskStatus.FINISHED,
+					is_pinned: false,
+					is_archived: false,
+					has_unread: false,
+					pinned_at: null,
+					last_read_at: null,
+					last_read_message_id: null,
+					topic_mode: TopicMode.CustomAgent,
+					agent_code: "employee-code-1",
+				},
+			],
+			total: 1,
 		})
 	})
 

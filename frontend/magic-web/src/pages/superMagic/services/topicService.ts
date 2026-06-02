@@ -157,7 +157,9 @@ class TopicService {
 			.then((response) => ({
 				...response,
 				list: Array.isArray(response.list)
-					? response.list.map(normalizeTopicHistoryItem)
+					? response.list.map((topic) =>
+							normalizeTopicHistoryItem(this.applyFrontendModePatch(topic)),
+						)
 					: [],
 			}))
 			.finally(() => {
