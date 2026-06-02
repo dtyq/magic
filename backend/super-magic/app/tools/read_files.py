@@ -75,6 +75,7 @@ class FileReadingResult(BaseModel):
     # 截断信息（如果被截断）
     was_truncated: bool = False  # 是否被截断
     truncation_info: Optional[Union[TruncationInfo, Dict[str, Any]]] = None  # 截断详情（用于生成提示）
+    read_range: Optional[Dict[str, int]] = None  # 实际读取的行号范围
 
 
 @tool()
@@ -182,7 +183,8 @@ Strongly recommended to use this tool for batch reading multiple reference files
                         is_success=True,
                         tokens=tokens,
                         was_truncated=was_truncated_by_read_file,
-                        truncation_info=truncation_info_from_read_file  # 直接使用从read_file获取的TruncationInfo对象
+                        truncation_info=truncation_info_from_read_file,  # 直接使用从read_file获取的TruncationInfo对象
+                        read_range=result.extra_info.get("read_range") if result.extra_info else None,
                     )
 
                     results.append(file_result)
@@ -252,6 +254,7 @@ Strongly recommended to use this tool for batch reading multiple reference files
                         "file_path": item.file_path,
                         "is_success": item.is_success,
                         "error_type": item.error_type,
+                        "read_range": item.read_range,
                     }
                     for item in results
                 ],
@@ -649,13 +652,98 @@ Strongly recommended to use this tool for batch reading multiple reference files
             if not result.ok:
                 return i18n.translate("read_file.single_failed", category="tool.messages", file_name=file_name)
             else:
+                range_remark = self._get_single_read_range_remark(result, operations[0])
+                if range_remark:
+                    return i18n.translate(
+                        "read_file.single_success_with_range",
+                        category="tool.messages",
+                        file_name=file_name,
+                        range=range_remark,
+                    )
                 return i18n.translate("read_file.single_success", category="tool.messages", file_name=file_name)
         else:
             main_file = os.path.basename(file_paths[0])
             if not result.ok:
                 return i18n.translate("read_file.multiple_failed", category="tool.messages", main_file=main_file, count=file_count)
             else:
-                return i18n.translate("read_file.multiple_success", category="tool.messages", main_file=main_file, count=file_count)
+                base_remark = i18n.translate("read_file.multiple_success", category="tool.messages", main_file=main_file, count=file_count)
+                ranges_remark = self._get_multiple_read_ranges_remark(result, operations)
+                if ranges_remark:
+                    return i18n.translate(
+                        "read_file.multiple_success_with_ranges",
+                        category="tool.messages",
+                        summary=base_remark,
+                        ranges=ranges_remark,
+                    )
+                return base_remark
+
+    def _get_single_read_range_remark(self, result: ToolResult, operation: Any) -> str:
+        range_items = self._get_read_range_items(result, [operation])
+        if not range_items:
+            return ""
+        return range_items[0]["range_text"]
+
+    def _get_multiple_read_ranges_remark(self, result: ToolResult, operations: List[Any]) -> str:
+        range_items = self._get_read_range_items(result, operations)
+        if not range_items:
+            return ""
+
+        visible_items = range_items[:3]
+        parts = [
+            f"{os.path.basename(item['file_path'])} {item['range_text']}"
+            for item in visible_items
+        ]
+        if len(range_items) > len(visible_items):
+            parts.append(i18n.translate(
+                "read_file.more_ranges",
+                category="tool.messages",
+                count=len(range_items) - len(visible_items),
+            ))
+        return "；".join(parts)
+
+    def _get_read_range_items(self, result: ToolResult, operations: List[Any]) -> List[Dict[str, str]]:
+        if not result.extra_info:
+            return []
+
+        file_results = result.extra_info.get("file_results") or []
+        items = []
+        for index, file_result in enumerate(file_results):
+            if index >= len(operations):
+                break
+            operation = operations[index]
+            if not self._is_paged_operation(operation):
+                continue
+            read_range = file_result.get("read_range")
+            if not read_range:
+                continue
+            start_line = read_range.get("start_line")
+            end_line = read_range.get("end_line")
+            if not start_line or not end_line:
+                continue
+            file_path = file_result.get("file_path") or self._get_operation_file_path(operation)
+            items.append({
+                "file_path": file_path,
+                "range_text": i18n.translate(
+                    "read_file.line_range",
+                    category="tool.messages",
+                    start=start_line,
+                    end=end_line,
+                ),
+            })
+        return items
+
+    def _is_paged_operation(self, operation: Any) -> bool:
+        offset = self._get_operation_value(operation, "offset", 0) or 0
+        limit = self._get_operation_value(operation, "limit", 200)
+        return offset != 0 or (limit is not None and limit > 0)
+
+    def _get_operation_file_path(self, operation: Any) -> str:
+        return self._get_operation_value(operation, "file_path", "")
+
+    def _get_operation_value(self, operation: Any, key: str, default: Any = None) -> Any:
+        if isinstance(operation, dict):
+            return operation.get(key, default)
+        return getattr(operation, key, default)
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """

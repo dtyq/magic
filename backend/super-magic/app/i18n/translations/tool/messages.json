@@ -11,6 +11,14 @@
         "zh_CN": "已读取 {{main_file}} 等{{count}}个文件",
         "en_US": "Successfully read {{main_file}} and {{count}} other files"
     },
+    "read_file.multiple_success_with_ranges": {
+        "zh_CN": "{{summary}}（{{ranges}}）",
+        "en_US": "{{summary}} ({{ranges}})"
+    },
+    "read_file.more_ranges": {
+        "zh_CN": "另有 {{count}} 个范围",
+        "en_US": "{{count}} more ranges"
+    },
     "read_file.multiple_title": {
         "zh_CN": "{{main_file}} 等{{count}}个文件",
         "en_US": "{{main_file}} and {{count}} other files"
@@ -18,6 +26,14 @@
     "read_file.single_success": {
         "zh_CN": "已读取 {{file_name}}",
         "en_US": "Successfully read {{file_name}}"
+    },
+    "read_file.single_success_with_range": {
+        "zh_CN": "已读取 {{file_name}}（{{range}}）",
+        "en_US": "Successfully read {{file_name}} ({{range}})"
+    },
+    "read_file.line_range": {
+        "zh_CN": "第 {{start}}-{{end}} 行",
+        "en_US": "lines {{start}}-{{end}}"
     },
     "read_file.summary": {
         "zh_CN": "共读取 {{total}} 个文件，成功: {{success}}，失败: {{failed}}{{truncation}}",
@@ -1502,6 +1518,38 @@
     "search.no_results": {
         "zh_CN": "未找到匹配的结果",
         "en_US": "No matching results found"
+    },
+    "grep_search.searched": {
+        "zh_CN": "已搜索：{{pattern}}，命中 {{count}} 个文件",
+        "en_US": "Searched: {{pattern}}, matched {{count}} files"
+    },
+    "file_search.searching": {
+        "zh_CN": "正在搜索文件：{{query}}",
+        "en_US": "Searching files: {{query}}"
+    },
+    "file_search.searched": {
+        "zh_CN": "已搜索文件：{{query}}，找到 {{count}} 个匹配",
+        "en_US": "Searched files: {{query}}, found {{count}} matches"
+    },
+    "file_search.detail_title": {
+        "zh_CN": "文件搜索结果",
+        "en_US": "File Search Results"
+    },
+    "file_search.detail_query": {
+        "zh_CN": "搜索关键词",
+        "en_US": "Query"
+    },
+    "file_search.detail_search_dir": {
+        "zh_CN": "搜索目录",
+        "en_US": "Search Directory"
+    },
+    "file_search.detail_count": {
+        "zh_CN": "匹配数量",
+        "en_US": "Matches"
+    },
+    "file_search.detail_matches": {
+        "zh_CN": "匹配文件",
+        "en_US": "Matched Files"
     },
     "get_user_info.success": {
         "zh_CN": "已获取用户信息",

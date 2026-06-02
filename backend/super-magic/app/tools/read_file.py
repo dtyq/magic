@@ -490,6 +490,7 @@ Suggestions:
                 "original_file_path": str(file_path),
                 "read_path": str(read_path),
                 "read_method": read_method,  # 标识读取方式：统一为 text(纯文本)
+                "read_range": self._extract_read_range(raw_content),
                 # 截断信息（如果被截断）
                 "was_truncated": content_truncated,
                 "truncation_info": truncation_info if content_truncated else None
@@ -659,6 +660,28 @@ Suggestions:
             without_line_numbers=content_without_numbers
         )
 
+    def _extract_read_range(self, content: str) -> Optional[Dict[str, int]]:
+        """从带行号的读取内容中提取实际展示的起止行号"""
+        start_line = None
+        end_line = None
+        for line in content.splitlines():
+            if "\t" not in line:
+                continue
+            line_number_text = line.split("\t", 1)[0]
+            if not line_number_text.isdigit():
+                continue
+            line_number = int(line_number_text)
+            if start_line is None:
+                start_line = line_number
+            end_line = line_number
+
+        if start_line is None or end_line is None:
+            return None
+        return {
+            "start_line": start_line,
+            "end_line": end_line,
+        }
+
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:
         """
         根据工具执行结果获取对应的ToolDetail
@@ -717,7 +740,41 @@ Suggestions:
         """获取备注内容"""
         file_path_str = arguments.get("file_path", "")
         file_name = os.path.basename(file_path_str) if file_path_str else i18n.translate("read_file.default_file_label", category="tool.messages")
+        range_remark = self._get_read_range_remark(result, arguments)
+        if range_remark:
+            return i18n.translate(
+                "read_file.single_success_with_range",
+                category="tool.messages",
+                file_name=file_name,
+                range=range_remark,
+            )
         return file_name
+
+    def _get_read_range_remark(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
+        if not self._is_paged_read(arguments):
+            return ""
+        if not result.extra_info:
+            return ""
+        read_range = result.extra_info.get("read_range")
+        if not read_range:
+            return ""
+        start_line = read_range.get("start_line")
+        end_line = read_range.get("end_line")
+        if not start_line or not end_line:
+            return ""
+        return i18n.translate(
+            "read_file.line_range",
+            category="tool.messages",
+            start=start_line,
+            end=end_line,
+        )
+
+    def _is_paged_read(self, arguments: Dict[str, Any] = None) -> bool:
+        if not arguments:
+            return False
+        offset = arguments.get("offset", 0) or 0
+        limit = arguments.get("limit", 200)
+        return offset != 0 or (limit is not None and limit > 0)
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """
