@@ -1,6 +1,6 @@
 """文件类型常量定义"""
 
-# ConvertToMarkdown 支持的所有可转换文件类型
+# document-converter 建议交由 Skill 工作流处理的复杂文件类型
 CONVERTIBLE_EXTENSIONS = {
     # PDF文件
     '.pdf',

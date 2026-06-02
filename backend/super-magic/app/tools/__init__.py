@@ -167,7 +167,6 @@ __all__ = [
     "ConvertPdf",
     "BuildDocumentIndex",
     "ConvertDocumentFormat",
-    "ConvertToMarkdown",
     "ExportDocumentMarkdown",
     "ExtractDocumentContent",
     "InspectDocument",
