@@ -11,14 +11,15 @@ import shutil
 import json
 import asyncio
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from app.core.entity.checkpoint import FileSnapshot, FileOperation, CheckpointInfo, FileType
 from app.infrastructure.checkpoint.metadata_manager import CheckpointMetadataManager
 from app.infrastructure.checkpoint.storage import CheckpointStorage
 from app.infrastructure.checkpoint.chat_history_snapshot_manager import ChatHistorySnapshotManager
 from app.utils.async_file_utils import (
-    async_copy2, async_rmtree, async_mkdir, async_unlink, async_rmdir, async_write_json
+    async_copy2, async_rmtree, async_mkdir, async_unlink, async_rmdir, async_write_json,
+    get_file_id_from_xattr
 )
 from app.core.exceptions import RollbackException, ErrorCode
 from app.path_manager import PathManager
@@ -39,7 +40,7 @@ class RollbackExecutor:
 
         logger.info("RollbackExecutor初始化完成，合并优化已启用")
 
-    async def start_rollback(self, target_checkpoint_id: str) -> bool:
+    async def start_rollback(self, target_checkpoint_id: str) -> Tuple[bool, List[Dict[str, str]]]:
         """
         开始回滚操作，只恢复文件状态
 
@@ -47,7 +48,7 @@ class RollbackExecutor:
             target_checkpoint_id: 目标检查点ID，不能为None
 
         Returns:
-            bool: 回滚是否成功
+            Tuple[bool, List[Dict[str, str]]]: 回滚是否成功、受影响文件列表
         """
         try:
             # 验证参数
@@ -71,13 +72,13 @@ class RollbackExecutor:
             # 如果当前checkpoint和目标checkpoint相同，无需回滚
             if current_checkpoint_id == target_checkpoint_id:
                 logger.info(f"当前checkpoint与目标checkpoint相同，无需回滚: {target_checkpoint_id}")
-                return True
+                return True, []
 
             # 执行工作区文件回滚
-            workspace_rollback_success = await self._execute_workspace_rollback(current_checkpoint_id, target_checkpoint_id)
+            workspace_rollback_success, affected_files = await self._execute_workspace_rollback(current_checkpoint_id, target_checkpoint_id)
             if not workspace_rollback_success:
                 logger.error("工作区文件回滚失败")
-                return False
+                return False, []
 
             # 执行聊天历史回滚
             history_rollback_success = await self._execute_chat_history_rollback(current_checkpoint_id, target_checkpoint_id)
@@ -92,13 +93,17 @@ class RollbackExecutor:
             logger.info(f"当前checkpoint状态已更新: {target_checkpoint_id}")
 
             logger.info(f"回滚完成，当前checkpoint: {target_checkpoint_id}")
-            return True
+            return True, affected_files
 
         except Exception as e:
             logger.error(f"开始回滚时发生错误: {e}")
-            return False
+            return False, []
 
-    async def _execute_workspace_rollback(self, current_checkpoint_id: Optional[str], target_checkpoint_id: str) -> bool:
+    async def _execute_workspace_rollback(
+        self,
+        current_checkpoint_id: Optional[str],
+        target_checkpoint_id: str
+    ) -> Tuple[bool, List[Dict[str, str]]]:
         """执行工作区文件回滚
 
         Args:
@@ -106,7 +111,7 @@ class RollbackExecutor:
             target_checkpoint_id: 目标checkpoint ID，不能为None
 
         Returns:
-            bool: 回滚是否成功
+            Tuple[bool, List[Dict[str, str]]]: 回滚是否成功、受影响文件列表
         """
         try:
             # 使用metadata_manager获取checkpoint范围和方向
@@ -118,18 +123,18 @@ class RollbackExecutor:
 
             if direction == "none":
                 logger.info("当前checkpoint与目标checkpoint相同，无需回滚")
-                return True
+                return True, []
             elif direction == "backward":
                 return await self._execute_backward_workspace_rollback(checkpoints_to_process)
             elif direction == "forward":
                 return await self._execute_forward_workspace_rollback(checkpoints_to_process)
             else:
                 logger.error(f"未知的回滚方向: {direction}")
-                return False
+                return False, []
 
         except Exception as e:
             logger.error(f"执行工作区回滚失败: {e}")
-            return False
+            return False, []
 
     async def _merge_file_snapshots_for_rollback(self, checkpoint_ids: List[str], is_forward: bool) -> List[Tuple[str, FileSnapshot]]:
         """
@@ -222,14 +227,14 @@ class RollbackExecutor:
             logger.error(f"合并逻辑验证失败: {e}")
             return False
 
-    async def _execute_backward_workspace_rollback(self, checkpoint_ids: List[str]) -> bool:
+    async def _execute_backward_workspace_rollback(self, checkpoint_ids: List[str]) -> Tuple[bool, List[Dict[str, str]]]:
         """执行反向工作区回滚（带合并优化）
 
         Args:
             checkpoint_ids: 需要回滚的checkpoint ID列表
 
         Returns:
-            bool: 回滚是否成功
+            Tuple[bool, List[Dict[str, str]]]: 回滚是否成功、受影响文件列表
         """
         try:
             logger.info(f"开始执行反向回滚（带合并优化），checkpoint数量: {len(checkpoint_ids)}")
@@ -239,29 +244,33 @@ class RollbackExecutor:
 
             # 处理合并后的文件操作
             success_count = 0
+            affected_files: Dict[str, Dict[str, str]] = {}
             for checkpoint_id, file_snapshot in merged_operations:
+                affected_file_before = await self._build_affected_file(file_snapshot, is_forward=False)
                 success = await self._restore_from_initial_content(checkpoint_id, file_snapshot)
                 if success:
                     success_count += 1
+                    affected_file_after = await self._build_affected_file(file_snapshot, is_forward=False)
+                    self._merge_affected_file(affected_files, affected_file_after or affected_file_before)
                 else:
                     logger.error(f"从initial_content恢复文件失败: {file_snapshot.file_path}")
-                    return False
+                    return False, []
 
             logger.info(f"反向回滚完成（合并优化），成功处理了{success_count}个文件操作")
-            return True
+            return True, list(affected_files.values())
 
         except Exception as e:
             logger.error(f"执行反向工作区回滚失败: {e}")
-            return False
+            return False, []
 
-    async def _execute_forward_workspace_rollback(self, checkpoint_ids: List[str]) -> bool:
+    async def _execute_forward_workspace_rollback(self, checkpoint_ids: List[str]) -> Tuple[bool, List[Dict[str, str]]]:
         """执行正向工作区回滚（带合并优化）
 
         Args:
             checkpoint_ids: 需要应用的checkpoint ID列表
 
         Returns:
-            bool: 回滚是否成功
+            Tuple[bool, List[Dict[str, str]]]: 回滚是否成功、受影响文件列表
         """
         try:
             logger.info(f"开始执行正向回滚（带合并优化），checkpoint数量: {len(checkpoint_ids)}")
@@ -271,20 +280,70 @@ class RollbackExecutor:
 
             # 处理合并后的文件操作
             success_count = 0
+            affected_files: Dict[str, Dict[str, str]] = {}
             for checkpoint_id, file_snapshot in merged_operations:
+                affected_file_before = await self._build_affected_file(file_snapshot, is_forward=True)
                 success = await self._restore_from_latest_content(checkpoint_id, file_snapshot)
                 if success:
                     success_count += 1
+                    affected_file_after = await self._build_affected_file(file_snapshot, is_forward=True)
+                    self._merge_affected_file(affected_files, affected_file_after or affected_file_before)
                 else:
                     logger.error(f"从latest_content恢复文件失败: {file_snapshot.file_path}")
-                    return False
+                    return False, []
 
             logger.info(f"正向回滚完成（合并优化），成功处理了{success_count}个文件操作")
-            return True
+            return True, list(affected_files.values())
 
         except Exception as e:
             logger.error(f"执行正向工作区回滚失败: {e}")
-            return False
+            return False, []
+
+    async def _build_affected_file(
+        self,
+        file_snapshot: FileSnapshot,
+        is_forward: bool
+    ) -> Optional[Dict[str, str]]:
+        file_id = await get_file_id_from_xattr(self._resolve_workspace_path(file_snapshot.file_path))
+        if not file_id:
+            return None
+
+        return {
+            "file_id": file_id,
+            "file_path": self._normalize_affected_file_path(file_snapshot.file_path),
+            "operation": self._get_rollback_file_operation(file_snapshot, is_forward),
+        }
+
+    def _merge_affected_file(
+        self,
+        affected_files: Dict[str, Dict[str, str]],
+        affected_file: Optional[Dict[str, str]]
+    ) -> None:
+        if affected_file is None:
+            return
+
+        file_id = affected_file.get("file_id")
+        if not file_id:
+            return
+
+        affected_files[file_id] = affected_file
+
+    def _get_rollback_file_operation(self, file_snapshot: FileSnapshot, is_forward: bool) -> str:
+        if file_snapshot.operation == FileOperation.CREATED:
+            return "add" if is_forward else "delete"
+        if file_snapshot.operation == FileOperation.DELETED:
+            return "delete" if is_forward else "add"
+        return "update"
+
+    def _normalize_affected_file_path(self, file_path: str) -> str:
+        path = Path(file_path)
+        if not path.is_absolute():
+            return file_path.strip().replace("\\", "/").lstrip("/")
+
+        try:
+            return path.relative_to(PathManager.get_workspace_dir()).as_posix()
+        except ValueError:
+            return path.as_posix()
 
     async def _restore_from_initial_content(self, checkpoint_id: str, file_snapshot: FileSnapshot) -> bool:
         """从initial_content恢复文件（反向回滚，operation感知）"""
@@ -515,7 +574,7 @@ class RollbackExecutor:
             logger.error(f"提交回滚操作失败: {e}")
             return False
 
-    async def undo_rollback(self, latest_checkpoint_id: str) -> bool:
+    async def undo_rollback(self, latest_checkpoint_id: str) -> Tuple[bool, List[Dict[str, str]]]:
         """
         执行撤回回滚操作
 
@@ -526,7 +585,7 @@ class RollbackExecutor:
             latest_checkpoint_id: 最新的 checkpoint ID，不能为None
 
         Returns:
-            bool: 撤回回滚是否成功
+            Tuple[bool, List[Dict[str, str]]]: 撤回回滚是否成功、受影响文件列表
         """
         try:
             logger.info(f"开始执行撤回回滚到最新checkpoint: {latest_checkpoint_id}")
@@ -541,23 +600,23 @@ class RollbackExecutor:
             # 检查是否需要撤回回滚
             if current_checkpoint_id == latest_checkpoint_id:
                 logger.info(f"当前checkpoint与最新checkpoint相同，无需撤回回滚: {latest_checkpoint_id}")
-                return True
+                return True, []
 
             logger.info(f"撤回回滚：从 {current_checkpoint_id} 到 {latest_checkpoint_id}")
 
             # 调用现有的 start_rollback 方法执行实际的回滚操作
-            success = await self.start_rollback(latest_checkpoint_id)
+            success, affected_files = await self.start_rollback(latest_checkpoint_id)
 
             if success:
                 logger.info(f"撤回回滚执行成功: {latest_checkpoint_id}")
             else:
                 logger.error(f"撤回回滚执行失败: {latest_checkpoint_id}")
 
-            return success
+            return success, affected_files
 
         except Exception as e:
             logger.error(f"撤回回滚执行时发生错误: {e}")
-            return False
+            return False, []
 
     async def _validate_undo_rollback_preconditions(self, latest_checkpoint_id: str) -> None:
         """

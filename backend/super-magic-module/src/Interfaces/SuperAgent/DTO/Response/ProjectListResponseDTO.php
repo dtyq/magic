@@ -28,14 +28,17 @@ class ProjectListResponseDTO
         $projects = $result['list'] ?? $result;
         $total = $result['total'] ?? count($projects);
 
-        $list = array_map(function ($project) use ($workspaceNameMap, $projectIdsWithMember, $projectStatusMap, $topicCountMap) {
+        $list = [];
+        foreach ($projects as $project) {
             $workspaceName = $workspaceNameMap[$project->getWorkspaceId()] ?? null;
             $hasProjectMember = in_array($project->getId(), $projectIdsWithMember);
             $projectStatus = $projectStatusMap[$project->getId()] ?? null;
             $projectData = ProjectItemDTO::fromEntity($project, $projectStatus, $workspaceName, $hasProjectMember)->toArray();
             $projectData['topic_count'] = $topicCountMap[$project->getId()] ?? 0;
-            return $projectData;
-        }, $projects);
+            $projectData['is_pinned'] = $project->isPinned();
+            $projectData['pinned_at'] = $project->getPinnedAt();
+            $list[] = $projectData;
+        }
 
         return new self(
             list: $list,

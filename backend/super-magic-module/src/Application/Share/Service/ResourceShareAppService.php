@@ -2425,6 +2425,7 @@ class ResourceShareAppService extends AbstractShareAppService
         $allEntities = ! empty($fileIds)
             ? $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId)
             : [];
+        $allEntities = RelativeFilePathUtil::filterByValidParentChain($allEntities);
 
         // 过滤系统目录（如 .magic 及其子文件）
         $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);

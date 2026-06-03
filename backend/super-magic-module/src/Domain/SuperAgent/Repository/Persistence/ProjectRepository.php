@@ -13,6 +13,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectModel;
+use Hyperf\DbConnection\Db;
 use RuntimeException;
 
 /**
@@ -176,30 +177,58 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
         string $orderBy = 'updated_at',
         string $orderDirection = 'desc'
     ): array {
-        $query = $this->projectModel::query();
+        $query = $this->projectModel::query()
+            ->withoutGlobalScopes()
+            ->from($this->projectModel->getTable() . ' as p');
+
+        $settingUserId = '';
+        if (isset($conditions['user_id']) && ! is_array($conditions['user_id'])) {
+            $settingUserId = (string) $conditions['user_id'];
+        }
+
+        if ($settingUserId !== '') {
+            $query->leftJoin(
+                'magic_super_agent_project_member_settings as pms',
+                function ($join) use ($settingUserId) {
+                    $join->on('pms.project_id', '=', 'p.id')
+                        ->where('pms.user_id', '=', $settingUserId);
+                }
+            );
+        }
 
         // 默认过滤已删除的数据
-        $query->whereNull('deleted_at');
+        $query->whereNull('p.deleted_at');
 
         // 应用查询条件
         foreach ($conditions as $field => $value) {
             if (is_array($value)) {
                 // 支持project_ids数组查询
-                $query->whereIn('id', $value);
+                $query->whereIn('p.id', $value);
             } elseif ($field === 'project_name_like') {
                 // Support fuzzy search for project name
-                $query->where('project_name', 'like', '%' . $value . '%');
+                $query->where('p.project_name', 'like', '%' . $value . '%');
             } else {
                 // 默认等于查询
-                $query->where($field, $value);
+                $query->where('p.' . $field, $value);
             }
         }
 
         // 获取总数
-        $total = $query->count();
+        $total = (clone $query)->count('p.id');
+
+        $query->select(['p.*']);
+
+        if ($settingUserId !== '') {
+            $query->addSelect([
+                Db::raw('COALESCE(pms.is_pinned, 0) as is_pinned'),
+                Db::raw('pms.pinned_at as pinned_at'),
+            ]);
+            $query->orderByRaw('COALESCE(pms.is_pinned, 0) DESC')
+                ->orderByRaw('pms.pinned_at DESC');
+        }
 
         // 排序和分页
-        $list = $query->orderBy($orderBy, $orderDirection)
+        $list = $query->orderBy('p.' . $orderBy, $orderDirection)
             ->offset(($page - 1) * $pageSize)
             ->limit($pageSize)
             ->get();
@@ -655,9 +684,11 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
      */
     protected function toEntities(array $results): array
     {
-        return array_map(function ($row) {
-            return $this->toEntity($row);
-        }, $results);
+        $entities = [];
+        foreach ($results as $row) {
+            $entities[] = $this->toEntity($row);
+        }
+        return $entities;
     }
 
     /**
@@ -687,6 +718,8 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
             'created_at' => $data['created_at'] ?? null,
             'updated_at' => $data['updated_at'] ?? null,
             'deleted_at' => $data['deleted_at'] ?? null,
+            'is_pinned' => $data['is_pinned'] ?? false,
+            'pinned_at' => $data['pinned_at'] ?? null,
         ]);
     }
 
