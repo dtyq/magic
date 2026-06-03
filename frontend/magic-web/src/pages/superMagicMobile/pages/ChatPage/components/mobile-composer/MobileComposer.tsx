@@ -1,22 +1,22 @@
-import { EditorContent } from "@tiptap/react"
-import { ArrowUp, Loader2, Plus, Square } from "lucide-react"
-import { useDebounceFn } from "ahooks"
-import { observer } from "mobx-react-lite"
-import { useMemo, useState } from "react"
 import { Button } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
 import type {
 	SceneEditorContext,
 	SceneEditorNodes,
 } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
-import { MessageEditorStoreProvider } from "@/pages/superMagic/components/MessageEditor/stores"
-import SuperMagicVoiceInput from "@/pages/superMagic/components/MessageEditor/components/VoiceInput"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
-import type { SceneItem } from "@/pages/superMagic/types/skill"
 import { useSceneSelection } from "@/pages/superMagic/components/MainInputContainer/hooks"
 import { useCurrentSceneConfig } from "@/pages/superMagic/components/MainInputContainer/hooks/useCurrentSceneConfig"
 import { sceneStateStore } from "@/pages/superMagic/components/MainInputContainer/stores"
+import SuperMagicVoiceInput from "@/pages/superMagic/components/MessageEditor/components/VoiceInput"
+import { MessageEditorStoreProvider } from "@/pages/superMagic/components/MessageEditor/stores"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import type { SceneItem } from "@/pages/superMagic/types/skill"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import { EditorContent } from "@tiptap/react"
+import { useDebounceFn } from "ahooks"
+import { ArrowUp, Loader2, Plus, Square } from "lucide-react"
+import { observer } from "mobx-react-lite"
+import { useMemo, useState } from "react"
 import MobileComposerAddSheet from "./MobileComposerAddSheet"
 import MobileComposerAttachments from "./MobileComposerAttachments"
 import MobileComposerHeader from "./MobileComposerHeader"
@@ -41,7 +41,7 @@ const mobileComposerEditorClassName = cn(
 	"[&_.ProseMirror_.is-editor-empty:first-child::before]:left-0",
 	"[&_.ProseMirror_.is-editor-empty:first-child::before]:top-0",
 	"[&_.ProseMirror_.is-editor-empty:first-child::before]:block",
-	"[&_.ProseMirror_.is-editor-empty:first-child::before]:max-w-full",
+	"[&_.ProseMirror_.is-editor-empty:first-child::before]:max-w-[84%]",
 	"[&_.ProseMirror_.is-editor-empty:first-child::before]:overflow-hidden",
 	"[&_.ProseMirror_.is-editor-empty:first-child::before]:whitespace-nowrap",
 	"[&_.ProseMirror_.is-editor-empty:first-child::before]:text-ellipsis",
@@ -128,7 +128,7 @@ function MobileComposerComponent({
 			<MobileComposerAttachments files={files} onRemove={logic.handleRemoveUploadedFile} />
 
 			<div
-				className="px-3 pb-1.5 pt-2"
+				className="px-4 pb-1.5 pt-3"
 				onPaste={logic.handlePaste}
 				onCompositionStart={logic.handleCompositionStart}
 				onCompositionEnd={logic.handleCompositionEnd}
@@ -142,7 +142,7 @@ function MobileComposerComponent({
 				</div>
 			</div>
 
-			<div className="flex items-center justify-between gap-2 px-1.5 py-1">
+			<div className="flex items-center justify-between gap-2 pl-1.5 pr-2 pb-2">
 				<div className="flex items-center">
 					<Button
 						type="button"
@@ -186,7 +186,7 @@ function MobileComposerComponent({
 						size="icon"
 						className={cn(
 							"bg-primary text-background size-10 rounded-full shadow-none",
-							sendButtonDisabled && "opacity-60",
+							sendButtonDisabled && "disabled:opacity-40",
 						)}
 						disabled={sendButtonDisabled}
 						onClick={handleActionClick}
@@ -228,7 +228,7 @@ function MobileComposerComponent({
 		</>
 	) : (
 		<div
-			className="flex w-full shrink-0 flex-col gap-1.5 bg-mobile-background px-2 pb-3 pt-1.5"
+			className="bg-mobile-background flex w-full shrink-0 flex-col gap-1.5 px-2 pb-3 pt-1.5"
 			data-testid="mobile-composer"
 		>
 			{taskAndQueueNodes}
@@ -248,7 +248,7 @@ function MobileComposerComponent({
 
 			<div
 				className={cn(
-					"overflow-hidden rounded-2xl bg-card shadow-mobile-dock-surface transition-colors",
+					"bg-card shadow-mobile-dock-surface overflow-hidden rounded-3xl transition-colors",
 					logic.isComposerFocused && "ring-primary/20 ring-1",
 				)}
 				data-testid="mobile-composer-card"

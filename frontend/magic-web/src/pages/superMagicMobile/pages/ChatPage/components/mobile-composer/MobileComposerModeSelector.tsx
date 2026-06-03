@@ -460,16 +460,13 @@ function MobileComposerModeSelectorComponent({
 			<MagicPopup
 				visible={open}
 				onClose={closeAllPanels}
-				className={cn("rounded-t-[14px] border-0", activeModelRow ? "bg-card" : "bg-muted")}
-				bodyClassName={cn(
-					"overflow-hidden rounded-t-[14px] border-0 p-0",
-					activeModelRow ? "bg-card" : "bg-muted",
-				)}
+				className="rounded-t-[14px] border-0 bg-muted"
+				bodyClassName="overflow-hidden rounded-t-[14px] border-0 bg-muted p-0"
 				handlerClassName="bg-muted-foreground mb-1.5 h-1 w-20 rounded-full"
 			>
 				{activeModelRow ? (
 					<div
-						className="flex h-[min(640px,calc(100dvh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-44px))] min-h-0 w-full flex-col overflow-hidden bg-card"
+						className="flex h-[min(640px,calc(100dvh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-44px))] min-h-0 w-full flex-col overflow-hidden bg-muted"
 						data-testid="mobile-composer-mode-selector-model-popup"
 					>
 						<div className="mobile-popup-action-header relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">

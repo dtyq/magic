@@ -1,10 +1,10 @@
-import { observer } from "mobx-react-lite"
-import { useTranslation } from "react-i18next"
 import { SupportLocales } from "@/constants/locale"
 import { cn } from "@/lib/utils"
 import { globalConfigStore } from "@/stores/globalConfig"
-import { getAvatarUrl } from "@/utils/avatar"
 import { usePoppinsFont } from "@/styles/font"
+import { getAvatarUrl } from "@/utils/avatar"
+import { observer } from "mobx-react-lite"
+import { useTranslation } from "react-i18next"
 
 interface MobileBrandHeroProps {
 	className?: string
@@ -40,7 +40,7 @@ const MobileBrandHero = observer(function MobileBrandHero({
 	return (
 		<div
 			className={cn(
-				"flex w-full max-w-[348px] shrink-0 flex-col items-center gap-3 text-center",
+				"-mt-10 flex w-full max-w-[348px] shrink-0 flex-col items-center gap-3 text-center",
 				className,
 			)}
 			data-testid={dataTestId}
@@ -55,7 +55,7 @@ const MobileBrandHero = observer(function MobileBrandHero({
 			) : null}
 			<p
 				className={cn(
-					"shrink-0 font-poppins text-base leading-6 text-muted-foreground",
+					"font-poppins text-muted-foreground shrink-0 text-sm leading-6",
 					subtitleClassName,
 				)}
 			>
@@ -63,7 +63,7 @@ const MobileBrandHero = observer(function MobileBrandHero({
 			</p>
 			<p
 				className={cn(
-					"shrink-0 font-poppins text-2xl font-medium leading-[1.18] tracking-[-0.03em] text-foreground",
+					"font-poppins text-foreground shrink-0 text-2xl font-medium leading-[1.18] tracking-[-0.03em]",
 					titleClassName,
 				)}
 			>

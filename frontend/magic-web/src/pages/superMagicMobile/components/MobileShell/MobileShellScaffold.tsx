@@ -20,7 +20,22 @@ export interface MobileShellScaffoldProps {
  * 根背景使用 Tailwind 语义色 + `dark:` + `data-[sidebar-open=true]` 组合，避免页面层手写颜色三元表达式。
  * 主面板与侧栏轨道圆角使用 Tailwind 语义档位（`rounded-*-3xl`、`shadow-2xl`）。
  * 抽屉打开时主面板使用 `rounded-l-3xl` 裁切靠侧栏一侧的整条左缘（上、下），与侧栏 `rounded-tr-3xl` / `rounded-br-3xl` 接缝配套。
+ * 侧栏轨道与主面板同步 transform（关闭时侧栏 `-translate-x-full` 滑出屏外，打开时与面板右推对齐原型双层滑动）。
+ * 动画时长/easing 使用 inline style（与原型 Sidebar / HomeScreen 一致），避免 Tailwind 任意 `duration-[350ms]` 未进产物导致退回 150ms。
  */
+const SHELL_DRAWER_EASING = "cubic-bezier(0.4, 0, 0.2, 1)"
+const SHELL_DRAWER_DURATION = "0.35s"
+
+/** Prototype Sidebar: transform-only transition. */
+const shellSidebarTransition = `transform ${SHELL_DRAWER_DURATION} ${SHELL_DRAWER_EASING}`
+
+/** Prototype App Panel: transform + border-radius + box-shadow share the same timing. */
+const shellPanelTransition = [
+	`transform ${SHELL_DRAWER_DURATION} ${SHELL_DRAWER_EASING}`,
+	`border-radius ${SHELL_DRAWER_DURATION} ${SHELL_DRAWER_EASING}`,
+	`box-shadow ${SHELL_DRAWER_DURATION} ${SHELL_DRAWER_EASING}`,
+].join(", ")
+
 export default function MobileShellScaffold({
 	isSidebarOpen,
 	sidebar,
@@ -31,8 +46,6 @@ export default function MobileShellScaffold({
 	rootClassName,
 	panelClassName,
 }: MobileShellScaffoldProps) {
-	const transitionMs = 350
-
 	return (
 		<div
 			data-sidebar-open={isSidebarOpen}
@@ -49,7 +62,11 @@ export default function MobileShellScaffold({
 				data-testid={`${testIdPrefix}-device`}
 			>
 				<div
-					className="absolute inset-y-0 left-0 z-10 w-[var(--mobile-shell-sidebar-width)] overflow-hidden rounded-br-3xl rounded-tr-3xl"
+					className={cn(
+						"absolute inset-y-0 left-0 z-10 w-[var(--mobile-shell-sidebar-width)] overflow-hidden rounded-br-3xl rounded-tr-3xl",
+						isSidebarOpen ? "translate-x-0" : "-translate-x-full",
+					)}
+					style={{ transition: shellSidebarTransition }}
 					data-testid={`${testIdPrefix}-sidebar`}
 				>
 					{sidebar}
@@ -68,17 +85,14 @@ export default function MobileShellScaffold({
 				<div
 					className={cn(
 						// 共享 panel 容器默认铺一层不透明背景，避免业务页忘记设置背景时透出后侧栏内容。
-						"ease-[cubic-bezier(0.4,0,0.2,1)] absolute inset-0 z-30 overflow-hidden bg-mobile-background",
-						"transition-[transform,box-shadow]",
+						"absolute inset-0 z-30 overflow-hidden bg-mobile-background",
 						isSidebarOpen && "rounded-l-3xl shadow-2xl",
 						isSidebarOpen
 							? "translate-x-[var(--mobile-shell-sidebar-width)]"
 							: "translate-x-0",
 						panelClassName,
 					)}
-					style={{
-						transitionDuration: `${transitionMs}ms`,
-					}}
+					style={{ transition: shellPanelTransition }}
 					data-testid={`${testIdPrefix}-panel`}
 				>
 					{panel}
