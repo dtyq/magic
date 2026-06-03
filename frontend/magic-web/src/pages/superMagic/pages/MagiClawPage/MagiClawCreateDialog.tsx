@@ -152,13 +152,13 @@ export function MagiClawCreateDialog({
 				side="bottom"
 				showClose={false}
 				aria-describedby={undefined}
-				className="flex max-h-[88vh] flex-col gap-0 overflow-hidden rounded-t-[14px] border-0 bg-muted p-0"
+				className="flex h-auto max-h-[88dvh] flex-col gap-0 overflow-hidden rounded-t-[14px] border-0 p-0 !pb-0"
 				style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
 				data-testid="magi-claw-create-dialog"
 			>
-				<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(155deg,rgba(255,232,220,0.8)_0%,#ffffff_30%)] dark:bg-[linear-gradient(155deg,rgba(96,46,18,0.55)_0%,var(--color-card)_38%)]">
+				<div className="relative flex max-h-[88dvh] flex-col overflow-hidden bg-background bg-[linear-gradient(155deg,rgba(255,232,220,0.8)_0%,#ffffff_30%)] pb-[max(var(--safe-area-inset-bottom),12px)] dark:bg-card dark:bg-[linear-gradient(155deg,rgba(96,46,18,0.55)_0%,var(--color-card)_38%)]">
 					<div
-						className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle,rgba(0,0,0,0.038)_1px,transparent_1px)] bg-[length:14px_14px] opacity-70 dark:bg-[radial-gradient(circle,rgba(255,255,255,0.05)_1px,transparent_1px)]"
+						className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle,rgba(0,0,0,0.038)_1px,transparent_1px)] bg-[length:14px_14px] dark:bg-[radial-gradient(circle,rgba(255,255,255,0.05)_1px,transparent_1px)]"
 						aria-hidden
 					/>
 
@@ -213,13 +213,10 @@ export function MagiClawCreateDialog({
 					/>
 
 					<div
-						className="relative z-10 flex-1 overflow-y-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-						style={{
-							paddingBottom: "max(var(--safe-area-inset-bottom), 20px)",
-						}}
+						className="relative z-10 min-h-0 flex-1 overflow-y-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 						data-testid="magi-claw-create-dialog-scroll-content"
 					>
-						<div className="relative z-10 flex flex-col gap-[18px] pb-5 pt-3">
+						<div className="relative z-10 flex flex-col gap-[18px] pt-3">
 							<div
 								className="flex flex-col items-center gap-2 pb-1"
 								data-testid="magi-claw-create-dialog-hero"
