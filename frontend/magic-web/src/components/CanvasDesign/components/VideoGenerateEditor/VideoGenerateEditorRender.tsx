@@ -102,35 +102,14 @@ export default function VideoGenerateEditorRender(props: VideoGenerateEditorRend
 	})
 	const { handlers } = config
 	const { buildRequestParams } = handlers
-	const estimateModelId = useMemo(() => {
-		if (config.selectedModelId) return config.selectedModelId
-		if (config.hasRestoredRef.current) return undefined
-
-		const requestModelId = videoElement.generateVideoRequest?.model_id
-		if (
-			requestModelId &&
-			config.modelOptions.some((option) => option.value === requestModelId)
-		) {
-			return requestModelId
-		}
-
-		const rootStorage = canvas?.magicConfigManager.config?.methods?.getRootStorage?.()
-		const defaultModelId = rootStorage?.defaultGenerateVideoConfig?.model_id
-		if (
-			defaultModelId &&
-			config.modelOptions.some((option) => option.value === defaultModelId)
-		) {
-			return defaultModelId
-		}
-
-		return config.modelOptions[0]?.value
-	}, [
-		canvas,
-		config.hasRestoredRef,
-		config.modelOptions,
-		config.selectedModelId,
-		videoElement.generateVideoRequest?.model_id,
-	])
+	const hasNonStandardInputMode = config.availableInputModes.some((mode) => mode !== "standard")
+	const isEstimateInputModeSettled =
+		config.availableInputModes.includes(config.selectedInputMode) &&
+		!(config.selectedInputMode === "standard" && hasNonStandardInputMode)
+	const estimateModelId =
+		config.hasRestoredRef.current && isEstimateInputModeSettled
+			? config.selectedModelId || undefined
+			: undefined
 	const estimateRequest = useMemo(() => {
 		if (!estimateModelId) return null
 		return {
