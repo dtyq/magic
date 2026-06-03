@@ -119,4 +119,37 @@ describe("ChatConversationListView", () => {
 		expect(screen.getByTestId("mobile-resource-list-skeleton-list")).toBeInTheDocument()
 		expect(screen.queryByTestId("mobile-chats-page-empty")).not.toBeInTheDocument()
 	})
+
+	it("shows loading spinner and disables create button while creating chat", () => {
+		render(
+			<ChatConversationListView
+				items={[]}
+				isLoading={false}
+				searchValue=""
+				isEmpty={true}
+				isSearchEmpty={false}
+				hasMore={false}
+				onSearchValueChange={vi.fn()}
+				onCreateChat={vi.fn()}
+				onOpenConversation={vi.fn()}
+				onMore={vi.fn()}
+				onPin={vi.fn()}
+				onDelete={vi.fn()}
+				onRefresh={vi.fn(async () => {})}
+				loadMore={vi.fn(async () => {})}
+				title="对话"
+				searchPlaceholder="搜索"
+				clearSearchAriaLabel="取消"
+				newChatAriaLabel="新建对话"
+				isCreateChatLoading
+			/>,
+		)
+
+		const createButton = screen.getByTestId("mobile-chats-page-create-button")
+		expect(createButton).toBeDisabled()
+		expect(createButton).toHaveAttribute("aria-busy", "true")
+		expect(screen.getByTestId("mobile-chats-page-create-button-loading")).toHaveClass(
+			"animate-spin",
+		)
+	})
 })

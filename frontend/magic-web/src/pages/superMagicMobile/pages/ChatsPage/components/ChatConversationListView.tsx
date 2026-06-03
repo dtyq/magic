@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState } from "react"
-import { MessageCirclePlus } from "lucide-react"
+import { Loader2, MessageCirclePlus } from "lucide-react"
 import { MobileResourceListSkeletonList } from "@/pages/superMagicMobile/components/skeletons"
 import { MobileShellSidebarToggleButton } from "@/pages/superMagicMobile/components/MobileShell"
 import { InfiniteScroll } from "antd-mobile"
@@ -33,6 +33,8 @@ interface ChatConversationListViewProps {
 	searchPlaceholder: string
 	clearSearchAriaLabel: string
 	newChatAriaLabel: string
+	/** 新建对话请求进行中时，右上角按钮展示 loading 并禁用点击 */
+	isCreateChatLoading?: boolean
 }
 
 /**
@@ -57,7 +59,9 @@ export function ChatConversationListView({
 	searchPlaceholder,
 	clearSearchAriaLabel,
 	newChatAriaLabel,
+	isCreateChatLoading = false,
 }: ChatConversationListViewProps) {
+	const isCreateChatDisabled = isCreateChatLoading
 	/**
 	 * 同时只允许一行处于左滑展开状态。
 	 * 当用户开始滑动另一行时，当前行自动收起（通过 isOpen 变为 false 实现）。
@@ -112,15 +116,27 @@ export function ChatConversationListView({
 
 				<p className="mobile-page-header-title">{title}</p>
 
-				<button
-					type="button"
-					onClick={onCreateChat}
-					className="mobile-page-header-btn ml-auto transition-transform active:scale-95"
-					aria-label={newChatAriaLabel}
-					data-testid="mobile-chats-page-create-button"
-				>
-					<MessageCirclePlus className="size-[22px] text-foreground" />
-				</button>
+				<div className="mobile-page-header-btn ml-auto">
+					<button
+						type="button"
+						onClick={onCreateChat}
+						disabled={isCreateChatDisabled}
+						aria-disabled={isCreateChatDisabled}
+						aria-busy={isCreateChatLoading}
+						className="flex size-12 shrink-0 items-center justify-center rounded-full transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+						aria-label={newChatAriaLabel}
+						data-testid="mobile-chats-page-create-button"
+					>
+						{isCreateChatLoading ? (
+							<Loader2
+								className="size-[22px] animate-spin text-foreground"
+								data-testid="mobile-chats-page-create-button-loading"
+							/>
+						) : (
+							<MessageCirclePlus className="size-[22px] text-foreground" />
+						)}
+					</button>
+				</div>
 			</div>
 
 			{/*

@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useBoolean, useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import {
@@ -43,6 +43,17 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		optimisticRemove,
 	} = useChatConversationList()
 	const currentRole = roleStore.currentRole
+	const [isCreatingChat, setIsCreatingChat] = useState(false)
+	// 同步门闩：避免按钮状态尚未刷新时发生连点重复创建。
+	const isCreatingChatRef = useRef(false)
+	// 创建成功后会跳转离开列表页，避免卸载后仍回写 loading 状态。
+	const isMountedRef = useRef(true)
+
+	useEffect(() => {
+		return () => {
+			isMountedRef.current = false
+		}
+	}, [])
 
 	/**
 	 * 与对话详情页使用完全相同的参数调用 useProjectListActions，确保操作项（label/行为）严格一致。
@@ -153,8 +164,14 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 
 	/**
 	 * 新建对话统一走 chat workspace 创建链路，避免列表页和抽屉页出现两套创建口径。
+	 * loading 态与首页右上角新建对话对齐，创建完成前禁用按钮并展示旋转图标。
 	 */
 	const handleCreateChat = useMemoizedFn(async () => {
+		if (isCreatingChatRef.current) return
+
+		isCreatingChatRef.current = true
+		setIsCreatingChat(true)
+
 		try {
 			const createdProject = await createProjectInChatWorkspace({
 				projectMode: currentRole || TopicMode.General,
@@ -169,6 +186,11 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 			await SuperMagicService.switchChatProject(createdProject.project, createdProject.topic)
 		} catch {
 			magicToast.error(t("super:hierarchicalWorkspacePopup.createProjectFailed"))
+		} finally {
+			isCreatingChatRef.current = false
+			if (isMountedRef.current) {
+				setIsCreatingChat(false)
+			}
 		}
 	})
 
@@ -229,6 +251,7 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 				hasMore={hasMore}
 				onSearchValueChange={setSearchValue}
 				onCreateChat={handleCreateChat}
+				isCreateChatLoading={isCreatingChat}
 				onOpenConversation={handleOpenConversation}
 				onMore={handleMoreConversation}
 				onPin={MOBILE_CHAT_PIN_ENABLED ? handlePinConversation : undefined}
