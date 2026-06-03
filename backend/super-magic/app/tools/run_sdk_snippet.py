@@ -13,7 +13,6 @@ v2 消息模式由 StreamListenerService 统一跳过该限制，事件正常发
 
 
 import asyncio
-import ast
 import json
 import re
 import time
@@ -37,19 +36,12 @@ from app.i18n import i18n
 from app.path_manager import PathManager
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
+from app.tools.python_snippet_repair import prepare_python_code
 from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.utils.process_executor import ProcessExecutor
 
 # 匹配 tool.call('tool_name', ...) 或 tool.call("tool_name", ...) 中的工具名
 _TOOL_CALL_PATTERN = re.compile(r'tool\.call\s*\(\s*[\'"](\w+)[\'"]')
-
-# 仅用于 SyntaxError 兜底：识别模型常生成的单行路径赋值/字典参数写法。
-_PATH_LITERAL_PREFIX_PATTERNS = (
-    re.compile(r"^(\s*[A-Za-z_]\w*\s*=\s*)([\"'])"),
-    re.compile(r"^(\s*[A-Za-z_]\w*\s*=\s*Path\s*\(\s*)([\"'])"),
-    re.compile(r"^(\s*[\"'][A-Za-z_]\w*[\"']\s*:\s*)([\"'])"),
-)
-_ABSOLUTE_PATH_PREFIX_PATTERN = re.compile(r"^(?:/|~[/\\]|[A-Za-z]:[/\\])")
 
 # v2 提前 after 使用的占位 content（与真实终端输出区分，用于选择 remark 文案）
 _EARLY_AFTER_FAKE_CONTENT = "Script dispatched, executing inner tool calls."
@@ -303,65 +295,8 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
         return blocked
 
     @staticmethod
-    def _repair_unescaped_path_quotes_in_line(line: str) -> str:
-        """修复模型把含引号文件名直接放进同类引号路径字面量的常见错误。
-
-        只处理单行绝对路径，且只在路径内容包含未转义的同类引号时改写。
-        """
-        newline_match = re.search(r"(\r?\n)$", line)
-        newline = newline_match.group(1) if newline_match else ""
-        body = line[: -len(newline)] if newline else line
-
-        open_quote_index: int | None = None
-        quote = ""
-        for pattern in _PATH_LITERAL_PREFIX_PATTERNS:
-            match = pattern.match(body)
-            if match:
-                open_quote_index = len(match.group(1))
-                quote = match.group(2)
-                break
-
-        if open_quote_index is None:
-            return line
-
-        close_quote_index = body.rfind(quote)
-        if close_quote_index <= open_quote_index:
-            return line
-
-        suffix = body[close_quote_index + 1:]
-        if suffix and not re.fullmatch(r"[\s,\)\]\}]*", suffix):
-            return line
-
-        value = body[open_quote_index + 1:close_quote_index]
-        if quote not in value or not _ABSOLUTE_PATH_PREFIX_PATTERN.match(value):
-            return line
-
-        return f"{body[:open_quote_index]}{value!r}{suffix}{newline}"
-
-    @classmethod
-    def _repair_unescaped_path_quotes(cls, python_code: str) -> str:
-        return "".join(
-            cls._repair_unescaped_path_quotes_in_line(line)
-            for line in python_code.splitlines(keepends=True)
-        )
-
-    @classmethod
-    def _prepare_python_code(cls, python_code: str) -> str:
-        try:
-            ast.parse(python_code)
-            return python_code
-        except SyntaxError:
-            repaired_code = cls._repair_unescaped_path_quotes(python_code)
-            if repaired_code == python_code:
-                return python_code
-
-            try:
-                ast.parse(repaired_code)
-            except SyntaxError:
-                return python_code
-
-            logger.info("run_sdk_snippet repaired unescaped quotes in absolute path literals")
-            return repaired_code
+    def _prepare_python_code(python_code: str) -> str:
+        return prepare_python_code(python_code, logger=logger, caller="run_sdk_snippet")
 
     async def execute(self, tool_context: ToolContext, params: RunSdkSnippetParams) -> ToolResult:
         python_code = self._prepare_python_code(params.python_code)
