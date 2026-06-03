@@ -1,10 +1,12 @@
 from app.i18n import i18n
+import json
+import json_repair
 import math
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
@@ -26,6 +28,35 @@ DEFAULT_BATCH_MAX_TOKENS = 60000
 BATCH_MAX_TOKENS_RATIO = 0.40
 # 保底：上下文极度紧张时仍保留最小可用量
 BATCH_MIN_MAX_TOKENS = 5000
+
+
+def _parse_operations_json_string(value: str) -> List[Any]:
+    """解析模型误传为字符串的 operations，必要时用 json_repair 恢复可用数组。"""
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as decode_error:
+        try:
+            parsed = json_repair.repair_json(value, return_objects=True)
+        except Exception as repair_error:
+            raise ValueError(
+                "operations must be a JSON array. If the arguments were truncated, "
+                "retry with fewer files or shorter arguments."
+            ) from repair_error
+
+        if not isinstance(parsed, list):
+            raise ValueError(
+                f"operations must be a JSON array, got {type(parsed).__name__}: {parsed!r}"
+            ) from decode_error
+
+        logger.info("read_files operations JSON string was repaired")
+        return parsed
+
+    if not isinstance(parsed, list):
+        raise ValueError(
+            f"operations must be a JSON array, got {type(parsed).__name__}: {parsed!r}"
+        )
+
+    return parsed
 
 
 def _compute_batch_max_tokens(tool_context) -> int:
@@ -63,6 +94,16 @@ class ReadFilesParams(BaseToolParams):
 File read operations list""",
         min_items=1
     )
+
+    @field_validator("operations", mode="before")
+    @classmethod
+    def validate_operations(cls, v: Any) -> Any:
+        """兼容模型将 operations 序列化为 JSON 字符串的情况。"""
+        if isinstance(v, str):
+            v = _parse_operations_json_string(v)
+        if not v:
+            raise ValueError("operations 不能为空，至少需要一个文件读取操作")
+        return v
 
 class FileReadingResult(BaseModel):
     """单个文件的读取结果"""
@@ -553,9 +594,13 @@ Strongly recommended to use this tool for batch reading multiple reference files
             logger.warning("没有提供operations参数")
             return None
 
-        operations = arguments["operations"]
+        operations = self._normalize_operations_for_display(arguments.get("operations"))
+        if not operations:
+            logger.warning("operations参数无法用于展示")
+            return None
+
         file_count = len(operations)
-        file_paths = [op["file_path"] if isinstance(op, dict) else op.file_path for op in operations]
+        file_paths = [self._get_operation_file_path(op) for op in operations]
         files_data = (result.extra_info or {}).get("files_without_line_numbers") or []
         file_results = (result.extra_info or {}).get("file_results") or []
         success_count = int((result.extra_info or {}).get("success_count", len(files_data)))
@@ -642,10 +687,13 @@ Strongly recommended to use this tool for batch reading multiple reference files
         if not arguments or "operations" not in arguments:
             return i18n.translate("read_file.failed", category="tool.messages")
 
-        operations = arguments["operations"]
+        operations = self._normalize_operations_for_display(arguments.get("operations"))
+        if not operations:
+            return i18n.translate("read_file.failed", category="tool.messages")
+
         file_count = len(operations)
         # 从 operations 中提取文件路径
-        file_paths = [op["file_path"] if isinstance(op, dict) else op.file_path for op in operations]
+        file_paths = [self._get_operation_file_path(op) for op in operations]
 
         if file_count == 1:
             file_name = os.path.basename(file_paths[0])
@@ -745,6 +793,22 @@ Strongly recommended to use this tool for batch reading multiple reference files
             return operation.get(key, default)
         return getattr(operation, key, default)
 
+    def _normalize_operations_for_display(self, operations: Any) -> List[Any]:
+        """将原始 operations 参数安全归一化为列表，仅用于前端展示与 remark。"""
+        if isinstance(operations, str):
+            try:
+                operations = _parse_operations_json_string(operations)
+            except ValueError:
+                return []
+
+        if isinstance(operations, list):
+            return operations
+
+        if isinstance(operations, tuple):
+            return list(operations)
+
+        return []
+
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """
         获取工具调用后的友好动作和备注
@@ -759,9 +823,9 @@ Strongly recommended to use this tool for batch reading multiple reference files
             # 获取文件名（对于批量读取，显示第一个文件名）
             file_name = ""
             if arguments and "operations" in arguments:
-                operations = arguments["operations"]
+                operations = self._normalize_operations_for_display(arguments.get("operations"))
                 if operations and len(operations) > 0:
-                    first_file_path = operations[0].get("file_path", "") if isinstance(operations[0], dict) else getattr(operations[0], "file_path", "")
+                    first_file_path = self._get_operation_file_path(operations[0])
                     if first_file_path:
                         file_name = os.path.basename(first_file_path)
                         if len(operations) > 1:
