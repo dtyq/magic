@@ -74,7 +74,10 @@ export function MobileShellSidebarToggleButton({
 		<button
 			type="button"
 			onClick={handleClick}
-			className={cn("mobile-page-header-btn transition-transform active:scale-95", className)}
+			className={cn(
+				"mobile-page-header-btn [-webkit-tap-highlight-color:transparent]",
+				className,
+			)}
 			aria-label={ariaLabel}
 			data-testid={testId}
 		>

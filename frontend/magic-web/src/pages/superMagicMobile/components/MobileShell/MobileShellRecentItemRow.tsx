@@ -84,7 +84,6 @@ export interface MobileShellRecentItemRowProps {
 	item: MobileShellMenuRecentItem
 	testIdPrefix: string
 	moreAriaLabel: string
-	isContextMenuOpen?: boolean
 	onRecentNavigate: (item: MobileShellMenuRecentItem) => void
 	onOpenActions: (
 		item: MobileShellMenuRecentItem,
@@ -98,7 +97,6 @@ export function MobileShellRecentItemRow({
 	item,
 	testIdPrefix,
 	moreAriaLabel,
-	isContextMenuOpen = false,
 	onRecentNavigate,
 	onOpenActions,
 }: MobileShellRecentItemRowProps) {
@@ -184,13 +182,7 @@ export function MobileShellRecentItemRow({
 
 	return (
 		// Single grid row: title column shrinks; more button stays right-aligned and vertically centered.
-		<div
-			className={cn(
-				"grid h-9 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center rounded-lg",
-				isContextMenuOpen &&
-					"dark:ring-white/12 bg-background shadow-sm dark:bg-zinc-950 dark:shadow-md dark:ring-1",
-			)}
-		>
+		<div className="grid h-9 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center rounded-lg">
 			<button
 				ref={titleRef}
 				type="button"
@@ -199,7 +191,7 @@ export function MobileShellRecentItemRow({
 				onTouchStart={handleTitleTouchStart}
 				onTouchMove={handleTitleTouchMove}
 				onTouchCancel={handleTitleTouchCancel}
-				className="flex h-9 min-w-0 touch-pan-y select-none items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-sm text-foreground transition-colors [-webkit-touch-callout:none] active:bg-black/5 dark:active:bg-white/10 [&_*]:select-none"
+				className="flex h-9 min-w-0 touch-pan-y select-none items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-sm text-foreground [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [&_*]:select-none"
 			>
 				{item.inProgress && (
 					<Loader className="size-4 shrink-0 animate-spin text-foreground" />
@@ -228,7 +220,7 @@ export function MobileShellRecentItemRow({
 				onClick={handleOpenActionsFromMore}
 				data-testid={`${testIdPrefix}-recent-actions-${item.id}`}
 				className={cn(
-					"flex size-9 shrink-0 items-center justify-center self-center rounded-lg text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10",
+					"flex size-9 shrink-0 items-center justify-center self-center rounded-lg text-foreground [-webkit-tap-highlight-color:transparent]",
 					!item.project && "opacity-40",
 				)}
 				aria-label={moreAriaLabel}

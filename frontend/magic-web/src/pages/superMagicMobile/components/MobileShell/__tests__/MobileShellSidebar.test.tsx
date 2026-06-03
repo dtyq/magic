@@ -450,6 +450,24 @@ describe("MobileShellSidebar", () => {
 		expect(myCrewButton.parentElement).not.toBe(chatsButton.parentElement)
 	})
 
+	it("does not apply route-active card styling to nav items", () => {
+		renderSidebar({
+			activeView: "chats",
+			navItems: [{ key: "chats", icon: TestIcon, label: "对话" }],
+			recentItems: [],
+			onNavigate: vi.fn(),
+			onGoHome: vi.fn(),
+			onRecentNavigate: vi.fn(),
+			reloadRecentItems: vi.fn(),
+			hasMore: false,
+			loadMoreRecentItems: vi.fn(),
+		})
+
+		const chatsButton = screen.getByTestId("mobile-super-shell-nav-chats")
+		expect(chatsButton.className).not.toContain("shadow-sm")
+		expect(chatsButton.className).not.toContain("active:bg-black/5")
+	})
+
 	it("renders primary nav icons at size-4 (16px) to match prototype", () => {
 		renderSidebar({
 			activeView: "chats",

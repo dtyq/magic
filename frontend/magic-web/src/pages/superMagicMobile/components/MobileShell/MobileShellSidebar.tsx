@@ -32,10 +32,10 @@ const PRIMARY_NAV_KEYS = new Set(["chats", "workspaces", "recording"])
 
 const ACCOUNT_PILL_BOX_SHADOW = "rgb(0 0 0 / 17%) 0px 10px 20px -12px"
 
-/** 统一计算侧栏导航行样式；导航项不展示路由选中高亮，仅保留按压反馈。 */
+/** 统一计算侧栏导航行样式；导航项不展示路由选中或点击激活高亮。 */
 function navRowClass() {
 	return cn(
-		"flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-base text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10",
+		"flex h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-base text-foreground [-webkit-tap-highlight-color:transparent]",
 	)
 }
 
@@ -247,7 +247,7 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 											aria-label={t("mobile.shell.refreshRecentlyUsed")}
 											data-testid={`${testIdPrefix}-recent-refresh`}
 											className={cn(
-												"flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors active:bg-black/5 dark:active:bg-white/10",
+												"flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground [-webkit-tap-highlight-color:transparent]",
 												isRefreshingRecent &&
 													"pointer-events-none opacity-60",
 											)}
@@ -268,7 +268,6 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 										item={item}
 										testIdPrefix={testIdPrefix}
 										moreAriaLabel={t("common.more")}
-										isContextMenuOpen={floatingMenu?.itemId === item.id}
 										onRecentNavigate={onRecentNavigate}
 										onOpenActions={handleOpenRecentItemActions}
 									/>
