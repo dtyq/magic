@@ -356,7 +356,8 @@ class AgentDomainService
                     workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
                     projectSpaceRootFileId: $projectSpaceRootFileId,
                     userSpaceRootFileId: $userSpaceRootFileId,
-                    topicId: $topicEntity->getId()
+                    topicId: $topicEntity->getId(),
+                    magicClawCode: $this->resolveMagicClawCode($topicEntity)
                 );
             }
 
@@ -418,7 +419,7 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null, ?string $magicClawCode = null): string
     {
         // 获取用户 authorization token，用于沙箱创建时的身份验证
         $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
@@ -436,6 +437,11 @@ class AgentDomainService
         // Stamp the topic id onto the pod labels so the sandbox can be
         // correlated back to its topic (warm pool stamps it at mount time).
         $labels = $topicId !== null ? ['topic-id' => (string) $topicId] : [];
+        // For magic-claw (龙虾) topics, also stamp the claw code (e.g. MC-xxxx)
+        // so the sandbox can be correlated back to its magic-claw entity.
+        if ($magicClawCode !== null && $magicClawCode !== '') {
+            $labels['magic-claw-code'] = $magicClawCode;
+        }
         $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization, $labels);
 
         // 添加详细的调试日志，检查 result 对象
@@ -1473,7 +1479,7 @@ class AgentDomainService
                 projectSpaceRootFileId: $projectSpaceRootFileId,
                 userSpaceRootFileId: $userSpaceRootFileId,
                 authorization: $authorization,
-                labels: ['topic-id' => (string) $topicEntity->getId()],
+                labels: $this->buildSandboxLabels($topicEntity),
                 topicId: (string) $topicEntity->getId()
             );
         } catch (Throwable $e) {
@@ -1597,6 +1603,81 @@ class AgentDomainService
             $userInfo,
             $initMetadata->getSkipInitMessages() ?? false
         );
+    }
+
+    /**
+     * Build the pod labels for a topic's sandbox.
+     * Always stamps topic-id; for magic-claw (龙虾) topics it also stamps the
+     * claw code (e.g. MC-xxxx) so the sandbox can be correlated back to its claw.
+     *
+     * @return array<string, string>
+     */
+    private function buildSandboxLabels(TopicEntity $topicEntity): array
+    {
+        $labels = ['topic-id' => (string) $topicEntity->getId()];
+
+        $magicClawCode = $this->resolveMagicClawCode($topicEntity);
+        if ($magicClawCode !== null) {
+            $labels['magic-claw-code'] = $magicClawCode;
+        }
+
+        return $labels;
+    }
+
+    /**
+     * Resolve the magic-claw (龙虾) code for a topic, or null if the topic is
+     * not a magic-claw topic. The claw code (e.g. MC-xxxx) is stored on the
+     * topic's agent_code field for MAGICLAW mode topics.
+     *
+     * The raw code is sanitized to a valid k8s label value before being
+     * returned so that an out-of-spec code can never break sandbox creation.
+     */
+    private function resolveMagicClawCode(TopicEntity $topicEntity): ?string
+    {
+        if ($topicEntity->getTopicMode() !== ProjectMode::MAGICLAW->value) {
+            return null;
+        }
+
+        $agentCode = $topicEntity->getAgentCode();
+        if ($agentCode === '') {
+            return null;
+        }
+
+        $sanitized = $this->sanitizeLabelValue($agentCode);
+        if ($sanitized === '') {
+            // Nothing salvageable — skip the label rather than fail the pod.
+            $this->logger->warning('[Sandbox][Domain] Magic-claw code is not a valid k8s label value, skipping label', [
+                'topic_id' => $topicEntity->getId(),
+                'agent_code' => $agentCode,
+            ]);
+            return null;
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * Coerce an arbitrary string into a valid Kubernetes label value.
+     *
+     * k8s label values must be empty or match
+     * (([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]) and be at most 63 chars:
+     *   - allowed chars: alphanumerics, '-', '_', '.'
+     *   - must start and end with an alphanumeric
+     *   - max length 63
+     *
+     * Any disallowed character is replaced with '-'; the result is truncated
+     * to 63 chars and stripped of leading/trailing non-alphanumerics. Returns
+     * '' when nothing can be salvaged.
+     */
+    private function sanitizeLabelValue(string $value): string
+    {
+        // Replace any character outside the allowed set with '-'.
+        $value = preg_replace('/[^A-Za-z0-9\-_.]/', '-', $value) ?? '';
+        // Enforce the 63-char cap before trimming so a trailing separator
+        // introduced by truncation gets stripped below.
+        $value = substr($value, 0, 63);
+        // Must start and end with an alphanumeric.
+        return trim($value, '-_.');
     }
 
     /**
