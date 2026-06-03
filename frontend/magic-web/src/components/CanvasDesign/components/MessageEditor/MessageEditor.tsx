@@ -140,6 +140,13 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(
 				),
 			[selectionPersistenceKey],
 		)
+		const syncSelectionRange = useCallback(
+			(selectionRange: MessageEditorSelectionRange) => {
+				latestFocusedSelectionRangeRef.current = selectionRange
+				setPersistedSelectionRange(selectionPersistenceKey, selectionRange)
+			},
+			[selectionPersistenceKey],
+		)
 
 		const resolveOverflowTargets = useCallback(
 			(wrapper: HTMLDivElement) => [wrapper.firstElementChild],
@@ -224,8 +231,7 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(
 						from: e.state.selection.from,
 						to: e.state.selection.to,
 					}
-					latestFocusedSelectionRangeRef.current = selectionRange
-					setPersistedSelectionRange(selectionPersistenceKey, selectionRange)
+					syncSelectionRange(selectionRange)
 				},
 			},
 			// 此处依赖变化会整段销毁 TipTap，仅保留 mentionExtension
@@ -250,14 +256,26 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(
 				options?: InsertCanvasMentionItemsOptions,
 			) => {
 				if (!editor) return
-				insertMentionItemsToEditor(editor, [item], options, getPreferredSelectionRange)
+				insertMentionItemsToEditor(
+					editor,
+					[item],
+					options,
+					getPreferredSelectionRange,
+					syncSelectionRange,
+				)
 			},
 			insertMentionItems: (
 				items: ReferenceResourcePanelItem[],
 				options?: InsertCanvasMentionItemsOptions,
 			) => {
 				if (!editor) return
-				insertMentionItemsToEditor(editor, items, options, getPreferredSelectionRange)
+				insertMentionItemsToEditor(
+					editor,
+					items,
+					options,
+					getPreferredSelectionRange,
+					syncSelectionRange,
+				)
 			},
 		}))
 
@@ -427,6 +445,7 @@ function insertMentionItemsToEditor(
 	items: ReferenceResourcePanelItem[],
 	options?: InsertCanvasMentionItemsOptions,
 	getLatestFocusedSelectionRange?: () => MessageEditorSelectionRange | null,
+	onSelectionRangeChange?: (selectionRange: MessageEditorSelectionRange) => void,
 ) {
 	if (items.length === 0) return
 
@@ -471,7 +490,15 @@ function insertMentionItemsToEditor(
 			) {
 				return false
 			}
-			return commands.setTextSelection(insertFrom + fragSize)
+			const nextSelectionPosition = insertFrom + fragSize
+			if (!commands.setTextSelection(nextSelectionPosition)) {
+				return false
+			}
+			onSelectionRangeChange?.({
+				from: nextSelectionPosition,
+				to: nextSelectionPosition,
+			})
+			return true
 		})
 		.run()
 
