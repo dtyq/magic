@@ -395,16 +395,23 @@ const MessageList = observer(
 													)
 												)
 
-											return (
-												<div
-													data-sticky-message-id={
-														firstRevokedUserMessageKey
-													}
-													className={cn(
+											const revokedUserMessageWrapperClassName = isMobile
+												? "relative mb-2"
+												: cn(
 														USER_MESSAGE_STICKY_OVERLAY_CLASS,
 														userMessageStickyTopClass,
 														stickyMessageClassName,
-													)}
+													)
+
+											return (
+												<div
+													{...(isMobile
+														? {}
+														: {
+																"data-sticky-message-id":
+																	firstRevokedUserMessageKey,
+															})}
+													className={revokedUserMessageWrapperClassName}
 												>
 													<div
 														data-message-id={firstRevokedUserMessageKey}
