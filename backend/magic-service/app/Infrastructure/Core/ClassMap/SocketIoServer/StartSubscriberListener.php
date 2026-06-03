@@ -42,8 +42,7 @@ class StartSubscriberListener implements ListenerInterface
             return;
         }
 
-        // v2 adapter 没有走高频 pub/sub 扇出，但每个 worker 仍要启动自己的
-        // node queue consumer 与心跳/对账/清理协程，保证跨节点消息只落到本进程的本地索引。
+        // Redis adapter 可能是旧 pub/sub 或 v2/v3 node queue 实现；统一调用适配器自己的启动入口。
         foreach (SocketIORouter::get('forward') ?? [] as $class) {
             $instance = $this->container->get($class);
             $adapter = $instance->getAdapter();

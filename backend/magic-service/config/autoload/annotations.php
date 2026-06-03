@@ -32,8 +32,8 @@ return [
             ServerIdListener::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/ServerIdListener.php',
             StartSubscriberListener::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/StartSubscriberListener.php',
             RemoveRedisGarbage::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/RemoveRedisGarbage.php',
-            // Socket.IO Redis v2：按 node queue + route index 分摊热点 key，必要时可回滚到 RedisAdapter.php。
-            RedisAdapter::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/RedisAdapterV2.php',
+            // Socket.IO Redis v3：本地 fanout + 低 key 数路由索引；出问题可快速回滚到 RedisAdapter.php。
+            RedisAdapter::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/RedisAdapterV3.php',
             DistributedSidProvider::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/SocketIoServer/DistributedSidProvider.php',
             // websocket server 支持 swow 驱动
             //            Sender::class => BASE_PATH . '/app/Infrastructure/Core/ClassMap/WebSocketServer/Sender.php',

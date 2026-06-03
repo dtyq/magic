@@ -13,10 +13,12 @@ import (
 	"magic/internal/infrastructure/health"
 	"magic/internal/infrastructure/knowledge/documentsync"
 	metrics "magic/internal/infrastructure/metrics"
+	ipcclient "magic/internal/infrastructure/rpc/jsonrpc/client"
 	"magic/internal/infrastructure/transport/ipc/unixsocket"
 	httpserver "magic/internal/interfaces/http"
 	"magic/internal/interfaces/http/handlers"
 	rpchandler "magic/internal/interfaces/rpc/jsonrpc/knowledge/service"
+	opshandler "magic/internal/interfaces/rpc/jsonrpc/ops/service"
 )
 
 func provideServerConfig(cfg *autoload.Config) *httpserver.ServerConfig {
@@ -57,6 +59,7 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 		rpchandler.NewFragmentRPCService,
 		rpchandler.NewDocumentRPCService,
 		rpchandler.NewEmbeddingRPCService,
+		opshandler.ProvideOpsRPCService,
 
 		handlers.NewDebugHandler,
 
@@ -66,6 +69,7 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 		wire.Bind(new(httpserver.RPCServer), new(*unixsocket.Server)),
 		wire.Bind(new(httpserver.RetrievalWarmupService), new(*fragmentapp.FragmentAppService)),
 		wire.Bind(new(httpserver.TaskQueueService), new(*documentsync.Runtime)),
+		wire.Bind(new(opshandler.OfficialOrganizationMemberChecker), new(*ipcclient.PHPKnowledgeBasePermissionRPCClient)),
 	)
 	return nil, nil, nil
 }

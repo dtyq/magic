@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Hyperf\SocketIOServer\SidProvider;
 
 use App\Infrastructure\Core\ClassMap\SocketIoServer\Contract\SidLifecycleProviderInterface;
+use App\Infrastructure\Core\ClassMap\SocketIoServer\DistributedSidCodec;
 use App\Infrastructure\Core\Traits\HasLogger;
 use Hyperf\SocketIOServer\SocketIO;
 use RuntimeException;
@@ -54,16 +55,12 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
 
     public function isLocal(string $sid): bool
     {
-        if ($sid === '') {
+        $parsedSid = DistributedSidCodec::parseSid($sid);
+        if ($parsedSid === null) {
             return false;
         }
 
-        $parts = explode('#', $sid, 2);
-        if (count($parts) !== 2) {
-            return false;
-        }
-
-        return $parts[0] === $this->getSidPrefix() && isset($this->sidToFd[$sid]);
+        return $parsedSid->nodeId === $this->getSidPrefix() && isset($this->sidToFd[$sid]);
     }
 
     public function getFd(string $sid): int
@@ -85,7 +82,7 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
         }
 
         $seq = $this->nextConnSeq();
-        $sid = $this->getSidPrefix() . '#' . $seq;
+        $sid = DistributedSidCodec::buildSid(SocketIO::$serverId, $this->getPid(), $seq);
 
         $this->fdToSid[$fd] = $sid;
         $this->sidToFd[$sid] = $fd;
@@ -123,12 +120,15 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
 
     private function getSidPrefix(): string
     {
+        return DistributedSidCodec::buildNodeId(SocketIO::$serverId, $this->getPid());
+    }
+
+    private function getPid(): int
+    {
         $pid = getmypid();
         if ($pid === false) {
-            $pid = 0;
+            return 0;
         }
-        // 同一个 serverId 下会有多个 worker 进程，pid 纳入 sid 前缀后，
-        // RedisAdapterV2 可以把每个 worker 当成独立 node queue 目标，避免同机多进程互相误判为本地连接。
-        return SocketIO::$serverId . ':p' . $pid;
+        return $pid;
     }
 }
