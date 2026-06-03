@@ -148,6 +148,13 @@ function getBaseViteConfig(): UserConfig {
 					find: "@dtyq/x-markdown",
 					replacement: resolve(__dirname, "packages/x-markdown/src/index.ts"),
 				},
+				// packages/logger may have its own node_modules during local development.
+				// Pin ARMS to the app dependency so Vite does not resolve a nested version
+				// whose rrweb subpath imports are blocked by package exports.
+				{
+					find: "@arms/rum-browser",
+					replacement: resolve(__dirname, "node_modules/@arms/rum-browser/lib/index.js"),
+				},
 				{
 					find: "@admin",
 					replacement: resolve(__dirname, "packages/magic-admin/src"),
