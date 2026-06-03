@@ -37,8 +37,8 @@ class DistributedSidProviderTest extends TestCase
         $secondSid = $provider->registerConnection($fd);
 
         $this->assertNotSame($firstSid, $secondSid, '同 fd 断连重连后 sid 必须变化');
-        $this->assertStringStartsWith(SocketIO::$serverId . '#', $firstSid);
-        $this->assertStringStartsWith(SocketIO::$serverId . '#', $secondSid);
+        $this->assertStringStartsWith($this->sidPrefix() . '#', $firstSid);
+        $this->assertStringStartsWith($this->sidPrefix() . '#', $secondSid);
     }
 
     public function testGetSidReturnsEmptyWhenFdNotRegistered(): void
@@ -100,5 +100,14 @@ class DistributedSidProviderTest extends TestCase
             $this->assertSame('conn seq overflow', $exception->getMessage());
             $this->assertSame(DistributedSidProvider::CONN_SEQ_OVERFLOW_CODE, $exception->getCode());
         }
+    }
+
+    private function sidPrefix(): string
+    {
+        $pid = getmypid();
+        if ($pid === false) {
+            $pid = 0;
+        }
+        return SocketIO::$serverId . ':p' . $pid;
     }
 }

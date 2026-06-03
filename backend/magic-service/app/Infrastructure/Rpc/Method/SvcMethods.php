@@ -39,6 +39,8 @@ final class SvcMethods
 
     public const string SERVICE_FILE = 'svc.file';
 
+    public const string SERVICE_SOCKETIO_REDIS = 'svc.socketio.redis';
+
     public const string METHOD_CREATE = 'create';
 
     public const string METHOD_UPDATE = 'update';

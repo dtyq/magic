@@ -37,6 +37,7 @@ use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Infrastructure\Core\DataIsolation\BaseOrganizationInfoManager;
+use App\Infrastructure\Core\DataIsolation\BaseSubscriptionManager;
 use App\Infrastructure\Core\DataIsolation\BaseThirdPlatformDataIsolationManager;
 use App\Infrastructure\Core\DataIsolation\OrganizationInfoManagerInterface;
 use App\Infrastructure\Core\DataIsolation\SubscriptionManagerInterface;
@@ -69,7 +70,6 @@ use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
-use Dtyq\MagicEnterprise\Application\Kernel\EnterpriseSubscriptionManager;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
@@ -2043,6 +2043,26 @@ class VideoOperationAppServiceTest extends TestCase
     }
 }
 
+class VideoOperationTestSubscriptionManager extends BaseSubscriptionManager
+{
+    protected bool $enabled = true;
+
+    public function getPersonalVideoGenerationConcurrencyLimit(): ?int
+    {
+        $featureLimits = $this->getCurrentSubscriptionInfo()['skus'][0]['attributes']['feature_limits'] ?? [];
+        if (! array_key_exists('personal_video_generation_concurrency_limit', $featureLimits)) {
+            return 1;
+        }
+
+        $limit = $featureLimits['personal_video_generation_concurrency_limit'];
+        if (is_numeric($limit)) {
+            return (int) $limit;
+        }
+
+        return null;
+    }
+}
+
 final class InMemoryVideoQueueOperationRepository implements VideoQueueOperationRepositoryInterface
 {
     /** @var array<string, VideoQueueOperationEntity> */
@@ -2639,7 +2659,7 @@ final readonly class EventDispatcherContainer implements ContainerInterface
             EventDispatcherInterface::class => $this->eventDispatcher,
             ConfigInterface::class => $this->config,
             ThirdPlatformDataIsolationManagerInterface::class => new BaseThirdPlatformDataIsolationManager(),
-            SubscriptionManagerInterface::class => new EnterpriseSubscriptionManager(),
+            SubscriptionManagerInterface::class => new VideoOperationTestSubscriptionManager(),
             OrganizationInfoManagerInterface::class => new BaseOrganizationInfoManager(),
             PhpSerializerPacker::class => new PhpSerializerPacker(),
             LoggerFactory::class => $this->loggerFactory,

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Hyperf\SocketIOServer\SidProvider;
 
 use App\Infrastructure\Core\ClassMap\SocketIoServer\Contract\SidLifecycleProviderInterface;
+use App\Infrastructure\Core\ClassMap\SocketIoServer\DistributedSidCodec;
 use App\Infrastructure\Core\Traits\HasLogger;
 use Hyperf\SocketIOServer\SocketIO;
 use RuntimeException;
@@ -15,7 +16,7 @@ use RuntimeException;
 /**
  * 基于连接生命周期生成 sid，避免 fd 复用导致 sid 重复。
  *
- * sid 格式：{serverId}#{intSeq}
+ * sid 格式：{serverId}:p{pid}#{intSeq}
  */
 class DistributedSidProvider implements SidProviderInterface, SidLifecycleProviderInterface
 {
@@ -54,16 +55,12 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
 
     public function isLocal(string $sid): bool
     {
-        if ($sid === '') {
+        $parsedSid = DistributedSidCodec::parseSid($sid);
+        if ($parsedSid === null) {
             return false;
         }
 
-        $parts = explode('#', $sid, 2);
-        if (count($parts) !== 2) {
-            return false;
-        }
-
-        return $parts[0] === SocketIO::$serverId && isset($this->sidToFd[$sid]);
+        return $parsedSid->nodeId === $this->getSidPrefix() && isset($this->sidToFd[$sid]);
     }
 
     public function getFd(string $sid): int
@@ -85,7 +82,7 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
         }
 
         $seq = $this->nextConnSeq();
-        $sid = SocketIO::$serverId . '#' . $seq;
+        $sid = DistributedSidCodec::buildSid(SocketIO::$serverId, $this->getPid(), $seq);
 
         $this->fdToSid[$fd] = $sid;
         $this->sidToFd[$sid] = $fd;
@@ -119,5 +116,19 @@ class DistributedSidProvider implements SidProviderInterface, SidLifecycleProvid
 
         ++$this->nextConnSeq;
         return $this->nextConnSeq;
+    }
+
+    private function getSidPrefix(): string
+    {
+        return DistributedSidCodec::buildNodeId(SocketIO::$serverId, $this->getPid());
+    }
+
+    private function getPid(): int
+    {
+        $pid = getmypid();
+        if ($pid === false) {
+            return 0;
+        }
+        return $pid;
     }
 }

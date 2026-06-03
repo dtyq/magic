@@ -15,6 +15,7 @@ import (
 	"magic/internal/interfaces/http"
 	"magic/internal/interfaces/http/handlers"
 	"magic/internal/interfaces/rpc/jsonrpc/knowledge/service"
+	service2 "magic/internal/interfaces/rpc/jsonrpc/ops/service"
 )
 
 // Injectors from wire.go:
@@ -137,7 +138,8 @@ func InitializeApplication() (*httpapi.Server, func(), error) {
 	documentRPCService := service.NewDocumentRPCService(documentAppService, sugaredLogger)
 	embeddingAppService := knowledge.ProvideEmbeddingAppService(domainService, sugaredLogger, embeddingDefaultModel)
 	embeddingRPCService := service.NewEmbeddingRPCService(embeddingAppService, sugaredLogger)
-	rpcHandlers := httpapi.ProvideRPCHandlers(knowledgeBaseRPCService, fragmentRPCService, documentRPCService, embeddingRPCService)
+	opsRPCService := service2.ProvideOpsRPCService(config, client, redisLockManager, phpKnowledgeBasePermissionRPCClient, sugaredLogger)
+	rpcHandlers := httpapi.ProvideRPCHandlers(knowledgeBaseRPCService, fragmentRPCService, documentRPCService, embeddingRPCService, opsRPCService)
 	debugHandler := handlers.NewDebugHandler(embeddingAppService)
 	serverRuntimeDeps := httpapi.ProvideServerRuntimeDeps(server, rpcHandlers, debugHandler)
 	serverDependencies := httpapi.ProvideServerDependencies(serverConfig, serverBackgroundDeps, checkService, sugaredLogger, metrics, serverRuntimeDeps)

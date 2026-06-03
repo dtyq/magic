@@ -17,4 +17,10 @@ type RedisConfig struct {
 	ConnMaxIdleTime int `json:"conn_max_idle_time"`
 	ConnMaxLifetime int `json:"conn_max_lifetime"`
 	PoolTimeout     int `json:"pool_timeout"`
+	// SocketIOCleanupAllowedPrefixes 追加允许清理的 Socket.IO Redis 前缀。
+	SocketIOCleanupAllowedPrefixes  []string `mapstructure:"socketioCleanupAllowedPrefixes" json:"socketio_cleanup_allowed_prefixes"`
+	SocketIOCleanupCountMax         int64    `mapstructure:"socketioCleanupCountMax" json:"socketio_cleanup_count_max"`
+	SocketIOCleanupHeartbeatSeconds int      `mapstructure:"socketioCleanupHeartbeatSeconds" json:"socketio_cleanup_heartbeat_seconds"`
+	SocketIOCleanupStaleSeconds     int      `mapstructure:"socketioCleanupStaleSeconds" json:"socketio_cleanup_stale_seconds"`
+	SocketIOCleanupStateTTLSeconds  int      `mapstructure:"socketioCleanupStateTTLSeconds" json:"socketio_cleanup_state_ttl_seconds"`
 }
