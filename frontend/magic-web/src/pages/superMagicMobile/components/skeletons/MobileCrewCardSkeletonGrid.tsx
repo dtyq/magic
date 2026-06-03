@@ -16,7 +16,7 @@ function MobileCrewCardSkeletonGrid({
 	testId = "mobile-crew-card-skeleton-grid",
 }: MobileCrewCardSkeletonGridProps) {
 	return (
-		<div className="grid grid-cols-2 gap-3" data-testid={testId}>
+		<div className="grid grid-cols-2 items-stretch gap-3" data-testid={testId}>
 			{Array.from({ length: count }).map((_, index) => (
 				<MobileCrewCardSkeleton key={index} />
 			))}

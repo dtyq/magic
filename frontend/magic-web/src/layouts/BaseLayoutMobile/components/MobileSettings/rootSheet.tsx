@@ -266,7 +266,7 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 				) : undefined
 			}
 			// 底部显式预留安全区与额外滚动留白，避免最后一组菜单被 home indicator 视觉裁切。
-			contentClassName="gap-2 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1.75rem)] pt-0"
+			contentClassName="gap-2 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-0"
 			dataTestId="mobile-settings-root-sheet"
 		>
 			<div className="flex flex-col items-center gap-1 pt-0">

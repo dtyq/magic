@@ -627,7 +627,6 @@ function TopicPage({
 						onFileClick={onFileClick}
 						isMessagesLoading={isMessagesInitialLoading}
 						fallbackRender={resolvedMessageListFallbackRender}
-						stickyMessageClassName="-top-[1px] pt-2 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
 					/>
 				</MessageListProvider>
 			</div>

@@ -440,7 +440,6 @@ const ClawMobileConversationPanel = observer(
 					currentTopicStatus={selectedTopic?.task_status}
 					handleSendMsg={handleSendMsg}
 					isMessagesLoading={isMessagesInitialLoading}
-					stickyMessageClassName="top-0 pt-2"
 					messageLayoutPaddingBottomPx={CLAW_MOBILE_MESSAGE_LIST_RESERVE_PX}
 					messageListBottomFade
 					backToLatestButtonClassName={CLAW_MOBILE_BACK_TO_LATEST_BUTTON_CLASS}

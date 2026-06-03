@@ -65,7 +65,7 @@ export function MagiClawDeleteConfirmSheet({
 
 				<div
 					className="flex flex-col items-center px-4 pt-2"
-					style={{ paddingBottom: "calc(var(--safe-area-inset-bottom) + 24px)" }}
+					style={{ paddingBottom: "calc(var(--safe-area-inset-bottom) + 8px)" }}
 					data-testid="magi-claw-delete-confirm-body"
 				>
 					<p

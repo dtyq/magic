@@ -11,9 +11,17 @@ interface MyCrewCardMobileProps {
 	onChat?: (agentCode: string) => void
 }
 
+/** Reserved height for the optional role pill so paired grid cards stay aligned. */
+const MY_CREW_CARD_ROLE_SLOT_CLASS = "flex h-5 w-full items-center justify-center"
+
+/** Two-line description slot (12px × 1.5 line-height × 2 lines). */
+const MY_CREW_CARD_DESCRIPTION_CLASS =
+	"mb-3 line-clamp-2 min-h-[2.25rem] overflow-hidden px-1 text-center text-[12px] leading-[1.5] text-muted-foreground"
+
 /**
  * Simplified mobile crew card: avatar + name + role + description + Chat CTA.
- * All action buttons (edit, more, dismiss, disable, upgrade) removed per design spec.
+ * Grid row equal height: only the outer wrapper uses h-full; inner body uses flex-1
+ * (avoids nested h-full collapse on iOS WebKit). Fixed min-heights keep role/description slots even.
  */
 function MyCrewCardMobile({ employee, onCardClick, onChat }: MyCrewCardMobileProps) {
 	const { t } = useTranslation("crew/market")
@@ -41,10 +49,10 @@ function MyCrewCardMobile({ employee, onCardClick, onChat }: MyCrewCardMobilePro
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") handleCardClick()
 			}}
-			className="relative flex h-full min-h-0 w-full min-w-0 cursor-pointer flex-col pt-8"
+			className="relative flex h-full w-full min-w-0 cursor-pointer flex-col pt-8"
 			data-testid="my-crew-card-mobile"
 		>
-			<div className="relative flex h-full min-h-0 flex-col rounded-2xl bg-card px-3 pb-3 pt-10 shadow-[0px_2px_12px_0px_rgba(0,0,0,0.08)] transition-opacity active:opacity-70">
+			<div className="relative flex flex-1 flex-col rounded-2xl bg-card px-3 pb-3 pt-10 shadow-[0px_2px_12px_0px_rgba(0,0,0,0.08)] transition-opacity active:opacity-70">
 				{/* Avatar breaks out above the card via absolute positioning */}
 				<MyCrewAvatar
 					employee={employee}
@@ -54,26 +62,25 @@ function MyCrewCardMobile({ employee, onCardClick, onChat }: MyCrewCardMobilePro
 					testId="my-crew-card-mobile-avatar-wrap"
 				/>
 
-				{/* Name + role badge */}
+				{/* Name + role badge (role slot keeps row height when role is empty) */}
 				<div className="mb-2 flex w-full flex-col items-center gap-1.5">
 					<p className="w-full truncate text-center text-[15px] font-semibold leading-tight text-foreground">
 						{displayName}
 					</p>
 
-					{displayRole ? (
-						<span
-							className="inline-flex h-5 max-w-full items-center overflow-hidden rounded-full bg-primary/10 px-2 text-[11px] font-medium leading-none text-primary"
-							data-testid="my-crew-card-mobile-role"
-						>
-							<span className="truncate">{displayRole}</span>
-						</span>
-					) : null}
+					<div className={MY_CREW_CARD_ROLE_SLOT_CLASS}>
+						{displayRole ? (
+							<span
+								className="inline-flex h-5 max-w-full items-center overflow-hidden rounded-full bg-primary/10 px-2 text-[11px] font-medium leading-none text-primary"
+								data-testid="my-crew-card-mobile-role"
+							>
+								<span className="truncate">{displayRole}</span>
+							</span>
+						) : null}
+					</div>
 				</div>
 
-				{/* Description — overflow-hidden ensures no bleed beyond card edges */}
-				<p className="mb-3 line-clamp-2 overflow-hidden px-1 text-center text-[12px] leading-[1.5] text-muted-foreground">
-					{displayDescription}
-				</p>
+				<p className={MY_CREW_CARD_DESCRIPTION_CLASS}>{displayDescription}</p>
 
 				{/* Chat CTA pinned to bottom */}
 				<button

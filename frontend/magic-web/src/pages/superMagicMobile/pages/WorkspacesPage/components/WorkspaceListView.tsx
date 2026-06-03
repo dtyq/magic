@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
-import { ChevronRight, Ellipsis, Pin, PinOff, Plus, Share2, Loader, Trash2 } from "lucide-react"
+import { ChevronRight, Ellipsis, Pin, PinOff, Plus, Share2, Trash2 } from "lucide-react"
+import { MobileResourceListSkeletonList } from "@/pages/superMagicMobile/components/skeletons"
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
@@ -176,7 +177,8 @@ function WorkspaceListViewInner({
 	loadMore,
 }: WorkspaceListViewProps) {
 	const { t } = useTranslation("super")
-	const shouldStretchPullToRefresh = !isLoading && (isWorkspaceEmpty || isSearchEmpty)
+	const showInitialLoading = isLoading && workspaces.length === 0
+	const shouldStretchPullToRefresh = !showInitialLoading && (isWorkspaceEmpty || isSearchEmpty)
 	/*
 	 * 工作区页与对话页保持一致，仅在空态时补齐 PullToRefresh 高度链。
 	 * 正常列表继续使用默认滚动结构，避免影响下拉刷新手势与列表滚动表现。
@@ -270,17 +272,11 @@ function WorkspaceListViewInner({
 						{/* Divider */}
 						<div className="mb-1 h-px w-full bg-border" />
 
-						{/* Loading state */}
-						{isLoading && workspaces.length === 0 && (
-							<div
-								className="flex min-h-0 flex-1 items-center justify-center"
-								data-testid="workspaces-list-loading"
-							>
-								<Loader className="size-6 animate-spin text-muted-foreground" />
-							</div>
-						)}
+						{showInitialLoading ? (
+							<MobileResourceListSkeletonList testId="workspaces-list-loading" />
+						) : null}
 
-						{isWorkspaceEmpty ? (
+						{!showInitialLoading && isWorkspaceEmpty ? (
 							<DataEmptyState
 								variant="workspace"
 								className="min-h-0 flex-1 py-12"
@@ -288,7 +284,7 @@ function WorkspaceListViewInner({
 							/>
 						) : null}
 
-						{isSearchEmpty ? (
+						{!showInitialLoading && isSearchEmpty ? (
 							<DataEmptyState
 								variant="search"
 								className="min-h-0 flex-1 py-12"
@@ -297,7 +293,7 @@ function WorkspaceListViewInner({
 						) : null}
 
 						{/* Workspace list */}
-						{!isWorkspaceEmpty && !isSearchEmpty
+						{!showInitialLoading && !isWorkspaceEmpty && !isSearchEmpty
 							? workspaces.map((workspace) => (
 									<WorkspaceItem
 										key={workspace.id}
@@ -317,7 +313,7 @@ function WorkspaceListViewInner({
 							: null}
 
 						{/* InfiniteScroll 放在列表末尾，向上滑动到底部时自动加载下一页 */}
-						{!isWorkspaceEmpty && !isSearchEmpty && (
+						{!showInitialLoading && !isWorkspaceEmpty && !isSearchEmpty && (
 							<InfiniteScroll hasMore={hasMore} loadMore={loadMore} />
 						)}
 					</div>

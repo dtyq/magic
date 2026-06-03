@@ -309,7 +309,7 @@ function MyCrewPageMobilePanelBase() {
 
 								{!showInitialSkeleton && visibleList.length > 0 ? (
 									<div
-										className="grid grid-cols-2 gap-3"
+										className="grid grid-cols-2 items-stretch gap-3"
 										data-testid="my-crew-card-grid"
 									>
 										{visibleList.map((employee) => (
