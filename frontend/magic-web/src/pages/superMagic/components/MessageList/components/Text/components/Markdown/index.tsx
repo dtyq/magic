@@ -31,6 +31,9 @@ import {
 import styles from "./index.module.css"
 import { CitationBadge } from "../../../Citations"
 
+const MARKDOWN_ALLOWED_URI_REGEXP =
+	/^(?:(?:https?|ftps?|mailto|tel|callto|sms|cid|xmpp|matrix|oa|oa-view|open-action|openaction):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
+
 const MARKDOWN_DOMPURIFY_CONFIG = {
 	ADD_ATTR: ["path", "index"],
 	ALLOWED_URI_REGEXP: MARKDOWN_ALLOWED_URI_REGEXP,
