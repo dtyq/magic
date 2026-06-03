@@ -1,10 +1,16 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react"
-import { Check, Circle, Loader2, Trash2, Upload, X } from "lucide-react"
+import { Circle, Loader2, Trash2, Upload, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { MagicClawTemplateCode } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { Button } from "@/components/shadcn-ui/button"
-import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogTitle,
+} from "@/components/shadcn-ui/dialog"
 import { Input } from "@/components/shadcn-ui/input"
 import { useUpload } from "@/hooks/useUploadFiles"
 import { cn } from "@/lib/utils"
@@ -37,7 +43,7 @@ export interface MagiClawTemplateOption {
 const DEFAULT_TEMPLATE = MAGI_CLAW_TEMPLATE_OPTIONS[0]
 
 /**
- * MagiClawCreateDialog 负责以原型中的底部 Sheet 形态承载创建表单。
+ * MagiClawCreateDialog renders the desktop centered modal create flow for MagiClaw.
  */
 export function MagiClawCreateDialog({
 	open,
@@ -68,16 +74,12 @@ export function MagiClawCreateDialog({
 		[selectedTemplateCode],
 	)
 
-	/**
-	 * 根据模板统一产出默认名称，避免模板切换时散落重复翻译逻辑。
-	 */
+	/** Resolve the default display name for a template option. */
 	function getTemplateDefaultName(template: MagiClawTemplateOption) {
 		return t(template.defaultNameKey, clawBrandValues)
 	}
 
-	/**
-	 * 创建前统一裁剪输入并拼装 payload，保证提交口只接收最终值。
-	 */
+	/** Trim input and emit the create payload to the parent handler. */
 	function handleCreate() {
 		const trimmedName = name.trim()
 		if (!trimmedName || isBusy) return
@@ -88,9 +90,7 @@ export function MagiClawCreateDialog({
 		})
 	}
 
-	/**
-	 * 关闭 Sheet 时重置临时表单状态，避免下次打开仍停留在上次编辑结果。
-	 */
+	/** Reset transient form state whenever the dialog closes. */
 	function handleOpenChange(nextOpen: boolean) {
 		onOpenChange(nextOpen)
 		if (!nextOpen) {
@@ -102,9 +102,7 @@ export function MagiClawCreateDialog({
 		}
 	}
 
-	/**
-	 * 切换模板时同步默认名称，但尊重用户已经手动修改过的输入。
-	 */
+	/** Switch template and sync the default name unless the user customized it. */
 	function handleTemplateChange(templateCode: MagicClawTemplateCode) {
 		const nextTemplate =
 			MAGI_CLAW_TEMPLATE_OPTIONS.find((template) => template.templateCode === templateCode) ??
@@ -114,17 +112,13 @@ export function MagiClawCreateDialog({
 		if (!isNameCustomized) setName(getTemplateDefaultName(nextTemplate))
 	}
 
-	/**
-	 * 上传按钮只负责打开原生文件选择器，让上传逻辑集中在文件 change 事件里。
-	 */
+	/** Open the hidden file input for avatar upload. */
 	function handleUploadAreaClick() {
 		if (isBusy) return
 		avatarInputRef.current?.click()
 	}
 
-	/**
-	 * 上传头像后仅缓存 URL，真正的创建动作仍由顶部确认按钮统一触发。
-	 */
+	/** Upload avatar file and store the returned public URL locally. */
 	async function handleAvatarFileChange(event: ChangeEvent<HTMLInputElement>) {
 		const file = event.target.files?.[0]
 		event.target.value = ""
@@ -147,61 +141,31 @@ export function MagiClawCreateDialog({
 	}
 
 	return (
-		<Sheet open={open} onOpenChange={handleOpenChange}>
-			<SheetContent
-				side="bottom"
-				showClose={false}
-				aria-describedby={undefined}
-				className="flex h-auto max-h-[88dvh] flex-col gap-0 overflow-hidden rounded-t-[14px] border-0 p-0 !pb-0"
-				style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
+		<Dialog open={open} onOpenChange={handleOpenChange}>
+			<DialogContent
+				showCloseButton={false}
+				className="w-full max-w-[min(347px,calc(100vw-2rem))] gap-0 overflow-hidden border-none bg-transparent p-0 shadow-2xl md:max-w-[512px]"
 				data-testid="magi-claw-create-dialog"
 			>
-				<div className="relative flex max-h-[88dvh] flex-col overflow-hidden bg-background bg-[linear-gradient(155deg,rgba(255,232,220,0.8)_0%,#ffffff_30%)] pb-[max(var(--safe-area-inset-bottom),12px)] dark:bg-card dark:bg-[linear-gradient(155deg,rgba(96,46,18,0.55)_0%,var(--color-card)_38%)]">
+				<div className="relative overflow-hidden rounded-[10px] border border-black/5 bg-[linear-gradient(96deg,#FFF7F7_5.16%,#FFF_49.33%,#EEF5FF_93.49%)] shadow-[0_24px_80px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(44,17,22,0.96)_0%,rgba(24,24,33,0.98)_48%,rgba(17,28,46,0.96)_100%)] dark:shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
 					<div
-						className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle,rgba(0,0,0,0.038)_1px,transparent_1px)] bg-[length:14px_14px] dark:bg-[radial-gradient(circle,rgba(255,255,255,0.05)_1px,transparent_1px)]"
-						aria-hidden
+						className="pointer-events-none absolute inset-0 opacity-70 dark:hidden"
+						style={{
+							backgroundImage:
+								"radial-gradient(circle at top left, rgba(248,113,113,0.12) 0, transparent 36%), radial-gradient(circle at bottom right, rgba(96,165,250,0.14) 0, transparent 40%), radial-gradient(rgba(239,68,68,0.06) 1px, transparent 1px)",
+							backgroundPosition: "0 0, 100% 100%, 0 0",
+							backgroundSize: "auto, auto, 8px 8px",
+						}}
 					/>
-
-					<div className="relative z-10 flex w-full shrink-0 flex-col items-center py-[6px]">
-						<div className="h-1 w-20 rounded-full bg-foreground/20" aria-hidden />
-					</div>
-
-					<div className="relative z-10 flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
-						<button
-							type="button"
-							onClick={() => handleOpenChange(false)}
-							className="absolute left-[10px] top-1/2 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] transition-opacity active:opacity-70"
-							aria-label={t("common.cancel")}
-							data-testid="magi-claw-create-dialog-close-button"
-						>
-							<X className="size-[22px] text-foreground" />
-						</button>
-
-						<SheetTitle className="font-poppins text-[18px] font-medium leading-6 text-foreground">
-							{t("superLobster.createDialog.title")}
-						</SheetTitle>
-
-						<button
-							type="button"
-							onClick={handleCreate}
-							disabled={!name.trim() || isBusy}
-							className="absolute right-[10px] top-1/2 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-primary shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] transition-opacity active:opacity-70 disabled:opacity-40"
-							aria-label={t(
-								"superLobster.createDialog.submitButton",
-								clawBrandValues,
-							)}
-							data-testid="magi-claw-create-dialog-submit-icon-button"
-						>
-							{isSubmitting ? (
-								<Loader2 className="size-[22px] animate-spin text-primary-foreground" />
-							) : (
-								<Check
-									className="size-[22px] text-primary-foreground"
-									strokeWidth={2.5}
-								/>
-							)}
-						</button>
-					</div>
+					<div
+						className="pointer-events-none absolute inset-0 hidden opacity-100 dark:block"
+						style={{
+							backgroundImage:
+								"radial-gradient(circle at top left, rgba(248,113,113,0.18) 0, transparent 34%), radial-gradient(circle at bottom right, rgba(96,165,250,0.18) 0, transparent 38%), radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)",
+							backgroundPosition: "0 0, 100% 100%, 0 0",
+							backgroundSize: "auto, auto, 10px 10px",
+						}}
+					/>
 
 					<input
 						ref={avatarInputRef}
@@ -212,120 +176,144 @@ export function MagiClawCreateDialog({
 						onChange={(e) => void handleAvatarFileChange(e)}
 					/>
 
-					<div
-						className="relative z-10 min-h-0 flex-1 overflow-y-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-						data-testid="magi-claw-create-dialog-scroll-content"
-					>
-						<div className="relative z-10 flex flex-col gap-[18px] pt-3">
-							<div
-								className="flex flex-col items-center gap-2 pb-1"
-								data-testid="magi-claw-create-dialog-hero"
+					<div className="relative flex flex-col gap-6 p-4 md:p-6">
+						<DialogClose asChild>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								className="absolute right-3 top-3 z-10 h-4 w-4 rounded-xs p-0 text-muted-foreground opacity-70 hover:bg-transparent hover:text-foreground hover:opacity-100 dark:text-muted-foreground dark:hover:bg-transparent dark:hover:text-foreground"
+								data-testid="magi-claw-create-dialog-close-button"
+								disabled={isBusy}
 							>
+								<X className="size-4" />
+							</Button>
+						</DialogClose>
+
+						<div className="flex w-full items-center gap-3 pr-6 md:gap-3.5 md:pr-8">
+							<div className="flex min-w-0 items-center gap-3 md:gap-3.5">
 								<MagiClawTemplateAvatar
 									templateCode={selectedTemplate.templateCode}
-									className="h-20 w-20 rounded-full border-[3px] border-white shadow-[0_4px_20px_rgba(0,0,0,0.12)] dark:border-white/15"
+									className="size-12 shrink-0 rounded-full border border-border shadow-sm dark:border-white/10 dark:shadow-black/30 md:size-16"
 								/>
-								<p className="px-6 text-center font-poppins text-[12px] leading-4 text-muted-foreground">
-									{t("superLobster.createDialog.subtitle", clawBrandValues)}
+
+								<div className="flex min-w-0 flex-col gap-1">
+									<div className="flex flex-wrap items-center gap-1 md:gap-2">
+										<DialogTitle className="text-2xl font-medium leading-8 text-foreground">
+											{t("superLobster.createDialog.title")}
+										</DialogTitle>
+										<div className="flex items-center gap-0.5 font-poppins text-2xl leading-8 tracking-[-0.48px] text-foreground">
+											<span className="font-semibold">
+												{t("superLobster.heroLead", clawBrandValues)}
+											</span>
+											<span className="font-black text-[#EF4444]">
+												{t("superLobster.titleAccent", clawBrandValues)}
+											</span>
+										</div>
+									</div>
+									<DialogDescription className="text-sm leading-none text-muted-foreground">
+										{t("superLobster.createDialog.subtitle", clawBrandValues)}
+									</DialogDescription>
+								</div>
+							</div>
+						</div>
+
+						<div className="flex flex-col gap-3">
+							<div className="flex flex-col gap-2">
+								<p className="text-sm font-medium leading-none text-foreground">
+									{t("superLobster.createDialog.templateLabel")}
 								</p>
+								<div className="flex flex-col gap-2">
+									{MAGI_CLAW_TEMPLATE_OPTIONS.map((template) => {
+										const isSelected =
+											template.templateCode === selectedTemplate.templateCode
+										return (
+											<button
+												key={template.templateCode}
+												type="button"
+												className={cn(
+													"flex w-full items-center gap-3 rounded-[10px] border bg-background/90 px-3 py-2 text-left shadow-sm transition-colors dark:bg-card/80 dark:shadow-black/20",
+													isSelected
+														? "border-foreground dark:border-primary"
+														: "border-border hover:border-foreground/30 dark:border-white/10 dark:hover:border-white/25",
+													isBusy && "cursor-not-allowed opacity-70",
+												)}
+												data-testid={`magi-claw-create-dialog-template-${template.templateCode}`}
+												disabled={isBusy}
+												onClick={() =>
+													handleTemplateChange(template.templateCode)
+												}
+											>
+												<span
+													className={cn(
+														"flex size-4 shrink-0 items-center justify-center rounded-full border",
+														isSelected
+															? "border-primary bg-primary text-primary-foreground"
+															: "border-input bg-background text-transparent",
+													)}
+													aria-hidden
+												>
+													<Circle className="size-2.5 fill-current stroke-current" />
+												</span>
+												<MagiClawTemplateAvatar
+													templateCode={template.templateCode}
+													className="size-12 shrink-0 rounded-full border-2 border-white shadow-sm dark:border-white/10 dark:shadow-black/30"
+												/>
+												<div className="min-w-0 flex-1">
+													<p className="text-sm font-medium leading-none text-foreground">
+														{t(template.titleKey, clawBrandValues)}
+													</p>
+													<p className="mt-1 text-xs leading-4 text-muted-foreground">
+														{t(
+															template.descriptionKey,
+															clawBrandValues,
+														)}
+													</p>
+												</div>
+											</button>
+										)
+									})}
+								</div>
 							</div>
 
-							<div className="flex flex-col gap-2.5">
-								<div
-									className="flex flex-col gap-2"
-									data-testid="magi-claw-create-dialog-template-section"
-								>
-									<p className="px-0.5 text-[14px] font-semibold text-foreground">
-										{t("superLobster.createDialog.templateLabel")}
-									</p>
-									<div className="flex flex-col gap-2">
-										{MAGI_CLAW_TEMPLATE_OPTIONS.map((template) => {
-											const isSelected =
-												template.templateCode ===
-												selectedTemplate.templateCode
-											return (
-												<button
-													key={template.templateCode}
-													type="button"
-													className={cn(
-														"flex w-full items-center gap-3 rounded-2xl border-2 px-3.5 py-3 text-left transition-all active:opacity-75",
-														"bg-white/80 shadow-[0_1px_6px_rgba(0,0,0,0.05)] dark:bg-white/[0.06]",
-														isSelected
-															? "border-foreground/75 shadow-[0_2px_14px_rgba(0,0,0,0.10)]"
-															: "border-border hover:border-foreground/30 dark:border-white/10 dark:hover:border-white/25",
-														isBusy && "cursor-not-allowed opacity-70",
-													)}
-													data-testid={`magi-claw-create-dialog-template-${template.templateCode}`}
-													disabled={isBusy}
-													onClick={() =>
-														handleTemplateChange(template.templateCode)
-													}
-												>
-													<span
-														className={cn(
-															"flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-															isSelected
-																? "border-foreground bg-foreground"
-																: "border-muted-foreground/35 bg-transparent text-transparent",
-														)}
-														aria-hidden
-													>
-														<Circle
-															className={cn(
-																"size-[7px] fill-current stroke-current",
-																isSelected && "text-background",
-															)}
-														/>
-													</span>
-													<MagiClawTemplateAvatar
-														templateCode={template.templateCode}
-														className="size-10 shrink-0 rounded-full border border-border/60"
-													/>
-													<div className="min-w-0 flex-1">
-														<p className="text-[15px] font-semibold leading-snug text-foreground">
-															{t(template.titleKey, clawBrandValues)}
-														</p>
-														<p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted-foreground">
-															{t(
-																template.descriptionKey,
-																clawBrandValues,
-															)}
-														</p>
-													</div>
-												</button>
-											)
-										})}
-									</div>
-								</div>
-
-								<div
-									className="flex flex-col gap-2"
-									data-testid="magi-claw-create-dialog-basic-info-section"
-								>
-									<p className="px-0.5 text-[14px] font-semibold text-foreground">
-										{t("superLobster.createDialog.basicInformationLabel")}
-									</p>
+							<div className="flex flex-col gap-2">
+								<p className="text-sm font-medium leading-none text-foreground">
+									{t("superLobster.createDialog.basicInformationLabel")}
+								</p>
+								<div className="relative rounded-lg border border-border bg-white/60 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-black/20 dark:shadow-black/25">
 									<div
-										className="overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-white/[0.06]"
-										data-testid="magi-claw-create-dialog-basic-info-card"
-									>
-										<div
-											className="flex h-[68px] items-center gap-3 px-[14px]"
-											data-testid="magi-claw-create-dialog-avatar-row"
-										>
-											<p className="flex-1 text-[16px] text-muted-foreground">
+										className="pointer-events-none absolute inset-0 opacity-40 dark:hidden"
+										aria-hidden
+										style={{
+											backgroundImage:
+												"radial-gradient(rgba(239,68,68,0.07) 1px, transparent 1px)",
+											backgroundSize: "8px 8px",
+										}}
+									/>
+									<div
+										className="pointer-events-none absolute inset-0 hidden opacity-60 dark:block"
+										aria-hidden
+										style={{
+											backgroundImage:
+												"radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
+											backgroundSize: "10px 10px",
+										}}
+									/>
+									<div className="relative flex flex-col gap-5">
+										<div className="flex items-center justify-between gap-3">
+											<p className="text-sm font-medium leading-none text-foreground">
 												{t("superLobster.createDialog.avatarLabel")}
 											</p>
-											<div className="flex shrink-0 items-center gap-2.5">
+											<div className="flex items-center gap-3">
 												<div className="relative">
 													<MagiClawTemplateAvatar
 														templateCode={selectedTemplate.templateCode}
 														src={customAvatarUrl}
-														className="size-10 rounded-full border border-border/60"
+														className="size-16 shrink-0 rounded-md border border-border shadow-xs dark:border-white/10 dark:shadow-black/25"
 													/>
 													{isAvatarUploading ? (
-														<span className="absolute inset-0 flex items-center justify-center rounded-full bg-background/80">
-															<Loader2 className="size-4 animate-spin text-foreground" />
+														<span className="absolute inset-0 flex items-center justify-center rounded-md bg-background/80 dark:bg-black/55">
+															<Loader2 className="size-5 animate-spin text-foreground" />
 														</span>
 													) : null}
 													{customAvatarUrl && !isAvatarUploading ? (
@@ -333,7 +321,7 @@ export function MagiClawCreateDialog({
 															type="button"
 															variant="outline"
 															size="icon"
-															className="absolute -right-2 -top-2 z-10 size-6 rounded-full border-input bg-background shadow-xs hover:bg-accent"
+															className="absolute -right-2 -top-2 z-10 size-6 rounded-full border-input bg-background shadow-xs hover:bg-accent dark:border-white/10 dark:bg-card dark:hover:bg-white/10"
 															aria-label={t(
 																"superLobster.createDialog.removeUploadedAvatar",
 																clawBrandValues,
@@ -349,72 +337,85 @@ export function MagiClawCreateDialog({
 														</Button>
 													) : null}
 												</div>
-												<button
+												<Button
 													type="button"
-													className="flex h-8 items-center gap-1.5 rounded-full border border-border/70 bg-transparent px-3 transition-opacity active:opacity-60"
+													variant="outline"
+													size="sm"
+													className="h-9 gap-2 rounded-md px-3 text-xs font-medium shadow-xs dark:border-white/10 dark:bg-card/80 dark:hover:bg-white/10"
 													data-testid="magi-claw-create-dialog-upload-button"
 													disabled={isBusy}
 													onClick={handleUploadAreaClick}
 												>
-													<Upload
-														className="size-3.5 text-foreground"
-														strokeWidth={2}
-													/>
-													<span className="text-[13px] font-medium leading-none text-foreground">
-														{t(
-															"superLobster.createDialog.uploadButton",
-														)}
-													</span>
-												</button>
+													<Upload className="size-4" strokeWidth={1.75} />
+													{t("superLobster.createDialog.uploadButton")}
+												</Button>
 											</div>
 										</div>
 
-										<div className="mx-[14px] h-px bg-border/50" />
-
-										<div
-											className="flex min-h-[68px] items-center gap-3 px-[14px] py-1"
-											data-testid="magi-claw-create-dialog-name-row"
-										>
+										<div className="flex items-center justify-between gap-3">
 											<label
-												className="shrink-0 text-[16px] text-muted-foreground"
+												className="shrink-0 text-sm font-medium leading-none text-foreground"
 												htmlFor="magi-claw-name-input"
 											>
 												{t("superLobster.createDialog.nameLabel")}
 											</label>
-											<Input
-												id="magi-claw-name-input"
-												value={name}
-												className="h-12 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-right text-[16px] text-foreground shadow-none focus-visible:ring-0 dark:bg-transparent"
-												placeholder={t(
-													"superLobster.createDialog.namePlaceholder",
-													clawBrandValues,
-												)}
-												data-testid="magi-claw-create-dialog-name-input"
-												disabled={isBusy}
-												onChange={(event) => {
-													const nextName = event.target.value
-													setName(nextName)
-													setIsNameCustomized(
-														nextName !==
-															getTemplateDefaultName(
-																selectedTemplate,
-															),
-													)
-												}}
-												onKeyDown={(event) => {
-													if (event.key !== "Enter" || isBusy) return
-													event.preventDefault()
-													handleCreate()
-												}}
-											/>
+											<div className="w-full max-w-[320px]">
+												<Input
+													id="magi-claw-name-input"
+													value={name}
+													className="h-9 bg-background shadow-xs dark:border-white/10 dark:bg-card/80 dark:placeholder:text-muted-foreground/80"
+													placeholder={t(
+														"superLobster.createDialog.namePlaceholder",
+														clawBrandValues,
+													)}
+													data-testid="magi-claw-create-dialog-name-input"
+													disabled={isBusy}
+													onChange={(event) => {
+														const nextName = event.target.value
+														setName(nextName)
+														setIsNameCustomized(
+															nextName !==
+																getTemplateDefaultName(
+																	selectedTemplate,
+																),
+														)
+													}}
+													onKeyDown={(event) => {
+														if (event.key === "Enter" && !isBusy) {
+															event.preventDefault()
+															handleCreate()
+														}
+													}}
+												/>
+											</div>
 										</div>
 									</div>
 								</div>
 							</div>
 						</div>
 					</div>
+
+					<div className="relative p-3">
+						<Button
+							type="button"
+							className="h-9 w-full rounded-md text-sm font-medium shadow-xs"
+							data-testid="magi-claw-create-dialog-submit-button"
+							disabled={!name.trim() || isBusy}
+							aria-busy={isSubmitting}
+							onClick={handleCreate}
+						>
+							{isSubmitting ? (
+								<>
+									<Loader2 className="size-4 animate-spin" />
+									{t("superLobster.createDialog.submitting", clawBrandValues)}
+								</>
+							) : (
+								t("superLobster.createDialog.submitButton", clawBrandValues)
+							)}
+						</Button>
+					</div>
 				</div>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	)
 }

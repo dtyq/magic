@@ -3,7 +3,7 @@ import {
 	SuperMobileShellRouteLayout,
 	useOptionalSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell"
-import { MagiClawCreateDialog } from "./MagiClawCreateDialog"
+import { MagiClawCreateSheet } from "./MagiClawCreateSheet"
 import { MagiClawDeleteConfirmSheet } from "./MagiClawDeleteConfirmSheet"
 import { MagiClawEditDialog } from "./MagiClawEditDialog"
 import { MagiClawMobileContextMenu } from "./MagiClawMobileContextMenu"
@@ -153,7 +153,7 @@ function MagiClawMobilePanel() {
 				/>
 			) : null}
 
-			<MagiClawCreateDialog
+			<MagiClawCreateSheet
 				open={isCreateDialogOpen}
 				onOpenChange={setIsCreateDialogOpen}
 				onCreate={(payload) => void handleCreateClaw(payload)}
