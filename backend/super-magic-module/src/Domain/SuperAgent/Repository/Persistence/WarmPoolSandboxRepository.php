@@ -188,16 +188,20 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
             ->update($attrs) > 0;
     }
 
-    public function markReady(int $id): bool
+    public function markReady(int $id, ?int $provisionDurationMs = null): bool
     {
+        $attrs = [
+            'status' => WarmPoolSandboxStatus::Ready->value,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if ($provisionDurationMs !== null) {
+            $attrs['provision_duration_ms'] = $provisionDurationMs;
+        }
         return WarmPoolSandboxModel::query()
             ->where('env', $this->env)
             ->where('id', $id)
             ->where('status', WarmPoolSandboxStatus::Creating->value)
-            ->update([
-                'status' => WarmPoolSandboxStatus::Ready->value,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]) > 0;
+            ->update($attrs) > 0;
     }
 
     public function deleteById(int $id): bool
@@ -264,6 +268,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         $e->setAgentImage((string) $model->agent_image);
         $e->setEnv((string) ($model->env ?? 'default'));
         $e->setStatus((string) $model->status);
+        $e->setProvisionDurationMs($model->provision_duration_ms !== null ? (int) $model->provision_duration_ms : null);
         $e->setBoundUserId($model->bound_user_id !== null ? (string) $model->bound_user_id : null);
         $e->setBoundProjectId($model->bound_project_id !== null ? (string) $model->bound_project_id : null);
         $e->setBoundTopicId($model->bound_topic_id !== null ? (string) $model->bound_topic_id : null);

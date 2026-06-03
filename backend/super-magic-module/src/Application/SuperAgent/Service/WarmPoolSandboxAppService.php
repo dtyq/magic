@@ -117,6 +117,7 @@ class WarmPoolSandboxAppService extends AbstractAppService
             // predictable and so a future reconciler can map orphan pods
             // back to a PHP-known id.
             $sandboxId = (string) IdGenerator::getSnowId();
+            $startedAt = microtime(true);
             $result = $this->gateway->createWarmPoolSandbox($sandboxId);
             if (! $result->isSuccess()) {
                 $errors[] = $result->getMessage();
@@ -135,7 +136,8 @@ class WarmPoolSandboxAppService extends AbstractAppService
                 // is responsive, so we can fast-forward straight to ready.
                 $entity = $this->domain->recordCreating($sandboxId, $sandboxName, $image, self::POOL_TTL_MINUTES);
                 if ($entity->getId() !== null) {
-                    $this->domain->markReady($entity->getId());
+                    $provisionDurationMs = (int) round((microtime(true) - $startedAt) * 1000);
+                    $this->domain->markReady($entity->getId(), $provisionDurationMs);
                 }
                 ++$created;
             } catch (Throwable $e) {

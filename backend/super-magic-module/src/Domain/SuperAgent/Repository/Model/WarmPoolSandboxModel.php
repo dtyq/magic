@@ -19,6 +19,7 @@ use Carbon\Carbon;
  * @property string $agent_image
  * @property string $env
  * @property string $status
+ * @property null|int $provision_duration_ms
  * @property null|string $bound_user_id
  * @property null|string $bound_project_id
  * @property null|string $bound_topic_id
@@ -46,6 +47,7 @@ class WarmPoolSandboxModel extends AbstractModel
         'agent_image',
         'env',
         'status',
+        'provision_duration_ms',
         'bound_user_id',
         'bound_project_id',
         'bound_topic_id',
@@ -58,6 +60,7 @@ class WarmPoolSandboxModel extends AbstractModel
 
     protected array $casts = [
         'id' => 'integer',
+        'provision_duration_ms' => 'integer',
         'bound_at' => 'datetime',
         'expires_at' => 'datetime',
         'created_at' => 'datetime',

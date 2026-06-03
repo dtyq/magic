@@ -28,6 +28,8 @@ class WarmPoolSandboxEntity
 
     private string $status = '';
 
+    private ?int $provisionDurationMs = null;
+
     private ?string $boundUserId = null;
 
     private ?string $boundProjectId = null;
@@ -102,6 +104,16 @@ class WarmPoolSandboxEntity
     public function setStatus(string $status): void
     {
         $this->status = $status;
+    }
+
+    public function getProvisionDurationMs(): ?int
+    {
+        return $this->provisionDurationMs;
+    }
+
+    public function setProvisionDurationMs(?int $provisionDurationMs): void
+    {
+        $this->provisionDurationMs = $provisionDurationMs;
     }
 
     public function getBoundUserId(): ?string

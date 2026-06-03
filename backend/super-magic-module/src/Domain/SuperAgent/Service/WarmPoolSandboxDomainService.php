@@ -72,9 +72,9 @@ class WarmPoolSandboxDomainService
         return $this->repository->insert($entity);
     }
 
-    public function markReady(int $id): void
+    public function markReady(int $id, ?int $provisionDurationMs = null): void
     {
-        $this->repository->markReady($id);
+        $this->repository->markReady($id, $provisionDurationMs);
     }
 
     public function markDead(int $id, string $reason): void

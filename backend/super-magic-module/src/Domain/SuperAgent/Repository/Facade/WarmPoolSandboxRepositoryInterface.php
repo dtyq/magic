@@ -66,7 +66,11 @@ interface WarmPoolSandboxRepositoryInterface
 
     public function updateStatus(int $id, string $status, ?string $deadReason = null): bool;
 
-    public function markReady(int $id): bool;
+    /**
+     * Flip a `creating` row to `ready`. Optionally records how long
+     * (in milliseconds) provisioning took, for debugging.
+     */
+    public function markReady(int $id, ?int $provisionDurationMs = null): bool;
 
     public function deleteById(int $id): bool;
 
