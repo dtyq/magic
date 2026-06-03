@@ -496,7 +496,7 @@ function MobileComposerModeSelectorComponent({
 
 						<div
 							ref={modelScrollContainerRef}
-							className="scrollbar-y-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto rounded-lg p-3"
+							className="scrollbar-y-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto rounded-lg py-3 px-6"
 							data-testid="mobile-composer-mode-selector-model-list"
 						>
 							{isCurrentTabEmpty ? (
@@ -588,7 +588,7 @@ function MobileComposerModeSelectorComponent({
 							<>
 								<div
 									ref={scrollContainerRef}
-									className="no-scrollbar max-h-[300px] min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5"
+									className="no-scrollbar max-h-[388px] min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5"
 									data-testid="mobile-composer-mode-selector-list"
 								>
 									{modeList.length === 0 ? (
@@ -656,7 +656,7 @@ function MobileComposerModeSelectorComponent({
 
 						<div
 							className={cn(
-								"mx-auto flex w-full shrink-0 flex-col gap-0 px-3.5",
+								"mx-auto flex w-full shrink-0 flex-col gap-0 px-6",
 								isClawVariant
 									? "pb-[max(var(--safe-area-inset-bottom),10px)] pt-2"
 									: "pb-2.5",

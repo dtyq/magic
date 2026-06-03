@@ -979,7 +979,7 @@ function MobileProjectDetailFilesView({
 						aria-label={t("projectDetail.fabFilesAria")}
 						data-testid="project-detail-files-add-button"
 					>
-						<Plus className="h-5.5 w-5.5" strokeWidth={2} />
+						<Plus className="size-[22px]" strokeWidth={2} />
 					</Button>
 				)}
 			</div>
