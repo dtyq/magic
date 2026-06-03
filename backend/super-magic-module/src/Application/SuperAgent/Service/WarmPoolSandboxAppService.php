@@ -76,7 +76,7 @@ class WarmPoolSandboxAppService extends AbstractAppService
      * generous default keeps it around long enough for debugging while still
      * bounding table growth. Used as the default for {@see evictAgedClaimedTombstones()}.
      */
-    private const CLAIMED_TOMBSTONE_TTL_HOURS = 24;
+    private const CLAIMED_TOMBSTONE_TTL_HOURS = 6;
 
     /**
      * Hard ceiling on each refill burst so a stampede of new requests

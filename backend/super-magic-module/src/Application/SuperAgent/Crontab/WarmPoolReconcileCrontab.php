@@ -41,7 +41,7 @@ use Throwable;
  * is what keeps the table bounded for long-lived "resident" sandboxes whose
  * pod never gets reaped by the gateway (so the dead-pod pass above can never
  * touch them). It too only deletes the DB row, never the pod. The TTL is
- * configurable via `super-magic.warm_pool.claimed_ttl_hours` (default 24h,
+ * configurable via `super-magic.warm_pool.claimed_ttl_hours` (default 6h,
  * <= 0 disables it).
  * * Disabled by default; enable via `super-magic.warm_pool.enabled = true`.
  */
@@ -127,7 +127,7 @@ readonly class WarmPoolReconcileCrontab
             // session. Configurable via `super-magic.warm_pool.claimed_ttl_hours`
             // (<= 0 disables this pass).
             try {
-                $ttlHours = (int) config('super-magic.warm_pool.claimed_ttl_hours', 24);
+                $ttlHours = (int) config('super-magic.warm_pool.claimed_ttl_hours', 6);
                 $evicted = $this->warmPoolSandboxAppService->evictAgedClaimedTombstones($ttlHours, self::AGED_CLAIMED_TOMBSTONE_BATCH_LIMIT);
                 if (($evicted['deleted'] ?? 0) > 0) {
                     $this->logger->info('[WarmPoolReconcile] aged claimed tombstone eviction done', [
