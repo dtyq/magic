@@ -18,10 +18,10 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
 /**
- * Unit tests for {@see WarmPoolSandboxAppService::reconcileClaimedOrphans()}.
+ * Unit tests for {@see WarmPoolSandboxAppService::reconcileClaimedDeadPods()}.
  *
  * Covers the "claimed in DB but pod already reaped by the gateway" path that
- * keeps stale `claimed` rows from piling up forever.
+ * keeps dead-pod `claimed` rows from piling up forever.
  *
  * @internal
  */
@@ -40,7 +40,7 @@ class WarmPoolSandboxAppServiceTest extends TestCase
 
         $service = $this->makeService($domain, $gateway);
 
-        $result = $service->reconcileClaimedOrphans(50, 15);
+        $result = $service->reconcileClaimedDeadPods(50, 15);
 
         $this->assertSame(['scanned' => 0, 'reclaimed' => 0], $result);
     }
@@ -79,7 +79,7 @@ class WarmPoolSandboxAppServiceTest extends TestCase
 
         $service = $this->makeService($domain, $gateway);
 
-        $result = $service->reconcileClaimedOrphans(50, 15);
+        $result = $service->reconcileClaimedDeadPods(50, 15);
 
         $this->assertSame(['scanned' => 4, 'reclaimed' => 2], $result);
         $this->assertSame([202, 303], $deleted);
@@ -105,7 +105,7 @@ class WarmPoolSandboxAppServiceTest extends TestCase
 
         $service = $this->makeService($domain, $gateway);
 
-        $result = $service->reconcileClaimedOrphans(50, 15);
+        $result = $service->reconcileClaimedDeadPods(50, 15);
 
         $this->assertSame(1, $result['scanned']);
         $this->assertSame(0, $result['reclaimed']);

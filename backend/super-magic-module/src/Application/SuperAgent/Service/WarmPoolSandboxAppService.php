@@ -29,10 +29,14 @@ use Throwable;
  *   - {@see reconcileReadyDead()} — reconcile `ready` rows against the
  *     gateway and retire ones whose pod is already gone, so refill can
  *     fill the deficit before any user collides with a dead row.
- *   - {@see reconcileClaimedOrphans()} — reconcile `claimed` rows
+ *   - {@see reconcileClaimedDeadPods()} — reconcile `claimed` rows
  *     whose pod the gateway already reaped (~20 min idle ceiling, k8s
  *     restart, session end) without notifying us, deleting only the
- *     stale DB tombstone so `claimed` orphans don't pile up forever.
+ *     stale DB tombstone so dead-pod `claimed` rows don't pile up forever.
+ *   - {@see evictAgedClaimedTombstones()} — TTL-based hard cleanup that
+ *     drops `claimed` tombstones older than a ceiling REGARDLESS of pod
+ *     liveness, so long-lived ("resident") sandboxes whose pod is never
+ *     reaped by the gateway can't grow the table without bound.
  *   - {@see invalidateStaleImageGeneration()} — drop rows whose
  *     agent_image differs from the current generation (used on image
  *     rollouts).
@@ -54,13 +58,25 @@ class WarmPoolSandboxAppService extends AbstractAppService
     private const POOL_TTL_MINUTES = 10;
 
     /**
-     * Grace window before a `claimed` row becomes eligible for orphan
+     * Grace window before a `claimed` row becomes eligible for dead-pod
      * reconciliation. A freshly-claimed sandbox may legitimately still be
      * booting (and thus not yet `Running`); only rows bound longer ago than
      * this are checked, so an in-flight mount is never mistaken for a
-     * reaped orphan. Comfortably under the gateway's ~20 min idle ceiling.
+     * reaped pod. Comfortably under the gateway's ~20 min idle ceiling.
+     * Used as the default for {@see reconcileClaimedDeadPods()}.
      */
-    private const RECLAIM_GRACE_MINUTES = 15;
+    private const CLAIMED_DEAD_POD_GRACE_MINUTES = 15;
+
+    /**
+     * Hard TTL (in hours) after which a `claimed` tombstone is dropped from
+     * the table regardless of whether its pod is still alive. Long-lived
+     * ("resident") sandboxes never get reaped by the gateway, so their
+     * `claimed` rows would otherwise accumulate forever. The row is purely a
+     * tombstone once the mount succeeds — nothing reads it back — so a
+     * generous default keeps it around long enough for debugging while still
+     * bounding table growth. Used as the default for {@see evictAgedClaimedTombstones()}.
+     */
+    private const CLAIMED_TOMBSTONE_TTL_HOURS = 24;
 
     /**
      * Hard ceiling on each refill burst so a stampede of new requests
@@ -238,17 +254,20 @@ class WarmPoolSandboxAppService extends AbstractAppService
     }
 
     /**
-     * Reconcile `claimed` orphan rows — DB tombstones whose underlying pod is
-     * already gone from k8s (session ended, idle-reaped, cluster restart) but
-     * whose row was never cleaned up, because claimed rows are intentionally
-     * excluded from every other warm-pool cleanup path once their lifecycle
-     * ownership moves to the agent session at claim time.
+     * Reconcile dead-pod `claimed` rows — DB tombstones whose underlying pod
+     * is already gone from k8s (session ended, idle-reaped, cluster restart)
+     * but whose row was never cleaned up, because claimed rows are
+     * intentionally excluded from every other warm-pool cleanup path once
+     * their lifecycle ownership moves to the agent session at claim time.
+     *
+     * Distinct from {@see evictAgedClaimedTombstones()}: this pass acts only
+     * on rows the gateway CONFIRMS are dead, never on still-alive pods.
      *
      * This is deliberately NOT folded into {@see reconcileReadyDead()}:
      *
      *   - It only acts on rows whose `bound_at` is older than
-     *     {@see RECLAIM_GRACE_MINUTES}, so a freshly-claimed sandbox still
-     *     booting (and thus legitimately not yet `Running`) is never touched.
+     *     {@see CLAIMED_DEAD_POD_GRACE_MINUTES}, so a freshly-claimed sandbox
+     *     still booting (and thus legitimately not yet `Running`) is never touched.
      *   - It only deletes when the gateway EXPLICITLY reports the pod as
      *     gone (`NotFound`/`Exited`). `Pending`/`Running`/`Unknown` or an
      *     absent entry are treated as "still alive / inconclusive" so a flaky
@@ -257,7 +276,7 @@ class WarmPoolSandboxAppService extends AbstractAppService
      *     no longer belongs to the warm pool, so tearing it down here would be
      *     wrong (and it is already gone anyway).
      */
-    public function reconcileClaimedOrphans(int $limit = 50, int $graceMinutes = self::RECLAIM_GRACE_MINUTES): array
+    public function reconcileClaimedDeadPods(int $limit = 50, int $graceMinutes = self::CLAIMED_DEAD_POD_GRACE_MINUTES): array
     {
         $cutoff = date('Y-m-d H:i:s', time() - $graceMinutes * 60);
         $rows = $this->domain->listClaimedForReconcile($cutoff, $limit);
@@ -305,7 +324,7 @@ class WarmPoolSandboxAppService extends AbstractAppService
         }
 
         if ($reclaimed > 0) {
-            $this->logger->info('[WarmPoolSandbox] Reconciled claimed orphan rows', [
+            $this->logger->info('[WarmPoolSandbox] Reconciled dead-pod claimed rows', [
                 'scanned' => count($rows),
                 'reclaimed' => $reclaimed,
             ]);
@@ -314,6 +333,64 @@ class WarmPoolSandboxAppService extends AbstractAppService
         return [
             'scanned' => count($rows),
             'reclaimed' => $reclaimed,
+        ];
+    }
+
+    /**
+     * Hard-evict aged `claimed` tombstone rows whose bound_at is older than
+     * the TTL, REGARDLESS of whether the underlying pod is still alive.
+     *
+     * This complements {@see reconcileClaimedDeadPods()} (which only deletes
+     * when the gateway confirms the pod is gone). Long-lived "resident"
+     * sandboxes are never reaped by the gateway, so their pod stays
+     * `Running` forever and the dead-pod reconciler can never touch the row —
+     * leaving the table to grow without bound. Once a warm-pool sandbox is
+     * claimed and mounted its row is a pure tombstone: nothing reads it back
+     * (lifecycle ownership has moved to the agent session), so deleting the
+     * DB row here is safe and never affects the live session.
+     *
+     * Like the dead-pod reconciler, this deletes ONLY the DB row and never
+     * calls `deleteSandbox`: the pod no longer belongs to the warm pool and
+     * may well be an active resident session we must not tear down.
+     *
+     * @param int $ttlHours rows bound longer ago than this are evicted; <= 0 disables the pass
+     */
+    public function evictAgedClaimedTombstones(int $ttlHours = self::CLAIMED_TOMBSTONE_TTL_HOURS, int $limit = 100): array
+    {
+        if ($ttlHours <= 0) {
+            return ['scanned' => 0, 'deleted' => 0, 'skipped' => 'disabled'];
+        }
+
+        $cutoff = date('Y-m-d H:i:s', time() - $ttlHours * 3600);
+        $rows = $this->domain->listClaimedForReconcile($cutoff, $limit);
+        if ($rows === []) {
+            return ['scanned' => 0, 'deleted' => 0];
+        }
+
+        $deleted = 0;
+        foreach ($rows as $row) {
+            $id = $row->getId();
+            if ($id === null) {
+                continue;
+            }
+            // DB-row-only cleanup — the pod may be a live resident session,
+            // so we must NOT call gateway->deleteSandbox here.
+            $this->domain->deleteEntry($id);
+            ++$deleted;
+        }
+
+        if ($deleted > 0) {
+            $this->logger->info('[WarmPoolSandbox] Evicted aged claimed tombstone rows', [
+                'ttl_hours' => $ttlHours,
+                'cutoff' => $cutoff,
+                'scanned' => count($rows),
+                'deleted' => $deleted,
+            ]);
+        }
+
+        return [
+            'scanned' => count($rows),
+            'deleted' => $deleted,
         ];
     }
 
