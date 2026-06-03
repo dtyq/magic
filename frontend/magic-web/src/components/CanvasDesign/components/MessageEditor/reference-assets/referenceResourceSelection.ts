@@ -99,10 +99,17 @@ export function isReferenceResourceTypeAllowed(options: {
 function normalizeReferenceExtension(extensionOrPath: string): string {
 	const normalizedValue = extensionOrPath.toLowerCase().trim()
 	if (!normalizedValue) return ""
-	if (normalizedValue.startsWith(".")) return normalizedValue
-	const lastDotIndex = normalizedValue.lastIndexOf(".")
-	if (lastDotIndex >= 0) return normalizedValue.slice(lastDotIndex)
-	if (!/[\\/]/.test(normalizedValue) && /^[a-z0-9]+$/i.test(normalizedValue)) {
+
+	const normalizedPath = normalizedValue.replace(/\\/g, "/")
+	const hasPathSeparator = normalizedPath.includes("/")
+	const lastSegment = normalizedPath.split("/").filter(Boolean).pop() || normalizedPath
+	const lastDotIndex = lastSegment.lastIndexOf(".")
+
+	if (lastDotIndex >= 0 && lastDotIndex < lastSegment.length - 1) {
+		return lastSegment.slice(lastDotIndex)
+	}
+	if (!hasPathSeparator && normalizedValue.startsWith(".")) return normalizedValue
+	if (!hasPathSeparator && /^[a-z0-9]+$/i.test(normalizedValue)) {
 		return `.${normalizedValue}`
 	}
 	return ""
