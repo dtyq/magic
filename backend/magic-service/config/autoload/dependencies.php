@@ -17,6 +17,7 @@ use App\Application\Kernel\Contract\MagicPermissionInterface;
 use App\Application\Kernel\MagicPermission;
 use App\Application\KnowledgeBase\Port\EmbeddingProviderPort;
 use App\Application\KnowledgeBase\Port\FragmentHttpPassthroughPort;
+use App\Application\KnowledgeBase\Port\ThirdPlatformDocumentProviderPort;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\ExternalFileDocumentFileStrategyDriver;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
@@ -275,6 +276,7 @@ use App\Infrastructure\ImageGenerate\DefaultWatermarkConfig;
 use App\Infrastructure\ImageGenerate\DefaultWatermarkPolicy;
 use App\Infrastructure\ImageGenerate\NullImageEnhancementProcessor;
 use App\Infrastructure\ImageGenerate\WatermarkPolicyInterface;
+use App\Infrastructure\KnowledgeBase\ThirdPlatform\UnsupportedThirdPlatformDocumentProvider;
 use App\Infrastructure\ModelGateway\FfprobeVideoMediaProbe;
 use App\Infrastructure\ModelGateway\Queue\RedisQueueCoreRepository;
 use App\Infrastructure\ModelGateway\Queue\RedisVideoQueueOperationRepository;
@@ -385,6 +387,7 @@ $dependencies = [
     FragmentGateway::class => FragmentRpcClient::class,
     FragmentHttpPassthroughPort::class => FragmentRpcClient::class,
     EmbeddingProviderPort::class => EmbeddingRpcClient::class,
+    ThirdPlatformDocumentProviderPort::class => UnsupportedThirdPlatformDocumentProvider::class,
     KnowledgeBaseDocumentRepositoryInterface::class => KnowledgeBaseDocumentRepository::class,
     KnowledgeBaseFragmentRepositoryInterface::class => KnowledgeBaseFragmentRepository::class,
 

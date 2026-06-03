@@ -7,16 +7,12 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Interfaces\KnowledgeBase\Rpc\Service;
 
+use App\Application\KnowledgeBase\Port\ThirdPlatformDocumentProviderPort;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\DocumentFileStrategy;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ThirdPlatformDocumentFile;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Interfaces\KnowledgeBase\Rpc\Service\ThirdPlatformDocumentRpcService;
-use Dtyq\MagicEnterprise\Application\Kernel\TeamshareMultipleEnvApiFactory;
-use Dtyq\MagicEnterprise\Application\TeamshareOpenPlatform\Service\FIleOauth2AppService;
-use Dtyq\MagicEnterprise\Application\TeamshareOpenPlatform\Service\Oauth2AuthenticationAppService;
-use Dtyq\MagicEnterprise\Domain\TeamshareOpenPlatform\Entity\ValueObject\FileType;
-use Dtyq\MagicEnterprise\Infrastructure\ExternalAPI\Teamshare\Oauth2\Teamshare\Api\Result\CommonResult;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
@@ -25,12 +21,20 @@ use Psr\Log\LoggerInterface;
  */
 class ThirdPlatformDocumentRpcServiceTest extends TestCase
 {
+    private const int FILE_TYPE_MULTI_TABLE = 1;
+
+    private const int FILE_TYPE_WORD = 2;
+
+    private const int FILE_TYPE_EXCEL = 3;
+
+    private const int FILE_TYPE_CLOUD_DOCUMENT = 16;
+
     public function testResolveShouldRejectMissingPlatformTypeBeforePreProcess(): void
     {
         $documentFileStrategy = $this->createMock(DocumentFileStrategy::class);
         $documentFileStrategy->expects($this->never())->method('preProcessDocumentFile');
 
-        $service = $this->newService($documentFileStrategy, $this->createMock(FIleOauth2AppService::class));
+        $service = $this->newService($documentFileStrategy);
         $params = $this->baseResolveParams();
         unset($params['third_platform_type'], $params['document_file']['platform_type']);
 
@@ -45,7 +49,7 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
         $documentFileStrategy = $this->createMock(DocumentFileStrategy::class);
         $documentFileStrategy->expects($this->never())->method('preProcessDocumentFile');
 
-        $service = $this->newService($documentFileStrategy, $this->createMock(FIleOauth2AppService::class));
+        $service = $this->newService($documentFileStrategy);
         $params = $this->baseResolveParams();
         unset($params['third_file_id'], $params['document_file']['third_file_id']);
 
@@ -62,7 +66,7 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
             ->method('preProcessDocumentFile')
             ->willThrowException(new BusinessException('resolve third_platform document failed: missing or unsupported file identifiers'));
 
-        $service = $this->newService($documentFileStrategy, $this->createMock(FIleOauth2AppService::class));
+        $service = $this->newService($documentFileStrategy);
         $result = $service->resolve($this->baseResolveParams());
 
         $this->assertSame(40404, $result['code']);
@@ -71,7 +75,7 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
 
     public function testResolveCloudDocumentShouldReturnRawMarkdownAndMdExtension(): void
     {
-        $documentFile = $this->makeThirdPlatformDocumentFile((string) FileType::CLOUD_DOCUMENT, 'docx');
+        $documentFile = $this->makeThirdPlatformDocumentFile((string) self::FILE_TYPE_CLOUD_DOCUMENT, 'docx');
         $documentFileStrategy = $this->createMock(DocumentFileStrategy::class);
         $documentFileStrategy->expects($this->once())
             ->method('preProcessDocumentFile')
@@ -79,13 +83,13 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
             ->willReturn($documentFile);
         $documentFileStrategy->expects($this->never())->method('parseContent');
 
-        $fileOauth2AppService = $this->createMock(FIleOauth2AppService::class);
-        $fileOauth2AppService->expects($this->once())
+        $thirdPlatformDocumentProvider = $this->createMock(ThirdPlatformDocumentProviderPort::class);
+        $thirdPlatformDocumentProvider->expects($this->once())
             ->method('getFileMarkdown')
-            ->willReturn($this->rpcResult(['content' => '# Teamshare Markdown']));
-        $fileOauth2AppService->expects($this->never())->method('getTeamshareFileDownloadUrls');
+            ->willReturn('# Teamshare Markdown');
+        $thirdPlatformDocumentProvider->expects($this->never())->method('getFileDownloadUrls');
 
-        $service = $this->newService($documentFileStrategy, $fileOauth2AppService);
+        $service = $this->newService($documentFileStrategy, $thirdPlatformDocumentProvider);
         $result = $service->resolve($this->baseResolveParams());
 
         $this->assertSame(0, $result['code']);
@@ -99,20 +103,18 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
 
     public function testResolveMultiTableShouldReturnCsvRawContent(): void
     {
-        $documentFile = $this->makeThirdPlatformDocumentFile((string) FileType::MULTI_TABLE, 'xlsx');
+        $documentFile = $this->makeThirdPlatformDocumentFile((string) self::FILE_TYPE_MULTI_TABLE, 'xlsx');
         $documentFileStrategy = $this->createMock(DocumentFileStrategy::class);
         $documentFileStrategy->method('preProcessDocumentFile')->willReturn($documentFile);
         $documentFileStrategy->expects($this->never())->method('parseContent');
 
-        $fileOauth2AppService = $this->createMock(FIleOauth2AppService::class);
-        $fileOauth2AppService->expects($this->once())
+        $thirdPlatformDocumentProvider = $this->createMock(ThirdPlatformDocumentProviderPort::class);
+        $thirdPlatformDocumentProvider->expects($this->once())
             ->method('getFileMarkdown')
-            ->willReturn($this->rpcResult([
-                'content' => "## 表格\n| 城市 | 门店 |\n| --- | --- |\n| 上海 | 徐汇 |\n",
-            ]));
-        $fileOauth2AppService->expects($this->never())->method('getTeamshareFileDownloadUrls');
+            ->willReturn("## 表格\n| 城市 | 门店 |\n| --- | --- |\n| 上海 | 徐汇 |\n");
+        $thirdPlatformDocumentProvider->expects($this->never())->method('getFileDownloadUrls');
 
-        $service = $this->newService($documentFileStrategy, $fileOauth2AppService);
+        $service = $this->newService($documentFileStrategy, $thirdPlatformDocumentProvider);
         $result = $service->resolve($this->baseResolveParams());
 
         $this->assertSame(0, $result['code']);
@@ -124,20 +126,18 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
 
     public function testResolveBinaryFileShouldReturnDownloadUrlWithoutPhpParse(): void
     {
-        $documentFile = $this->makeThirdPlatformDocumentFile((string) FileType::WORD, 'docx');
+        $documentFile = $this->makeThirdPlatformDocumentFile((string) self::FILE_TYPE_WORD, 'docx');
         $documentFileStrategy = $this->createMock(DocumentFileStrategy::class);
         $documentFileStrategy->method('preProcessDocumentFile')->willReturn($documentFile);
         $documentFileStrategy->expects($this->never())->method('parseContent');
 
-        $fileOauth2AppService = $this->createMock(FIleOauth2AppService::class);
-        $fileOauth2AppService->expects($this->never())->method('getFileMarkdown');
-        $fileOauth2AppService->expects($this->once())
-            ->method('getTeamshareFileDownloadUrls')
-            ->willReturn($this->rpcResult([
-                ['url' => 'https://download.example.com/demo.docx'],
-            ]));
+        $thirdPlatformDocumentProvider = $this->createMock(ThirdPlatformDocumentProviderPort::class);
+        $thirdPlatformDocumentProvider->expects($this->never())->method('getFileMarkdown');
+        $thirdPlatformDocumentProvider->expects($this->once())
+            ->method('getFileDownloadUrls')
+            ->willReturn(['https://download.example.com/demo.docx']);
 
-        $service = $this->newService($documentFileStrategy, $fileOauth2AppService);
+        $service = $this->newService($documentFileStrategy, $thirdPlatformDocumentProvider);
         $result = $service->resolve($this->baseResolveParams());
 
         $this->assertSame(0, $result['code']);
@@ -151,27 +151,21 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
 
     public function testResolveExcelShouldReturnDownloadUrlsWithoutSelecting(): void
     {
-        $documentFile = $this->makeThirdPlatformDocumentFile((string) FileType::EXCEL, 'xlsx');
+        $documentFile = $this->makeThirdPlatformDocumentFile((string) self::FILE_TYPE_EXCEL, 'xlsx');
         $documentFileStrategy = $this->createMock(DocumentFileStrategy::class);
         $documentFileStrategy->method('preProcessDocumentFile')->willReturn($documentFile);
         $documentFileStrategy->expects($this->never())->method('parseContent');
 
-        $fileOauth2AppService = $this->createMock(FIleOauth2AppService::class);
-        $fileOauth2AppService->expects($this->never())->method('getFileMarkdown');
-        $fileOauth2AppService->expects($this->once())
-            ->method('getTeamshareFileDownloadUrls')
-            ->willReturn($this->rpcResult([
-                [
-                    'key' => 'DT001/demo/original.xlsx',
-                    'url' => 'https://download.example.com/original.xlsx',
-                ],
-                [
-                    'key' => 'DT001/demo/.xlsx',
-                    'url' => 'https://download.example.com/export.xlsx',
-                ],
-            ]));
+        $thirdPlatformDocumentProvider = $this->createMock(ThirdPlatformDocumentProviderPort::class);
+        $thirdPlatformDocumentProvider->expects($this->never())->method('getFileMarkdown');
+        $thirdPlatformDocumentProvider->expects($this->once())
+            ->method('getFileDownloadUrls')
+            ->willReturn([
+                'https://download.example.com/original.xlsx',
+                'https://download.example.com/export.xlsx',
+            ]);
 
-        $service = $this->newService($documentFileStrategy, $fileOauth2AppService);
+        $service = $this->newService($documentFileStrategy, $thirdPlatformDocumentProvider);
         $result = $service->resolve($this->baseResolveParams());
 
         $this->assertSame(0, $result['code']);
@@ -215,13 +209,12 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
         ];
 
         $documentFileStrategy = $this->createMock(DocumentFileStrategy::class);
-        $fileOauth2AppService = $this->createMock(FIleOauth2AppService::class);
-        $fileOauth2AppService->expects($this->never())->method('getFile');
-        $fileOauth2AppService->expects($this->once())
-            ->method('getChildFilesByParams')
-            ->willReturn($this->rpcResult($rawChildren));
+        $thirdPlatformDocumentProvider = $this->createMock(ThirdPlatformDocumentProviderPort::class);
+        $thirdPlatformDocumentProvider->expects($this->once())
+            ->method('listDirectChildren')
+            ->willReturn($rawChildren);
 
-        $service = $this->newService($documentFileStrategy, $fileOauth2AppService);
+        $service = $this->newService($documentFileStrategy, $thirdPlatformDocumentProvider);
         $result = $service->listTreeNodes([
             'data_isolation' => [
                 'organization_code' => 'ORG1',
@@ -238,16 +231,12 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
 
     private function newService(
         DocumentFileStrategy $documentFileStrategy,
-        FIleOauth2AppService $fileOauth2AppService,
-        ?Oauth2AuthenticationAppService $oauth2AuthenticationAppService = null,
-        ?TeamshareMultipleEnvApiFactory $teamshareMultipleEnvApiFactory = null,
+        ?ThirdPlatformDocumentProviderPort $thirdPlatformDocumentProvider = null,
         ?LoggerInterface $logger = null,
     ): ThirdPlatformDocumentRpcService {
         return new ThirdPlatformDocumentRpcService(
             $documentFileStrategy,
-            $fileOauth2AppService,
-            $oauth2AuthenticationAppService ?? $this->createMock(Oauth2AuthenticationAppService::class),
-            $teamshareMultipleEnvApiFactory ?? $this->createMock(TeamshareMultipleEnvApiFactory::class),
+            $thirdPlatformDocumentProvider ?? $this->createMock(ThirdPlatformDocumentProviderPort::class),
             $logger ?? $this->createMock(LoggerInterface::class)
         );
     }
@@ -280,10 +269,5 @@ class ThirdPlatformDocumentRpcServiceTest extends TestCase
                 'extension' => 'docx',
             ],
         ];
-    }
-
-    private function rpcResult(array $data): CommonResult
-    {
-        return new CommonResult($data);
     }
 }

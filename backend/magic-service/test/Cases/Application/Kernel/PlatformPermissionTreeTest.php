@@ -8,17 +8,30 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Application\Kernel;
 
 use App\Application\Kernel\Contract\MagicPermissionInterface;
-use Dtyq\MagicEnterprise\Application\Kernel\Enum\EnterpriseOperationAiContentAuditEnum;
-use Dtyq\MagicEnterprise\Application\Kernel\Enum\EnterpriseOperationPlatformOrganizationPointManagerEnum;
-use Dtyq\MagicEnterprise\Application\Kernel\Enum\EnterpriseResourceEnum;
 use Hyperf\Contract\ConfigInterface;
 use HyperfTest\HttpTestCase;
 
 /**
  * @internal
  */
-class EnterprisePermissionTreeTest extends HttpTestCase
+class PlatformPermissionTreeTest extends HttpTestCase
 {
+    private const string RESOURCE_PLATFORM_PRODUCT_MANAGE = 'platform.product.manage';
+
+    private const string RESOURCE_PLATFORM_PRODUCT_ORDER = 'platform.product.order';
+
+    private const string RESOURCE_PLATFORM_ORGANIZATION_POINT_MANAGER = 'platform.organization.point_manager';
+
+    private const string RESOURCE_PLATFORM_AI_CONTENT_AUDIT = 'platform.ai.content_audit';
+
+    private const string RESOURCE_PLATFORM_PROXY_SERVER = 'platform.setting.proxy_server';
+
+    private const string OPERATION_BIND_PACKAGE = 'bind_package';
+
+    private const string OPERATION_LIST = 'list';
+
+    private const string OPERATION_RISK = 'risk';
+
     private MagicPermissionInterface $permission;
 
     private ConfigInterface $config;
@@ -30,12 +43,12 @@ class EnterprisePermissionTreeTest extends HttpTestCase
         $this->config = di(ConfigInterface::class);
 
         $mapping = $this->config->get('permission_menu.resource_menu_mapping', []);
-        if (! is_array($mapping) || ! isset($mapping[EnterpriseResourceEnum::PLATFORM_PRODUCT_MANAGE->value])) {
-            self::markTestSkipped('Current magic-service runtime is still using an old magic-enterprise-service package; refresh Composer dependencies before enabling this test.');
+        if (! is_array($mapping) || ! isset($mapping[self::RESOURCE_PLATFORM_PRODUCT_MANAGE])) {
+            self::markTestSkipped('Current runtime does not provide platform permission mappings.');
         }
     }
 
-    public function testGetPermissionTreeContainsEnterpriseMappingsForPlatformOrganization(): void
+    public function testGetPermissionTreeContainsPlatformMappingsForPlatformOrganization(): void
     {
         $tree = $this->permission->getPermissionTree(true);
 
@@ -53,29 +66,29 @@ class EnterprisePermissionTreeTest extends HttpTestCase
 
         $this->assertTrue($this->containsPermissionKey(
             $tree,
-            $this->permission->buildPermission(EnterpriseResourceEnum::PLATFORM_PRODUCT_MANAGE->value, 'query')
+            $this->permission->buildPermission(self::RESOURCE_PLATFORM_PRODUCT_MANAGE, 'query')
         ));
         $this->assertTrue($this->containsPermissionKey(
             $tree,
-            $this->permission->buildPermission(EnterpriseResourceEnum::PLATFORM_PRODUCT_ORDER->value, 'query')
+            $this->permission->buildPermission(self::RESOURCE_PLATFORM_PRODUCT_ORDER, 'query')
         ));
         $this->assertTrue($this->containsPermissionKey(
             $tree,
             $this->permission->buildPermission(
-                EnterpriseResourceEnum::PLATFORM_ORGANIZATION_POINT_MANAGER->value,
-                EnterpriseOperationPlatformOrganizationPointManagerEnum::BIND_PACKAGE->value
+                self::RESOURCE_PLATFORM_ORGANIZATION_POINT_MANAGER,
+                self::OPERATION_BIND_PACKAGE
             )
         ));
         $this->assertTrue($this->containsPermissionKey(
             $tree,
             $this->permission->buildPermission(
-                EnterpriseResourceEnum::PLATFORM_AI_CONTENT_AUDIT->value,
-                EnterpriseOperationAiContentAuditEnum::RISK->value
+                self::RESOURCE_PLATFORM_AI_CONTENT_AUDIT,
+                self::OPERATION_RISK
             )
         ));
         $this->assertTrue($this->containsPermissionKey(
             $tree,
-            $this->permission->buildPermission(EnterpriseResourceEnum::PLATFORM_PROXY_SERVER->value, 'edit')
+            $this->permission->buildPermission(self::RESOURCE_PLATFORM_PROXY_SERVER, 'edit')
         ));
     }
 
@@ -90,7 +103,7 @@ class EnterprisePermissionTreeTest extends HttpTestCase
         $skillMarketQuery = $this->permission->buildPermission('platform.skill.market', 'query');
         $agentReviewQuery = $this->permission->buildPermission('platform.agent.review', 'query');
         $agentMarketQuery = $this->permission->buildPermission('platform.agent.market', 'query');
-        $orderQuery = $this->permission->buildPermission(EnterpriseResourceEnum::PLATFORM_PRODUCT_ORDER->value, 'query');
+        $orderQuery = $this->permission->buildPermission(self::RESOURCE_PLATFORM_PRODUCT_ORDER, 'query');
 
         $this->assertSame(1, $this->countPermissionKey($tree, $platformTextModelQuery));
         $this->assertSame(1, $this->countPermissionKey($tree, $platformVideoModelQuery));
@@ -104,7 +117,7 @@ class EnterprisePermissionTreeTest extends HttpTestCase
         $this->assertTrue($this->containsPermissionKey($tree, $orderQuery));
         $this->assertFalse($this->containsPermissionKey(
             $tree,
-            EnterpriseResourceEnum::PLATFORM_PRODUCT_ORDER->value . '.edit'
+            self::RESOURCE_PLATFORM_PRODUCT_ORDER . '.edit'
         ));
         $this->assertFalse($this->containsPermissionKey($tree, 'platform.agent.official.edit'));
     }
@@ -113,8 +126,8 @@ class EnterprisePermissionTreeTest extends HttpTestCase
     {
         $tree = $this->permission->getPermissionTree(true);
         $bindPackagePermission = $this->permission->buildPermission(
-            EnterpriseResourceEnum::PLATFORM_ORGANIZATION_POINT_MANAGER->value,
-            EnterpriseOperationPlatformOrganizationPointManagerEnum::BIND_PACKAGE->value
+            self::RESOURCE_PLATFORM_ORGANIZATION_POINT_MANAGER,
+            self::OPERATION_BIND_PACKAGE
         );
         $node = $this->findNodeByPermissionKey($tree, $bindPackagePermission);
 
@@ -123,45 +136,45 @@ class EnterprisePermissionTreeTest extends HttpTestCase
         $this->assertSame('积分管理-绑定套餐', $node['full_label'] ?? null);
     }
 
-    public function testGetPermissionTreeHidesEnterprisePlatformResourcesForNonPlatformOrganization(): void
+    public function testGetPermissionTreeHidesPlatformResourcesForNonPlatformOrganization(): void
     {
         $tree = $this->permission->getPermissionTree(false);
 
         $this->assertFalse($this->containsPermissionKey(
             $tree,
-            $this->permission->buildPermission(EnterpriseResourceEnum::PLATFORM_PRODUCT_MANAGE->value, 'query')
+            $this->permission->buildPermission(self::RESOURCE_PLATFORM_PRODUCT_MANAGE, 'query')
         ));
         $this->assertFalse($this->containsPermissionKey(
             $tree,
-            $this->permission->buildPermission(EnterpriseResourceEnum::PLATFORM_PRODUCT_ORDER->value, 'query')
+            $this->permission->buildPermission(self::RESOURCE_PLATFORM_PRODUCT_ORDER, 'query')
         ));
         $this->assertFalse($this->containsPermissionKey(
             $tree,
             $this->permission->buildPermission(
-                EnterpriseResourceEnum::PLATFORM_ORGANIZATION_POINT_MANAGER->value,
-                EnterpriseOperationPlatformOrganizationPointManagerEnum::LIST->value
+                self::RESOURCE_PLATFORM_ORGANIZATION_POINT_MANAGER,
+                self::OPERATION_LIST
             )
         ));
         $this->assertFalse($this->containsPermissionKey(
             $tree,
             $this->permission->buildPermission(
-                EnterpriseResourceEnum::PLATFORM_AI_CONTENT_AUDIT->value,
-                EnterpriseOperationAiContentAuditEnum::LIST->value
+                self::RESOURCE_PLATFORM_AI_CONTENT_AUDIT,
+                self::OPERATION_LIST
             )
         ));
         $this->assertFalse($this->containsPermissionKey(
             $tree,
-            $this->permission->buildPermission(EnterpriseResourceEnum::PLATFORM_PROXY_SERVER->value, 'query')
+            $this->permission->buildPermission(self::RESOURCE_PLATFORM_PROXY_SERVER, 'query')
         ));
     }
 
-    public function testGetResourceModuleUsesMappedTagForEnterpriseResources(): void
+    public function testGetResourceModuleUsesMappedTagForPlatformResources(): void
     {
-        $this->assertSame('平台套餐', $this->permission->getResourceModule(EnterpriseResourceEnum::PLATFORM_PRODUCT_MANAGE->value));
-        $this->assertSame('平台套餐', $this->permission->getResourceModule(EnterpriseResourceEnum::PLATFORM_PRODUCT_ORDER->value));
-        $this->assertSame('平台租户', $this->permission->getResourceModule(EnterpriseResourceEnum::PLATFORM_ORGANIZATION_POINT_MANAGER->value));
-        $this->assertSame('平台管理', $this->permission->getResourceModule(EnterpriseResourceEnum::PLATFORM_AI_CONTENT_AUDIT->value));
-        $this->assertSame('平台管理', $this->permission->getResourceModule(EnterpriseResourceEnum::PLATFORM_PROXY_SERVER->value));
+        $this->assertSame('平台套餐', $this->permission->getResourceModule(self::RESOURCE_PLATFORM_PRODUCT_MANAGE));
+        $this->assertSame('平台套餐', $this->permission->getResourceModule(self::RESOURCE_PLATFORM_PRODUCT_ORDER));
+        $this->assertSame('平台租户', $this->permission->getResourceModule(self::RESOURCE_PLATFORM_ORGANIZATION_POINT_MANAGER));
+        $this->assertSame('平台管理', $this->permission->getResourceModule(self::RESOURCE_PLATFORM_AI_CONTENT_AUDIT));
+        $this->assertSame('平台管理', $this->permission->getResourceModule(self::RESOURCE_PLATFORM_PROXY_SERVER));
     }
 
     /**
