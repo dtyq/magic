@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
 	buildMobileProjectActionGroups,
+	MOBILE_CHAT_DETAIL_ACTION_KEYS,
+	MOBILE_CHAT_PIN_ENABLED,
 	MOBILE_PROJECT_ACTION_ORDER,
 	sortFilteredProjectActions,
 } from "../mobileProjectActionOrder"
@@ -11,6 +13,12 @@ function action(key: ProjectActionKey) {
 }
 
 describe("mobileProjectActionOrder", () => {
+	it("MOBILE_CHAT_DETAIL_ACTION_KEYS omits pin while chat pin is disabled", () => {
+		expect(MOBILE_CHAT_PIN_ENABLED).toBe(false)
+		expect(MOBILE_CHAT_DETAIL_ACTION_KEYS).toEqual(["rename", "saveAsProject", "delete"])
+		expect(MOBILE_CHAT_DETAIL_ACTION_KEYS).not.toContain("pinProject")
+	})
+
 	it("MOBILE_PROJECT_ACTION_ORDER matches prototype six items", () => {
 		expect(MOBILE_PROJECT_ACTION_ORDER).toEqual([
 			"rename",

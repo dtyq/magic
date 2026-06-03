@@ -4,6 +4,7 @@ import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/Swipe
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import type { ChatConversationListItem as ChatConversationListItemData } from "../hooks/useChatConversationList"
+import { MOBILE_CHAT_PIN_ENABLED } from "@/pages/superMagicMobile/utils/mobileProjectActionOrder"
 
 interface ChatConversationListItemProps {
 	item: ChatConversationListItemData
@@ -13,7 +14,8 @@ interface ChatConversationListItemProps {
 	onClose: () => void
 	onClick: (item: ChatConversationListItemData) => void
 	onMore: (item: ChatConversationListItemData) => void
-	onPin: (item: ChatConversationListItemData) => void
+	/** When omitted, swipe pin and pinned badge are hidden. */
+	onPin?: (item: ChatConversationListItemData) => void
 	onDelete: (item: ChatConversationListItemData) => void
 }
 
@@ -43,19 +45,22 @@ export function ChatConversationListItem({
 			labelClassName: "text-secondary-foreground",
 			onClick: () => onMore(item),
 		},
-		{
-			id: "pin",
-			// 已置顶时显示"取消置顶"，未置顶时显示"置顶"
-			label: item.isPinned ? t("chatList.swipeUnpin") : t("chatList.swipePin"),
-			icon: item.isPinned ? (
-				<PinOff className="size-4 text-primary-foreground" />
-			) : (
-				<Pin className="size-4 text-primary-foreground" />
-			),
-			className: "bg-primary",
-			labelClassName: "text-primary-foreground",
-			onClick: () => onPin(item),
-		},
+		...(MOBILE_CHAT_PIN_ENABLED && onPin
+			? [
+					{
+						id: "pin",
+						label: item.isPinned ? t("chatList.swipeUnpin") : t("chatList.swipePin"),
+						icon: item.isPinned ? (
+							<PinOff className="size-4 text-primary-foreground" />
+						) : (
+							<Pin className="size-4 text-primary-foreground" />
+						),
+						className: "bg-primary",
+						labelClassName: "text-primary-foreground",
+						onClick: () => onPin(item),
+					},
+				]
+			: []),
 		{
 			id: "delete",
 			label: t("chatList.swipeDelete"),
@@ -93,7 +98,7 @@ export function ChatConversationListItem({
 						<p className="min-w-0 truncate text-[16px] font-medium leading-6 text-foreground">
 							{item.title}
 						</p>
-						{item.isPinned ? (
+						{MOBILE_CHAT_PIN_ENABLED && item.isPinned ? (
 							<MobilePinBadge data-testid="mobile-chats-page-item-pinned-badge" />
 						) : null}
 					</div>

@@ -19,6 +19,10 @@ import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import type { ChatConversationListItem } from "./hooks/useChatConversationList"
 import { useChatConversationList } from "./hooks/useChatConversationList"
 import { ChatConversationListView } from "./components/ChatConversationListView"
+import {
+	MOBILE_CHAT_DETAIL_ACTION_KEYS,
+	MOBILE_CHAT_PIN_ENABLED,
+} from "@/pages/superMagicMobile/utils/mobileProjectActionOrder"
 
 /**
  * 路由页只负责装配 Shell 能力与对话列表状态，后续接真实导航时不需要改动展示层。
@@ -42,7 +46,7 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 
 	/**
 	 * 与对话详情页使用完全相同的参数调用 useProjectListActions，确保操作项（label/行为）严格一致。
-	 * - visibleActionKeys 仅暴露详情页有的 4 项，不展示「移动」「协作者」等列表页不相关的操作
+	 * - visibleActionKeys 与详情页 MOBILE_CHAT_DETAIL_ACTION_KEYS 对齐，不展示「移动」「协作者」等列表页不相关的操作
 	 * - chatActionContext:"detail" 控制"另存为项目"按钮可见
 	 * - deleteSelectedProjectBehavior:"navigate-home" 删除后回到首页，而非切到下一个项目
 	 */
@@ -54,7 +58,7 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		mode: "chat",
 		chatActionContext: "detail",
 		deleteSelectedProjectBehavior: "navigate-home",
-		visibleActionKeys: ["pinProject", "rename", "saveAsProject", "delete"],
+		visibleActionKeys: MOBILE_CHAT_DETAIL_ACTION_KEYS,
 		onProjectChanged: () => reload({ silent: true }),
 	})
 
@@ -77,18 +81,24 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 	 */
 	const conversationActionGroups = useMemo<ActionGroup[]>(
 		() => [
-			{
-				actions: [
-					{
-						key: "pin-chat",
-						label: projectActionMap.get("pinProject")?.label || t("super:chat.pinChat"),
-						onClick: () => {
-							closeMorePopup()
-							projectActionMap.get("pinProject")?.onClick?.()
+			...(MOBILE_CHAT_PIN_ENABLED
+				? [
+						{
+							actions: [
+								{
+									key: "pin-chat",
+									label:
+										projectActionMap.get("pinProject")?.label ||
+										t("super:chat.pinChat"),
+									onClick: () => {
+										closeMorePopup()
+										projectActionMap.get("pinProject")?.onClick?.()
+									},
+								},
+							],
 						},
-					},
-				],
-			},
+					]
+				: []),
 			{
 				actions: [
 					{
@@ -221,7 +231,7 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 				onCreateChat={handleCreateChat}
 				onOpenConversation={handleOpenConversation}
 				onMore={handleMoreConversation}
-				onPin={handlePinConversation}
+				onPin={MOBILE_CHAT_PIN_ENABLED ? handlePinConversation : undefined}
 				onDelete={handleDeleteConversation}
 				onRefresh={reload}
 				loadMore={loadMore}

@@ -78,7 +78,7 @@ describe("ChatsPage ChatConversationListItem", () => {
 		).not.toBeInTheDocument()
 	})
 
-	it("shows pinned badge beside the title and keeps the default left icon", () => {
+	it("hides pinned badge when mobile chat pin is disabled even if server marks pinned", () => {
 		render(
 			<ChatConversationListItem
 				item={createItem({ id: "pinned-chat", isPinned: true })}
@@ -87,13 +87,14 @@ describe("ChatsPage ChatConversationListItem", () => {
 				onClose={vi.fn()}
 				onClick={vi.fn()}
 				onMore={vi.fn()}
-				onPin={vi.fn()}
 				onDelete={vi.fn()}
 			/>,
 		)
 
 		const row = screen.getByTestId("mobile-chats-page-item-pinned-chat")
-		expect(within(row).getByTestId("mobile-chats-page-item-pinned-badge")).toBeInTheDocument()
+		expect(
+			within(row).queryByTestId("mobile-chats-page-item-pinned-badge"),
+		).not.toBeInTheDocument()
 		expect(within(row).getByTestId("mobile-chats-page-item-default-icon")).toBeInTheDocument()
 		expect(within(row).queryByTestId("mobile-chats-page-item-loading")).not.toBeInTheDocument()
 	})

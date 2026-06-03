@@ -21,7 +21,8 @@ interface ChatConversationListViewProps {
 	onCreateChat: () => void
 	onOpenConversation: (item: ChatConversationListItemData) => void
 	onMore: (item: ChatConversationListItemData) => void
-	onPin: (item: ChatConversationListItemData) => void
+	/** Omitted when mobile chat pin is disabled (backend not ready). */
+	onPin?: (item: ChatConversationListItemData) => void
 	onDelete: (item: ChatConversationListItemData) => void
 	/** 下拉刷新回调，重置到第 1 页重新加载 */
 	onRefresh: () => Promise<void>
@@ -171,7 +172,7 @@ export function ChatConversationListView({
 										onClose={() => setOpenItemId(null)}
 										onClick={onOpenConversation}
 										onMore={onMore}
-										onPin={onPin}
+										{...(onPin ? { onPin } : {})}
 										onDelete={onDelete}
 									/>
 								))

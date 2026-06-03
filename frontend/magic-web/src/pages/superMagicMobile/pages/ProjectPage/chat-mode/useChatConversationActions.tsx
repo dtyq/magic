@@ -7,6 +7,10 @@ import { useTopicListActions } from "@/pages/superMagicMobile/pages/ProjectPage/
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
+import {
+	MOBILE_CHAT_DETAIL_ACTION_KEYS,
+	MOBILE_CHAT_PIN_ENABLED,
+} from "@/pages/superMagicMobile/utils/mobileProjectActionOrder"
 
 interface UseChatConversationActionsParams {
 	selectedProject: ProjectListItem | null
@@ -32,7 +36,7 @@ export function useChatConversationActions({
 		useProjectListActions({
 			mode: "chat",
 			chatActionContext: "detail",
-			visibleActionKeys: ["pinProject", "rename", "saveAsProject", "delete"],
+			visibleActionKeys: MOBILE_CHAT_DETAIL_ACTION_KEYS,
 		})
 	const { openShareModal, topicActionComponents } = useTopicListActions()
 
@@ -54,7 +58,7 @@ export function useChatConversationActions({
 	 * 统一包装既有项目动作：先关闭聊天详情自己的 Action Sheet，再交给已有项目能力继续执行。
 	 */
 	const runProjectAction = useMemoizedFn(
-		(actionKey: "pinProject" | "rename" | "saveAsProject" | "delete") => {
+		(actionKey: "rename" | "saveAsProject" | "delete") => {
 			hideActionSheet()
 			projectActionMap.get(actionKey)?.onClick?.()
 		},
@@ -107,11 +111,20 @@ export function useChatConversationActions({
 			},
 			{
 				actions: [
-					{
-						key: "pin-chat",
-						label: projectActionMap.get("pinProject")?.label || t("chat.pinChat"),
-						onClick: () => runProjectAction("pinProject"),
-					},
+					...(MOBILE_CHAT_PIN_ENABLED
+						? [
+								{
+									key: "pin-chat",
+									label:
+										projectActionMap.get("pinProject")?.label ||
+										t("chat.pinChat"),
+									onClick: () => {
+										hideActionSheet()
+										projectActionMap.get("pinProject")?.onClick?.()
+									},
+								},
+							]
+						: []),
 					{
 						key: "share-topic",
 						label: t("share.shareConversation"),

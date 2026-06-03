@@ -17,6 +17,14 @@ export const SHELL_RECENT_CHAT_ACTION_KEYS: ProjectActionKey[] = [
 	"delete",
 ]
 
+/** Hide mobile chat pin UI until backend pin API is ready. */
+export const MOBILE_CHAT_PIN_ENABLED = false
+
+/** Chat list/detail More menus: align with MOBILE_CHAT_PIN_ENABLED. */
+export const MOBILE_CHAT_DETAIL_ACTION_KEYS: ProjectActionKey[] = MOBILE_CHAT_PIN_ENABLED
+	? ["pinProject", "rename", "saveAsProject", "delete"]
+	: ["rename", "saveAsProject", "delete"]
+
 interface SortFilteredProjectActionsOptions {
 	isChatMode: boolean
 }
