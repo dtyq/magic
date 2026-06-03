@@ -1662,6 +1662,7 @@
 			"navSuper": "首页",
 			"navTrash": "回收站",
 			"navWorkspaces": "工作空间",
+			"noAvailableQuickActions": "无可用快捷操作",
 			"recentlyUsed": "最近使用",
 			"refreshRecentlyUsed": "刷新最近使用",
 			"upgrade": "升级"

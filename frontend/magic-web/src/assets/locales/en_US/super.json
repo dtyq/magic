@@ -1662,6 +1662,7 @@
 			"navSuper": "Home",
 			"navTrash": "Trash",
 			"navWorkspaces": "Workspaces",
+			"noAvailableQuickActions": "No quick actions available",
 			"recentlyUsed": "Recently used",
 			"refreshRecentlyUsed": "Refresh recently used",
 			"upgrade": "Upgrade"

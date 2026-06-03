@@ -677,7 +677,17 @@ export function useProjectListActions({
 				bodyClassName="max-h-[80dvh] bg-muted p-0"
 			>
 				<div className="scrollbar-y-thin flex min-h-0 flex-col gap-2 overflow-y-auto px-3 pb-[max(var(--safe-area-inset-bottom),16px)] pt-3">
-					{projectActionGroups.map(renderProjectActionGroup)}
+					{projectActionGroups.length > 0 ? (
+						projectActionGroups.map(renderProjectActionGroup)
+					) : isShellRecentActionContext ? (
+						<div
+							role="status"
+							className="flex min-h-[55px] w-full items-center rounded-xl bg-card px-3.5 text-base leading-5 text-muted-foreground"
+							data-testid="project-actions-popup-empty"
+						>
+							{t("mobile.shell.noAvailableQuickActions")}
+						</div>
+					) : null}
 				</div>
 			</MagicPopup>
 
