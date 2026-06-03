@@ -5,7 +5,7 @@ import { InfiniteScroll } from "antd-mobile"
 import { X, Check } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import { Spinner } from "@/components/shadcn-ui/spinner"
+import { MobileResourceListSkeletonList } from "@/pages/superMagicMobile/components/skeletons"
 import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import CrossProjectFileOperationModal from "@/pages/superMagic/components/SelectPathModal/components/CrossProjectFileOperationModal"
 import MoveProjectModal from "@/pages/superMagic/components/EmptyWorkspacePanel/components/MoveProjectModal"
@@ -151,11 +151,10 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	if (loading && items.length === 0) {
 		return (
 			<div
-				className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-12"
+				className="flex min-h-0 flex-1 flex-col px-3 py-2"
 				data-testid="mobile-recycle-bin-content"
 			>
-				<Spinner className="text-muted-foreground" />
-				<span className="text-sm text-muted-foreground">{t("common.loading")}</span>
+				<MobileResourceListSkeletonList testId="mobile-recycle-bin-loading-skeleton" />
 			</div>
 		)
 	}

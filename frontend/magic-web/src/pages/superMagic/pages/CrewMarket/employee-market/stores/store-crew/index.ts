@@ -21,6 +21,8 @@ export class StoreCrewStore {
 	categoryId: string | undefined = undefined
 	loading = false
 	loadingMore = false
+	/** True after the first page-1 fetch completes; avoids clearing list on search/category refresh. */
+	hasLoadedOnce = false
 	private fetchRequestId = 0
 
 	categories: CategoryView[] = []
@@ -37,6 +39,11 @@ export class StoreCrewStore {
 
 	get isEmpty() {
 		return !this.loading && this.list.length === 0
+	}
+
+	/** Full-screen market skeleton only before the user has seen any agent rows. */
+	get showInitialSkeleton() {
+		return this.loading && this.list.length === 0 && !this.hasLoadedOnce
 	}
 
 	/** True when the market has real category tabs beyond the synthetic "all" option. */
@@ -77,7 +84,10 @@ export class StoreCrewStore {
 		this.loading = true
 
 		if (page === 1) {
-			this.list = []
+			// Only clear on cold start; keep rows visible during search/category/pull-to-refresh.
+			if (!this.hasLoadedOnce) {
+				this.list = []
+			}
 			this.page = 1
 			// Align loadMore with in-flight filters before response returns
 			this.keyword = keyword
@@ -101,11 +111,13 @@ export class StoreCrewStore {
 				this.keyword = keyword
 				this.categoryId = categoryId
 				this.loading = false
+				this.hasLoadedOnce = true
 			})
 		} catch {
 			if (!isLatestPageRequest({ requestId, currentRequestId: this.fetchRequestId })) return
 			runInAction(() => {
 				this.loading = false
+				this.hasLoadedOnce = true
 			})
 		}
 	}
@@ -187,6 +199,7 @@ export class StoreCrewStore {
 		this.categoryId = undefined
 		this.loading = false
 		this.loadingMore = false
+		this.hasLoadedOnce = false
 		this.fetchRequestId = 0
 	}
 }

@@ -256,9 +256,9 @@ function CrewMarketMobilePanelBase() {
 						showSuccessMessage={false}
 					>
 						<div className="flex w-full min-w-0 flex-col gap-4 px-3 pb-6 pt-3">
-							{store.loading ? <CrewMarketMobileSkeleton /> : null}
+							{store.showInitialSkeleton ? <CrewMarketMobileSkeleton /> : null}
 
-							{store.isEmpty ? (
+							{!store.showInitialSkeleton && store.isEmpty ? (
 								<div
 									className="flex flex-col items-center justify-center py-12 text-center"
 									data-testid="crew-market-empty"
@@ -269,7 +269,7 @@ function CrewMarketMobilePanelBase() {
 								</div>
 							) : null}
 
-							{!store.loading && store.list.length > 0 ? (
+							{!store.showInitialSkeleton && store.list.length > 0 ? (
 								<div
 									className="flex flex-col gap-3"
 									data-testid="employee-card-list"
@@ -287,7 +287,7 @@ function CrewMarketMobilePanelBase() {
 							) : null}
 
 							{/* InfiniteScroll 放在列表末尾，滚动到底部时自动加载下一页 */}
-							{!store.loading && store.list.length > 0 ? (
+							{!store.showInitialSkeleton && store.list.length > 0 ? (
 								<InfiniteScroll
 									hasMore={store.hasMore}
 									loadMore={() => store.loadMore()}

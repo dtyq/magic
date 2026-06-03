@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import { ListFilter, Loader2, MessageCircle, MessageCircleOff, Plus, Trash2 } from "lucide-react"
+import { ListFilter, MessageCircle, MessageCircleOff, Plus, Trash2 } from "lucide-react"
+import { MobileCrewCardSkeletonGrid } from "@/pages/superMagicMobile/components/skeletons"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { InfiniteScroll } from "antd-mobile"
@@ -52,7 +53,7 @@ function MyCrewPageMobilePanelBase() {
 	const [showBottomMask, setShowBottomMask] = useState(true)
 
 	const visibleList = store.list
-	const loading = store.loading
+	const showInitialSkeleton = store.showInitialSkeleton
 	const hasMore = store.hasMore
 	const activeFilterCount = countActiveMyCrewFilters(filter)
 
@@ -79,7 +80,7 @@ function MyCrewPageMobilePanelBase() {
 		updateMasks()
 		scrollElement.addEventListener("scroll", updateMasks, { passive: true })
 		return () => scrollElement.removeEventListener("scroll", updateMasks)
-	}, [visibleList.length, loading, scrollContainerId, updateMasks])
+	}, [visibleList.length, showInitialSkeleton, scrollContainerId, updateMasks])
 
 	/** Resolve fallback workspace ID for chat navigation. */
 	function resolveFallbackWorkspaceId() {
@@ -293,18 +294,12 @@ function MyCrewPageMobilePanelBase() {
 							showSuccessMessage={false}
 						>
 							<div className="flex min-h-full flex-col px-3 pb-4 pt-4">
-								{/* Loading spinner */}
-								{loading ? (
-									<div
-										className="flex items-center justify-center py-16"
-										data-testid="my-crew-loading"
-									>
-										<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-									</div>
+								{showInitialSkeleton ? (
+									<MobileCrewCardSkeletonGrid testId="my-crew-loading" />
 								) : null}
 
 								{/* Empty state: crew variant by default, search variant when filters are active */}
-								{!loading && visibleList.length === 0 ? (
+								{!showInitialSkeleton && visibleList.length === 0 ? (
 									<DataEmptyState
 										variant={isDefaultFilter ? "crew" : "search"}
 										className="min-h-0 flex-1 py-12"
@@ -312,8 +307,7 @@ function MyCrewPageMobilePanelBase() {
 									/>
 								) : null}
 
-								{/* Card grid */}
-								{!loading && visibleList.length > 0 ? (
+								{!showInitialSkeleton && visibleList.length > 0 ? (
 									<div
 										className="grid grid-cols-2 gap-3"
 										data-testid="my-crew-card-grid"
@@ -330,7 +324,7 @@ function MyCrewPageMobilePanelBase() {
 								) : null}
 
 								{/* InfiniteScroll at the bottom of the list */}
-								{!loading && visibleList.length > 0 ? (
+								{!showInitialSkeleton && visibleList.length > 0 ? (
 									<InfiniteScroll hasMore={hasMore} loadMore={handleLoadMore} />
 								) : null}
 							</div>

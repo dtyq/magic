@@ -23,6 +23,8 @@ export class MyCrewMobileStore {
 	sort: UnifiedAgentSort = "updated_at"
 	loading = false
 	loadingMore = false
+	/** True after the first successful or failed page-1 fetch; suppresses full-screen skeleton on refresh/filter. */
+	hasLoadedOnce = false
 	private fetchRequestId = 0
 
 	constructor() {
@@ -35,6 +37,11 @@ export class MyCrewMobileStore {
 
 	get isEmpty() {
 		return !this.loading && this.list.length === 0
+	}
+
+	/** Full-screen skeleton only on cold start before any list data has been shown. */
+	get showInitialSkeleton() {
+		return this.loading && !this.hasLoadedOnce
 	}
 
 	/**
@@ -53,7 +60,10 @@ export class MyCrewMobileStore {
 
 		this.fetchRequestId = requestId
 		this.loading = true
-		this.list = []
+		// Keep existing rows during refresh/filter so pull-to-refresh does not flash a full-screen skeleton.
+		if (!this.hasLoadedOnce) {
+			this.list = []
+		}
 		this.page = 1
 		this.loadingMore = false
 
@@ -74,11 +84,13 @@ export class MyCrewMobileStore {
 				this.scope = scope
 				this.sort = sort
 				this.loading = false
+				this.hasLoadedOnce = true
 			})
 		} catch {
 			if (!isLatestPageRequest({ requestId, currentRequestId: this.fetchRequestId })) return
 			runInAction(() => {
 				this.loading = false
+				this.hasLoadedOnce = true
 			})
 		}
 	}
@@ -136,6 +148,7 @@ export class MyCrewMobileStore {
 		this.sort = "updated_at"
 		this.loading = false
 		this.loadingMore = false
+		this.hasLoadedOnce = false
 		this.fetchRequestId = 0
 	}
 }

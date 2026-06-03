@@ -195,4 +195,53 @@ describe("StoreCrewStore", () => {
 		expect(store.keyword).toBe("")
 		expect(store.list).toEqual([])
 	})
+
+	it("shows initial skeleton only before the first page-1 fetch completes", async () => {
+		const store = createStore()
+		const deferred = createDeferred<{
+			list: typeof store.list
+			page: number
+			pageSize: number
+			total: number
+		}>()
+
+		vi.mocked(crewService.getStoreAgents).mockReturnValueOnce(deferred.promise)
+
+		const fetchPromise = store.fetchAgents({ page: 1 })
+		expect(store.showInitialSkeleton).toBe(true)
+
+		deferred.resolve({ list: [], page: 1, pageSize: 20, total: 0 })
+		await fetchPromise
+
+		expect(store.hasLoadedOnce).toBe(true)
+		expect(store.showInitialSkeleton).toBe(false)
+	})
+
+	it("keeps list rows when reloading page 1 after the first load", async () => {
+		const store = createStore()
+		vi.mocked(crewService.getStoreAgents).mockResolvedValueOnce({
+			list: store.list,
+			page: 1,
+			pageSize: 20,
+			total: 1,
+		})
+		await store.fetchAgents({ page: 1 })
+
+		const deferred = createDeferred<{
+			list: []
+			page: number
+			pageSize: number
+			total: number
+		}>()
+		vi.mocked(crewService.getStoreAgents).mockReturnValueOnce(deferred.promise)
+
+		const reloadPromise = store.fetchAgents({ keyword: "beta", page: 1 })
+		expect(store.list).toHaveLength(1)
+		expect(store.showInitialSkeleton).toBe(false)
+
+		deferred.resolve({ list: [], page: 1, pageSize: 20, total: 0 })
+		await reloadPromise
+
+		expect(store.list).toHaveLength(0)
+	})
 })

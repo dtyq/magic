@@ -91,4 +91,32 @@ describe("ChatConversationListView", () => {
 		expect(emptyState).toHaveTextContent("暂无对话")
 		expect(emptyState).toHaveTextContent("新建对话引导")
 	})
+
+	it("renders list row skeletons on first-screen loading", () => {
+		render(
+			<ChatConversationListView
+				items={[]}
+				isLoading
+				searchValue=""
+				isEmpty={false}
+				isSearchEmpty={false}
+				hasMore={false}
+				onSearchValueChange={vi.fn()}
+				onCreateChat={vi.fn()}
+				onOpenConversation={vi.fn()}
+				onMore={vi.fn()}
+				onPin={vi.fn()}
+				onDelete={vi.fn()}
+				onRefresh={vi.fn(async () => {})}
+				loadMore={vi.fn(async () => {})}
+				title="对话"
+				searchPlaceholder="搜索"
+				clearSearchAriaLabel="取消"
+				newChatAriaLabel="新建对话"
+			/>,
+		)
+
+		expect(screen.getByTestId("mobile-resource-list-skeleton-list")).toBeInTheDocument()
+		expect(screen.queryByTestId("mobile-chats-page-empty")).not.toBeInTheDocument()
+	})
 })

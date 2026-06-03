@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react"
-import { Loader2, MessageCirclePlus } from "lucide-react"
+import { MessageCirclePlus } from "lucide-react"
+import { MobileResourceListSkeletonList } from "@/pages/superMagicMobile/components/skeletons"
 import { MobileShellSidebarToggleButton } from "@/pages/superMagicMobile/components/MobileShell"
 import { InfiniteScroll } from "antd-mobile"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
@@ -140,11 +141,7 @@ export function ChatConversationListView({
 						data-testid="mobile-chats-page-scroll"
 						className="flex min-h-full flex-col gap-1 px-3 pb-4 pt-2"
 					>
-						{showInitialLoading ? (
-							<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-								<Loader2 className="size-8 animate-spin text-muted-foreground" />
-							</div>
-						) : null}
+						{showInitialLoading ? <MobileResourceListSkeletonList /> : null}
 
 						{!showInitialLoading && isEmpty ? (
 							<DataEmptyState

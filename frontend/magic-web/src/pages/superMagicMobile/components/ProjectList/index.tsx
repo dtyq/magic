@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { MobileResourceListSkeletonList } from "@/pages/superMagicMobile/components/skeletons"
 import ProjectItem from "./components/ProjectItem"
-import ProjectItemSkeleton from "./components/ProjectItemSkeleton"
 interface ProjectListProps {
 	projects: ProjectListItem[]
 	isLoading: boolean
@@ -33,11 +33,7 @@ function ProjectList({
 	return (
 		<div className="flex flex-col gap-1" data-testid="workspace-project-list">
 			{showInitialLoading ? (
-				<>
-					<ProjectItemSkeleton />
-					<ProjectItemSkeleton />
-					<ProjectItemSkeleton />
-				</>
+				<MobileResourceListSkeletonList testId="workspace-project-list-loading" />
 			) : (
 				projects.map((project) => (
 					<ProjectItem
