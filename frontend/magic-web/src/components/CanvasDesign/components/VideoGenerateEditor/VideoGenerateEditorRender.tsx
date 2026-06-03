@@ -101,6 +101,7 @@ export default function VideoGenerateEditorRender(props: VideoGenerateEditorRend
 		...(restoreOnMount ? { restoreOnMount } : {}),
 	})
 	const { handlers } = config
+	const { buildRequestParams } = handlers
 	const estimateModelId = useMemo(() => {
 		if (config.selectedModelId) return config.selectedModelId
 		if (config.hasRestoredRef.current) return undefined
@@ -132,28 +133,11 @@ export default function VideoGenerateEditorRender(props: VideoGenerateEditorRend
 	])
 	const estimateRequest = useMemo(() => {
 		if (!estimateModelId) return null
-		const generation = {
-			...(config.selectedAspectRatio ? { aspect_ratio: config.selectedAspectRatio } : {}),
-			...(config.selectedResolution ? { resolution: config.selectedResolution } : {}),
-			...(config.selectedDurationSeconds != null &&
-			Number.isFinite(config.selectedDurationSeconds)
-				? { duration_seconds: config.selectedDurationSeconds }
-				: {}),
-			...(config.selectedCompressionQuality
-				? { compression_quality: config.selectedCompressionQuality }
-				: {}),
-		}
 		return {
+			...buildRequestParams(),
 			model_id: estimateModelId,
-			generation,
 		}
-	}, [
-		estimateModelId,
-		config.selectedAspectRatio,
-		config.selectedResolution,
-		config.selectedDurationSeconds,
-		config.selectedCompressionQuality,
-	])
+	}, [estimateModelId, buildRequestParams])
 	const estimateSignature = useMemo(() => {
 		if (!estimateRequest) return null
 		return buildVideoPointsEstimateSignature(estimateRequest)
@@ -690,6 +674,9 @@ function getVideoEditorShellNominalWidthPx(languageCode: string | undefined): nu
 function buildVideoPointsEstimateSignature(request: Partial<GenerateVideoRequest>): string {
 	return JSON.stringify({
 		model_id: request.model_id,
+		input_mode: request.input_mode,
+		task: request.task,
+		inputs: request.inputs,
 		generation: request.generation,
 	})
 }
