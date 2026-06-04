@@ -2,16 +2,18 @@
 name: micro-app-architect
 description: |
   Use FIRST for Super Magic HTML micro-app work. Trigger even when the user does not say "micro-app", "HTML", or "window.Magic": when they ask to make/build/generate a usable interactive product such as an app, mini app, web page/site with controls, tool, form, calculator, generator, kanban, CRM/customer/order/inventory/task management system, tracker, planner, dashboard, data visualization UI, workflow console, editor, simulator, game, or a page that can operate on data/files.
+  Also use FIRST whenever the task will use any window.Magic API (window.Magic.fs/llm/agent/project/user/getAppBasePath/setInputMessage/reload), including requests to add file persistence, model calls, agent dispatch, topic messaging, uploads/downloads, user info, or app reload behavior to an HTML page.
   Also use FIRST for existing app changes: if the workspace/project/folder contains magic.project.js, or the user says "this app/page/tool/dashboard/system" and asks to modify, redesign, beautify, fix, add features/buttons/fields/pages/charts/interactions, persist data, connect LLM/agent/model/file APIs, or solve open/save/display/update issues.
   Required output pattern: a static Super Magic micro-app folder with magic.project.js, index.html, window.Magic APIs when needed, file-based persistence, and companion workspace skills for agent-side workflows.
   Chinese trigger signals include: 做/搭/生成/创建/开发/改造/美化/修复 一个 应用/小程序/工具/网页/页面/网站/表单/工作台/后台/管理系统/看板/仪表盘/大屏/面板/追踪器/记账本/计划表/待办/清单/日程/CRM/客户管理/库存管理/订单管理/项目管理/审批流/流程工具/生成器/计算器/小游戏; 把表格/CSV/文件/数据做成可操作、可录入、可查询、可筛选、可统计、可分析、可管理、可展示的页面; 支持增删改查、搜索、排序、图表、上传、下载、保存、自动分析、AI建议、调用员工.
-  Skip only when the deliverable is a read-only document/report/article with no interactive UI, a pure CLI/script/backend service, PPT/slides, canvas design/media generation, a calendar project handled by magic-calendar, or a general coding question not creating/editing an interactive frontend.
+  Skip only when the deliverable is a read-only document/report/article with no interactive UI, a pure CLI/script/backend service, PPT/slides, canvas design/media generation, a calendar project handled by magic-calendar, or a general coding question that does not involve window.Magic APIs or an interactive frontend.
 
 name-cn: 微应用构建器
 description-cn: |
   用于 Super Magic HTML 微应用的创建、改造和维护。即使用户没有说"微应用"、"HTML"或"window.Magic"，只要目标是做一个可交互、可操作、可录入、可查询、可统计、可分析或可管理的应用/工具/网页/页面/网站/表单/工作台/后台/管理系统/看板/仪表盘/大屏/面板/追踪器/记账本/计划表/待办/清单/日程/CRM/客户管理/库存管理/订单管理/项目管理/审批流/流程工具/生成器/计算器/小游戏，都应优先加载。
+  只要任务会使用任何 window.Magic API（如 window.Magic.fs/llm/agent/project/user/getAppBasePath/setInputMessage/reload），包括给 HTML 页面增加文件读写、数据持久化、模型调用、员工调度、话题消息、上传下载、用户信息或刷新能力，也应优先加载。
   当已有项目包含 magic.project.js，或用户说"这个应用/页面/工具/看板/系统"并要求修改、美化、修复、增加功能/按钮/字段/页面/图表/交互、保存数据、接入模型/员工/文件 API、解决打开/保存/显示/更新问题时，也必须优先加载。
-  不用于无交互的只读文档/报告/文章、纯 CLI 脚本、纯后端服务、PPT/幻灯片、画布设计/媒体生成、magic-calendar 负责的日历项目，或不涉及交互式前端创建/编辑的一般代码问题。
+  不用于无交互的只读文档/报告/文章、纯 CLI 脚本、纯后端服务、PPT/幻灯片、画布设计/媒体生成、magic-calendar 负责的日历项目，或既不涉及 window.Magic API、也不涉及交互式前端的一般代码问题。
 ---
 
 # Micro-App Architect
@@ -31,7 +33,7 @@ You are a micro-app architect. Your job is to transform user requirements into f
 ## How to Use This Document
 
 - **Architecture decisions & constraints** → this document (read fully)
-- **Full API signatures, parameters & usage examples** → `read_skills(["html-api-sdk"])`
+- **Any task using `window.Magic.*` APIs** → load this skill first, then use `read_skills(["html-api-sdk"])` for full API signatures, parameters, and usage examples
 - **Companion skill templates & validation** → [references/skill-generation-patterns.md](references/skill-generation-patterns.md)
 - **Detailed architecture code examples** → [references/app-architecture-patterns.md](references/app-architecture-patterns.md)
 
