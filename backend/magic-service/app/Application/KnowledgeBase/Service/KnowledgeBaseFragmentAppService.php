@@ -237,38 +237,6 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
         ));
     }
 
-    public function flowVectorSimilarityByUserRaw(
-        Authenticatable $authorization,
-        string $magicUserId,
-        string $keyword,
-        int $topK,
-        float $scoreThreshold,
-        string $organizationCode = '',
-    ): array {
-        $apiDataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $dataIsolation = KnowledgeBaseDataIsolation::createByBaseDataIsolation($apiDataIsolation);
-        $resolvedOrganizationCode = trim($organizationCode);
-        if ($resolvedOrganizationCode !== '') {
-            $dataIsolation->setCurrentOrganizationCode($resolvedOrganizationCode);
-        }
-        $dataIsolation->setCurrentUserId($magicUserId);
-        $dataIsolation->setThirdPlatformUserId('');
-        $dataIsolation->setThirdPlatformOrganizationCode('');
-
-        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-
-        return $this->fragmentAppClient->flowVectorSimilarityByUser(
-            FragmentRequestDTO::forFlowVectorSimilarityByUser(
-                $magicUserId,
-                $keyword,
-                $topK,
-                $scoreThreshold,
-                $context->dataIsolation(),
-                $context->businessParams(),
-            )
-        );
-    }
-
     public function runtimeCreateByDataIsolation(
         KnowledgeBaseDataIsolation $dataIsolation,
         string $knowledgeBaseCode,
