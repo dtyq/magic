@@ -22,6 +22,42 @@ vi.mock("@/components/base/MagicToaster/utils", () => ({
 	},
 }))
 
+vi.mock("react-i18next", () => ({
+	initReactI18next: {
+		type: "3rdParty",
+		init: vi.fn(),
+	},
+	useTranslation: () => ({
+		t: (key: string) => {
+			const translations: Record<string, string> = {
+				cancel: "Cancel",
+				"recordingHistoryPanel.copied": "Copied",
+				"recordingHistoryPanel.copiedKeyInfo": "Key info copied",
+				"recordingHistoryPanel.copyKeyInfo": "Copy key info",
+				"recordingHistoryPanel.confirmDelete": "Delete",
+				"recordingHistoryPanel.deleteDescription":
+					"This cannot be undone. Uploaded audio chunks and server data are not affected.",
+				"recordingHistoryPanel.deleteTitle": "Delete this recording session?",
+				"recordingHistoryPanel.emptyDescription":
+					"No recording sessions were started in the last 14 days, or the data has been cleaned up.",
+				"recordingHistoryPanel.emptyTitle": "No recording sessions",
+				"recordingHistoryPanel.export": "Export",
+				"recordingHistoryPanel.exporting": "Exporting",
+				"recordingHistoryPanel.table.actions": "Actions",
+				"recordingHistoryPanel.table.duration": "Duration",
+				"recordingHistoryPanel.table.note": "Notes",
+				"recordingHistoryPanel.table.scope": "Workspace / Project / Topic",
+				"recordingHistoryPanel.table.startTime": "Start Time",
+				"recordingHistoryPanel.table.status": "Status",
+				"recordingHistoryPanel.table.text": "Text",
+				"recordingHistoryPanel.toastCopyFailed": "Copy failed",
+				"recordingHistoryPanel.toastCopySuccess": "Key info copied",
+			}
+			return translations[key] || key
+		},
+	}),
+}))
+
 const createSession = (): StoredSessionHistory =>
 	({
 		id: "session-1",
@@ -34,6 +70,7 @@ const createSession = (): StoredSessionHistory =>
 		metadata: {},
 		userId: "user-1",
 		organizationName: "Magic Org",
+		organizationCode: "magic-org-code",
 		model: null,
 		workspace: {
 			id: "workspace-1",
@@ -62,10 +99,36 @@ describe("SessionHistoryTable", () => {
 
 		expect(text).toContain("Session ID: session-1")
 		expect(text).toContain("Topic ID: topic-1")
-		expect(text).toContain("Project ID: project-1")
-		expect(text).toContain("Workspace ID: workspace-1")
-		expect(text).toContain("User ID: user-1")
+		expect(text).toContain("Status: paused")
 		expect(text).toContain("Current Chunk Index: 12")
+		expect(text).not.toContain("Project ID")
+		expect(text).not.toContain("Workspace ID")
+		expect(text).not.toContain("User ID")
+		expect(text).not.toContain("Organization")
+		expect(text).not.toContain("project-1")
+		expect(text).not.toContain("workspace-1")
+		expect(text).not.toContain("user-1")
+		expect(text).not.toContain("Magic Org")
+		expect(text).not.toContain("magic-org-code")
+	})
+
+	it("renders table labels from i18n", () => {
+		const zhStartTime = "\u5f00\u59cb\u65f6\u95f4"
+		const zhActions = "\u64cd\u4f5c"
+
+		render(
+			<SessionHistoryTable
+				sessions={[createSession()]}
+				loading={false}
+				onExport={vi.fn()}
+				onDelete={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByText("Start Time")).toBeInTheDocument()
+		expect(screen.getByText("Actions")).toBeInTheDocument()
+		expect(screen.queryByText(zhStartTime)).not.toBeInTheDocument()
+		expect(screen.queryByText(zhActions)).not.toBeInTheDocument()
 	})
 
 	it("copies key info and shows user feedback", async () => {
@@ -87,10 +150,10 @@ describe("SessionHistoryTable", () => {
 				expect.stringContaining("Session ID: session-1"),
 			)
 			expect(mocks.toastSuccess).toHaveBeenCalledWith({
-				content: "关键信息已复制",
+				content: "Key info copied",
 				key: "recording-history-copy-info-session-1",
 			})
 		})
-		expect(screen.getByRole("button", { name: "已复制关键信息" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Key info copied" })).toBeInTheDocument()
 	})
 })

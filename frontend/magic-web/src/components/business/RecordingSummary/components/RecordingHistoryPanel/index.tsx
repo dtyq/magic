@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { RefreshCwIcon, PackageIcon, TrashIcon } from "lucide-react"
 import {
 	Dialog,
@@ -12,7 +13,10 @@ import { Button } from "@/components/shadcn-ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import magicToast from "@/components/base/MagicToaster/utils"
-import type { StoredSessionHistory } from "@/services/recordSummary/RecordingSessionHistoryDB"
+import {
+	RECORDING_HISTORY_RETENTION_DAYS,
+	type StoredSessionHistory,
+} from "@/services/recordSummary/RecordingSessionHistoryDB"
 import {
 	exportAllSessionsAsZip,
 	exportSessionAsZip,
@@ -26,6 +30,7 @@ interface RecordingHistoryPanelProps {
 }
 
 function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProps) {
+	const { t } = useTranslation("accountSetting")
 	const { loading, sessions, scope, setScope, refresh, removeOne, cleanupExpired } =
 		useSessionHistory(open)
 	const [exportingSessionId, setExportingSessionId] = useState<string | null>(null)
@@ -37,56 +42,62 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 			setExportingSessionId(session.id)
 			try {
 				await exportSessionAsZip(session)
-				magicToast.success("已导出单条会话")
+				magicToast.success(t("recordingHistoryPanel.toastExportOneSuccess"))
 			} catch (error) {
 				const reason = error instanceof Error ? error.message : String(error)
-				magicToast.error(`导出失败: ${reason}`)
+				magicToast.error(t("recordingHistoryPanel.toastExportFailed", { reason }))
 			} finally {
 				setExportingSessionId(null)
 			}
 		},
-		[exportingAll, exportingSessionId],
+		[exportingAll, exportingSessionId, t],
 	)
 
 	const handleExportAll = useCallback(async () => {
 		if (exportingAll || exportingSessionId) return
 		if (sessions.length === 0) {
-			magicToast.warning("当前列表为空")
+			magicToast.warning(t("recordingHistoryPanel.toastEmptyList"))
 			return
 		}
 		setExportingAll(true)
 		try {
 			await exportAllSessionsAsZip(sessions)
-			magicToast.success(`已导出 ${sessions.length} 条会话`)
+			magicToast.success(
+				t("recordingHistoryPanel.toastExportAllSuccess", { count: sessions.length }),
+			)
 		} catch (error) {
 			const reason = error instanceof Error ? error.message : String(error)
-			magicToast.error(`导出失败: ${reason}`)
+			magicToast.error(t("recordingHistoryPanel.toastExportFailed", { reason }))
 		} finally {
 			setExportingAll(false)
 		}
-	}, [exportingAll, exportingSessionId, sessions])
+	}, [exportingAll, exportingSessionId, sessions, t])
 
 	const handleCleanup = useCallback(async () => {
 		try {
 			const count = await cleanupExpired()
-			magicToast.success(count > 0 ? `已清理 ${count} 条过期会话` : "无过期会话需要清理")
+			magicToast.success(
+				count > 0
+					? t("recordingHistoryPanel.toastCleanupSuccess", { count })
+					: t("recordingHistoryPanel.toastCleanupNone"),
+			)
 		} catch (error) {
 			const reason = error instanceof Error ? error.message : String(error)
-			magicToast.error(`清理失败: ${reason}`)
+			magicToast.error(t("recordingHistoryPanel.toastCleanupFailed", { reason }))
 		}
-	}, [cleanupExpired])
+	}, [cleanupExpired, t])
 
 	const handleDelete = useCallback(
 		async (session: StoredSessionHistory) => {
 			try {
 				await removeOne(session.id)
-				magicToast.success("已删除会话")
+				magicToast.success(t("recordingHistoryPanel.toastDeleteSuccess"))
 			} catch (error) {
 				const reason = error instanceof Error ? error.message : String(error)
-				magicToast.error(`删除失败: ${reason}`)
+				magicToast.error(t("recordingHistoryPanel.toastDeleteFailed", { reason }))
 			}
 		},
-		[removeOne],
+		[removeOne, t],
 	)
 
 	return (
@@ -96,18 +107,23 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 				data-testid="recording-history-panel"
 			>
 				<DialogHeader>
-					<DialogTitle>录音会话历史</DialogTitle>
+					<DialogTitle>{t("recordingHistoryPanel.title")}</DialogTitle>
 					<DialogDescription>
-						保留最近 14 天发起的录音会话，可导出为 zip（session.json + note.md +
-						transcript.md）。
+						{t("recordingHistoryPanel.description", {
+							days: RECORDING_HISTORY_RETENTION_DAYS,
+						})}
 					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex flex-wrap items-center justify-between gap-2">
 					<Tabs value={scope} onValueChange={(value) => setScope(value as SessionScope)}>
 						<TabsList>
-							<TabsTrigger value="current">当前用户</TabsTrigger>
-							<TabsTrigger value="all">全部</TabsTrigger>
+							<TabsTrigger value="current">
+								{t("recordingHistoryPanel.scopeCurrent")}
+							</TabsTrigger>
+							<TabsTrigger value="all">
+								{t("recordingHistoryPanel.scopeAll")}
+							</TabsTrigger>
 						</TabsList>
 					</Tabs>
 					<div className="flex flex-wrap items-center gap-2">
@@ -123,7 +139,7 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 							) : (
 								<RefreshCwIcon className="h-3.5 w-3.5" />
 							)}
-							刷新
+							{t("recordingHistoryPanel.refresh")}
 						</Button>
 						<Button
 							variant="outline"
@@ -137,7 +153,9 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 							) : (
 								<PackageIcon className="h-3.5 w-3.5" />
 							)}
-							{exportingAll ? "导出中" : "全部导出"}
+							{exportingAll
+								? t("recordingHistoryPanel.exporting")
+								: t("recordingHistoryPanel.exportAll")}
 						</Button>
 						<Button
 							variant="ghost"
@@ -146,7 +164,7 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 							data-testid="recording-history-cleanup"
 						>
 							<TrashIcon className="h-3.5 w-3.5" />
-							清理过期
+							{t("recordingHistoryPanel.cleanupExpired")}
 						</Button>
 					</div>
 				</div>
@@ -162,10 +180,10 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 
 				<DialogFooter>
 					<div className="mr-auto text-xs text-muted-foreground">
-						共 {sessions.length} 条记录
+						{t("recordingHistoryPanel.totalRecords", { count: sessions.length })}
 					</div>
 					<Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-						关闭
+						{t("recordingHistoryPanel.close")}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
