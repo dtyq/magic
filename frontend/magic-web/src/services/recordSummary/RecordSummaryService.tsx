@@ -5,7 +5,12 @@ import { reaction, toJS } from "mobx"
 import { MediaRecorderService } from "./MediaRecorderService"
 import { RecordingPersistence } from "./RecordingPersistence"
 import { RecordingSessionManager } from "./RecordingSessionManager"
-import { ChunkUploader, type SessionUploadProgress } from "./ChunkUploader"
+import {
+	ChunkUploader,
+	PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+	type PlaceholderUploadProgress,
+	type SessionUploadProgress,
+} from "./ChunkUploader"
 import {
 	TabCoordinator,
 	type RecordingDataSyncData,
@@ -37,6 +42,7 @@ import RecordStatusChecker from "./RecordStatusChecker"
 import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { userStore } from "@/models/user"
 import { StoredAudioChunk, AudioChunkDB } from "./MediaRecorderService/AudioChunkDB"
+import { RECORDING_HISTORY_RETENTION_DAYS } from "./RecordingSessionHistoryDB"
 import { formatDuration } from "./utils/format"
 import { createRecordingLogger } from "./utils/RecordingLogger"
 import { DEFAULT_RECORDING_CONFIG } from "./utils/config"
@@ -164,7 +170,7 @@ class RecordSummaryService {
 		this.recordingPersistence = new RecordingPersistence(DEFAULT_RECORDING_CONFIG.persistence)
 		this.sessionManager = new RecordingSessionManager(DEFAULT_RECORDING_CONFIG.sessionRestore)
 
-		// Fire-and-forget cleanup of expired session history (14 days retention)
+		// Fire-and-forget cleanup of expired session history.
 		// 过期会话清理后，同步清理对应的音频分片
 		void this.sessionManager
 			.getHistoryDB()
@@ -177,6 +183,7 @@ class RecordSummaryService {
 				}
 				logger.log("已清理过期会话关联的音频分片", {
 					sessionCount: expiredSessionIds.length,
+					retentionDays: RECORDING_HISTORY_RETENTION_DAYS,
 				})
 			})
 			.catch((error) => {
@@ -3526,11 +3533,43 @@ class RecordSummaryService {
 							ns: "super",
 						}),
 					)
-					await this.chunkUploader.uploadEmptyPlaceholdersForFailedChunks(
-						session.id,
-						topicId,
-						projectId,
+					if (progress.failed > PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS) {
+						throw new Error(
+							i18n.t("recordingSummary.message.placeholderUploadTooManyFailed", {
+								ns: "super",
+								count: progress.failed,
+								limit: PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+							}),
+						)
+					}
+
+					const placeholderAbortController = new AbortController()
+					const placeholderProgressModal = this.showPlaceholderUploadProgressModal(
+						progress.failed,
+						placeholderAbortController,
 					)
+					try {
+						await this.chunkUploader.uploadEmptyPlaceholdersForFailedChunks(
+							session.id,
+							topicId,
+							projectId,
+							{
+								signal: placeholderAbortController.signal,
+								onProgress: (placeholderProgress) => {
+									this.summaryMessageService.updateProgress(
+										this.formatPlaceholderUploadProgress(placeholderProgress),
+									)
+									placeholderProgressModal.update(placeholderProgress)
+								},
+							},
+						)
+					} catch (error) {
+						throw new Error(
+							this.getPlaceholderUploadErrorMessage(error, progress.failed),
+						)
+					} finally {
+						placeholderProgressModal.destroy()
+					}
 
 					const finalProgress = await this.chunkUploader.getSessionUploadProgress(
 						session.id,
@@ -3577,6 +3616,97 @@ class RecordSummaryService {
 			percent,
 			pending: progress.pending,
 		})
+	}
+
+	private formatPlaceholderUploadProgress(progress: PlaceholderUploadProgress): string {
+		const percent =
+			progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 100
+		const remaining = Math.max(progress.total - progress.completed, 0)
+		return i18n.t("recordingSummary.message.placeholderUploadProgress", {
+			ns: "super",
+			percent,
+			remaining,
+		})
+	}
+
+	private getPlaceholderUploadErrorMessage(error: unknown, failedCount: number): string {
+		const message = error instanceof Error ? error.message : String(error)
+		if (message.includes("Too many failed placeholder chunks")) {
+			return i18n.t("recordingSummary.message.placeholderUploadTooManyFailed", {
+				ns: "super",
+				count: failedCount,
+				limit: PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+			})
+		}
+		if (message.includes("cancelled")) {
+			return i18n.t("recordingSummary.message.placeholderUploadCancelled", {
+				ns: "super",
+			})
+		}
+		if (message.includes("timed out")) {
+			return i18n.t("recordingSummary.message.placeholderUploadTimeout", {
+				ns: "super",
+			})
+		}
+		return message
+	}
+
+	private showPlaceholderUploadProgressModal(
+		total: number,
+		abortController: AbortController,
+	): {
+		update: (progress: PlaceholderUploadProgress) => void
+		destroy: () => void
+	} {
+		const modalRef: { current?: ReturnType<typeof MagicModal.confirm> } = {}
+		let destroyed = false
+		const buildConfig = (progress: PlaceholderUploadProgress) => ({
+			title: i18n.t("recordingSummary.message.placeholderUploadProgressTitle", {
+				ns: "super",
+			}),
+			content: (
+				<div className="space-y-2 text-sm text-muted-foreground">
+					<div>{this.formatPlaceholderUploadProgress(progress)}</div>
+				</div>
+			),
+			closable: false,
+			maskClosable: false,
+			footer: (
+				<div className="flex items-center justify-end gap-2 border-t border-border bg-muted/50 p-2">
+					<Button
+						variant="outline"
+						onClick={() => {
+							abortController.abort()
+							destroyed = true
+							modalRef.current?.destroy()
+						}}
+					>
+						{i18n.t("recordingSummary.message.placeholderUploadCancel", {
+							ns: "super",
+						})}
+					</Button>
+				</div>
+			),
+		})
+		modalRef.current = MagicModal.confirm(
+			buildConfig({
+				total,
+				completed: 0,
+				failed: 0,
+				active: 0,
+			}),
+		)
+
+		return {
+			update: (progress) => {
+				if (destroyed) return
+				modalRef.current?.update(buildConfig(progress))
+			},
+			destroy: () => {
+				destroyed = true
+				modalRef.current?.destroy()
+			},
+		}
 	}
 
 	private showUploadFailureDecisionModal(

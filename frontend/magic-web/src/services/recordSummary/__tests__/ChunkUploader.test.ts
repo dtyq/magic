@@ -295,4 +295,125 @@ describe("ChunkUploader", () => {
 		expect(testState.uploadCalls).toHaveLength(0)
 		expect(testState.chunks.get(failedChunk.id)?.uploadStatus).toBe("failed")
 	})
+
+	it("rejects placeholder compensation when failed chunk count exceeds the configured limit", async () => {
+		for (let index = 0; index < 3; index++) {
+			const failedChunk = { ...createChunk(index), uploadStatus: "failed" as const }
+			testState.chunks.set(failedChunk.id, failedChunk)
+		}
+
+		const uploader = new ChunkUploader(
+			{
+				chunkSizeThreshold: 1,
+				timeThreshold: 1,
+				chunkCountThreshold: 1,
+				maxConcurrentUploads: 3,
+				maxRetryCount: 1,
+			},
+			createBatchSaveReporter(),
+		)
+
+		await expect(
+			uploader.uploadEmptyPlaceholdersForFailedChunks("session-1", "topic-1", "project-1", {
+				maxChunks: 2,
+			}),
+		).rejects.toThrow("Too many failed placeholder chunks")
+		expect(testState.uploadCalls).toHaveLength(0)
+	})
+
+	it("aborts placeholder compensation before uploading more chunks", async () => {
+		const failedChunk = { ...createChunk(5), uploadStatus: "failed" as const }
+		testState.chunks.set(failedChunk.id, failedChunk)
+		const abortController = new AbortController()
+		abortController.abort()
+
+		const uploader = new ChunkUploader(
+			{
+				chunkSizeThreshold: 1,
+				timeThreshold: 1,
+				chunkCountThreshold: 1,
+				maxConcurrentUploads: 3,
+				maxRetryCount: 1,
+			},
+			createBatchSaveReporter(),
+		)
+
+		await expect(
+			uploader.uploadEmptyPlaceholdersForFailedChunks("session-1", "topic-1", "project-1", {
+				signal: abortController.signal,
+			}),
+		).rejects.toThrow("cancelled")
+		expect(testState.uploadCalls).toHaveLength(0)
+		expect(testState.chunks.get(failedChunk.id)?.uploadStatus).toBe("failed")
+	})
+
+	it("applies an overall timeout to placeholder compensation", async () => {
+		const failedChunk = { ...createChunk(6), uploadStatus: "failed" as const }
+		testState.chunks.set(failedChunk.id, failedChunk)
+		testState.uploadBehaviors.push("hang")
+
+		const uploader = new ChunkUploader(
+			{
+				chunkSizeThreshold: 1,
+				timeThreshold: 1,
+				chunkCountThreshold: 1,
+				maxConcurrentUploads: 3,
+				maxRetryCount: 1,
+			},
+			createBatchSaveReporter(),
+		)
+
+		const uploadPromise = uploader.uploadEmptyPlaceholdersForFailedChunks(
+			"session-1",
+			"topic-1",
+			"project-1",
+			{
+				timeoutMs: 1_000,
+			},
+		)
+
+		await vi.waitFor(() => expect(testState.uploadCalls).toHaveLength(1))
+		const expectation = expect(uploadPromise).rejects.toThrow("timed out")
+		await vi.advanceTimersByTimeAsync(1_000)
+
+		await expectation
+		expect(testState.chunks.get(failedChunk.id)?.uploadStatus).toBe("failed")
+	})
+
+	it("limits concurrent placeholder uploads", async () => {
+		for (let index = 0; index < 3; index++) {
+			const failedChunk = { ...createChunk(index), uploadStatus: "failed" as const }
+			testState.chunks.set(failedChunk.id, failedChunk)
+			testState.uploadBehaviors.push("hang")
+		}
+		const abortController = new AbortController()
+
+		const uploader = new ChunkUploader(
+			{
+				chunkSizeThreshold: 1,
+				timeThreshold: 1,
+				chunkCountThreshold: 1,
+				maxConcurrentUploads: 3,
+				maxRetryCount: 1,
+			},
+			createBatchSaveReporter(),
+		)
+
+		const uploadPromise = uploader.uploadEmptyPlaceholdersForFailedChunks(
+			"session-1",
+			"topic-1",
+			"project-1",
+			{
+				concurrency: 2,
+				signal: abortController.signal,
+			},
+		)
+
+		await vi.waitFor(() => expect(testState.uploadCalls).toHaveLength(2))
+		const expectation = expect(uploadPromise).rejects.toThrow("cancelled")
+		abortController.abort()
+
+		await expectation
+		expect(testState.uploadCalls).toHaveLength(2)
+	})
 })

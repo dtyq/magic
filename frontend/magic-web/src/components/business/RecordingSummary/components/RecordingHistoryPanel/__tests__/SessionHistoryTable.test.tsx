@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
 	writeText: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	retentionDays: 14,
 }))
 
 vi.mock("@/utils/clipboard-helpers", () => ({
@@ -20,6 +21,10 @@ vi.mock("@/components/base/MagicToaster/utils", () => ({
 		success: mocks.toastSuccess,
 		error: mocks.toastError,
 	},
+}))
+
+vi.mock("@/services/recordSummary/RecordingSessionHistoryDB", () => ({
+	RECORDING_HISTORY_RETENTION_DAYS: mocks.retentionDays,
 }))
 
 vi.mock("react-i18next", () => ({
@@ -38,8 +43,7 @@ vi.mock("react-i18next", () => ({
 				"recordingHistoryPanel.deleteDescription":
 					"This cannot be undone. Uploaded audio chunks and server data are not affected.",
 				"recordingHistoryPanel.deleteTitle": "Delete this recording session?",
-				"recordingHistoryPanel.emptyDescription":
-					"No recording sessions were started in the last 14 days, or the data has been cleaned up.",
+				"recordingHistoryPanel.emptyDescription": `No recording sessions were started in the last ${mocks.retentionDays} days, or the data has been cleaned up.`,
 				"recordingHistoryPanel.emptyTitle": "No recording sessions",
 				"recordingHistoryPanel.export": "Export",
 				"recordingHistoryPanel.exporting": "Exporting",

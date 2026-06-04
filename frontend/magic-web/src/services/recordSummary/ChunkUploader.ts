@@ -36,6 +36,31 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 }
 
 const DEFAULT_UPLOAD_TIMEOUT_MS = 60000
+export const PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS = 30
+export const PLACEHOLDER_UPLOAD_TIMEOUT_MS = 120000
+export const PLACEHOLDER_UPLOAD_CONCURRENCY = 3
+
+export interface PlaceholderUploadProgress {
+	total: number
+	completed: number
+	failed: number
+	active: number
+}
+
+interface PlaceholderUploadOptions {
+	maxChunks?: number
+	timeoutMs?: number
+	concurrency?: number
+	signal?: AbortSignal
+	onProgress?: (progress: PlaceholderUploadProgress) => void
+}
+
+interface PlaceholderUploadAbortState {
+	signal: AbortSignal
+	abort: (reason: Error) => void
+	getReason: () => Error
+	cleanup: () => void
+}
 
 /**
  * Chunk uploader for uploading audio chunks from IndexedDB to OSS
@@ -880,28 +905,81 @@ export class ChunkUploader {
 		sessionId: string,
 		topicId: string,
 		projectId: string = "",
+		options: PlaceholderUploadOptions = {},
 	): Promise<number> {
 		this.sessionTopicMap.set(sessionId, topicId)
 		this.sessionProjectMap.set(sessionId, projectId)
 
-		const failedChunks = await this.audioChunkDB.getChunksByUploadStatus(sessionId, "failed")
-		for (const chunk of failedChunks) {
-			const placeholderBlob = this.createEmptyAudioPlaceholderBlob(chunk)
-			const placeholderChunk: StoredAudioChunk = {
-				...chunk,
-				chunk: placeholderBlob,
-				size: placeholderBlob.size,
-				mimeType: placeholderBlob.type || chunk.mimeType,
-				uploadStatus: "pending",
-			}
+		const {
+			maxChunks = PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+			timeoutMs = PLACEHOLDER_UPLOAD_TIMEOUT_MS,
+			concurrency = PLACEHOLDER_UPLOAD_CONCURRENCY,
+			signal,
+			onProgress,
+		} = options
 
-			const uploadUrl = await this.uploadChunk(placeholderChunk)
-			await this.reportUploadedChunk(placeholderChunk, uploadUrl, { requireBatchSave: true })
-			await this.audioChunkDB.updateChunkUploadStatus(chunk.id, "uploaded")
-			this.clearRetryCount(chunk.id)
+		const failedChunks = (
+			await this.audioChunkDB.getChunksByUploadStatus(sessionId, "failed")
+		).sort((a, b) => a.index - b.index)
+
+		if (failedChunks.length > maxChunks) {
+			throw new Error(
+				`Too many failed placeholder chunks: ${failedChunks.length}, limit: ${maxChunks}`,
+			)
 		}
 
-		return failedChunks.length
+		const abortState = this.createPlaceholderUploadAbortState(signal, timeoutMs)
+		let completed = 0
+		let failed = 0
+		let active = 0
+		let cursor = 0
+		let stopError: unknown
+
+		const emitProgress = () => {
+			onProgress?.({
+				total: failedChunks.length,
+				completed,
+				failed,
+				active,
+			})
+		}
+
+		emitProgress()
+
+		const uploadNext = async (): Promise<void> => {
+			while (cursor < failedChunks.length) {
+				this.throwIfPlaceholderUploadAborted(abortState)
+				if (stopError) throw stopError
+
+				const chunk = failedChunks[cursor]
+				cursor += 1
+				active += 1
+				emitProgress()
+
+				try {
+					await this.uploadEmptyPlaceholderChunk(chunk, abortState)
+					completed += 1
+					emitProgress()
+				} catch (error) {
+					failed += 1
+					emitProgress()
+					stopError = error
+					abortState.abort(error instanceof Error ? error : new Error(String(error)))
+					throw error
+				} finally {
+					active -= 1
+					emitProgress()
+				}
+			}
+		}
+
+		try {
+			const workerCount = Math.min(Math.max(1, concurrency), failedChunks.length)
+			await Promise.all(Array.from({ length: workerCount }, () => uploadNext()))
+			return failedChunks.length
+		} finally {
+			abortState.cleanup()
+		}
 	}
 
 	async getSessionUploadProgress(sessionId: string): Promise<SessionUploadProgress> {
@@ -962,6 +1040,113 @@ export class ChunkUploader {
 		}
 
 		throw new Error(`Unsupported placeholder audio format: ${mimeType}`)
+	}
+
+	private async uploadEmptyPlaceholderChunk(
+		chunk: StoredAudioChunk,
+		abortState: PlaceholderUploadAbortState,
+	): Promise<void> {
+		this.throwIfPlaceholderUploadAborted(abortState)
+		const placeholderBlob = this.createEmptyAudioPlaceholderBlob(chunk)
+		const placeholderChunk: StoredAudioChunk = {
+			...chunk,
+			chunk: placeholderBlob,
+			size: placeholderBlob.size,
+			mimeType: placeholderBlob.type || chunk.mimeType,
+			uploadStatus: "pending",
+		}
+
+		const uploadUrl = await this.racePlaceholderUploadWithAbort(
+			this.uploadChunk(placeholderChunk),
+			abortState,
+		)
+		await this.racePlaceholderUploadWithAbort(
+			this.reportUploadedChunk(placeholderChunk, uploadUrl, { requireBatchSave: true }),
+			abortState,
+		)
+		await this.racePlaceholderUploadWithAbort(
+			this.audioChunkDB.updateChunkUploadStatus(chunk.id, "uploaded"),
+			abortState,
+		)
+		this.clearRetryCount(chunk.id)
+	}
+
+	private createPlaceholderUploadAbortState(
+		externalSignal: AbortSignal | undefined,
+		timeoutMs: number,
+	): PlaceholderUploadAbortState {
+		const controller = new AbortController()
+		let reason = new Error("Placeholder chunk upload cancelled")
+		let timeout: ReturnType<typeof setTimeout> | undefined
+
+		const abort = (nextReason: Error) => {
+			if (controller.signal.aborted) return
+			reason = nextReason
+			controller.abort()
+		}
+
+		const abortFromExternalSignal = () => abort(new Error("Placeholder chunk upload cancelled"))
+
+		if (externalSignal?.aborted) {
+			abortFromExternalSignal()
+		} else {
+			externalSignal?.addEventListener("abort", abortFromExternalSignal, { once: true })
+		}
+
+		if (timeoutMs > 0) {
+			timeout = setTimeout(() => {
+				abort(new Error(`Placeholder chunk upload timed out after ${timeoutMs}ms`))
+			}, timeoutMs)
+		}
+
+		return {
+			signal: controller.signal,
+			abort,
+			getReason: () => reason,
+			cleanup: () => {
+				if (timeout) clearTimeout(timeout)
+				externalSignal?.removeEventListener("abort", abortFromExternalSignal)
+			},
+		}
+	}
+
+	private throwIfPlaceholderUploadAborted(abortState: PlaceholderUploadAbortState): void {
+		if (abortState.signal.aborted) {
+			throw abortState.getReason()
+		}
+	}
+
+	private async racePlaceholderUploadWithAbort<T>(
+		promise: Promise<T>,
+		abortState: PlaceholderUploadAbortState,
+	): Promise<T> {
+		this.throwIfPlaceholderUploadAborted(abortState)
+
+		return new Promise<T>((resolve, reject) => {
+			const cleanup = () => {
+				abortState.signal.removeEventListener("abort", handleAbort)
+			}
+			const handleAbort = () => {
+				cleanup()
+				reject(abortState.getReason())
+			}
+
+			abortState.signal.addEventListener("abort", handleAbort, { once: true })
+			promise.then(
+				(value) => {
+					cleanup()
+					if (abortState.signal.aborted) {
+						reject(abortState.getReason())
+						return
+					}
+					resolve(value)
+				},
+				(error) => {
+					cleanup()
+					reject(error)
+				},
+			)
+		})
 	}
 
 	private createEmptyWavBlob(): Blob {
