@@ -143,7 +143,7 @@ class ImageWatermarkDetector:
             return "invalid tiny image"
         if features.get("is_decorative_line"):
             return "invalid decorative line image"
-        if features.get("is_solid_or_blank") and cls._has_blank_keyword(image):
+        if features.get("is_solid_or_blank"):
             return "invalid solid or blank image"
         return None
 
