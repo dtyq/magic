@@ -1,6 +1,7 @@
 import { lazy, type ReactNode } from "react"
 import {
 	IconClockPlay,
+	IconDatabaseExport,
 	IconHeart,
 	IconMailShare,
 	IconSitemap,
@@ -13,6 +14,7 @@ const MyAccountPage = lazy(() => import("./pages/MyAccount"))
 const MyTeamPage = lazy(() => import("./pages/MyTeam"))
 const PreferencesPage = lazy(() => import("./pages/Preferences"))
 const ScheduledTasksPage = lazy(() => import("./pages/ScheduledTasks"))
+const DataExportPage = lazy(() => import("./pages/DataExport"))
 
 export interface AccountSettingMenuItem extends MenuItem {
 	key: AccountSettingPage
@@ -56,6 +58,14 @@ export function getAccountSettingMenuItems(t: (key: string) => string): AccountS
 			icon: <IconClockPlay size={24} />,
 			background: "linear-gradient(134deg, #93EDC7 4.89%, #1CD8D2 81.59%)",
 			component: <ScheduledTasksPage />,
+		},
+		{
+			key: AccountSettingPage.DATA_EXPORT,
+			label: t("dataExport"),
+			subtitle: t("dataExportSubtitle"),
+			icon: <IconDatabaseExport size={24} />,
+			background: "linear-gradient(135deg, #6A85F1 0%, #78FFD6 100%)",
+			component: <DataExportPage />,
 		},
 	]
 }

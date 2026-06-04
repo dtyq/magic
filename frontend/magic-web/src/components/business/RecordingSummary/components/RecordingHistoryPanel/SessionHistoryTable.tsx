@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { DownloadIcon, Trash2Icon } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { CheckIcon, CopyIcon, DownloadIcon, Trash2Icon } from "lucide-react"
 import {
 	Table,
 	TableBody,
@@ -22,7 +22,10 @@ import {
 } from "@/components/shadcn-ui/alert-dialog"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn-ui/empty"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
+import { Spinner } from "@/components/shadcn-ui/spinner"
 import type { StoredSessionHistory } from "@/services/recordSummary/RecordingSessionHistoryDB"
+import { clipboard } from "@/utils/clipboard-helpers"
+import magicToast from "@/components/base/MagicToaster/utils"
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -31,6 +34,8 @@ interface SessionHistoryTableProps {
 	loading: boolean
 	onExport: (session: StoredSessionHistory) => void
 	onDelete: (session: StoredSessionHistory) => void
+	exportingSessionId?: string | null
+	exportDisabled?: boolean
 }
 
 // Format ms to hh:mm:ss
@@ -64,15 +69,68 @@ function getStatusVariant(status: string): BadgeVariant {
 	}
 }
 
-function SessionHistoryTable({ sessions, loading, onExport, onDelete }: SessionHistoryTableProps) {
+export function buildSessionKeyInfo(session: StoredSessionHistory): string {
+	return [
+		`Session ID: ${session.id || "-"}`,
+		`Topic ID: ${session.topic?.id || session.chatTopic?.id || "-"}`,
+		`Topic Name: ${session.topic?.topic_name || session.chatTopic?.topic_name || "-"}`,
+		`Project ID: ${session.project?.id || "-"}`,
+		`Project Name: ${session.project?.project_name || "-"}`,
+		`Workspace ID: ${session.workspace?.id || "-"}`,
+		`Workspace Name: ${session.workspace?.name || "-"}`,
+		`User ID: ${session.userId || "-"}`,
+		`Organization: ${session.organizationName || session.organizationCode || "-"}`,
+		`Status: ${session.status || "-"}`,
+		`Start Time: ${formatDate(session.startTime)}`,
+		`Last Activity Time: ${formatDate(session.lastActivityTime)}`,
+		`Duration: ${formatDuration(session.totalDuration)}`,
+		`Current Chunk Index: ${session.currentChunkIndex ?? "-"}`,
+	].join("\n")
+}
+
+function SessionHistoryTable({
+	sessions,
+	loading,
+	onExport,
+	onDelete,
+	exportingSessionId,
+	exportDisabled = false,
+}: SessionHistoryTableProps) {
 	const [pendingDelete, setPendingDelete] = useState<StoredSessionHistory | null>(null)
+	const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null)
+	const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+	useEffect(() => {
+		return () => {
+			if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
+		}
+	}, [])
+
+	const handleCopyKeyInfo = async (session: StoredSessionHistory) => {
+		try {
+			await clipboard.writeText(buildSessionKeyInfo(session))
+			setCopiedSessionId(session.id)
+			if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
+			copyResetTimerRef.current = setTimeout(() => {
+				setCopiedSessionId(null)
+				copyResetTimerRef.current = null
+			}, 2000)
+			magicToast.success({
+				content: "关键信息已复制",
+				key: `recording-history-copy-info-${session.id}`,
+			})
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : String(error)
+			magicToast.error(`复制失败: ${reason}`)
+		}
+	}
 
 	if (!loading && sessions.length === 0) {
 		return (
 			<Empty className="h-[52vh]">
 				<EmptyHeader>
 					<EmptyTitle>暂无历史会话</EmptyTitle>
-					<EmptyDescription>30 天内没有发起过录音会话，或数据已被清理。</EmptyDescription>
+					<EmptyDescription>14 天内没有发起过录音会话，或数据已被清理。</EmptyDescription>
 				</EmptyHeader>
 			</Empty>
 		)
@@ -90,11 +148,13 @@ function SessionHistoryTable({ sessions, loading, onExport, onDelete }: SessionH
 							<TableHead>工作区 / 项目 / 主题</TableHead>
 							<TableHead className="w-[80px] text-right">文本</TableHead>
 							<TableHead className="w-[80px] text-right">笔记</TableHead>
-							<TableHead className="w-[160px] text-right">操作</TableHead>
+							<TableHead className="w-[220px] text-right">操作</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{sessions.map((session) => {
+							const exporting = exportingSessionId === session.id
+							const copied = copiedSessionId === session.id
 							const noteLength = session.note?.content?.length ?? 0
 							const textCount = session.textContent?.length ?? 0
 							const scope =
@@ -137,10 +197,31 @@ function SessionHistoryTable({ sessions, loading, onExport, onDelete }: SessionH
 												variant="outline"
 												size="sm"
 												onClick={() => onExport(session)}
+												disabled={exporting || exportDisabled}
 												data-testid="recording-history-export"
 											>
-												<DownloadIcon className="h-3.5 w-3.5" />
-												导出
+												{exporting ? (
+													<Spinner className="h-3.5 w-3.5" />
+												) : (
+													<DownloadIcon className="h-3.5 w-3.5" />
+												)}
+												{exporting ? "导出中" : "导出"}
+											</Button>
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												onClick={() => void handleCopyKeyInfo(session)}
+												aria-label={
+													copied ? "已复制关键信息" : "复制关键信息"
+												}
+												title={copied ? "已复制" : "复制关键信息"}
+												data-testid="recording-history-copy-info"
+											>
+												{copied ? (
+													<CheckIcon className="h-3.5 w-3.5" />
+												) : (
+													<CopyIcon className="h-3.5 w-3.5" />
+												)}
 											</Button>
 											<Button
 												variant="ghost"

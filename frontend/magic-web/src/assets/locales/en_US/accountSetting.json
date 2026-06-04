@@ -32,6 +32,8 @@
 	"creator": "Creator",
 	"currentSubscription": "Current Subscription Plan",
 	"currentTeam": "Current",
+	"dataExport": "Data & Export",
+	"dataExportSubtitle": "Manage local data and exported content",
 	"department": "Department",
 	"editProfile": "Edit Profile",
 	"expiresOn": "Expires On {{date}}",
@@ -58,6 +60,8 @@
 	"preferencesSubtitle": "Customize your usage preferences",
 	"recharge": "Recharge",
 	"renew": "Renew",
+	"recordingHistory": "Recording History",
+	"recordingHistoryDescription": "View, export, or clean up locally stored recording sessions",
 	"save": "Save",
 	"scheduledTasks": "Scheduled Tasks",
 	"scheduledTasksSubtitle": "Manage your scheduled tasks",
@@ -67,5 +71,6 @@
 	"teamSubscription": "Current Subscription Plan",
 	"username": "Username",
 	"usernamePlaceholder": "Please Enter Username",
+	"viewRecordingHistory": "View Recording History",
 	"willBeDistributed": "Issued On The Same Day"
 }

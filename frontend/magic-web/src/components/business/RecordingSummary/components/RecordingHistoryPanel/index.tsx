@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useState } from "react"
 import { RefreshCwIcon, PackageIcon, TrashIcon } from "lucide-react"
 import {
 	Dialog,
@@ -28,30 +28,43 @@ interface RecordingHistoryPanelProps {
 function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProps) {
 	const { loading, sessions, scope, setScope, refresh, removeOne, cleanupExpired } =
 		useSessionHistory(open)
+	const [exportingSessionId, setExportingSessionId] = useState<string | null>(null)
+	const [exportingAll, setExportingAll] = useState(false)
 
-	const handleExportOne = useCallback(async (session: StoredSessionHistory) => {
-		try {
-			await exportSessionAsZip(session)
-			magicToast.success("已导出单条会话")
-		} catch (error) {
-			const reason = error instanceof Error ? error.message : String(error)
-			magicToast.error(`导出失败: ${reason}`)
-		}
-	}, [])
+	const handleExportOne = useCallback(
+		async (session: StoredSessionHistory) => {
+			if (exportingSessionId || exportingAll) return
+			setExportingSessionId(session.id)
+			try {
+				await exportSessionAsZip(session)
+				magicToast.success("已导出单条会话")
+			} catch (error) {
+				const reason = error instanceof Error ? error.message : String(error)
+				magicToast.error(`导出失败: ${reason}`)
+			} finally {
+				setExportingSessionId(null)
+			}
+		},
+		[exportingAll, exportingSessionId],
+	)
 
 	const handleExportAll = useCallback(async () => {
+		if (exportingAll || exportingSessionId) return
 		if (sessions.length === 0) {
 			magicToast.warning("当前列表为空")
 			return
 		}
+		setExportingAll(true)
 		try {
 			await exportAllSessionsAsZip(sessions)
 			magicToast.success(`已导出 ${sessions.length} 条会话`)
 		} catch (error) {
 			const reason = error instanceof Error ? error.message : String(error)
 			magicToast.error(`导出失败: ${reason}`)
+		} finally {
+			setExportingAll(false)
 		}
-	}, [sessions])
+	}, [exportingAll, exportingSessionId, sessions])
 
 	const handleCleanup = useCallback(async () => {
 		try {
@@ -85,7 +98,7 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 				<DialogHeader>
 					<DialogTitle>录音会话历史</DialogTitle>
 					<DialogDescription>
-						保留最近 30 天发起的录音会话，可导出为 zip（session.json + note.md +
+						保留最近 14 天发起的录音会话，可导出为 zip（session.json + note.md +
 						transcript.md）。
 					</DialogDescription>
 				</DialogHeader>
@@ -116,10 +129,15 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 							variant="outline"
 							size="sm"
 							onClick={handleExportAll}
+							disabled={exportingAll || Boolean(exportingSessionId)}
 							data-testid="recording-history-export-all"
 						>
-							<PackageIcon className="h-3.5 w-3.5" />
-							全部导出
+							{exportingAll ? (
+								<Spinner className="h-3.5 w-3.5" />
+							) : (
+								<PackageIcon className="h-3.5 w-3.5" />
+							)}
+							{exportingAll ? "导出中" : "全部导出"}
 						</Button>
 						<Button
 							variant="ghost"
@@ -138,6 +156,8 @@ function RecordingHistoryPanel({ open, onOpenChange }: RecordingHistoryPanelProp
 					loading={loading}
 					onExport={handleExportOne}
 					onDelete={handleDelete}
+					exportingSessionId={exportingSessionId}
+					exportDisabled={exportingAll}
 				/>
 
 				<DialogFooter>

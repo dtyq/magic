@@ -164,7 +164,7 @@ class RecordSummaryService {
 		this.recordingPersistence = new RecordingPersistence(DEFAULT_RECORDING_CONFIG.persistence)
 		this.sessionManager = new RecordingSessionManager(DEFAULT_RECORDING_CONFIG.sessionRestore)
 
-		// Fire-and-forget cleanup of expired session history (30 days retention)
+		// Fire-and-forget cleanup of expired session history (14 days retention)
 		// 过期会话清理后，同步清理对应的音频分片
 		void this.sessionManager
 			.getHistoryDB()
