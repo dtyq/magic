@@ -21,16 +21,16 @@ logger = get_logger(__name__)
 class HomePersistenceService:
     """Prepare HOME config symlinks for the current sandbox user."""
 
-    _FULL_LINK_DIRS: tuple[str, ...] = (
-        ".magic",
-    )
-    _PARTIAL_LINK_DIRS: dict[str, dict[str, tuple[str, ...]]] = {
+    _FULL_LINK_DIRS: dict[str, dict[str, tuple[str, ...]]] = {
+        ".magic": {},
         ".lark-cli": {
-            "persistent_files": ("config.json", "update-state.json"),
+            "local_dirs": ("cache", "logs"),
         },
         ".dws": {
-            "persistent_files": ("app.json", "identity.json", "config.json"),
+            "local_dirs": ("cache", "logs"),
         },
+    }
+    _PARTIAL_LINK_DIRS: dict[str, dict[str, tuple[str, ...]]] = {
         ".local/share": {
             "persistent_dirs": ("dws-cli", "lark-cli"),
         },
@@ -56,9 +56,10 @@ class HomePersistenceService:
                     persistent_root=persistent_root,
                 )
 
-            for relative_path in cls._FULL_LINK_DIRS:
+            for relative_path, config in cls._FULL_LINK_DIRS.items():
                 await cls._initialize_full_link_safely(
                     relative_path=relative_path,
+                    config=config,
                     home_dir=home_dir,
                     persistent_root=persistent_root,
                 )
@@ -93,18 +94,57 @@ class HomePersistenceService:
     async def _initialize_full_link_safely(
         cls,
         relative_path: str,
+        config: dict[str, tuple[str, ...]],
         home_dir: Path,
         persistent_root: Path,
     ) -> None:
         try:
             target = persistent_root / relative_path
             link = home_dir / relative_path
-            await cls._ensure_symlink(link=link, target=target)
+            await cls._ensure_full_link_dir(
+                relative_path=relative_path,
+                link=link,
+                target=target,
+                home_dir=home_dir,
+                local_dirs=config.get("local_dirs", ()),
+            )
         except Exception as e:
             logger.warning(
                 f"[HomePersistence] 持久化软链初始化失败，已跳过: {relative_path}, error={e}",
                 exc_info=True,
             )
+
+    @classmethod
+    async def _ensure_full_link_dir(
+        cls,
+        relative_path: str,
+        link: Path,
+        target: Path,
+        home_dir: Path,
+        local_dirs: tuple[str, ...],
+    ) -> None:
+        await async_mkdir(target, parents=True, exist_ok=True)
+        await cls._ensure_symlink(link=link, target=target)
+
+        for local_dir in local_dirs:
+            await cls._ensure_local_runtime_dir(
+                link=target / local_dir,
+                target=cls._get_local_runtime_dir(
+                    home_dir=home_dir,
+                    relative_path=relative_path,
+                    local_dir=local_dir,
+                ),
+            )
+
+    @classmethod
+    async def _ensure_local_runtime_dir(cls, link: Path, target: Path) -> None:
+        """Point a persisted CLI runtime directory back to sandbox-local storage."""
+        await cls._ensure_symlink(link=link, target=target)
+
+    @classmethod
+    def _get_local_runtime_dir(cls, home_dir: Path, relative_path: str, local_dir: str) -> Path:
+        runtime_root_name = relative_path.strip("/").lstrip(".").replace("/", "-")
+        return home_dir / ".cache" / runtime_root_name / local_dir
 
     @classmethod
     async def _ensure_symlink(cls, link: Path, target: Path) -> None:
