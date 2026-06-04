@@ -3,7 +3,7 @@ import { recordingLogger } from "../utils/RecordingLogger"
 
 const logger = recordingLogger.namespace("Storage:DB")
 
-export type UploadStatus = "pending" | "uploaded"
+export type UploadStatus = "pending" | "uploaded" | "failed"
 
 export interface StoredAudioChunk {
 	id: string // 唯一标识：${sessionId}_${index}
@@ -199,6 +199,8 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 		total: number
 		pending: number
 		uploaded: number
+		failed: number
+		settled: boolean
 		completed: boolean
 	}> {
 		const chunks = await this.getSessionChunks(sessionId)
@@ -207,6 +209,8 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 			total: chunks.length,
 			pending: 0,
 			uploaded: 0,
+			failed: 0,
+			settled: false,
 			completed: false,
 		}
 
@@ -218,9 +222,14 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 				case "uploaded":
 					progress.uploaded++
 					break
+				case "failed":
+					progress.failed++
+					break
 			}
 		}
 
+		progress.settled =
+			progress.pending === 0 && progress.uploaded + progress.failed === progress.total
 		progress.completed = progress.uploaded === progress.total
 
 		// Sampling: log progress every 10 chunks
@@ -229,6 +238,7 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 				total: progress.total,
 				uploaded: progress.uploaded,
 				pending: progress.pending,
+				failed: progress.failed,
 				progress: Math.round((progress.uploaded / progress.total) * 100) + "%",
 			})
 		}

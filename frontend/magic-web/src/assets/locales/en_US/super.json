@@ -1809,7 +1809,16 @@
 			"summaryComplete": "Summary complete",
 			"summaryFailed": "Summary failed, please retry",
 			"summaryGenerationFailed": "Failed to generate summary, please try again later",
-			"uploadChunksFailed": "Failed to upload audio chunks, please check network and retry",
+			"continueSummary": "Continue summary",
+			"continuingSummaryAfterAudioCheck": "Continuing the summary...",
+			"retryingAudioChunks": "Preparing the audio again, please wait...",
+			"retryUploadChunks": "Try again",
+			"uploadChunksCompletingError": "Audio preparation ran into a problem. Please try again later",
+			"uploadChunksPreparingError": "The audio is not fully ready yet. Please try again shortly",
+			"uploadFailureDecisionContent": "{{failed}}/{{total}} audio segments are not fully ready yet. We recommend trying again first to keep the recording as complete as possible. You can also continue the summary now; the result will be generated from the audio that is already ready, and unfinished time ranges may not be included.",
+			"uploadFailureDecisionTitle": "A little audio still needs confirmation",
+			"uploadProgress": "Preparing audio: {{uploaded}}/{{total}} segments ready, {{pending}} remaining",
+			"uploadProgressNeedsDecision": "Preparing audio: {{uploaded}}/{{total}} segments ready",
 			"uploadingChunks": "Uploading audio chunks..."
 		},
 		"messageListFallback": {
