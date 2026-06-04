@@ -64,14 +64,8 @@ class HomePersistenceService:
     def _merge_existing_path(cls, source: Path, target: Path) -> bool:
         """Move existing source content into target, preserving conflicts."""
         if source.is_dir():
-            for child in source.iterdir():
-                destination = target / child.name
-                if destination.exists() or destination.is_symlink():
-                    logger.warning(
-                        f"[HomePersistence] 目标已存在，保留原始路径，跳过软链替换: {destination}"
-                    )
-                    return False
-                shutil.move(str(child), str(destination))
+            if not cls._merge_directory_contents(source=source, target=target):
+                return False
             source.rmdir()
             logger.info(f"[HomePersistence] 已迁移已有目录内容: {source} -> {target}")
             return True
@@ -85,4 +79,26 @@ class HomePersistenceService:
 
         shutil.move(str(source), str(destination))
         logger.info(f"[HomePersistence] 已迁移已有文件: {source} -> {destination}")
+        return True
+
+    @classmethod
+    def _merge_directory_contents(cls, source: Path, target: Path) -> bool:
+        """Recursively merge source directory contents into target."""
+        for child in source.iterdir():
+            destination = target / child.name
+            if not destination.exists() and not destination.is_symlink():
+                shutil.move(str(child), str(destination))
+                continue
+
+            if child.is_dir() and destination.is_dir() and not destination.is_symlink():
+                if not cls._merge_directory_contents(source=child, target=destination):
+                    return False
+                child.rmdir()
+                continue
+
+            logger.warning(
+                f"[HomePersistence] 目标文件冲突，保留原始路径，跳过软链替换: {destination}"
+            )
+            return False
+
         return True

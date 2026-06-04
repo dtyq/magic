@@ -40,6 +40,28 @@ def test_initialize_migrates_existing_magic_content_before_symlink(tmp_path, mon
     assert (magic_target / "mock-config.json").read_text(encoding="utf-8") == "{}"
 
 
+def test_initialize_recursively_merges_existing_directories(tmp_path, monkeypatch):
+    home_dir = tmp_path / "home"
+    user_home_dir = tmp_path / "user-home"
+    source_logs_dir = home_dir / ".dws" / "logs"
+    target_logs_dir = user_home_dir / ".dws" / "logs"
+    source_logs_dir.mkdir(parents=True)
+    target_logs_dir.mkdir(parents=True)
+    (source_logs_dir / "local.log").write_text("local", encoding="utf-8")
+    (target_logs_dir / "persisted.log").write_text("persisted", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
+
+    HomePersistenceService.initialize_from_environment()
+
+    dws_link = home_dir / ".dws"
+    dws_target = user_home_dir / ".dws"
+    assert dws_link.is_symlink()
+    assert dws_link.resolve(strict=False) == dws_target.resolve(strict=False)
+    assert (target_logs_dir / "local.log").read_text(encoding="utf-8") == "local"
+    assert (target_logs_dir / "persisted.log").read_text(encoding="utf-8") == "persisted"
+
+
 def test_initialize_skips_without_user_home_dir(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     home_dir.mkdir()
