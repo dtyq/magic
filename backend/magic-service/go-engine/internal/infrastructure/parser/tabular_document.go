@@ -37,6 +37,7 @@ const (
 	tabularUniquenessSelectMin  = 0.6
 	tabularDelimiterProbeLines  = 8
 	tabularIntegerTolerance     = 1e-9
+	tabularFormatXLSX           = "xlsx"
 )
 
 type tabularCell struct {
@@ -1190,7 +1191,7 @@ func shouldBuildTabularSummary(sourceFormat string) bool {
 
 func isExcelLikeTabularSource(sourceFormat string) bool {
 	switch strings.ToLower(strings.TrimSpace(sourceFormat)) {
-	case "xlsx", "xlsm", "xls":
+	case tabularFormatXLSX, "xlsm", "xls":
 		return true
 	default:
 		return false

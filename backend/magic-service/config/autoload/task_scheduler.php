@@ -22,4 +22,7 @@ return [
 
     // 是否私有化部署
     'is_private_deploy' => (bool) env('IS_PRIVATE_DEPLOY', false),
+
+    // 私有化部署下组织架构同步周期，单位：分钟。默认 1 分钟，保持原有逻辑
+    'teamshare_org_sync_interval_minutes' => (int) env('TEAMSHARE_ORG_SYNC_INTERVAL_MINUTES', 1),
 ];

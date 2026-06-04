@@ -467,6 +467,67 @@ func (r *RuntimeSimilarityRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// FlowVectorSimilarityByUserRequest 按用户可读 flow 向量知识库检索请求。
+type FlowVectorSimilarityByUserRequest struct {
+	DataIsolation  DataIsolation  `json:"data_isolation"`
+	MagicUserID    string         `json:"magic_user_id" validate:"required"`
+	Keyword        string         `json:"keyword" validate:"required"`
+	TopK           int            `json:"top_k"`
+	ScoreThreshold float64        `json:"score_threshold"`
+	BusinessParams BusinessParams `json:"business_params"`
+}
+
+// UnmarshalJSON 兼容 top_k/score_threshold 传字符串，并为缺省值补齐接口默认值。
+func (r *FlowVectorSimilarityByUserRequest) UnmarshalJSON(data []byte) error {
+	raw, err := unmarshalRequestObject(data, "flow vector similarity by user request")
+	if err != nil {
+		return err
+	}
+
+	var dataIsolation DataIsolation
+	if field, ok := raw["data_isolation"]; ok {
+		if err := json.Unmarshal(field, &dataIsolation); err != nil {
+			return fmt.Errorf("unmarshal data_isolation: %w", err)
+		}
+	}
+	magicUserID, err := decodeRequestStringValue(raw, "magic_user_id")
+	if err != nil {
+		return err
+	}
+	keyword, err := decodeRequestStringValue(raw, "keyword")
+	if err != nil {
+		return err
+	}
+	topK := defaultFlowVectorSimilarityTopK
+	if topKValue, _, err := decodeRequestInt(raw, "top_k"); err != nil {
+		return err
+	} else if topKValue != nil {
+		topK = *topKValue
+	}
+	scoreThreshold := defaultFlowVectorSimilarityScoreThreshold
+	if scoreThresholdValue, scoreThresholdProvided, err := decodeRequestFloat64(raw, "score_threshold"); err != nil {
+		return err
+	} else if scoreThresholdProvided {
+		scoreThreshold = scoreThresholdValue
+	}
+	var businessParams BusinessParams
+	if field, ok := raw["business_params"]; ok && !pkgjsoncompat.IsEmptyObjectLikeJSON(field) {
+		if err := json.Unmarshal(field, &businessParams); err != nil {
+			return fmt.Errorf("unmarshal business_params: %w", err)
+		}
+	}
+
+	*r = FlowVectorSimilarityByUserRequest{
+		DataIsolation:  dataIsolation,
+		MagicUserID:    magicUserID,
+		Keyword:        keyword,
+		TopK:           topK,
+		ScoreThreshold: scoreThreshold,
+		BusinessParams: businessParams,
+	}
+	return nil
+}
+
 // AgentSimilarityRequest 数字员工维度相似度搜索请求。
 type AgentSimilarityRequest struct {
 	DataIsolation DataIsolation `json:"data_isolation"`
@@ -565,7 +626,7 @@ func (r *SimilarityTimeRange) UnmarshalJSON(data []byte) error {
 // 调用方应尽量原样透传，Go 再统一解释：
 //   - external: 直接按 URL / key 解析
 //   - third_platform: 走第三方 resolver
-//   - project_file: 合法输入，通常先由 original-file-link 换成临时 URL，再按普通 URL 解析
+//   - project_file: 合法输入，通常先由 source-file-link 换成临时 URL，再按普通 URL 解析
 //
 // 因此上游不应该因为收到 project_file 就自行改写为 third_platform 或做业务分流。
 type PreviewFragmentRequest struct {

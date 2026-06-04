@@ -15,6 +15,7 @@ use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
@@ -42,7 +43,6 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Util\FuzzMatchUtil;
-use App\Infrastructure\Util\Redis\ProviderModelCacheUtil;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\ProviderAdminAssembler;
@@ -426,18 +426,6 @@ readonly class AdminProviderAppService
         $organizationCode = $authorization->getOrganizationCode();
         $userId = $authorization->getId();
 
-        // Try to get from cache
-        $cachedData = ProviderModelCacheUtil::getProviderModels($organizationCode, $userId, $providerModelQuery);
-        if ($cachedData !== false) {
-            // Convert cached data back to ProviderModelDetailDTO objects
-            $providerConfigModelsDTOs = [];
-            foreach ($cachedData as $modelData) {
-                $providerConfigModelsDTOs[] = new ProviderModelDetailDTO($modelData);
-            }
-            return $providerConfigModelsDTOs;
-        }
-
-        // Cache miss, query from database
         $dataIsolation = ProviderDataIsolation::create($organizationCode, $userId);
         $queriesModels = $this->adminProviderDomainService->queriesModels($dataIsolation, $providerModelQuery);
         $providerConfigModelsDTOs = [];
@@ -446,10 +434,6 @@ readonly class AdminProviderAppService
         }
 
         $this->processModelIcons($providerConfigModelsDTOs);
-
-        // Cache the result
-        $cacheData = array_map(static fn ($dto) => $dto->toArray(), $providerConfigModelsDTOs);
-        ProviderModelCacheUtil::setProviderModels($organizationCode, $userId, $providerModelQuery, $cacheData);
 
         return $providerConfigModelsDTOs;
     }
@@ -773,7 +757,7 @@ readonly class AdminProviderAppService
         $proxyModelRequest->setBusinessParams([
             'organization_id' => $authorization->getOrganizationCode(),
             'user_id' => $authorization->getId(),
-            'source_id' => 'connectivity_test',
+            'source_id' => SourceId::CONNECTIVITY_TEST,
         ]);
         try {
             $llmAppService->embeddings($proxyModelRequest);
@@ -800,7 +784,7 @@ readonly class AdminProviderAppService
         $completionDTO->setBusinessParams([
             'organization_id' => $authorization->getOrganizationCode(),
             'user_id' => $authorization->getId(),
-            'source_id' => 'connectivity_test',
+            'source_id' => SourceId::CONNECTIVITY_TEST,
         ]);
         $completionDTO->setMaxTokens(-1);
         /* @var ChatCompletionResponse $response */

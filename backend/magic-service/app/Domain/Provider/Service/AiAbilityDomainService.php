@@ -96,15 +96,24 @@ class AiAbilityDomainService
      * 初始化AI能力数据.
      *
      * @param ProviderDataIsolation $dataIsolation 数据隔离信息
+     * @param null|array $abilities AI 能力初始化配置
      * @return int 初始化的数量
      */
-    public function initializeAbilities(ProviderDataIsolation $dataIsolation): int
+    public function initializeAbilities(ProviderDataIsolation $dataIsolation, ?array $abilities = null): int
     {
-        $abilities = $this->config->get('ai_abilities.abilities', []);
+        if ($abilities === null) {
+            $configuredAbilities = $this->config->get('ai_abilities.abilities', []);
+            $abilities = is_array($configuredAbilities) ? $configuredAbilities : [];
+        }
+
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $count = 0;
 
         foreach ($abilities as $abilityConfig) {
+            if (! is_array($abilityConfig)) {
+                continue;
+            }
+
             // 检查数据库中是否已存在
             $code = AiAbilityCode::from($abilityConfig['code']);
             $existingEntity = $this->aiAbilityRepository->getByCode($dataIsolation, $code);

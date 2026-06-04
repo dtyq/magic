@@ -148,6 +148,32 @@ func TestSetupRoutesMagicFSSupportsGoPrefix(t *testing.T) {
 	}
 }
 
+func TestSetupRoutesRegistersKnowledgeSourceFileLink(t *testing.T) {
+	t.Parallel()
+
+	engine := gin.New()
+	router.SetupRoutes(router.Dependencies{
+		Engine:                     engine,
+		HealthHandler:              healthHandlerStub{},
+		MetricsHandler:             metricsRouteHandlerStub{},
+		DebugHandler:               debugHandlerStub{},
+		KnowledgeSourceFileHandler: knowledgeSourceFileRouteHandlerStub{},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/knowledge-bases/KB1/documents/DOC1/source-file-link",
+		nil,
+	)
+	engine.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected knowledge source file route status 204, got %d", recorder.Code)
+	}
+}
+
 func assertHelloResponse(t *testing.T, recorder *httptest.ResponseRecorder) {
 	t.Helper()
 
@@ -185,6 +211,12 @@ func (metricsRouteHandlerStub) Handle(c *gin.Context) {
 type magicFSRouteHandlerStub struct{}
 
 func (magicFSRouteHandlerStub) GetVersion(c *gin.Context) {
+	c.Status(http.StatusNoContent)
+}
+
+type knowledgeSourceFileRouteHandlerStub struct{}
+
+func (knowledgeSourceFileRouteHandlerStub) SourceFileLink(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 

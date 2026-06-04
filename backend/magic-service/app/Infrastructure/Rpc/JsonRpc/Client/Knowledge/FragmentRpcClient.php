@@ -157,6 +157,22 @@ class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway, Fr
     }
 
     /**
+     * OA 按 magic_user_id 的 flow 向量库相似度搜索.
+     */
+    #[RpcMethod(name: SvcMethods::METHOD_FLOW_VECTOR_SIMILARITY_BY_USER)]
+    public function flowVectorSimilarityByUser(FragmentRequestDTO $request): array
+    {
+        return $this->callRpc(__FUNCTION__, [
+            'data_isolation' => $request->dataIsolation->toArray(),
+            'magic_user_id' => $request->magicUserId,
+            'keyword' => $request->queryText,
+            'top_k' => $request->topK,
+            'score_threshold' => $request->scoreThreshold,
+            'business_params' => $request->businessParams?->toArray() ?? [],
+        ]);
+    }
+
+    /**
      * 数字员工维度相似度搜索.
      */
     #[RpcMethod(name: SvcMethods::METHOD_SIMILARITY_BY_AGENT)]

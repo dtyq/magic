@@ -139,6 +139,7 @@ type documentQueryService interface {
 	List(ctx context.Context, query *docrepo.DocumentQuery) ([]*docentity.KnowledgeBaseDocument, int64, error)
 	ListByKnowledgeBase(ctx context.Context, knowledgeBaseCode string, offset, limit int) ([]*docentity.KnowledgeBaseDocument, int64, error)
 	CountByKnowledgeBaseCodes(ctx context.Context, organizationCode string, knowledgeBaseCodes []string) (map[string]int64, error)
+	SumWordCountByKnowledgeBase(ctx context.Context, organizationCode, knowledgeBaseCode string) (int64, error)
 }
 
 type documentDomainService interface {
@@ -156,6 +157,8 @@ type knowledgeBaseReader interface {
 	ResolveRuntimeRoute(ctx context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute
 	EnsureCollectionExists(ctx context.Context, kb *kbentity.KnowledgeBase) error
 	UpdateProgress(ctx context.Context, kb *kbentity.KnowledgeBase) error
+	UpdateWordCount(ctx context.Context, kb *kbentity.KnowledgeBase) error
+	RefreshWordCountByDocumentSum(ctx context.Context, organizationCode, knowledgeBaseCode, updatedUID string) error
 }
 
 type fragmentDocumentWriter interface {

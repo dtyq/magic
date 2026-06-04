@@ -31,6 +31,7 @@ type KnowledgeBaseBinding struct {
 	OrganizationCode  string    `json:"organization_code"`
 	CreatedUid        string    `json:"created_uid"`
 	UpdatedUid        string    `json:"updated_uid"`
+	Metadata          []byte    `json:"metadata"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -67,6 +68,80 @@ type KnowledgeBaseDocument struct {
 	DeletedAt         sql.NullTime   `json:"deleted_at"`
 	ThirdPlatformType sql.NullString `json:"third_platform_type"`
 	ThirdFileID       sql.NullString `json:"third_file_id"`
+}
+
+type KnowledgeBaseIngestionItem struct {
+	ID               int64        `json:"id"`
+	OrganizationCode string       `json:"organization_code"`
+	Provider         string       `json:"provider"`
+	SourceCode       string       `json:"source_code"`
+	ItemRef          string       `json:"item_ref"`
+	ItemType         string       `json:"item_type"`
+	Title            string       `json:"title"`
+	SourceUrl        string       `json:"source_url"`
+	Extension        string       `json:"extension"`
+	RawHash          string       `json:"raw_hash"`
+	CleanHash        string       `json:"clean_hash"`
+	CleanSize        uint64       `json:"clean_size"`
+	CleanerVersion   string       `json:"cleaner_version"`
+	Status           string       `json:"status"`
+	SnapshotMeta     []byte       `json:"snapshot_meta"`
+	LastError        string       `json:"last_error"`
+	LastPulledAt     sql.NullTime `json:"last_pulled_at"`
+	LastCleanedAt    sql.NullTime `json:"last_cleaned_at"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+}
+
+type KnowledgeBaseIngestionItemContent struct {
+	ItemID           int64     `json:"item_id"`
+	OrganizationCode string    `json:"organization_code"`
+	Provider         string    `json:"provider"`
+	SourceCode       string    `json:"source_code"`
+	ItemRef          string    `json:"item_ref"`
+	CleanHash        string    `json:"clean_hash"`
+	Content          string    `json:"content"`
+	ContentFormat    string    `json:"content_format"`
+	ContentCharset   string    `json:"content_charset"`
+	ContentSize      uint64    `json:"content_size"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type KnowledgeBaseIngestionRun struct {
+	ID               int64        `json:"id"`
+	OrganizationCode string       `json:"organization_code"`
+	Provider         string       `json:"provider"`
+	SourceCode       string       `json:"source_code"`
+	RunType          string       `json:"run_type"`
+	Status           string       `json:"status"`
+	PulledCount      uint32       `json:"pulled_count"`
+	ChangedCount     uint32       `json:"changed_count"`
+	CleanedCount     uint32       `json:"cleaned_count"`
+	SkippedCount     uint32       `json:"skipped_count"`
+	FailedCount      uint32       `json:"failed_count"`
+	ErrorSummary     string       `json:"error_summary"`
+	StartedAt        time.Time    `json:"started_at"`
+	FinishedAt       sql.NullTime `json:"finished_at"`
+}
+
+type KnowledgeBaseIngestionSource struct {
+	ID               int64        `json:"id"`
+	OrganizationCode string       `json:"organization_code"`
+	Provider         string       `json:"provider"`
+	SourceCode       string       `json:"source_code"`
+	Name             string       `json:"name"`
+	Enabled          bool         `json:"enabled"`
+	CredentialRef    string       `json:"credential_ref"`
+	Config           []byte       `json:"config"`
+	SyncCursor       []byte       `json:"sync_cursor"`
+	LastSyncStatus   string       `json:"last_sync_status"`
+	LastSyncError    string       `json:"last_sync_error"`
+	LastSyncedAt     sql.NullTime `json:"last_synced_at"`
+	CreatedUid       string       `json:"created_uid"`
+	UpdatedUid       string       `json:"updated_uid"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
 }
 
 type KnowledgeSourceBinding struct {

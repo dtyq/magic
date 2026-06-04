@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -36,6 +37,29 @@ func (f *fakePDFOCR) OCRBytes(context.Context, []byte, string) (string, error) {
 	return "", errUnexpectedOCRByURL
 }
 
+type fakePDFVisualExtractor struct {
+	text        string
+	bypassPDF   bool
+	sourceCalls int
+}
+
+func (f *fakePDFVisualExtractor) RecognizeSource(context.Context, string, io.Reader, string) (string, error) {
+	f.sourceCalls++
+	return f.text, nil
+}
+
+func (f *fakePDFVisualExtractor) RecognizeBytes(context.Context, []byte, string) (string, error) {
+	return f.text, nil
+}
+
+func (f *fakePDFVisualExtractor) NeedsResolvedURL(context.Context, string) bool {
+	return !f.bypassPDF
+}
+
+func (f *fakePDFVisualExtractor) BypassesNativePDFText(_ context.Context, fileType string) bool {
+	return f.bypassPDF && strings.EqualFold(fileType, "pdf")
+}
+
 func TestPDFHybridParser_ParseDocumentPrefersCleanNativeTextWhenQualityAcceptable(t *testing.T) {
 	t.Parallel()
 
@@ -56,6 +80,33 @@ func TestPDFHybridParser_ParseDocumentPrefersCleanNativeTextWhenQualityAcceptabl
 	}
 	if got, ok := parsed.DocumentMeta[documentdomain.ParsedMetaEmbeddedImageOCRSuccessCount]; ok && got != 0 {
 		t.Fatalf("expected OCR success metadata absent or zero, got %#v", got)
+	}
+}
+
+func TestPDFHybridParser_ParseDocumentBypassesNativeTextForModelMode(t *testing.T) {
+	t.Parallel()
+
+	visual := &fakePDFVisualExtractor{text: "模型整页识别文本", bypassPDF: true}
+	parsed, err := parser.NewPDFHybridParserWithVisualLimit(visual, 20).
+		ParseDocument(context.Background(), "DT001/demo.pdf", bytes.NewReader(buildMalformedTestPDF("native should not run")), "pdf")
+	if err != nil {
+		t.Fatalf("parse pdf: %v", err)
+	}
+	if got := strings.TrimSpace(parsed.BestEffortText()); got != "模型整页识别文本" {
+		t.Fatalf("expected model visual text, got %q", got)
+	}
+	if visual.sourceCalls != 1 {
+		t.Fatalf("expected direct visual extractor call once, got %d", visual.sourceCalls)
+	}
+}
+
+func TestPDFHybridParser_NeedsResolvedURLForOptionsSkipsURLForModelMode(t *testing.T) {
+	t.Parallel()
+
+	visual := &fakePDFVisualExtractor{text: "模型整页识别文本", bypassPDF: true}
+	p := parser.NewPDFHybridParserWithVisualLimit(visual, 20)
+	if p.NeedsResolvedURLForOptions(context.Background(), "pdf", documentdomain.DefaultParseOptions()) {
+		t.Fatal("expected model-mode PDF parser to skip resolved URL")
 	}
 }
 

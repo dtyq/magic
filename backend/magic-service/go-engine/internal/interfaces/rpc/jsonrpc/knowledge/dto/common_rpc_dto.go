@@ -89,9 +89,11 @@ func (di DataIsolation) ResolveOrganizationCode() string {
 }
 
 const (
-	maxRetrieveTopK   = 10
-	maxHierarchyLevel = 6
-	defaultPageNumber = 1
+	maxRetrieveTopK                           = 10
+	maxHierarchyLevel                         = 6
+	defaultPageNumber                         = 1
+	defaultFlowVectorSimilarityTopK           = 10
+	defaultFlowVectorSimilarityScoreThreshold = 0.5
 )
 
 var errEmptyCompatInteger = errors.New("empty compat integer")
@@ -504,6 +506,20 @@ func validateSimilarityTopK(topK int) error {
 	return nil
 }
 
+func validateRequiredSimilarityTopK(topK int) error {
+	if topK < 1 || topK > maxRetrieveTopK {
+		return invalidParamsf("top_k must be between 1 and %d", maxRetrieveTopK)
+	}
+	return nil
+}
+
+func validateSimilarityScoreThreshold(scoreThreshold float64) error {
+	if scoreThreshold < 0 || scoreThreshold > 1 {
+		return invalidParams("score_threshold must be between 0 and 1")
+	}
+	return nil
+}
+
 func validateFragmentConfig(cfg *confighelper.FragmentConfigDTO) error {
 	if cfg == nil {
 		return nil
@@ -797,6 +813,31 @@ func (r RebuildKnowledgeBaseRequest) Validate() error {
 	return validateRetryIfPresent("retry", r.Retry)
 }
 
+// Validate 校验 SwitchEmbeddingModelMetaRequest 的 RPC 入参。
+func (r SwitchEmbeddingModelMetaRequest) Validate() error {
+	if err := validateStruct(r); err != nil {
+		return err
+	}
+	if err := validateResolvedOrgCode("data_isolation.organization_code", r.DataIsolation.ResolveOrganizationCode()); err != nil {
+		return err
+	}
+	if strings.TrimSpace(r.TargetModel) == "" {
+		return invalidParamsf("target_model is required")
+	}
+	if r.TargetDimension <= 0 {
+		return invalidParamsf("target_dimension must be greater than 0")
+	}
+	return nil
+}
+
+// Validate 校验 RebuildKnowledgeBaseStatusRequest 的 RPC 入参。
+func (r RebuildKnowledgeBaseStatusRequest) Validate() error {
+	if err := validateStruct(r); err != nil {
+		return err
+	}
+	return validateResolvedOrgCode("data_isolation.organization_code", r.DataIsolation.ResolveOrganizationCode())
+}
+
 // Validate 校验 RepairSourceBindingsRequest 的 RPC 入参。
 func (r RepairSourceBindingsRequest) Validate() error {
 	if err := validateStruct(r); err != nil {
@@ -849,14 +890,6 @@ func (r UpdateDocumentRequest) Validate() error {
 
 // Validate 校验 ShowDocumentRequest 的 RPC 入参。
 func (r ShowDocumentRequest) Validate() error {
-	if err := validateStruct(r); err != nil {
-		return err
-	}
-	return validateResolvedOrgCode("data_isolation.organization_code", r.DataIsolation.ResolveOrganizationCode())
-}
-
-// Validate 校验 GetOriginalFileLinkRequest 的 RPC 入参。
-func (r GetOriginalFileLinkRequest) Validate() error {
 	if err := validateStruct(r); err != nil {
 		return err
 	}
@@ -988,6 +1021,26 @@ func (r RuntimeSimilarityRequest) Validate() error {
 		return err
 	}
 	return validateSimilarityTopK(r.TopK)
+}
+
+// Validate 校验 FlowVectorSimilarityByUserRequest 的 RPC 入参。
+func (r FlowVectorSimilarityByUserRequest) Validate() error {
+	if err := validateStruct(r); err != nil {
+		return err
+	}
+	if err := validateResolvedOrgCode("data_isolation.organization_code", r.DataIsolation.ResolveOrganizationCode()); err != nil {
+		return err
+	}
+	if err := validateTrimmedRequiredString("magic_user_id", r.MagicUserID); err != nil {
+		return err
+	}
+	if err := validateTrimmedRequiredString("keyword", r.Keyword); err != nil {
+		return err
+	}
+	if err := validateRequiredSimilarityTopK(r.TopK); err != nil {
+		return err
+	}
+	return validateSimilarityScoreThreshold(r.ScoreThreshold)
 }
 
 // Validate 校验 PreviewFragmentRequest 的 RPC 入参。

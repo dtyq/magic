@@ -9,6 +9,7 @@ namespace App\Domain\Provider\Service;
 
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Domain\Provider\DTO\Factory\ProviderConfigFactory;
 use App\Domain\Provider\DTO\Item\AbstractProviderConfigItem;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
@@ -171,7 +172,7 @@ class AdminProviderDomainService extends AbstractProviderDomainService
             $textGenerateImageDTO->setBusinessParams([
                 'organization_id' => $organizationCode,
                 'user_id' => $userId,
-                'source_id' => 'connectivity_test',
+                'source_id' => SourceId::CONNECTIVITY_TEST,
             ]);
 
             // 调用 LLMAppService::textGenerateImageV2
@@ -506,6 +507,14 @@ class AdminProviderDomainService extends AbstractProviderDomainService
     public function queriesModels(ProviderDataIsolation $dataIsolation, ProviderModelQuery $providerModelQuery): array
     {
         $providerModelEntities = $this->providerModelRepository->getModelsForOrganization($dataIsolation, $providerModelQuery->getCategory(), $providerModelQuery->getStatus());
+        if ($this->shouldMergeEmbeddingModelsForLLMQuery($providerModelQuery)) {
+            $embeddingModels = $this->providerModelRepository->getModelsForOrganization($dataIsolation, Category::EMBEDDING, $providerModelQuery->getStatus());
+            foreach ($embeddingModels as $embeddingModel) {
+                if ($embeddingModel->getModelType()->isEmbedding() || ($embeddingModel->getConfig()?->isSupportEmbedding() ?? false)) {
+                    $providerModelEntities[] = $embeddingModel;
+                }
+            }
+        }
 
         // modelId 经过过滤，去重选一个
         if ($providerModelQuery->isModelIdFilter()) {
@@ -579,6 +588,13 @@ class AdminProviderDomainService extends AbstractProviderDomainService
         }
 
         return $count;
+    }
+
+    private function shouldMergeEmbeddingModelsForLLMQuery(ProviderModelQuery $providerModelQuery): bool
+    {
+        return $providerModelQuery->getCategory() === Category::LLM
+            && $providerModelQuery->isModelIdFilter()
+            && $providerModelQuery->getStatus() === Status::Enabled;
     }
 
     /**

@@ -126,32 +126,6 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     }
 
     /**
-     * @return array{available: bool, url: string, name: string, key: string, type: string}
-     */
-    public function originalFileLink(
-        Authenticatable $authorization,
-        string $knowledgeBaseCode,
-        string $documentCode,
-    ): array {
-        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-
-        $result = $this->documentAppClient->getOriginalFileLink(DocumentRequestDTO::forOriginalFileLink(
-            $documentCode,
-            $knowledgeBaseCode,
-            $context->dataIsolation(),
-        ));
-
-        return [
-            'available' => (bool) ($result['available'] ?? false),
-            'url' => (string) ($result['url'] ?? ''),
-            'name' => (string) ($result['name'] ?? ''),
-            'key' => (string) ($result['key'] ?? ''),
-            'type' => (string) ($result['type'] ?? ''),
-        ];
-    }
-
-    /**
      * 删除知识库文档.
      */
     public function destroy(

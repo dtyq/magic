@@ -34,7 +34,7 @@ class AiAbilityApi extends AbstractApi
      * 获取所有AI能力列表.
      */
     #[CheckPermission([MagicResourceEnum::ADMIN_AI_ABILITY], MagicOperationEnum::QUERY)]
-    public function queries(): array
+    public function queries()
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
@@ -48,7 +48,7 @@ class AiAbilityApi extends AbstractApi
      * 获取AI能力详情.
      */
     #[CheckPermission([MagicResourceEnum::ADMIN_AI_ABILITY], MagicOperationEnum::QUERY)]
-    public function detail(string $code): array
+    public function detail(string $code)
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
@@ -62,7 +62,7 @@ class AiAbilityApi extends AbstractApi
      * 更新AI能力.
      */
     #[CheckPermission([MagicResourceEnum::ADMIN_AI_ABILITY], MagicOperationEnum::EDIT)]
-    public function update(string $code): array
+    public function update(string $code)
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();

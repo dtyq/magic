@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	runtimeDebug "runtime/debug"
 
 	"magic/internal/pkg/ctxmeta"
 	jsonrpc "magic/internal/pkg/jsonrpc"
@@ -15,5 +17,16 @@ func mapBusinessError(ctx context.Context, err error) error {
 	if mapped == nil {
 		return nil
 	}
+	if ctxmeta.DebugErrorDetailsFromContext(ctx) && isMaskedInternalError(mapped) {
+		mapped = jsonrpc.NewInternalDebugBusinessError(ctx, err, string(runtimeDebug.Stack()))
+	}
 	return fmt.Errorf("%w", mapped)
+}
+
+func isMaskedInternalError(err error) bool {
+	var bizErr *jsonrpc.BusinessError
+	return errors.As(err, &bizErr) &&
+		bizErr.Code == jsonrpc.ErrCodeInternalError &&
+		bizErr.Message == jsonrpc.GetErrorMessage(jsonrpc.ErrCodeInternalError) &&
+		bizErr.Data == nil
 }

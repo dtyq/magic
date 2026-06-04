@@ -106,6 +106,7 @@ type fragmentAppKnowledgeBaseReader interface {
 type fragmentAppDocumentReader interface {
 	Show(ctx context.Context, code string) (*docentity.KnowledgeBaseDocument, error)
 	ShowByCodeAndKnowledgeBase(ctx context.Context, code, knowledgeBaseCode string) (*docentity.KnowledgeBaseDocument, error)
+	ListByOrganizationKnowledgeBasesAndCodes(ctx context.Context, organizationCode string, knowledgeBaseCodes, documentCodes []string) ([]*docentity.KnowledgeBaseDocument, error)
 	FindByKnowledgeBaseAndThirdFile(ctx context.Context, knowledgeBaseCode, thirdPlatformType, thirdFileID string) (*docentity.KnowledgeBaseDocument, error)
 	EnsureDefaultDocument(ctx context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot) (*docentity.KnowledgeBaseDocument, bool, error)
 }
@@ -153,6 +154,12 @@ type fragmentAppKnowledgeBaseBindingReader interface {
 		bindID string,
 		organizationCode string,
 	) ([]string, error)
+	ListKnowledgeBaseBindingsByBindID(
+		ctx context.Context,
+		bindType kbentity.BindingType,
+		bindID string,
+		organizationCode string,
+	) ([]kbentity.AgentKnowledgeBaseBinding, error)
 }
 
 type fragmentAppSuperMagicAgentAccessChecker interface {
@@ -484,15 +491,18 @@ func (s *FragmentAppService) Sync(ctx context.Context, input *fragdto.SyncFragme
 
 // Similarity 相似度搜索
 func (s *FragmentAppService) Similarity(ctx context.Context, input *fragdto.SimilarityInput) ([]*fragdto.SimilarityResultDTO, error) {
-	userID := ""
-	if input != nil && input.BusinessParams != nil {
-		userID = input.BusinessParams.UserID
+	if input == nil {
+		return nil, shared.ErrKnowledgeBaseNotFound
 	}
-	if err := s.authorizeSimilarityRead(ctx, input.OrganizationCode, userID, input.KnowledgeCode); err != nil {
-		return nil, err
+	userID := ""
+	if input.BusinessParams != nil {
+		userID = input.BusinessParams.UserID
 	}
 	kb, err := s.loadScopedKnowledgeBase(ctx, input.OrganizationCode, input.KnowledgeCode)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizeSimilarityRead(ctx, input.OrganizationCode, userID, kb); err != nil {
 		return nil, err
 	}
 	return s.similarityByKnowledgeBase(ctx, kb, input)
@@ -502,9 +512,22 @@ func (s *FragmentAppService) authorizeSimilarityRead(
 	ctx context.Context,
 	organizationCode string,
 	userID string,
-	knowledgeBaseCode string,
+	kb *kbentity.KnowledgeBase,
 ) error {
+	if kb == nil {
+		return shared.ErrKnowledgeBaseNotFound
+	}
 	actor := resolveFragmentAccessActor(ctx, organizationCode, userID)
+	knowledgeBaseCode := kb.Code
+	// Linked flow_vector KBs keep their original KB permission boundary:
+	// agent visibility only allows entering the agent, not reading linked flow KB data.
+	// digital_employee KBs still use agent visibility as their access boundary.
+	if kb.KnowledgeBaseType == kbentity.KnowledgeBaseTypeFlowVector {
+		return s.authorizeFlowKnowledgeBaseRead(ctx, actor.OrganizationCode, actor.UserID, knowledgeBaseCode)
+	}
+	if kb.KnowledgeBaseType != kbentity.KnowledgeBaseTypeDigitalEmployee {
+		return s.authorizeKnowledgeBaseAction(ctx, actor.OrganizationCode, actor.UserID, knowledgeBaseCode, "read")
+	}
 	if s == nil || s.knowledgeBaseBindingRepo == nil {
 		return s.authorizeKnowledgeBaseAction(ctx, actor.OrganizationCode, actor.UserID, knowledgeBaseCode, "read")
 	}
@@ -535,6 +558,53 @@ func (s *FragmentAppService) authorizeSimilarityRead(
 		}
 	}
 	return fmt.Errorf("%w: action=read knowledge_base_code=%s", ErrFragmentPermissionDenied, knowledgeBaseCode)
+}
+
+func (s *FragmentAppService) authorizeFlowKnowledgeBaseRead(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	knowledgeBaseCode string,
+) error {
+	accessService := s.knowledgeAccessService()
+	if accessService == nil {
+		return fmt.Errorf("%w: action=read knowledge_base_code=%s", ErrFragmentPermissionDenied, knowledgeBaseCode)
+	}
+	result, err := accessService.Authorize(ctx, resolveFragmentAccessActor(ctx, organizationCode, userID), "read", kbaccess.Target{
+		KnowledgeBaseCode: knowledgeBaseCode,
+	})
+	if err != nil {
+		s.warnFlowKnowledgeBaseReadDeniedByAccessError(ctx, organizationCode, userID, knowledgeBaseCode, err)
+		return fmt.Errorf("%w: action=read knowledge_base_code=%s", ErrFragmentPermissionDenied, knowledgeBaseCode)
+	}
+	if !result.Operation.CanRead() {
+		return fmt.Errorf("%w: action=read knowledge_base_code=%s", ErrFragmentPermissionDenied, knowledgeBaseCode)
+	}
+	return nil
+}
+
+func (s *FragmentAppService) warnFlowKnowledgeBaseReadDeniedByAccessError(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	knowledgeBaseCode string,
+	err error,
+) {
+	if s == nil || s.logger == nil {
+		return
+	}
+	s.logger.KnowledgeWarnContext(
+		ctx,
+		"Resolve linked flow knowledge base read permission failed",
+		"organization_code",
+		organizationCode,
+		"user_id",
+		userID,
+		"knowledge_base_code",
+		knowledgeBaseCode,
+		"error",
+		err,
+	)
 }
 
 func (s *FragmentAppService) similarityByKnowledgeBase(
@@ -584,6 +654,7 @@ func withSimilarityKnowledgeBaseContext(
 		return dto
 	}
 	dto.KnowledgeBaseType = string(kb.KnowledgeBaseType)
+	dto.KnowledgeBaseName = kb.Name
 	dto.SourceType = cloneOptionalInt(kb.SourceType)
 	return dto
 }

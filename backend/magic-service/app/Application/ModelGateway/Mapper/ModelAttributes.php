@@ -27,6 +27,7 @@ readonly class ModelAttributes
         private string $resolvedModelId = '',
         private string $modelVersion = '',
         private string $providerName = '',
+        private string $providerCode = '',
     ) {
     }
 
@@ -100,6 +101,11 @@ readonly class ModelAttributes
         return $this->providerName;
     }
 
+    public function getProviderCode(): string
+    {
+        return $this->providerCode;
+    }
+
     public function toArray(): array
     {
         return [
@@ -116,6 +122,7 @@ readonly class ModelAttributes
             'model_type' => $this->modelType,
             'description' => $this->description,
             'resolved_model_id' => $this->resolvedModelId,
+            'provider_code' => $this->providerCode,
         ];
     }
 

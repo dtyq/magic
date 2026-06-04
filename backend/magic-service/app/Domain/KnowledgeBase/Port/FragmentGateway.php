@@ -31,6 +31,8 @@ interface FragmentGateway
 
     public function runtimeSimilarity(FragmentRequestDTO $request): array;
 
+    public function flowVectorSimilarityByUser(FragmentRequestDTO $request): array;
+
     public function similarityByAgent(FragmentRequestDTO $request): array;
 
     public function preview(FragmentRequestDTO $request): array;

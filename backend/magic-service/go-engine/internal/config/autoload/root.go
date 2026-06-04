@@ -3,22 +3,24 @@ package autoload
 
 // Config 是应用的根配置。
 type Config struct {
-	Server                 ServerConfig                 `json:"server"`
-	Qdrant                 QdrantConfig                 `json:"qdrant"`
-	Rebuild                RebuildConfig                `json:"rebuild"`
-	MySQL                  MySQLConfig                  `json:"mysql"`
-	Redis                  RedisConfig                  `json:"redis"`
-	Logging                LoggingConfig                `json:"logging"`
-	Events                 EventsConfig                 `json:"events"`
-	Security               SecurityConfig               `json:"security"`
-	IPC                    IPCConfig                    `json:"ipc"`
-	RabbitMQ               RabbitMQConfig               `json:"rabbitmq"`
-	Embedding              EmbeddingConfig              `json:"embedding"`
-	EmbeddingCacheCleanup  EmbeddingCacheCleanupConfig  `json:"embedding_cache_cleanup"`
-	MagicModelGateway      MagicModelGatewayConfig      `json:"magic_model_gateway"`
-	OCR                    OCRConfig                    `json:"ocr"`
-	Storage                StorageConfig                `json:"storage"`
-	DocumentResourceLimits DocumentResourceLimitsConfig `mapstructure:"documentResourceLimits" json:"document_resource_limits"`
+	Server                       ServerConfig                       `json:"server"`
+	Qdrant                       QdrantConfig                       `json:"qdrant"`
+	Rebuild                      RebuildConfig                      `json:"rebuild"`
+	MySQL                        MySQLConfig                        `json:"mysql"`
+	Redis                        RedisConfig                        `json:"redis"`
+	Logging                      LoggingConfig                      `json:"logging"`
+	Events                       EventsConfig                       `json:"events"`
+	Security                     SecurityConfig                     `json:"security"`
+	IPC                          IPCConfig                          `json:"ipc"`
+	RabbitMQ                     RabbitMQConfig                     `json:"rabbitmq"`
+	Embedding                    EmbeddingConfig                    `json:"embedding"`
+	EmbeddingCacheCleanup        EmbeddingCacheCleanupConfig        `json:"embedding_cache_cleanup"`
+	MagicModelGateway            MagicModelGatewayConfig            `json:"magic_model_gateway"`
+	OCR                          OCRConfig                          `json:"ocr"`
+	Storage                      StorageConfig                      `json:"storage"`
+	DocumentResourceLimits       DocumentResourceLimitsConfig       `mapstructure:"documentResourceLimits" json:"document_resource_limits"`
+	OfficeConversion             OfficeConversionConfig             `mapstructure:"officeConversion" json:"office_conversion"`
+	KnowledgeVisualUnderstanding KnowledgeVisualUnderstandingConfig `mapstructure:"knowledgeVisualUnderstanding" json:"knowledge_visual_understanding"`
 }
 
 // LoggingConfig 提供应用日志设置。

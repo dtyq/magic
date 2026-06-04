@@ -319,6 +319,28 @@ SET expected_num = ?,
 WHERE id = ?
   AND deleted_at IS NULL;
 
+-- name: UpdateKnowledgeBaseWordCount :execrows
+UPDATE magic_flow_knowledge
+SET word_count = ?,
+    updated_at = ?
+WHERE id = ?
+  AND deleted_at IS NULL;
+
+-- name: RefreshKnowledgeBaseWordCountByDocumentSum :execrows
+UPDATE magic_flow_knowledge
+SET word_count = (
+      SELECT CAST(COALESCE(SUM(knowledge_base_documents.word_count), 0) AS SIGNED)
+      FROM knowledge_base_documents
+      WHERE knowledge_base_documents.deleted_at IS NULL
+        AND knowledge_base_documents.organization_code = sqlc.arg(org_code)
+        AND knowledge_base_documents.knowledge_base_code = sqlc.arg(kb_code)
+    ),
+    updated_uid = sqlc.arg(updated_uid),
+    updated_at = sqlc.arg(updated_at)
+WHERE magic_flow_knowledge.organization_code = sqlc.arg(org_code)
+  AND magic_flow_knowledge.code = sqlc.arg(kb_code)
+  AND magic_flow_knowledge.deleted_at IS NULL;
+
 -- name: FindKnowledgeBaseCollectionMeta :one
 SELECT model,
        embedding_config

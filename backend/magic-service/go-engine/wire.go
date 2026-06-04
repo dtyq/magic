@@ -5,6 +5,7 @@ package main
 import (
 	"github.com/google/wire"
 
+	documentapp "magic/internal/application/knowledge/document/service"
 	fragmentapp "magic/internal/application/knowledge/fragment/service"
 	"magic/internal/config/autoload"
 	diapp "magic/internal/di/app"
@@ -13,6 +14,7 @@ import (
 	"magic/internal/infrastructure/health"
 	"magic/internal/infrastructure/knowledge/documentsync"
 	metrics "magic/internal/infrastructure/metrics"
+	redisrebuild "magic/internal/infrastructure/persistence/redis/rebuild"
 	ipcclient "magic/internal/infrastructure/rpc/jsonrpc/client"
 	"magic/internal/infrastructure/transport/ipc/unixsocket"
 	httpserver "magic/internal/interfaces/http"
@@ -57,6 +59,7 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 
 		handlers.NewDebugHandler,
 		handlers.NewMagicFSFileHandler,
+		handlers.NewKnowledgeSourceFileHandler,
 
 		// 接口绑定
 		wire.Bind(new(httpserver.InfraServices), new(*health.CheckService)),
@@ -65,6 +68,8 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 		wire.Bind(new(httpserver.RetrievalWarmupService), new(*fragmentapp.FragmentAppService)),
 		wire.Bind(new(httpserver.TaskQueueService), new(*documentsync.Runtime)),
 		wire.Bind(new(opshandler.OfficialOrganizationMemberChecker), new(*ipcclient.PHPKnowledgeBasePermissionRPCClient)),
+		wire.Bind(new(rpchandler.KnowledgeBaseRebuildStateReader), new(*redisrebuild.Coordinator)),
+		wire.Bind(new(handlers.KnowledgeSourceFileService), new(*documentapp.KnowledgeSourceFileLinkService)),
 	)
 	return nil, nil, nil
 }

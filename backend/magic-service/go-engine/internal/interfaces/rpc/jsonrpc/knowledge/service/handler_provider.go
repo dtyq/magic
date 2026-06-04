@@ -17,6 +17,7 @@ func (h *KnowledgeBaseRPCService) Handlers() map[string]jsonrpc.ServerHandler {
 	}
 
 	handlers := rpcHandlerMap(h.knowledgeBaseCRUDHandlers()...)
+	addRPCHandlers(handlers, h.knowledgeBaseBindingHandlers()...)
 	addRPCHandlers(handlers, h.knowledgeBaseTeamshareHandlers()...)
 	addRPCHandlers(handlers, h.knowledgeBaseMaintenanceHandlers()...)
 	return handlers
@@ -29,8 +30,16 @@ func (h *KnowledgeBaseRPCService) knowledgeBaseCRUDHandlers() []rpcHandlerEntry 
 		{constants.MethodKnowledgeBaseSaveProcess, jsonrpc.WrapTyped(h.SaveProcessRPC)},
 		{constants.MethodKnowledgeBaseShow, jsonrpc.WrapTyped(h.ShowRPC)},
 		{constants.MethodKnowledgeBaseList, jsonrpc.WrapTyped(h.ListRPC)},
-		{constants.MethodKnowledgeBaseNodes, jsonrpc.WrapTyped(h.ListSourceBindingNodesRPC)},
 		{constants.MethodKnowledgeBaseDestroy, jsonrpc.WrapTyped(h.DestroyRPC)},
+	}
+}
+
+func (h *KnowledgeBaseRPCService) knowledgeBaseBindingHandlers() []rpcHandlerEntry {
+	return []rpcHandlerEntry{
+		{constants.MethodKnowledgeBaseLinkAgentKnowledgeBases, jsonrpc.WrapTyped(h.LinkAgentKnowledgeBasesRPC)},
+		{constants.MethodKnowledgeBaseUnlinkAgentKnowledgeBases, jsonrpc.WrapTyped(h.UnlinkAgentKnowledgeBasesRPC)},
+		{constants.MethodKnowledgeBaseUpdateAgentKnowledgeBaseBinding, jsonrpc.WrapTyped(h.UpdateAgentKnowledgeBaseBindingRPC)},
+		{constants.MethodKnowledgeBaseNodes, jsonrpc.WrapTyped(h.ListSourceBindingNodesRPC)},
 	}
 }
 
@@ -46,6 +55,8 @@ func (h *KnowledgeBaseRPCService) knowledgeBaseMaintenanceHandlers() []rpcHandle
 	return []rpcHandlerEntry{
 		{constants.MethodKnowledgeBaseRebuildPermissions, jsonrpc.WrapTyped(h.RebuildPermissionsRPC)},
 		{constants.MethodKnowledgeBaseRebuild, jsonrpc.WrapTyped(h.RebuildRPC)},
+		{constants.MethodKnowledgeBaseRebuildStatus, jsonrpc.WrapTyped(h.RebuildStatusRPC)},
+		{constants.MethodKnowledgeBaseSwitchEmbeddingModelMeta, jsonrpc.WrapTyped(h.SwitchEmbeddingModelMetaRPC)},
 		{constants.MethodKnowledgeBaseRepairSourceBindings, jsonrpc.WrapTyped(h.RepairSourceBindingsRPC)},
 		{constants.MethodKnowledgeBaseRebuildCleanup, jsonrpc.WrapTyped(h.RebuildCleanupRPC)},
 	}
@@ -87,6 +98,7 @@ func (h *FragmentRPCService) fragmentSearchHandlers() []rpcHandlerEntry {
 	return []rpcHandlerEntry{
 		{constants.MethodFragmentSimilarity, jsonrpc.WrapTyped(h.SimilarityRPC)},
 		{constants.MethodFragmentSimilarityHTTP, jsonrpc.WrapTyped(h.SimilarityHTTPRPC)},
+		{constants.MethodFragmentFlowVectorSimilarityByUser, jsonrpc.WrapTyped(h.FlowVectorSimilarityByUserRPC)},
 		{constants.MethodFragmentSimilarityByAgent, jsonrpc.WrapTyped(h.SimilarityByAgentRPC)},
 		{constants.MethodFragmentPreview, jsonrpc.WrapTyped(h.PreviewRPC)},
 		{constants.MethodFragmentPreviewHTTP, jsonrpc.WrapTyped(h.PreviewHTTPRPC)},
@@ -116,7 +128,6 @@ func (h *DocumentRPCService) Handlers() map[string]jsonrpc.ServerHandler {
 		rpcHandlerEntry{constants.MethodDocumentCreate, jsonrpc.WrapTyped(h.CreateRPC)},
 		rpcHandlerEntry{constants.MethodDocumentUpdate, jsonrpc.WrapTyped(h.UpdateRPC)},
 		rpcHandlerEntry{constants.MethodDocumentShow, jsonrpc.WrapTyped(h.ShowRPC)},
-		rpcHandlerEntry{constants.MethodDocumentGetOriginalFileLink, jsonrpc.WrapTyped(h.GetOriginalFileLinkRPC)},
 		rpcHandlerEntry{constants.MethodDocumentList, jsonrpc.WrapTyped(h.ListRPC)},
 		rpcHandlerEntry{constants.MethodDocumentGetByThirdFileID, jsonrpc.WrapTyped(h.GetByThirdFileIdRPC)},
 		rpcHandlerEntry{constants.MethodDocumentCountByKnowledgeBaseCodes, jsonrpc.WrapTyped(h.CountByKnowledgeBaseCodesRPC)},

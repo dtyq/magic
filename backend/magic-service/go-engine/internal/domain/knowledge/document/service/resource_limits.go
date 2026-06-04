@@ -49,6 +49,10 @@ const (
 	ResourceLimitMaxEmbeddedAssetBytes = "max_embedded_asset_bytes"
 	// ResourceLimitMaxPresentationSlides 表示 PPTX 幻灯片页数限制。
 	ResourceLimitMaxPresentationSlides = "max_presentation_slides"
+	// ResourceLimitMaxVisualPageImageBytes 表示视觉理解单页图片大小限制。
+	ResourceLimitMaxVisualPageImageBytes = "max_visual_page_image_bytes"
+	// ResourceLimitMaxVisualModelRequestBytes 表示视觉理解模型请求大小限制。
+	ResourceLimitMaxVisualModelRequestBytes = "max_visual_model_request_bytes"
 	// ResourceLimitSyncMemorySoftLimitBytes 表示同步内存软水位限制。
 	ResourceLimitSyncMemorySoftLimitBytes = "sync_memory_soft_limit_bytes"
 )
@@ -62,7 +66,9 @@ const (
 	resourceLimitStageArchiveEntry          = "archive_entry"
 	resourceLimitStageEmbeddedAsset         = "embedded_asset"
 	resourceLimitStagePresentationPreflight = "presentation_preflight"
-	resourceLimitTableTooLargeMessage       = "document table is too large: rows or cells exceed limit"
+	// ResourceLimitStageVisualUnderstanding 表示视觉理解处理阶段。
+	ResourceLimitStageVisualUnderstanding = "visual_understanding"
+	resourceLimitTableTooLargeMessage     = "document table is too large: rows or cells exceed limit"
 )
 
 // ErrDocumentResourceLimitExceeded 表示文档同步命中资源限制。

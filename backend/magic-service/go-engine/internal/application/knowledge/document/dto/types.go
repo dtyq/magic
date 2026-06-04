@@ -48,11 +48,13 @@ type DocumentDTO struct {
 
 // OriginalFileLinkDTO 表示文档原始文件访问链接。
 type OriginalFileLinkDTO struct {
-	Available bool   `json:"available"`
-	URL       string `json:"url"`
-	Name      string `json:"name"`
-	Key       string `json:"key"`
-	Type      string `json:"type"`
+	Available  bool   `json:"available"`
+	URL        string `json:"url"`
+	Name       string `json:"name"`
+	Key        string `json:"key"`
+	Type       string `json:"type"`
+	SourceType string `json:"source_type,omitempty"`
+	LinkType   string `json:"link_type,omitempty"`
 }
 
 // CreateDocumentInput 表示创建文档请求。

@@ -15,9 +15,9 @@ import (
 
 // XlsxParser Excel 解析器
 type XlsxParser struct {
-	ocrClient     document.OCRClient
-	maxOCRPerFile int
-	limits        document.ResourceLimits
+	visualExtractor document.VisualTextExtractor
+	maxOCRPerFile   int
+	limits          document.ResourceLimits
 }
 
 // NewXlsxParser 创建 Excel 解析器
@@ -36,10 +36,19 @@ func NewXlsxParserWithOCRAndLimits(
 	maxOCRPerFile int,
 	limits document.ResourceLimits,
 ) *XlsxParser {
+	return NewXlsxParserWithVisualAndLimits(newVisualTextExtractorFromOCR(ocrClient), maxOCRPerFile, limits)
+}
+
+// NewXlsxParserWithVisualAndLimits 创建带图片视觉转文字和资源限制的 Excel 解析器。
+func NewXlsxParserWithVisualAndLimits(
+	visualExtractor document.VisualTextExtractor,
+	maxOCRPerFile int,
+	limits document.ResourceLimits,
+) *XlsxParser {
 	return &XlsxParser{
-		ocrClient:     ocrClient,
-		maxOCRPerFile: document.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
-		limits:        document.NormalizeResourceLimits(limits),
+		visualExtractor: visualExtractor,
+		maxOCRPerFile:   document.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:          document.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -106,7 +115,7 @@ func (p *XlsxParser) ParseDocumentWithOptions(
 
 	var ocrHelper *embeddedImageOCRHelper
 	if options.ImageExtraction && options.ImageOCR {
-		ocrHelper = newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
+		ocrHelper = newEmbeddedImageOCRHelper(p.visualExtractor, p.maxOCRPerFile)
 	}
 	tables := make([]tabularTable, 0)
 	var totalRows int64

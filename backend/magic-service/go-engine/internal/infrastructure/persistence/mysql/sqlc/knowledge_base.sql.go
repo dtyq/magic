@@ -1994,6 +1994,44 @@ func (q *Queries) ListKnowledgeBasesByOrganizationAndCodes(ctx context.Context, 
 	return items, nil
 }
 
+const refreshKnowledgeBaseWordCountByDocumentSum = `-- name: RefreshKnowledgeBaseWordCountByDocumentSum :execrows
+UPDATE magic_flow_knowledge
+SET word_count = (
+      SELECT CAST(COALESCE(SUM(knowledge_base_documents.word_count), 0) AS SIGNED)
+      FROM knowledge_base_documents
+      WHERE knowledge_base_documents.deleted_at IS NULL
+        AND knowledge_base_documents.organization_code = ?
+        AND knowledge_base_documents.knowledge_base_code = ?
+    ),
+    updated_uid = ?,
+    updated_at = ?
+WHERE magic_flow_knowledge.organization_code = ?
+  AND magic_flow_knowledge.code = ?
+  AND magic_flow_knowledge.deleted_at IS NULL
+`
+
+type RefreshKnowledgeBaseWordCountByDocumentSumParams struct {
+	OrgCode    string    `json:"org_code"`
+	KbCode     string    `json:"kb_code"`
+	UpdatedUid string    `json:"updated_uid"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+func (q *Queries) RefreshKnowledgeBaseWordCountByDocumentSum(ctx context.Context, arg RefreshKnowledgeBaseWordCountByDocumentSumParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, refreshKnowledgeBaseWordCountByDocumentSum,
+		arg.OrgCode,
+		arg.KbCode,
+		arg.UpdatedUid,
+		arg.UpdatedAt,
+		arg.OrgCode,
+		arg.KbCode,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const resetKnowledgeBaseSyncStatusAll = `-- name: ResetKnowledgeBaseSyncStatusAll :execrows
 UPDATE magic_flow_knowledge
 SET sync_status = 0,
@@ -2235,6 +2273,28 @@ func (q *Queries) UpdateKnowledgeBaseSyncStatus(ctx context.Context, arg UpdateK
 		arg.UpdatedAt,
 		arg.ID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateKnowledgeBaseWordCount = `-- name: UpdateKnowledgeBaseWordCount :execrows
+UPDATE magic_flow_knowledge
+SET word_count = ?,
+    updated_at = ?
+WHERE id = ?
+  AND deleted_at IS NULL
+`
+
+type UpdateKnowledgeBaseWordCountParams struct {
+	WordCount int64     `json:"word_count"`
+	UpdatedAt time.Time `json:"updated_at"`
+	ID        int64     `json:"id"`
+}
+
+func (q *Queries) UpdateKnowledgeBaseWordCount(ctx context.Context, arg UpdateKnowledgeBaseWordCountParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateKnowledgeBaseWordCount, arg.WordCount, arg.UpdatedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}

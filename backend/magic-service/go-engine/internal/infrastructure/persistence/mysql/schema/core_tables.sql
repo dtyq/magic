@@ -132,6 +132,88 @@ CREATE TABLE IF NOT EXISTS knowledge_source_binding_items (
     UNIQUE KEY uk_source_binding_items (binding_id, source_item_id)
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_base_ingestion_sources (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    organization_code VARCHAR(64) NOT NULL,
+    provider VARCHAR(64) NOT NULL,
+    source_code VARCHAR(128) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    credential_ref VARCHAR(255) NOT NULL DEFAULT '',
+    config JSON NOT NULL,
+    sync_cursor JSON NULL,
+    last_sync_status VARCHAR(32) NOT NULL DEFAULT '',
+    last_sync_error VARCHAR(1024) NOT NULL DEFAULT '',
+    last_synced_at DATETIME NULL,
+    created_uid VARCHAR(64) NOT NULL DEFAULT '',
+    updated_uid VARCHAR(64) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_kb_ingestion_source (organization_code, provider, source_code),
+    KEY idx_kb_ingestion_source_enabled (organization_code, provider, enabled, id)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_base_ingestion_items (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    organization_code VARCHAR(64) NOT NULL,
+    provider VARCHAR(64) NOT NULL,
+    source_code VARCHAR(128) NOT NULL,
+    item_ref VARCHAR(191) NOT NULL,
+    item_type VARCHAR(32) NOT NULL,
+    title VARCHAR(512) NOT NULL DEFAULT '',
+    source_url VARCHAR(1024) NOT NULL DEFAULT '',
+    extension VARCHAR(32) NOT NULL DEFAULT 'md',
+    raw_hash CHAR(64) NOT NULL DEFAULT '',
+    clean_hash CHAR(64) NOT NULL DEFAULT '',
+    clean_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    cleaner_version VARCHAR(64) NOT NULL DEFAULT '',
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    snapshot_meta JSON NULL,
+    last_error VARCHAR(2048) NOT NULL DEFAULT '',
+    last_pulled_at DATETIME NULL,
+    last_cleaned_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_kb_ingestion_item (organization_code, provider, source_code, item_ref),
+    KEY idx_kb_ingestion_item_status (organization_code, provider, source_code, status, id),
+    KEY idx_kb_ingestion_item_clean_hash (organization_code, provider, source_code, clean_hash, id)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_base_ingestion_item_contents (
+    item_id BIGINT NOT NULL PRIMARY KEY,
+    organization_code VARCHAR(64) NOT NULL,
+    provider VARCHAR(64) NOT NULL,
+    source_code VARCHAR(128) NOT NULL,
+    item_ref VARCHAR(191) NOT NULL,
+    clean_hash CHAR(64) NOT NULL,
+    content MEDIUMTEXT NOT NULL,
+    content_format VARCHAR(32) NOT NULL DEFAULT 'markdown',
+    content_charset VARCHAR(32) NOT NULL DEFAULT 'utf-8',
+    content_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_kb_ingestion_content_lookup (organization_code, provider, source_code, item_ref),
+    KEY idx_kb_ingestion_content_hash (organization_code, provider, source_code, clean_hash)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_base_ingestion_runs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    organization_code VARCHAR(64) NOT NULL,
+    provider VARCHAR(64) NOT NULL,
+    source_code VARCHAR(128) NOT NULL,
+    run_type VARCHAR(32) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    pulled_count INT UNSIGNED NOT NULL DEFAULT 0,
+    changed_count INT UNSIGNED NOT NULL DEFAULT 0,
+    cleaned_count INT UNSIGNED NOT NULL DEFAULT 0,
+    skipped_count INT UNSIGNED NOT NULL DEFAULT 0,
+    failed_count INT UNSIGNED NOT NULL DEFAULT 0,
+    error_summary VARCHAR(2048) NOT NULL DEFAULT '',
+    started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at DATETIME NULL,
+    KEY idx_kb_ingestion_run_source (organization_code, provider, source_code, started_at)
+);
+
 CREATE TABLE IF NOT EXISTS knowledge_base_bindings (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     knowledge_base_code VARCHAR(255) NOT NULL DEFAULT '',
@@ -140,6 +222,7 @@ CREATE TABLE IF NOT EXISTS knowledge_base_bindings (
     organization_code VARCHAR(255) NOT NULL DEFAULT '',
     created_uid VARCHAR(255) NOT NULL DEFAULT '',
     updated_uid VARCHAR(255) NOT NULL DEFAULT '',
+    metadata JSON NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_kb_bindings (knowledge_base_code, bind_type, bind_id),

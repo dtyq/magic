@@ -29,7 +29,11 @@ type ProductLineSnapshot struct {
 	KnowledgeBaseTypes        map[string]kbentity.Type
 }
 
-// ProductLineResolver 负责基于 knowledge_base_bindings 统一解析知识库产品线。
+// ProductLineResolver 只负责读取知识库与数字员工的绑定快照。
+//
+// 产品线必须以 magic_flow_knowledge.knowledge_base_type 为准；
+// super_magic_agent binding 同时承载“自建数字员工知识库”和“关联 flow 向量知识库”两种关系，
+// 不能再作为存量知识库产品线判定依据。
 type ProductLineResolver struct {
 	bindingReader BindingReader
 }
@@ -55,7 +59,7 @@ func ResolveKnowledgeBaseTypeByAgentCodes(agentCodes []string) kbentity.Type {
 	return kbentity.KnowledgeBaseTypeFlowVector
 }
 
-// ResolveKnowledgeBaseType 按知识库编码解析产品线。
+// ResolveKnowledgeBaseType 是历史兼容入口，不能通过 binding 推导数字员工产品线。
 func (r ProductLineResolver) ResolveKnowledgeBaseType(
 	ctx context.Context,
 	knowledgeBaseCode string,
@@ -67,10 +71,10 @@ func (r ProductLineResolver) ResolveKnowledgeBaseType(
 	return snapshot.KnowledgeBaseTypes[strings.TrimSpace(knowledgeBaseCode)], nil
 }
 
-// ResolveSnapshot 批量读取存量知识库绑定并推导产品线。
+// ResolveSnapshot 批量读取存量知识库绑定。
 //
-// 这个入口只服务更新、读取和下游消费场景，依据的是已经落库的绑定快照；
-// 若未查到数字员工绑定，则按历史兼容默认视为 flow_vector。
+// KnowledgeBaseTypes 字段只保留历史兼容默认值；真实产品线由知识库行上的
+// knowledge_base_type 决定。
 func (r ProductLineResolver) ResolveSnapshot(
 	ctx context.Context,
 	knowledgeBaseCodes []string,
@@ -100,7 +104,6 @@ func (r ProductLineResolver) ResolveSnapshot(
 	for _, code := range normalizedCodes {
 		agentCodes := normalizeProductLineAgentCodes(agentCodesByKnowledgeBase[code])
 		snapshot.AgentCodesByKnowledgeBase[code] = agentCodes
-		snapshot.KnowledgeBaseTypes[code] = ResolveKnowledgeBaseTypeByAgentCodes(agentCodes)
 	}
 	return snapshot, nil
 }

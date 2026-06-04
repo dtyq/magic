@@ -205,6 +205,26 @@ func (s knowledgeBaseDomainManagedDocumentStore) CreateManagedDocument(
 	return managedDocumentFromDomain(doc), nil
 }
 
+func (s knowledgeBaseDomainManagedDocumentStore) ListRealtimeDocumentsByThirdFileInOrg(
+	ctx context.Context,
+	organizationCode string,
+	thirdPlatformType string,
+	thirdFileID string,
+) ([]*ManagedDocument, error) {
+	if s.documentService == nil {
+		return nil, errManagedDocumentDomainServiceRequired
+	}
+	documents, err := s.documentService.ListRealtimeByThirdFileInOrg(ctx, organizationCode, thirdPlatformType, thirdFileID)
+	if err != nil {
+		return nil, fmt.Errorf("list realtime managed documents by third file: %w", err)
+	}
+	result := make([]*ManagedDocument, 0, len(documents))
+	for _, doc := range documents {
+		result = append(result, managedDocumentFromDomain(doc))
+	}
+	return result, nil
+}
+
 func (s knowledgeBaseDomainManagedDocumentStore) DestroyManagedDocument(
 	ctx context.Context,
 	code string,
@@ -517,6 +537,7 @@ func managedDocumentFromDomain(doc *docentity.KnowledgeBaseDocument) *ManagedDoc
 		ProjectFileID:     doc.ProjectFileID,
 		SyncStatus:        doc.SyncStatus,
 		DocumentFile:      cloneDocumentFile(doc.DocumentFile),
+		ThirdFileID:       doc.ThirdFileID,
 	}
 }
 

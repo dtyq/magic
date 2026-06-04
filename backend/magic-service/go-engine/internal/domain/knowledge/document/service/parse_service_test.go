@@ -66,10 +66,11 @@ func (m *parseTestFetcher) FileSize(ctx context.Context, path string) (int64, er
 }
 
 type parseTestParser struct {
-	supported       string
-	needsURL        bool
-	parseFn         func(context.Context, string, io.Reader, string) (string, error)
-	parseDocumentFn func(context.Context, string, io.Reader, string) (*parseddocument.ParsedDocument, error)
+	supported         string
+	needsURL          bool
+	dynamicNeedsURLFn func(context.Context, string, documentdomain.ParseOptions) bool
+	parseFn           func(context.Context, string, io.Reader, string) (string, error)
+	parseDocumentFn   func(context.Context, string, io.Reader, string) (*parseddocument.ParsedDocument, error)
 }
 
 type parseTestParserWithOptions struct {
@@ -97,6 +98,17 @@ func (p *parseTestParser) Supports(fileType string) bool {
 
 func (p *parseTestParser) NeedsResolvedURL() bool {
 	return p.needsURL
+}
+
+func (p *parseTestParser) NeedsResolvedURLForOptions(
+	ctx context.Context,
+	fileType string,
+	options documentdomain.ParseOptions,
+) bool {
+	if p.dynamicNeedsURLFn != nil {
+		return p.dynamicNeedsURLFn(ctx, fileType, options)
+	}
+	return p.NeedsResolvedURL()
 }
 
 func (p *parseTestParser) ParseDocument(ctx context.Context, fileURL string, file io.Reader, fileType string) (*parseddocument.ParsedDocument, error) {
@@ -276,6 +288,57 @@ func TestDocumentParseServiceParse_ResolvedURLParserUsesGetLink(t *testing.T) {
 	}
 	if got := getLinkCalls.Load(); got != 1 {
 		t.Fatalf("expected 1 getLink call, got %d", got)
+	}
+}
+
+func TestDocumentParseServiceParse_DynamicPolicySkipsGetLink(t *testing.T) {
+	t.Parallel()
+
+	var getLinkCalls atomic.Int64
+	var fetchCalls atomic.Int64
+	const originalSource = "DT001/demo.png"
+	fetcher := &parseTestFetcher{
+		fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+			fetchCalls.Add(1)
+			return io.NopCloser(strings.NewReader("image")), nil
+		},
+		getLinkFn: func(context.Context, string, string, time.Duration) (string, error) {
+			getLinkCalls.Add(1)
+			return "", errParseUnexpectedResolvedURL
+		},
+	}
+	svc := documentdomain.NewParseService(fetcher, []documentdomain.Parser{
+		&parseTestParser{
+			supported: "png",
+			needsURL:  true,
+			dynamicNeedsURLFn: func(context.Context, string, documentdomain.ParseOptions) bool {
+				return false
+			},
+			parseFn: func(_ context.Context, fileURL string, file io.Reader, fileType string) (string, error) {
+				if fileURL != originalSource {
+					return "", fmt.Errorf("%w: %s", errParseUnexpectedResolvedURL, fileURL)
+				}
+				data, err := io.ReadAll(file)
+				if err != nil {
+					return "", fmt.Errorf("read parser input: %w", err)
+				}
+				return string(data), nil
+			},
+		},
+	}, logging.New())
+
+	content, err := svc.Parse(context.Background(), originalSource, "png")
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if content != "image" {
+		t.Fatalf("unexpected content: %q", content)
+	}
+	if got := fetchCalls.Load(); got != 1 {
+		t.Fatalf("expected 1 fetch call, got %d", got)
+	}
+	if got := getLinkCalls.Load(); got != 0 {
+		t.Fatalf("expected 0 getLink calls, got %d", got)
 	}
 }
 

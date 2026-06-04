@@ -17,7 +17,6 @@ var errUnexpectedDocumentListResultType = errors.New("unexpected document list r
 
 type documentQueryApplicationService interface {
 	Show(ctx context.Context, code, knowledgeBaseCode, organizationCode, userID string) (*docdto.DocumentDTO, error)
-	GetOriginalFileLink(ctx context.Context, code, knowledgeBaseCode, organizationCode, userID string) (*docdto.OriginalFileLinkDTO, error)
 	List(ctx context.Context, input *docdto.ListDocumentInput) (*pagehelper.Result, error)
 	GetByThirdFileID(ctx context.Context, input *docdto.GetDocumentsByThirdFileIDInput) ([]*docdto.DocumentDTO, error)
 	CountByKnowledgeBaseCodes(ctx context.Context, organizationCode string, knowledgeBaseCodes []string) (map[string]int64, error)
@@ -214,32 +213,6 @@ func (h *DocumentRPCService) ShowRPC(ctx context.Context, req *dto.ShowDocumentR
 	}
 
 	return dto.NewDocumentResponse(result), nil
-}
-
-// GetOriginalFileLinkRPC 获取文档原始文件访问链接（RPC 版本）。
-func (h *DocumentRPCService) GetOriginalFileLinkRPC(
-	ctx context.Context,
-	req *dto.GetOriginalFileLinkRequest,
-) (*dto.OriginalFileLinkResponse, error) {
-	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
-	result, err := h.queryService.GetOriginalFileLink(
-		ctx,
-		req.Code,
-		req.KnowledgeBaseCode,
-		req.DataIsolation.ResolveOrganizationCode(),
-		req.DataIsolation.UserID,
-	)
-	if err != nil {
-		return nil, mapBusinessError(ctx, err)
-	}
-
-	return &dto.OriginalFileLinkResponse{
-		Available: result.Available,
-		URL:       result.URL,
-		Name:      result.Name,
-		Key:       result.Key,
-		Type:      result.Type,
-	}, nil
 }
 
 // ListRPC 查询文档列表（RPC 版本）

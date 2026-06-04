@@ -58,7 +58,7 @@ readonly class MagicFSFileRpcService
                 return $this->success($fileId);
             }
 
-            $this->magicFSFileAppService->assertFileViewerAccessible($authorization, $fileId);
+            $this->magicFSFileAppService->getFileInfo($authorization, $fileId);
             $this->cacheAccess($cacheKey);
 
             return $this->success($fileId);

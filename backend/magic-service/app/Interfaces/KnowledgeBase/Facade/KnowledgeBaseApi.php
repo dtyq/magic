@@ -49,10 +49,33 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
         return $this->knowledgeBaseAppService->queriesRaw($authorization, $query);
     }
 
-    public function sourceBindingNodes(): array
+    public function sourceBindingNodes()
     {
         $authorization = $this->getAuthorization();
         return $this->knowledgeBaseAppService->nodes($authorization, $this->request->all());
+    }
+
+    public function linkAgentKnowledgeBases()
+    {
+        $authorization = $this->getAuthorization();
+        return $this->knowledgeBaseAppService->linkAgentKnowledgeBases($authorization, $this->request->all());
+    }
+
+    public function unlinkAgentKnowledgeBases()
+    {
+        $authorization = $this->getAuthorization();
+        return $this->knowledgeBaseAppService->unlinkAgentKnowledgeBases($authorization, $this->request->all());
+    }
+
+    public function updateAgentKnowledgeBaseBinding(string $agentCode, string $knowledgeBaseCode)
+    {
+        $authorization = $this->getAuthorization();
+        return $this->knowledgeBaseAppService->updateAgentKnowledgeBaseBinding(
+            $authorization,
+            $agentCode,
+            $knowledgeBaseCode,
+            $this->request->all()
+        );
     }
 
     public function show(string $code)
@@ -66,7 +89,7 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
         $this->knowledgeBaseAppService->destroy($this->getAuthorization(), $code);
     }
 
-    public function rebuild(): array
+    public function rebuild()
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
@@ -77,7 +100,7 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
         return $this->knowledgeBaseAppService->rebuild($authorization, $this->request->all());
     }
 
-    public function repairThirdFileMappings(): array
+    public function repairThirdFileMappings()
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
@@ -88,7 +111,7 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
         return $this->knowledgeBaseAppService->repairSourceBindings($authorization, $this->request->all());
     }
 
-    public function rebuildCleanup(): array
+    public function rebuildCleanup()
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
@@ -102,7 +125,7 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
     /**
      * 根据 file_key 获取知识库文件链接.
      */
-    public function getFileLink(RequestInterface $request): array
+    public function getFileLink(RequestInterface $request)
     {
         $fileKey = $request->input('key');
         if (empty($fileKey)) {

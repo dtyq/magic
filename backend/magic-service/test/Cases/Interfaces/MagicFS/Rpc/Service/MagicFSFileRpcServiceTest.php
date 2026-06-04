@@ -13,6 +13,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\MagicFS\Rpc\Service\MagicFSFileAccessCache;
 use App\Interfaces\MagicFS\Rpc\Service\MagicFSFileRpcService;
 use Dtyq\SuperMagic\Application\MagicFS\Service\MagicFSFileAppService;
+use Dtyq\SuperMagic\Interfaces\MagicFS\DTO\Response\FileInfoResponseDTO;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -32,8 +33,9 @@ class MagicFSFileRpcServiceTest extends TestCase
 
         $magicFSFileAppService = $this->createMock(MagicFSFileAppService::class);
         $magicFSFileAppService->expects($this->once())
-            ->method('assertFileViewerAccessible')
-            ->with($authorization, '42');
+            ->method('getFileInfo')
+            ->with($authorization, '42')
+            ->willReturn(new FileInfoResponseDTO());
 
         $cache = $this->createMock(MagicFSFileAccessCache::class);
         $cache->expects($this->once())
@@ -68,7 +70,7 @@ class MagicFSFileRpcServiceTest extends TestCase
 
         $magicFSFileAppService = $this->createMock(MagicFSFileAppService::class);
         $magicFSFileAppService->expects($this->never())
-            ->method('assertFileViewerAccessible');
+            ->method('getFileInfo');
 
         $cache = $this->createMock(MagicFSFileAccessCache::class);
         $cache->expects($this->once())
@@ -98,7 +100,7 @@ class MagicFSFileRpcServiceTest extends TestCase
 
         $magicFSFileAppService = $this->createMock(MagicFSFileAppService::class);
         $magicFSFileAppService->expects($this->once())
-            ->method('assertFileViewerAccessible')
+            ->method('getFileInfo')
             ->willThrowException(new BusinessException('project.project_access_denied', 42003));
 
         $cache = $this->createMock(MagicFSFileAccessCache::class);
@@ -130,7 +132,7 @@ class MagicFSFileRpcServiceTest extends TestCase
 
         $magicFSFileAppService = $this->createMock(MagicFSFileAppService::class);
         $magicFSFileAppService->expects($this->once())
-            ->method('assertFileViewerAccessible')
+            ->method('getFileInfo')
             ->willThrowException(new RuntimeException('rpc failed'));
 
         $cache = $this->createMock(MagicFSFileAccessCache::class);

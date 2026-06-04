@@ -843,6 +843,62 @@ func (r *Repository) loadUpsertedSourceItems(
 	return result, nil
 }
 
+// ListSourceItemsByOrganizationProviderAndItemRefs 按组织、provider 和 item_ref 批量读取来源 item。
+func (r *Repository) ListSourceItemsByOrganizationProviderAndItemRefs(
+	ctx context.Context,
+	organizationCode string,
+	provider string,
+	itemRefs []string,
+) ([]sourcebindingentity.SourceItem, error) {
+	if r == nil || r.client == nil {
+		return nil, errSourceBindingRepositoryNil
+	}
+	refs := uniqueNonEmptyStrings(itemRefs)
+	if len(refs) == 0 {
+		return []sourcebindingentity.SourceItem{}, nil
+	}
+	rows, err := r.queries.ListKnowledgeSourceItemsByOrganizationAndProviderAndItemRefs(
+		ctx,
+		mysqlsqlc.ListKnowledgeSourceItemsByOrganizationAndProviderAndItemRefsParams{
+			OrganizationCode: strings.TrimSpace(organizationCode),
+			Provider:         strings.TrimSpace(provider),
+			ItemRefs:         refs,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list source items by refs: %w", err)
+	}
+	result := make([]sourcebindingentity.SourceItem, 0, len(rows))
+	for _, row := range rows {
+		item := sourceItemFromRow(row)
+		if item == nil {
+			continue
+		}
+		result = append(result, *item)
+	}
+	return result, nil
+}
+
+func uniqueNonEmptyStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
 func (r *Repository) upsertSourceItemRows(ctx context.Context, rows []sourceItemBatchRow) error {
 	switch len(rows) {
 	case 0:

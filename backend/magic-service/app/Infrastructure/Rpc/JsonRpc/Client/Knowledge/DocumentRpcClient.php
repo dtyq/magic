@@ -104,20 +104,6 @@ class DocumentRpcClient extends AbstractRpcClient implements DocumentGateway
     }
 
     /**
-     * 获取文档原始文件访问链接.
-     */
-    #[RpcMethod(name: SvcMethods::METHOD_GET_ORIGINAL_FILE_LINK)]
-    public function getOriginalFileLink(DocumentRequestDTO $request): array
-    {
-        $params = [
-            'code' => (string) $request->code,
-            'knowledge_base_code' => (string) $request->knowledgeBaseCode,
-            'data_isolation' => $request->dataIsolation->toArray(),
-        ];
-        return $this->callRpc(__FUNCTION__, $params);
-    }
-
-    /**
      * 获取文档列表.
      */
     #[RpcMethod(name: SvcMethods::METHOD_QUERIES)]

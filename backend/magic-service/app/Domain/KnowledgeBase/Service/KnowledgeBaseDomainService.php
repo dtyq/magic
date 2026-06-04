@@ -25,12 +25,12 @@ use Hyperf\DbConnection\Annotation\Transactional;
 use Psr\SimpleCache\CacheInterface;
 use Psr\SimpleCache\InvalidArgumentException;
 
-readonly class KnowledgeBaseDomainService
+class KnowledgeBaseDomainService
 {
     public function __construct(
-        private KnowledgeBaseRepositoryInterface $magicFlowKnowledgeRepository,
-        private KnowledgeBaseFragmentRepositoryInterface $magicFlowKnowledgeFragmentRepository,
-        private CacheInterface $cache,
+        private readonly KnowledgeBaseRepositoryInterface $magicFlowKnowledgeRepository,
+        private readonly KnowledgeBaseFragmentRepositoryInterface $magicFlowKnowledgeFragmentRepository,
+        private readonly CacheInterface $cache,
     ) {
     }
 
@@ -119,6 +119,19 @@ readonly class KnowledgeBaseDomainService
     public function exist(KnowledgeBaseDataIsolation $dataIsolation, string $code): bool
     {
         return $this->magicFlowKnowledgeRepository->exist($dataIsolation, $code);
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getAllEmbeddingModelIds(): array
+    {
+        return $this->magicFlowKnowledgeRepository->getAllEmbeddingModelIds();
+    }
+
+    public function getCurrentEmbeddingModelId(): string
+    {
+        return $this->magicFlowKnowledgeRepository->getCurrentEmbeddingModelId();
     }
 
     /**

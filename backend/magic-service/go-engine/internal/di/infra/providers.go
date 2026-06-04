@@ -23,6 +23,7 @@ import (
 	taskfiledomain "magic/internal/domain/taskfile/service"
 	"magic/internal/infrastructure/external"
 	"magic/internal/infrastructure/external/ocr"
+	"magic/internal/infrastructure/external/vision"
 	"magic/internal/infrastructure/health"
 	"magic/internal/infrastructure/knowledge/documentsync"
 	sourcecallbackcache "magic/internal/infrastructure/knowledge/sourcecallbackcache"
@@ -224,6 +225,30 @@ func ProvideOCRConfigProvider(
 	logger *logging.SugaredLogger,
 ) *ipcclient.PHPOCRConfigRPCClient {
 	return ipcclient.NewPHPOCRConfigRPCClient(server, logger.Named("ipcclient.PHPOCRConfigRPCClient"))
+}
+
+// ProvideAIAbilityConfigProvider 提供 AI 能力配置端口实现（Go -> PHP IPC）。
+func ProvideAIAbilityConfigProvider(
+	server *unixsocket.Server,
+	logger *logging.SugaredLogger,
+) *ipcclient.PHPAIAbilityConfigRPCClient {
+	return ipcclient.NewPHPAIAbilityConfigRPCClient(server, logger.Named("ipcclient.PHPAIAbilityConfigRPCClient"))
+}
+
+// ProvideModelCallConfigProvider 提供模型调用配置端口实现（Go -> PHP IPC）。
+func ProvideModelCallConfigProvider(
+	server *unixsocket.Server,
+	logger *logging.SugaredLogger,
+) *ipcclient.PHPModelCallConfigRPCClient {
+	return ipcclient.NewPHPModelCallConfigRPCClient(server, logger.Named("ipcclient.PHPModelCallConfigRPCClient"))
+}
+
+// ProvideWebAuthProvider 提供 WebAuth 鉴权端口实现（Go -> PHP IPC）。
+func ProvideWebAuthProvider(
+	server *unixsocket.Server,
+	logger *logging.SugaredLogger,
+) *ipcclient.PHPWebAuthRPCClient {
+	return ipcclient.NewPHPWebAuthRPCClient(server, logger.Named("ipcclient.PHPWebAuthRPCClient"))
 }
 
 // ProvideEmbeddingService 提供嵌入服务
@@ -685,26 +710,105 @@ func ProvidePHPFileRPCClient(
 	return ipcclient.NewPHPFileRPCClient(server, logger.Named("ipcclient.PHPFileRPCClient"))
 }
 
+// ProvideKnowledgeVisualUnderstandingConfig 提供知识库视觉理解运行配置。
+func ProvideKnowledgeVisualUnderstandingConfig(cfg *autoloadcfg.Config) vision.Config {
+	if cfg == nil {
+		return vision.ConfigFromAutoload(autoloadcfg.KnowledgeVisualUnderstandingConfig{})
+	}
+	return vision.ConfigFromAutoload(cfg.KnowledgeVisualUnderstanding)
+}
+
+// ProvideOpenAICompatibleVisionTextClient 提供多模态视觉转文字模型客户端。
+func ProvideOpenAICompatibleVisionTextClient(
+	cfg vision.Config,
+	logger *logging.SugaredLogger,
+) *vision.OpenAICompatibleVisionTextClient {
+	return vision.NewOpenAICompatibleVisionTextClient(cfg, logger.Named("external.OpenAICompatibleVisionTextClient"))
+}
+
+// ProvidePDFiumPageRenderer 提供 PDFium WebAssembly 页面渲染器。
+func ProvidePDFiumPageRenderer() *vision.PDFiumPageRenderer {
+	return vision.NewPDFiumPageRenderer()
+}
+
+// ProvideModelVisualTextExtractor 提供多模态模型视觉转文字实现。
+func ProvideModelVisualTextExtractor(
+	client *vision.OpenAICompatibleVisionTextClient,
+	renderer *vision.PDFiumPageRenderer,
+	cfg vision.Config,
+	autoload *autoloadcfg.Config,
+	logger *logging.SugaredLogger,
+) *vision.ModelVisualTextExtractor {
+	return vision.NewModelVisualTextExtractor(
+		client,
+		renderer,
+		cfg,
+		documentResourceLimitsFromConfig(autoload),
+		logger.Named("vision.ModelVisualTextExtractor"),
+	)
+}
+
+// ProvideConfigurableVisualTextExtractor 提供按能力配置切换的视觉转文字实现。
+func ProvideConfigurableVisualTextExtractor(
+	abilityConfigProvider *ipcclient.PHPAIAbilityConfigRPCClient,
+	modelConfigProvider *ipcclient.PHPModelCallConfigRPCClient,
+	ocrClient *ocr.VolcengineOCRClient,
+	modelExtractor *vision.ModelVisualTextExtractor,
+	logger *logging.SugaredLogger,
+) documentdomain.VisualTextExtractor {
+	return vision.NewConfigurableVisualTextExtractor(
+		abilityConfigProvider,
+		modelConfigProvider,
+		vision.NewOCRVisualTextExtractor(ocrClient),
+		modelExtractor,
+		logger.Named("vision.ConfigurableVisualTextExtractor"),
+	)
+}
+
 // ProvideDocumentParsers 提供所有文档解析器
 func ProvideDocumentParsers(
 	cfg *autoloadcfg.Config,
 	fileFetcher documentdomain.FileFetcher,
-	ocrClient *ocr.VolcengineOCRClient,
+	visualExtractor documentdomain.VisualTextExtractor,
 ) []documentdomain.Parser {
 	maxOCRPerFile := documentdomain.NormalizeEmbeddedImageOCRLimit(cfg.OCR.MaxOCRPerFile)
 	resourceLimits := documentResourceLimitsFromConfig(cfg)
+	xlsxParser := parser.NewXlsxParserWithVisualAndLimits(visualExtractor, maxOCRPerFile, resourceLimits)
+	docxParser := parser.NewDocxParserWithVisualLimit(visualExtractor, maxOCRPerFile, resourceLimits)
+	officeConverter := parser.NewLegacyOfficeConverter(officeConversionConfigFromAutoload(cfg))
 	return []documentdomain.Parser{
 		parser.NewCSVParserWithLimits(resourceLimits),
-		parser.NewXlsxParserWithOCRAndLimits(ocrClient, maxOCRPerFile, resourceLimits),
-		parser.NewDocxParserWithLimit(ocrClient, maxOCRPerFile, resourceLimits),
-		parser.NewPptxParserWithLimit(ocrClient, maxOCRPerFile, resourceLimits),
-		parser.NewPDFHybridParserWithLimit(ocrClient, maxOCRPerFile, resourceLimits),
-		parser.NewOCRParser(ocrClient),
+		parser.NewLegacyXlsParser(officeConverter, xlsxParser),
+		xlsxParser,
+		parser.NewLegacyDocParser(officeConverter, docxParser),
+		docxParser,
+		parser.NewPptxParserWithVisualLimit(visualExtractor, maxOCRPerFile, resourceLimits),
+		parser.NewVisualTextParser(visualExtractor),
+		parser.NewPDFHybridParserWithVisualLimit(visualExtractor, maxOCRPerFile, resourceLimits),
 		parser.NewPlainTextParser(resourceLimits),
-		parser.NewMarkdownParserWithAssets(fileFetcher, ocrClient, maxOCRPerFile, resourceLimits),
-		parser.NewHTMLParserWithAssets(fileFetcher, ocrClient, maxOCRPerFile, resourceLimits),
+		parser.NewMarkdownParserWithVisualAssets(fileFetcher, visualExtractor, maxOCRPerFile, resourceLimits),
+		parser.NewHTMLParserWithVisualAssets(fileFetcher, visualExtractor, maxOCRPerFile, resourceLimits),
 		parser.NewXMLParser(resourceLimits),
 		parser.NewJSONParser(resourceLimits),
+	}
+}
+
+func officeConversionConfigFromAutoload(cfg *autoloadcfg.Config) parser.OfficeConversionConfig {
+	if cfg == nil {
+		return parser.OfficeConversionConfig{Enabled: true}
+	}
+	office := cfg.OfficeConversion
+	enabled := true
+	if office.Enabled != nil {
+		enabled = *office.Enabled
+	}
+	return parser.OfficeConversionConfig{
+		Enabled:        enabled,
+		Command:        office.Command,
+		Timeout:        time.Duration(office.TimeoutSeconds) * time.Second,
+		MaxInputBytes:  office.MaxInputBytes,
+		MaxOutputBytes: office.MaxOutputBytes,
+		MaxConcurrent:  office.MaxConcurrent,
 	}
 }
 

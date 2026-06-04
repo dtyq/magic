@@ -25,6 +25,10 @@ Router::addGroup('/v1', function () {
     Router::get('/videos/{id}', [VideoApi::class, 'get']);
     // @deprecated Use /v2/search instead - supports multiple search engines
     Router::get('/search', [OpenAIProxyApi::class, 'bingSearch']);
+    // Image convert-high endpoint - upscales or enhances input images
+    Router::post('/images/convert-high', [ImageProxyApi::class, 'imageConvertHigh']);
+    // Image remove-background endpoint - removes backgrounds from input images
+    Router::post('/images/remove-background', [ImageProxyApi::class, 'imageRemoveBackground']);
 }, ['middleware' => [ApiKeyMiddleware::class]]);
 
 Router::addGroup('/v2', function () {

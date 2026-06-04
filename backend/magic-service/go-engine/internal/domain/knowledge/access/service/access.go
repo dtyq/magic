@@ -30,6 +30,20 @@ type InitializeInput struct {
 	AdminUserIDs      []string
 }
 
+// PermissionGrant 表示一条资源授权。
+type PermissionGrant struct {
+	TargetType string
+	TargetID   string
+	Operation  Operation
+}
+
+// GrantPermissionsInput 表示批量授权输入。
+type GrantPermissionsInput struct {
+	KnowledgeBaseCode string
+	OwnerUserID       string
+	Permissions       []PermissionGrant
+}
+
 // RebuildItem 表示权限补齐时的单个知识库输入。
 type RebuildItem struct {
 	OrganizationCode  string

@@ -207,38 +207,6 @@ class DocumentRpcClientTest extends TestCase
         ));
     }
 
-    public function testGetOriginalFileLinkShouldPassExpectedPayload(): void
-    {
-        $manager = $this->createMock(RpcClientManager::class);
-        $manager->expects($this->once())
-            ->method('call')
-            ->with(
-                SvcMethods::SERVICE_KNOWLEDGE_DOCUMENT . '.' . SvcMethods::METHOD_GET_ORIGINAL_FILE_LINK,
-                $this->callback(function (array $params): bool {
-                    return $params['code'] === 'DOC1'
-                        && $params['knowledge_base_code'] === 'KB1'
-                        && $params['data_isolation']['organization_code'] === 'ORG1';
-                })
-            )
-            ->willReturn([
-                'available' => true,
-                'url' => 'https://example.com/demo.md',
-                'name' => 'demo.md',
-                'key' => 'ORG1/demo.md',
-                'type' => 'external',
-            ]);
-
-        $client = new DocumentRpcClient($manager);
-        $result = $client->getOriginalFileLink(DocumentRequestDTO::forOriginalFileLink(
-            'DOC1',
-            'KB1',
-            new DataIsolationDTO('ORG1', 'U1')
-        ));
-
-        $this->assertTrue($result['available']);
-        $this->assertSame('https://example.com/demo.md', $result['url']);
-    }
-
     public function testGetByThirdFileIdShouldPassExpectedPayload(): void
     {
         $manager = $this->createMock(RpcClientManager::class);

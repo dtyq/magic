@@ -154,6 +154,10 @@ func (f *fakeKnowledgeBaseRepoForE2E) UpdateProgress(_ context.Context, _ int64,
 	return errNotImplemented
 }
 
+func (f *fakeKnowledgeBaseRepoForE2E) UpdateWordCount(_ context.Context, _ int64, _ int) error {
+	return errNotImplemented
+}
+
 func (f *fakeFragmentServiceForE2E) Save(context.Context, *fragmodel.KnowledgeBaseFragment) error {
 	return errNotImplemented
 }

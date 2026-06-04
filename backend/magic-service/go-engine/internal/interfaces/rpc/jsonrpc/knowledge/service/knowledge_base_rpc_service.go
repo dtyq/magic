@@ -51,6 +51,21 @@ type knowledgeBaseUpdateCommand interface {
 	Update(ctx context.Context, input *kbdto.UpdateKnowledgeBaseInput) (*kbdto.KnowledgeBaseDTO, error)
 }
 
+type knowledgeBaseAgentBindingCommand interface {
+	LinkAgentKnowledgeBases(
+		ctx context.Context,
+		input *kbdto.AgentKnowledgeBaseBindingsInput,
+	) (*kbdto.AgentKnowledgeBaseBindingsResult, error)
+	UnlinkAgentKnowledgeBases(
+		ctx context.Context,
+		input *kbdto.AgentKnowledgeBaseBindingsInput,
+	) (*kbdto.AgentKnowledgeBaseBindingsResult, error)
+	UpdateAgentKnowledgeBaseBinding(
+		ctx context.Context,
+		input *kbdto.UpdateAgentKnowledgeBaseBindingInput,
+	) (*kbdto.UpdateAgentKnowledgeBaseBindingResult, error)
+}
+
 type knowledgeBaseSourceBindingNodesCommand interface {
 	ListSourceBindingNodes(ctx context.Context, input *kbdto.ListSourceBindingNodesInput) (*kbdto.ListSourceBindingNodesResult, error)
 }
@@ -61,6 +76,10 @@ type knowledgeBaseDestroyCommand interface {
 
 type knowledgeBasePermissionRebuildCommand interface {
 	RebuildPermissions(ctx context.Context, input *kbdto.RebuildKnowledgeBasePermissionsInput) (*kbdto.RebuildKnowledgeBasePermissionsResult, error)
+}
+
+type knowledgeBaseSwitchEmbeddingModelMetaCommand interface {
+	SwitchEmbeddingModelMeta(ctx context.Context, input *kbdto.SwitchEmbeddingModelMetaInput) (*kbdto.SwitchEmbeddingModelMetaResult, error)
 }
 
 type knowledgeBaseRepairCommand interface {
@@ -88,6 +107,12 @@ type knowledgeBaseRebuildTrigger interface {
 
 type knowledgeBaseRebuildCleaner interface {
 	Cleanup(ctx context.Context, input *rebuilddto.CleanupInput) (*rebuilddto.CleanupResult, error)
+}
+
+// KnowledgeBaseRebuildStateReader 读取知识库重建运行状态。
+type KnowledgeBaseRebuildStateReader interface {
+	GetCurrentRun(ctx context.Context) (string, error)
+	LoadJob(ctx context.Context, runID string) (map[string]string, error)
 }
 
 type knowledgeBaseRebuildPreparer interface {
@@ -120,9 +145,11 @@ type KnowledgeBaseRPCService struct {
 	listQuery                knowledgeBaseListQuery
 	createCommand            knowledgeBaseCreateCommand
 	updateCommand            knowledgeBaseUpdateCommand
+	agentBindingCommand      knowledgeBaseAgentBindingCommand
 	nodesCommand             knowledgeBaseSourceBindingNodesCommand
 	destroyCommand           knowledgeBaseDestroyCommand
 	permissionRebuildCommand knowledgeBasePermissionRebuildCommand
+	switchEmbeddingModelMeta knowledgeBaseSwitchEmbeddingModelMetaCommand
 	repairCommand            knowledgeBaseRepairCommand
 	teamshareStart           knowledgeBaseTeamshareStartVectorCommand
 	teamshareList            knowledgeBaseTeamshareManageableQuery
@@ -131,6 +158,7 @@ type KnowledgeBaseRPCService struct {
 	documentCounter          knowledgeBaseDocumentCounter
 	rebuildTrigger           knowledgeBaseRebuildTrigger
 	rebuildCleaner           knowledgeBaseRebuildCleaner
+	rebuildStateReader       KnowledgeBaseRebuildStateReader
 	logger                   *logging.SugaredLogger
 }
 
@@ -161,6 +189,9 @@ func NewKnowledgeBaseRPCService(
 	if updateCommand, ok := appService.(knowledgeBaseUpdateCommand); ok {
 		svc.updateCommand = updateCommand
 	}
+	if agentBindingCommand, ok := appService.(knowledgeBaseAgentBindingCommand); ok {
+		svc.agentBindingCommand = agentBindingCommand
+	}
 	if nodesCommand, ok := appService.(knowledgeBaseSourceBindingNodesCommand); ok {
 		svc.nodesCommand = nodesCommand
 	}
@@ -169,6 +200,9 @@ func NewKnowledgeBaseRPCService(
 	}
 	if permissionRebuildCommand, ok := appService.(knowledgeBasePermissionRebuildCommand); ok {
 		svc.permissionRebuildCommand = permissionRebuildCommand
+	}
+	if switchEmbeddingModelMeta, ok := appService.(knowledgeBaseSwitchEmbeddingModelMetaCommand); ok {
+		svc.switchEmbeddingModelMeta = switchEmbeddingModelMeta
 	}
 	if repairCommand, ok := appService.(knowledgeBaseRepairCommand); ok {
 		svc.repairCommand = repairCommand
@@ -219,6 +253,14 @@ func (h *KnowledgeBaseRPCService) SetDocumentCounter(counter knowledgeBaseDocume
 		return
 	}
 	h.documentCounter = counter
+}
+
+// SetRebuildStateReader 注入知识库重建运行状态读取依赖。
+func (h *KnowledgeBaseRPCService) SetRebuildStateReader(reader KnowledgeBaseRebuildStateReader) {
+	if h == nil {
+		return
+	}
+	h.rebuildStateReader = reader
 }
 
 // SetTeamshareStartCommand 覆盖 Teamshare start-vector 对应的应用服务。
@@ -392,6 +434,89 @@ func (h *KnowledgeBaseRPCService) ListRPC(ctx context.Context, req *dto.ListKnow
 		knowledgeBases,
 		documentCounts,
 	), nil
+}
+
+// LinkAgentKnowledgeBasesRPC 关联数字员工与已有 flow 向量知识库。
+func (h *KnowledgeBaseRPCService) LinkAgentKnowledgeBasesRPC(
+	ctx context.Context,
+	req *dto.AgentKnowledgeBaseBindingsRequest,
+) (*dto.AgentKnowledgeBaseBindingsResponse, error) {
+	return h.handleAgentKnowledgeBaseBindingsRPC(ctx, req, true)
+}
+
+// UnlinkAgentKnowledgeBasesRPC 解除数字员工与已有 flow 向量知识库的关联。
+func (h *KnowledgeBaseRPCService) UnlinkAgentKnowledgeBasesRPC(
+	ctx context.Context,
+	req *dto.AgentKnowledgeBaseBindingsRequest,
+) (*dto.AgentKnowledgeBaseBindingsResponse, error) {
+	return h.handleAgentKnowledgeBaseBindingsRPC(ctx, req, false)
+}
+
+// UpdateAgentKnowledgeBaseBindingRPC 更新数字员工下已关联 flow 知识库的关联级配置。
+func (h *KnowledgeBaseRPCService) UpdateAgentKnowledgeBaseBindingRPC(
+	ctx context.Context,
+	req *dto.UpdateAgentKnowledgeBaseBindingRequest,
+) (*dto.UpdateAgentKnowledgeBaseBindingResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
+	if h.agentBindingCommand == nil {
+		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "knowledge base agent binding command not initialized", nil)
+	}
+	result, err := h.agentBindingCommand.UpdateAgentKnowledgeBaseBinding(ctx, &kbdto.UpdateAgentKnowledgeBaseBindingInput{
+		OrganizationCode:  req.DataIsolation.ResolveOrganizationCode(),
+		UserID:            req.DataIsolation.UserID,
+		AgentCode:         req.AgentCode,
+		KnowledgeBaseCode: req.KnowledgeBaseCode,
+		Name:              req.Name,
+		Description:       req.Description,
+		Icon:              req.Icon,
+		Enabled:           req.Enabled,
+	})
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to update agent knowledge base binding", "error", err)
+		return nil, mapBusinessError(ctx, err)
+	}
+	return &dto.UpdateAgentKnowledgeBaseBindingResponse{
+		AgentCode:         result.AgentCode,
+		KnowledgeBaseCode: result.KnowledgeBaseCode,
+		Name:              result.Name,
+		Description:       result.Description,
+		Icon:              result.Icon,
+		Enabled:           result.Enabled,
+	}, nil
+}
+
+func (h *KnowledgeBaseRPCService) handleAgentKnowledgeBaseBindingsRPC(
+	ctx context.Context,
+	req *dto.AgentKnowledgeBaseBindingsRequest,
+	link bool,
+) (*dto.AgentKnowledgeBaseBindingsResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
+	if h.agentBindingCommand == nil {
+		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "knowledge base agent binding command not initialized", nil)
+	}
+	input := &kbdto.AgentKnowledgeBaseBindingsInput{
+		OrganizationCode:   req.DataIsolation.ResolveOrganizationCode(),
+		UserID:             req.DataIsolation.UserID,
+		AgentCode:          req.AgentCode,
+		KnowledgeBaseCodes: append([]string(nil), req.KnowledgeBaseCodes...),
+	}
+	var (
+		result *kbdto.AgentKnowledgeBaseBindingsResult
+		err    error
+	)
+	if link {
+		result, err = h.agentBindingCommand.LinkAgentKnowledgeBases(ctx, input)
+	} else {
+		result, err = h.agentBindingCommand.UnlinkAgentKnowledgeBases(ctx, input)
+	}
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to update agent knowledge base bindings", "error", err)
+		return nil, mapBusinessError(ctx, err)
+	}
+	return &dto.AgentKnowledgeBaseBindingsResponse{
+		AgentCode:          result.AgentCode,
+		KnowledgeBaseCodes: append([]string(nil), result.KnowledgeBaseCodes...),
+	}, nil
 }
 
 // TeamshareStartVectorRPC 触发 Teamshare 知识库级批量重向量化。
@@ -626,6 +751,113 @@ func (h *KnowledgeBaseRPCService) RebuildRPC(
 		RequestedMode: string(normalized.Mode),
 		TargetModel:   normalized.TargetModel,
 	}, nil
+}
+
+// SwitchEmbeddingModelMetaRPC 直接切换共享知识库嵌入模型元数据。
+func (h *KnowledgeBaseRPCService) SwitchEmbeddingModelMetaRPC(
+	ctx context.Context,
+	req *dto.SwitchEmbeddingModelMetaRequest,
+) (*dto.SwitchEmbeddingModelMetaResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
+	if h.switchEmbeddingModelMeta == nil {
+		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "knowledge embedding model meta switch handler not initialized", nil)
+	}
+	if err := h.ensureNoRunningRebuild(ctx); err != nil {
+		return nil, err
+	}
+
+	targetModel := strings.TrimSpace(req.TargetModel)
+	h.logger.InfoContext(
+		ctx,
+		"Knowledge embedding model meta switch started",
+		"target_model", targetModel,
+		"target_dimension", req.TargetDimension,
+	)
+	result, err := h.switchEmbeddingModelMeta.SwitchEmbeddingModelMeta(ctx, &kbdto.SwitchEmbeddingModelMetaInput{
+		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
+		UserID:           req.DataIsolation.UserID,
+		TargetModel:      targetModel,
+		TargetDimension:  req.TargetDimension,
+	})
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to switch knowledge embedding model meta", "error", err)
+		return nil, mapBusinessError(ctx, err)
+	}
+	h.logger.InfoContext(
+		ctx,
+		"Knowledge embedding model meta switch finished",
+		"model", result.Model,
+		"vector_dimension", result.VectorDimension,
+		"collection_name", result.CollectionName,
+		"physical_collection_name", result.PhysicalCollectionName,
+		"sparse_backend", result.SparseBackend,
+	)
+
+	return &dto.SwitchEmbeddingModelMetaResponse{
+		CollectionName:         result.CollectionName,
+		PhysicalCollectionName: result.PhysicalCollectionName,
+		Model:                  result.Model,
+		VectorDimension:        result.VectorDimension,
+		SparseBackend:          result.SparseBackend,
+	}, nil
+}
+
+// RebuildStatusRPC 查询知识库重建运行状态。
+func (h *KnowledgeBaseRPCService) RebuildStatusRPC(
+	ctx context.Context,
+	req *dto.RebuildKnowledgeBaseStatusRequest,
+) (*dto.RebuildKnowledgeBaseStatusResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
+	if h.rebuildStateReader == nil {
+		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "knowledge rebuild state reader not initialized", nil)
+	}
+
+	currentRunID, err := h.rebuildStateReader.GetCurrentRun(ctx)
+	if err != nil {
+		return nil, mapBusinessError(ctx, err)
+	}
+
+	runID := strings.TrimSpace(req.RunID)
+	if runID == "" {
+		runID = strings.TrimSpace(currentRunID)
+	}
+
+	response := &dto.RebuildKnowledgeBaseStatusResponse{
+		CurrentRunID: strings.TrimSpace(currentRunID),
+		RunID:        runID,
+	}
+	if runID == "" {
+		return response, nil
+	}
+
+	job, err := h.rebuildStateReader.LoadJob(ctx, runID)
+	if err != nil {
+		return nil, mapBusinessError(ctx, err)
+	}
+	response.Job = job
+	response.Status = strings.TrimSpace(job["status"])
+	response.Phase = strings.TrimSpace(job["phase"])
+	response.Error = strings.TrimSpace(job["error"])
+	return response, nil
+}
+
+func (h *KnowledgeBaseRPCService) ensureNoRunningRebuild(ctx context.Context) error {
+	if h.rebuildStateReader == nil {
+		return nil
+	}
+	currentRunID, err := h.rebuildStateReader.GetCurrentRun(ctx)
+	if err != nil {
+		return mapBusinessError(ctx, err)
+	}
+	currentRunID = strings.TrimSpace(currentRunID)
+	if currentRunID == "" {
+		return nil
+	}
+	return jsonrpc.NewBusinessErrorWithMessage(
+		jsonrpc.ErrCodeInvalidParams,
+		fmt.Sprintf("知识库重建正在运行中，run_id=%s", currentRunID),
+		nil,
+	)
 }
 
 const (

@@ -19,6 +19,8 @@ use function mb_substr;
 
 class KnowledgeBaseBaseRepository extends KnowledgeBaseAbstractRepository implements KnowledgeBaseRepositoryInterface
 {
+    private const string COLLECTION_META_CODE = '__qdrant_collection_meta__';
+
     protected bool $filterOrganizationCode = true;
 
     public function getByCode(KnowledgeBaseDataIsolation $dataIsolation, string $code): ?KnowledgeBaseEntity
@@ -156,5 +158,48 @@ class KnowledgeBaseBaseRepository extends KnowledgeBaseAbstractRepository implem
         $this->createBuilder($dataIsolation, KnowledgeBaseModel::query())
             ->where('code', $knowledgeCode)
             ->increment('word_count', $deltaWordCount);
+    }
+
+    public function getAllEmbeddingModelIds(): array
+    {
+        $rows = KnowledgeBaseModel::query()
+            ->whereNull('deleted_at')
+            ->where('code', '<>', self::COLLECTION_META_CODE)
+            ->select(['model', 'embedding_config'])
+            ->get();
+
+        $modelIds = [];
+        foreach ($rows as $row) {
+            $embeddingConfig = is_array($row->embedding_config) ? $row->embedding_config : [];
+            $modelId = trim((string) ($embeddingConfig['model_id'] ?? $row->model ?? ''));
+            if ($modelId === '') {
+                continue;
+            }
+            $modelIds[$modelId] = true;
+        }
+
+        $modelIds = array_keys($modelIds);
+        sort($modelIds);
+        return $modelIds;
+    }
+
+    public function getCurrentEmbeddingModelId(): string
+    {
+        $collectionMetaModelId = KnowledgeBaseModel::query()
+            ->whereNull('deleted_at')
+            ->where('code', self::COLLECTION_META_CODE)
+            ->value('model');
+
+        $modelId = trim((string) $collectionMetaModelId);
+        if ($modelId !== '') {
+            return $modelId;
+        }
+
+        $modelIds = $this->getAllEmbeddingModelIds();
+        if (count($modelIds) !== 1) {
+            return '';
+        }
+
+        return $modelIds[0];
     }
 }

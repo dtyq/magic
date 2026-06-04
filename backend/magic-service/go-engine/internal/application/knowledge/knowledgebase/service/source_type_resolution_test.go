@@ -3,6 +3,7 @@ package kbapp_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
@@ -512,6 +513,14 @@ func (c sourceTypeTestSuperMagicAgentAccessChecker) ListManageableCodes(context.
 	return result, nil
 }
 
+func (c sourceTypeTestSuperMagicAgentAccessChecker) ListAccessibleCodes(context.Context, string, string, []string) (map[string]struct{}, error) {
+	result := make(map[string]struct{}, len(c.codes))
+	for code := range c.codes {
+		result[code] = struct{}{}
+	}
+	return result, nil
+}
+
 type sourceTypeTestKnowledgeBaseBindingRepository struct {
 	agentCodesByKnowledgeBase map[string][]string
 }
@@ -545,4 +554,68 @@ func (r sourceTypeTestKnowledgeBaseBindingRepository) ListBindIDsByKnowledgeBase
 		result[knowledgeBaseCode] = append([]string(nil), r.agentCodesByKnowledgeBase[knowledgeBaseCode]...)
 	}
 	return result, nil
+}
+
+func (r sourceTypeTestKnowledgeBaseBindingRepository) LinkAgentKnowledgeBases(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
+	knowledgeBaseCodes []string,
+) ([]string, error) {
+	return append([]string(nil), knowledgeBaseCodes...), nil
+}
+
+func (r sourceTypeTestKnowledgeBaseBindingRepository) UnlinkAgentKnowledgeBases(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
+	knowledgeBaseCodes []string,
+) ([]string, error) {
+	return append([]string(nil), knowledgeBaseCodes...), nil
+}
+
+func (r sourceTypeTestKnowledgeBaseBindingRepository) ListKnowledgeBaseBindingsByBindID(
+	_ context.Context,
+	_ kbentity.BindingType,
+	bindID string,
+	_ string,
+) ([]kbentity.AgentKnowledgeBaseBinding, error) {
+	result := make([]kbentity.AgentKnowledgeBaseBinding, 0)
+	for knowledgeBaseCode, bindIDs := range r.agentCodesByKnowledgeBase {
+		if slices.Contains(bindIDs, bindID) {
+			result = append(result, kbentity.AgentKnowledgeBaseBinding{KnowledgeBaseCode: knowledgeBaseCode})
+		}
+	}
+	return result, nil
+}
+
+func (r sourceTypeTestKnowledgeBaseBindingRepository) ListKnowledgeBaseBindingsByBindIDs(
+	_ context.Context,
+	_ kbentity.BindingType,
+	bindIDs []string,
+	_ string,
+) ([]kbentity.AgentKnowledgeBaseBinding, error) {
+	result := make([]kbentity.AgentKnowledgeBaseBinding, 0)
+	for knowledgeBaseCode, agentCodes := range r.agentCodesByKnowledgeBase {
+		for _, bindID := range bindIDs {
+			if slices.Contains(agentCodes, bindID) {
+				result = append(result, kbentity.AgentKnowledgeBaseBinding{KnowledgeBaseCode: knowledgeBaseCode})
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
+func (r sourceTypeTestKnowledgeBaseBindingRepository) UpdateAgentKnowledgeBaseBindingMetadata(
+	context.Context,
+	string,
+	string,
+	string,
+	string,
+	kbentity.AgentKnowledgeBaseBindingMetadataPatch,
+) (*kbentity.AgentKnowledgeBaseBinding, error) {
+	return nil, kbapp.ErrKnowledgeBaseNotFound
 }

@@ -68,8 +68,15 @@ func InferFlowSourceTypeFromBindingHints(bindingHints []SourceBindingHint) (*int
 }
 
 func isEnterpriseSourceBindingHint(bindingHint SourceBindingHint) bool {
-	return normalizeSourceBindingHintValue(bindingHint.Provider) == "teamshare" &&
-		normalizeSourceBindingHintValue(bindingHint.RootType) == "knowledge_base"
+	if normalizeSourceBindingHintValue(bindingHint.RootType) != "knowledge_base" {
+		return false
+	}
+	switch normalizeSourceBindingHintValue(bindingHint.Provider) {
+	case "teamshare":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeSourceBindingHintValue(value string) string {

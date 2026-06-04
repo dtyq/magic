@@ -1,7 +1,12 @@
 // Package jrpc 提供 JSON-RPC 2.0 协议实现
 package jrpc
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	"magic/internal/pkg/ctxmeta"
+)
 
 // 业务错误码定义（与 PHP error_message.php 对齐）
 const (
@@ -56,6 +61,17 @@ type BusinessError struct {
 	Data    any
 }
 
+// ErrorDebugPayload carries internal error details for explicit debug responses.
+type ErrorDebugPayload struct {
+	Debug ErrorDebugInfo `json:"debug"`
+}
+
+// ErrorDebugInfo carries internal error debug fields.
+type ErrorDebugInfo struct {
+	RequestID string `json:"request_id,omitempty"`
+	Stack     string `json:"stack,omitempty"`
+}
+
 // Error 实现 error 接口
 func (e *BusinessError) Error() string {
 	if e.Data != nil {
@@ -89,6 +105,21 @@ func NewBusinessErrorWithMessage(code int, message string, data any) *BusinessEr
 		Message: message,
 		Data:    data,
 	}
+}
+
+// NewInternalDebugBusinessError creates an internal-error response with debug details.
+func NewInternalDebugBusinessError(ctx context.Context, err error, stack string) *BusinessError {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	requestID, _ := ctxmeta.RequestIDFromContext(ctx)
+	return NewBusinessErrorWithMessage(ErrCodeInternalError, message, ErrorDebugPayload{
+		Debug: ErrorDebugInfo{
+			RequestID: requestID,
+			Stack:     stack,
+		},
+	})
 }
 
 // WrapError 包装标准错误为业务错误

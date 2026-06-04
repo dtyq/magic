@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,6 +55,7 @@ func assembleDocumentFragments(
 		if len(chunk.Metadata) > 0 {
 			maps.Copy(extraMetadata, chunk.Metadata)
 		}
+		maps.Copy(extraMetadata, documentSourceMetadata(doc))
 		meta := fragmetadata.BuildFragmentSemanticMetadata(doc.DocMetadata, fragmetadata.FragmentSemanticMetadataDefaults{
 			ChunkIndex:           index,
 			ContentHash:          contentHash,
@@ -87,6 +90,82 @@ func assembleDocumentFragments(
 	}
 
 	return fragments
+}
+
+func documentSourceMetadata(doc *fragmodel.KnowledgeBaseDocument) map[string]any {
+	if doc == nil || doc.DocumentFile == nil {
+		return nil
+	}
+	file := doc.DocumentFile
+	sourceURL := strings.TrimSpace(file.URL)
+	fileKey := downloadableDocumentFileKey(doc, file)
+	sourceProvider := strings.TrimSpace(file.SourceType)
+	if sourceProvider == "" {
+		sourceProvider = strings.TrimSpace(doc.ThirdPlatformType)
+	}
+	thirdFileID := firstNonEmptyString(doc.ThirdFileID, file.ThirdID)
+	sourceTitle := firstNonEmptyString(file.Name, doc.Name)
+
+	metadata := map[string]any{}
+	if sourceURL != "" {
+		metadata["source_url"] = sourceURL
+		metadata["url"] = sourceURL
+	}
+	if fileKey != "" {
+		metadata["file_key"] = fileKey
+	}
+	if sourceProvider != "" {
+		metadata["source_provider"] = sourceProvider
+	}
+	if thirdFileID != "" {
+		metadata["third_file_id"] = thirdFileID
+	}
+	if sourceTitle != "" {
+		metadata["source_title"] = sourceTitle
+	}
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata
+}
+
+func downloadableDocumentFileKey(doc *fragmodel.KnowledgeBaseDocument, file *fragmodel.DocumentFile) string {
+	if file == nil {
+		return ""
+	}
+	if fileKey := strings.TrimSpace(file.FileKey); fileKey != "" {
+		return fileKey
+	}
+	sourceURL := strings.TrimSpace(file.URL)
+	if sourceURL == "" || looksLikeExternalURL(sourceURL) {
+		if !isThirdPlatformDocumentFile(file) {
+			return ""
+		}
+		sourceType := firstNonEmptyString(file.SourceType, doc.ThirdPlatformType)
+		thirdID := firstNonEmptyString(file.ThirdID, doc.ThirdFileID)
+		if sourceType == "" || thirdID == "" {
+			return ""
+		}
+		return "third_platform/" + url.PathEscape(sourceType) + "/" + url.PathEscape(thirdID)
+	}
+	return sourceURL
+}
+
+func isThirdPlatformDocumentFile(file *fragmodel.DocumentFile) bool {
+	if file == nil {
+		return false
+	}
+	switch strings.TrimSpace(strings.ToLower(file.Type)) {
+	case "2", "third_platform", "third-platform", "thirdplatform":
+		return true
+	default:
+		return false
+	}
+}
+
+func looksLikeExternalURL(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(normalized, "://") || strings.HasPrefix(normalized, "//")
 }
 
 func buildFragmentChunkIdentityKey(contentHash string, chunkIndex int) string {

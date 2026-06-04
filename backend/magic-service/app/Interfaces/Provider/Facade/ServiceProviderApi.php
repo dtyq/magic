@@ -129,7 +129,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 获取当前组织是否是官方组织
-    public function isCurrentOrganizationOfficial(): array
+    public function isCurrentOrganizationOfficial()
     {
         $organizationCode = $this->getAuthorization()->getOrganizationCode();
         return [
@@ -330,7 +330,7 @@ class ServiceProviderApi extends AbstractApi
      * Get super magic display models and Magic provider models visible to current organization.
      * @return SuperMagicModelDTO[]
      */
-    public function getSuperMagicDisplayModels(): array
+    public function getSuperMagicDisplayModels()
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
@@ -343,7 +343,7 @@ class ServiceProviderApi extends AbstractApi
         CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
         MagicOperationEnum::QUERY
     )]
-    public function queriesModels(RequestInterface $request): array
+    public function queriesModels(RequestInterface $request)
     {
         $authenticatable = $this->getAuthorization();
         $providerModelQuery = new ProviderModelQuery($request->all());

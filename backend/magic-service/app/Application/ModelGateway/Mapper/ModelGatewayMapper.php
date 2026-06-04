@@ -592,6 +592,7 @@ class ModelGatewayMapper extends ModelMapper
             modelType: $dynamicModel->getModelType()->value,
             description: $dynamicModel->getLocalizedDescription($dataIsolation->getLanguage()),
             resolvedModelId: $resolvedModelId,
+            providerCode: $resolvedEntry->getAttributes()->getProviderCode(),
         );
 
         $resolvedImpl = $resolvedEntry->getModel();
@@ -680,6 +681,7 @@ class ModelGatewayMapper extends ModelMapper
             resolvedModelId: $key,
             modelVersion: $providerModelEntity->getModelVersion(),
             providerName: $providerName,
+            providerCode: $providerEntity->getProviderCode()->value,
         );
 
         if ($providerModelEntity->getModelType()->isVLM()) {

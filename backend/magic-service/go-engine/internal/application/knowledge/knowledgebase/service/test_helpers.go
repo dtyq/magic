@@ -168,6 +168,9 @@ func NewKnowledgeBaseAppServiceForTest(
 		logger:                       logger,
 		defaultEmbeddingModel:        defaultEmbeddingModel,
 	}
+	if switcher, ok := domainService.(embeddingModelMetaSwitcher); ok {
+		svc.embeddingModelMetaSwitcher = switcher
+	}
 	if documentManager == nil {
 		return svc
 	}
@@ -193,6 +196,15 @@ type knowledgeBaseTestDocumentManager interface {
 	DestroyKnowledgeBaseDocuments(ctx context.Context, knowledgeBaseCode, organizationCode string) error
 	ScheduleManagedDocumentSync(ctx context.Context, input *SyncDocumentInput)
 	ListManagedDocumentsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) ([]*ManagedDocument, error)
+}
+
+type knowledgeBaseTestRealtimeThirdFileDocumentManager interface {
+	ListRealtimeDocumentsByThirdFileInOrg(
+		ctx context.Context,
+		organizationCode string,
+		thirdPlatformType string,
+		thirdFileID string,
+	) ([]*ManagedDocument, error)
 }
 
 type legacyKnowledgeBaseManagedDocumentStore struct {
@@ -323,6 +335,23 @@ func (noopKnowledgeBasePermissionReader) ListOperations(
 		result[code] = "owner"
 	}
 	return result, nil
+}
+
+func (s legacyKnowledgeBaseManagedDocumentStore) ListRealtimeDocumentsByThirdFileInOrg(
+	ctx context.Context,
+	organizationCode string,
+	thirdPlatformType string,
+	thirdFileID string,
+) ([]*ManagedDocument, error) {
+	manager, ok := s.manager.(knowledgeBaseTestRealtimeThirdFileDocumentManager)
+	if !ok {
+		return []*ManagedDocument{}, nil
+	}
+	docs, err := manager.ListRealtimeDocumentsByThirdFileInOrg(ctx, organizationCode, thirdPlatformType, thirdFileID)
+	if err != nil {
+		return nil, fmt.Errorf("legacy list realtime documents by third file: %w", err)
+	}
+	return docs, nil
 }
 
 func (noopKnowledgeBasePermissionReader) IsOfficialOrganizationMember(

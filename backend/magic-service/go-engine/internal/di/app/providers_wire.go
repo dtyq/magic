@@ -40,5 +40,6 @@ var ProviderSet = wire.NewSet(
 	diknowledge.ProvideDocumentAppRuntimeDeps,
 	diknowledge.ProvideKnowledgeRevectorizeProgressStore,
 	diknowledge.ProvideDocumentAppService,
+	diknowledge.ProvideKnowledgeSourceFileLinkService,
 	diknowledge.ProvideKnowledgeRevectorizeAppService,
 )

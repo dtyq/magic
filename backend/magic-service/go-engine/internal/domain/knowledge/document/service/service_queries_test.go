@@ -52,6 +52,9 @@ func TestDocumentDomainServiceQueries(t *testing.T) {
 	if got, err := svc.CountByKnowledgeBaseCodes(context.Background(), "org-1", []string{"kb-1"}); err != nil || got["kb-1"] != 2 {
 		t.Fatalf("count by kb got=%#v err=%v", got, err)
 	}
+	if got, err := svc.ListByOrganizationKnowledgeBasesAndCodes(context.Background(), "org-1", []string{"kb-1"}, []string{"doc-1"}); err != nil || len(got) != 1 || got[0] != doc {
+		t.Fatalf("list by org kbs and codes got=%#v err=%v", got, err)
+	}
 }
 
 func TestDocumentDomainServiceMutations(t *testing.T) {
@@ -117,6 +120,10 @@ type documentRepoStub struct {
 	listByKnowledgeBaseTotal         int64
 	countByKnowledgeBaseCodesErr     error
 	countByKnowledgeBaseCodesResult  map[string]int64
+	listByOrganizationKBCodesErr     error
+	listByOrganizationKBCodesResult  []*docentity.KnowledgeBaseDocument
+	sumWordCountByKnowledgeBaseErr   error
+	sumWordCountByKnowledgeBaseValue int64
 	deleteErr                        error
 	deleteByKnowledgeBaseErr         error
 	updateSyncStatusErr              error
@@ -257,4 +264,15 @@ func (s *documentRepoStub) ListByKnowledgeBaseAndSourceBindingIDs(context.Contex
 
 func (s *documentRepoStub) CountByKnowledgeBaseCodes(context.Context, string, []string) (map[string]int64, error) {
 	return s.countByKnowledgeBaseCodesResult, s.countByKnowledgeBaseCodesErr
+}
+
+func (s *documentRepoStub) ListByOrganizationKnowledgeBasesAndCodes(context.Context, string, []string, []string) ([]*docentity.KnowledgeBaseDocument, error) {
+	if s.listByOrganizationKBCodesResult != nil || s.listByOrganizationKBCodesErr != nil {
+		return s.listByOrganizationKBCodesResult, s.listByOrganizationKBCodesErr
+	}
+	return s.listByKnowledgeBaseResult, s.listByKnowledgeBaseErr
+}
+
+func (s *documentRepoStub) SumWordCountByKnowledgeBase(context.Context, string, string) (int64, error) {
+	return s.sumWordCountByKnowledgeBaseValue, s.sumWordCountByKnowledgeBaseErr
 }

@@ -11,9 +11,11 @@ use App\Application\KnowledgeBase\Service\KnowledgeBaseOperationPermissionAppSer
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBasePermissionDataIsolation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\TargetType;
 use App\Infrastructure\Rpc\Annotation\RpcMethod;
 use App\Infrastructure\Rpc\Annotation\RpcService;
 use App\Infrastructure\Rpc\Method\SvcMethods;
+use App\Infrastructure\Util\Auth\PermissionChecker;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -116,6 +118,43 @@ readonly class KnowledgeBasePermissionRpcService
         ];
     }
 
+    #[RpcMethod(name: SvcMethods::METHOD_CHECK_OFFICIAL_ORGANIZATION_ADMIN)]
+    public function checkOfficialOrganizationAdmin(array $params): array
+    {
+        $dataIsolation = $params['data_isolation'] ?? [];
+        $organizationCode = trim((string) ($dataIsolation['organization_code'] ?? ''));
+        $userId = trim((string) ($dataIsolation['user_id'] ?? ''));
+
+        if ($organizationCode === '' || $userId === '') {
+            return [
+                'code' => 400,
+                'message' => 'organization_code and user_id are required',
+            ];
+        }
+
+        try {
+            return [
+                'code' => 0,
+                'message' => 'success',
+                'data' => [
+                    'is_official_admin' => OfficialOrganizationUtil::isOfficialOrganization($organizationCode)
+                        && PermissionChecker::isOrganizationAdminByUserId($organizationCode, $userId),
+                ],
+            ];
+        } catch (Throwable $throwable) {
+            $this->logger->error('IPC KnowledgeBasePermission checkOfficialOrganizationAdmin failed', [
+                'organization_code' => $organizationCode,
+                'user_id' => $userId,
+                'error' => $throwable->getMessage(),
+            ]);
+
+            return [
+                'code' => 500,
+                'message' => $throwable->getMessage(),
+            ];
+        }
+    }
+
     private function mutateKnowledgePermission(array $params, string $action): array
     {
         $dataIsolation = $params['data_isolation'] ?? [];
@@ -127,6 +166,7 @@ readonly class KnowledgeBasePermissionRpcService
             static fn (mixed $value): string => trim((string) $value),
             (array) ($params['admin_user_ids'] ?? [])
         ), static fn (string $value): bool => $value !== ''));
+        $permissions = $this->normalizePermissions((array) ($params['permissions'] ?? []));
 
         if ($organizationCode === '' || $userId === '' || $knowledgeCode === '') {
             return [
@@ -163,6 +203,13 @@ readonly class KnowledgeBasePermissionRpcService
                 ),
                 default => null,
             };
+            if ($permissions !== [] && $action !== 'cleanup') {
+                $this->knowledgeBaseOperationPermissionAppService->grantKnowledgePermissions(
+                    $permissionDataIsolation,
+                    $knowledgeCode,
+                    $permissions,
+                );
+            }
 
             return [
                 'code' => 0,
@@ -174,6 +221,7 @@ readonly class KnowledgeBasePermissionRpcService
                 'organization_code' => $organizationCode,
                 'user_id' => $userId,
                 'knowledge_base_code' => $knowledgeCode,
+                'permission_count' => count($permissions),
                 'error' => $throwable->getMessage(),
             ]);
 
@@ -182,6 +230,61 @@ readonly class KnowledgeBasePermissionRpcService
                 'message' => $throwable->getMessage(),
             ];
         }
+    }
+
+    /**
+     * @return array<int, array{target_type: TargetType, target_id: string, operation: Operation}>
+     */
+    private function normalizePermissions(array $permissions): array
+    {
+        $result = [];
+        foreach ($permissions as $permission) {
+            if (! is_array($permission)) {
+                continue;
+            }
+            $targetID = trim((string) ($permission['target_id'] ?? ''));
+            if ($targetID === '') {
+                continue;
+            }
+            $targetType = $this->parseTargetType($permission['target_type'] ?? null);
+            $operation = $this->parseOperation($permission['operation'] ?? null);
+            if ($targetType === null || $operation === null) {
+                continue;
+            }
+            $result[] = [
+                'target_type' => $targetType,
+                'target_id' => $targetID,
+                'operation' => $operation,
+            ];
+        }
+        return $result;
+    }
+
+    private function parseTargetType(mixed $value): ?TargetType
+    {
+        if (is_int($value)) {
+            return TargetType::tryFrom($value);
+        }
+        return match (strtolower(trim((string) $value))) {
+            'user', 'user_id', 'userid' => TargetType::UserId,
+            'department', 'department_id', 'departmentid' => TargetType::DepartmentId,
+            'group', 'group_id', 'groupid' => TargetType::GroupId,
+            default => null,
+        };
+    }
+
+    private function parseOperation(mixed $value): ?Operation
+    {
+        if (is_int($value)) {
+            return Operation::tryFrom($value);
+        }
+        return match (strtolower(trim((string) $value))) {
+            'owner' => Operation::Owner,
+            'admin', 'manage' => Operation::Admin,
+            'read', 'viewer' => Operation::Read,
+            'edit', 'editor' => Operation::Edit,
+            default => null,
+        };
     }
 
     /**

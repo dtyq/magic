@@ -47,12 +47,32 @@ readonly class KnowledgeBaseRequestDTO
         return new self(dataIsolation: $dataIsolation, query: $query);
     }
 
+    public static function forAgentBindings(array $payload, DataIsolationDTO $dataIsolation): self
+    {
+        return new self(dataIsolation: $dataIsolation, payload: $payload);
+    }
+
+    public static function forAgentBindingUpdate(array $payload, DataIsolationDTO $dataIsolation): self
+    {
+        return new self(dataIsolation: $dataIsolation, payload: $payload);
+    }
+
     public static function forDestroy(string $code, DataIsolationDTO $dataIsolation): self
     {
         return new self(dataIsolation: $dataIsolation, code: $code);
     }
 
     public static function forRebuild(array $payload, DataIsolationDTO $dataIsolation): self
+    {
+        return new self(dataIsolation: $dataIsolation, payload: $payload);
+    }
+
+    public static function forRebuildStatus(array $payload, DataIsolationDTO $dataIsolation): self
+    {
+        return new self(dataIsolation: $dataIsolation, payload: $payload);
+    }
+
+    public static function forSwitchEmbeddingModelMeta(array $payload, DataIsolationDTO $dataIsolation): self
     {
         return new self(dataIsolation: $dataIsolation, payload: $payload);
     }
