@@ -74,26 +74,43 @@ return [
             ],
         ],
 
-        // 实时语音识别
-        /*'realtime_speech_recognition' => [
-            'code' => 'realtime_speech_recognition',
+        // 知识库嵌入模型
+        'knowledge_base_embedding_model' => [
+            'code' => 'knowledge_base_embedding_model',
             'name' => [
-                'zh_CN' => '实时语音识别',
-                'en_US' => 'Realtime Speech Recognition',
+                'zh_CN' => '知识库嵌入模型',
+                'en_US' => 'Knowledge Base Embedding Model',
             ],
             'description' => [
-                'zh_CN' => '本能力覆盖平台所有语音转文字的应用场景，实时监听音频流并逐步输出准确的文字内容。',
-                'en_US' => 'This capability covers all speech-to-text application scenarios on the platform, monitoring audio streams in real-time and gradually outputting accurate text content.',
+                'zh_CN' => '本能力覆盖平台所有知识库向量化、重建与检索场景，用于统一初始化或切换知识库嵌入模型。',
+                'en_US' => 'This capability covers knowledge base vectorization, rebuild and retrieval scenarios, and is used to initialize or switch the knowledge base embedding model.',
             ],
-            'icon' => 'realtime-speech-icon',
-            'sort_order' => 3,
-            'status' => env('AI_ABILITY_REALTIME_SPEECH_STATUS', true),
+            'icon' => 'knowledge-base-embedding-model-icon',
+            'sort_order' => 24,
+            'status' => env('AI_ABILITY_KNOWLEDGE_BASE_EMBEDDING_MODEL_STATUS', true),
             'config' => [
-                'url' => env('AI_ABILITY_REALTIME_SPEECH_URL', ''),
-                'provider_code' => env('AI_ABILITY_REALTIME_SPEECH_PROVIDER', 'Official'),
-                'api_key' => env('AI_ABILITY_REALTIME_SPEECH_API_KEY', ''),
+                'model_id' => env('KNOWLEDGE_BASE_DEFAULT_EMBEDDING_MODEL', ''),
             ],
-        ],*/
+        ],
+
+        // 知识库视觉理解能力
+        'knowledge_base_visual_understanding' => [
+            'code' => 'knowledge_base_visual_understanding',
+            'name' => [
+                'zh_CN' => '知识库视觉理解能力',
+                'en_US' => 'Knowledge Base Visual Understanding',
+            ],
+            'description' => [
+                'zh_CN' => '开启后使用配置的多模态模型识别知识库图片与 PDF 中的可见文字；关闭时使用 OCR 识别。',
+                'en_US' => 'When enabled, this capability uses the configured multimodal model to extract visible text from knowledge base images and PDFs. When disabled, OCR recognition is used.',
+            ],
+            'icon' => 'knowledge-base-visual-understanding-icon',
+            'sort_order' => 25,
+            'status' => env('AI_ABILITY_KNOWLEDGE_BASE_VISUAL_UNDERSTANDING_STATUS', false),
+            'config' => [
+                'model_id' => env('AI_ABILITY_KNOWLEDGE_BASE_VISUAL_UNDERSTANDING_MODEL_ID', ''),
+            ],
+        ],
 
         // 音频文件识别
         'audio_file_recognition' => [

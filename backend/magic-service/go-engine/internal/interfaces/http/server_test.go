@@ -107,7 +107,7 @@ func TestServerStopClosesInfraServicesInDev(t *testing.T) {
 	}
 }
 
-func TestServerStart_IPCOnlyModeDoesNotListenOnHTTPPort(t *testing.T) {
+func TestServerStartAlwaysListensAndStartsRPC(t *testing.T) {
 	t.Parallel()
 
 	port := mustAllocateFreePort(t)
@@ -133,15 +133,15 @@ func TestServerStart_IPCOnlyModeDoesNotListenOnHTTPPort(t *testing.T) {
 	}()
 
 	waitForChannel(t, rpcStarted, "rpc start")
-	assertNotListening(t, port)
+	waitForListen(t, port)
 	stopServerForTest(t, server, errCh)
 
 	if infra.closed.Load() == 0 {
-		t.Fatal("expected infra services to be closed in ipc-only stop")
+		t.Fatal("expected infra services to be closed in dev stop")
 	}
 }
 
-func TestServerStart_IPCOnlyModeStartsBackgroundServicesAndRegistersRPC(t *testing.T) {
+func TestServerStartStartsBackgroundServicesAndRegistersRPC(t *testing.T) {
 	t.Parallel()
 
 	port := mustAllocateFreePort(t)
@@ -175,10 +175,10 @@ func TestServerStart_IPCOnlyModeStartsBackgroundServicesAndRegistersRPC(t *testi
 
 	waitForChannel(t, cleanupStarted, "cleanup start")
 	waitForChannel(t, rpcStarted, "rpc start")
-	assertNotListening(t, port)
+	waitForListen(t, port)
 
 	if rpcServer.registered.Load() == 0 {
-		t.Fatal("expected rpc handlers to be registered in ipc-only mode")
+		t.Fatal("expected rpc handlers to be registered")
 	}
 
 	stopServerForTest(t, server, errCh)
@@ -403,22 +403,6 @@ func waitForChannel(t *testing.T, ch <-chan struct{}, name string) {
 	case <-ch:
 	case <-time.After(3 * time.Second):
 		t.Fatalf("timed out waiting for %s", name)
-	}
-}
-
-func assertNotListening(t *testing.T, port int) {
-	t.Helper()
-
-	address := fmt.Sprintf("127.0.0.1:%d", port)
-	dialer := &net.Dialer{Timeout: 20 * time.Millisecond}
-	deadline := time.Now().Add(80 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		conn, err := dialer.DialContext(context.Background(), "tcp", address)
-		if err == nil {
-			_ = conn.Close()
-			t.Fatalf("server should not listen on %s in ipc-only mode", address)
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }
 

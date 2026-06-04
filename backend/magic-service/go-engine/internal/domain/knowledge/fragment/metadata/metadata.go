@@ -35,8 +35,15 @@ const (
 	splitVersionKey         = "split_version"
 	retrievalTextVersionKey = "retrieval_text_version"
 	tagsKey                 = "tags"
+	sourceURLKey            = "source_url"
+	fileKeyKey              = "file_key"
+	sourceProviderKey       = "source_provider"
+	thirdFileIDKey          = "third_file_id"
+	sourceTitleKey          = "source_title"
+	urlKey                  = "url"
 	fragmentFallbackFlagCap = 8
 	payloadFallbackFlagCap  = 6
+	fragmentDisplayPartCap  = 3
 	contextSectionPathKey   = "context_section_path"
 )
 
@@ -231,6 +238,7 @@ func BuildFragmentPayload(fragment *fragmodel.KnowledgeBaseFragment) *fragmodel.
 		DocumentCode:     fragment.DocumentCode,
 		DocumentName:     fragment.DocumentName,
 		DocumentType:     fragment.DocumentType,
+		FileKey:          metadataStringValue(restore.Metadata, nil, fileKeyKey),
 		FragmentID:       fragment.ID,
 		BusinessID:       fragment.BusinessID,
 		Content:          fragment.Content,
@@ -267,6 +275,12 @@ func ApplyPayloadMetadataContract(payload *fragmodel.FragmentPayload) []string {
 	if payload.DocumentType == 0 && restore.Semantic.DocumentType != 0 {
 		payload.DocumentType = restore.Semantic.DocumentType
 		fallbackFlags = append(fallbackFlags, documentTypeKey+"_from_metadata")
+	}
+	if payload.FileKey == "" {
+		payload.FileKey = metadataStringValue(restore.Metadata, nil, fileKeyKey)
+		if payload.FileKey != "" {
+			fallbackFlags = append(fallbackFlags, fileKeyKey+"_from_metadata")
+		}
 	}
 	if payload.SectionPath == "" && restore.Semantic.SectionPath != "" {
 		payload.SectionPath = restore.Semantic.SectionPath
@@ -317,6 +331,43 @@ func BuildFragmentDisplayContent(content string, metadata map[string]any, explic
 	return formatFragmentDisplayContent(content, sectionPath, sectionTitle)
 }
 
+// ResolveFragmentSourceURL 解析片段可展示的外部来源地址。
+func ResolveFragmentSourceURL(metadata map[string]any) string {
+	if sourceURL := fragmentSourceMetadataStringValue(metadata, sourceURLKey); sourceURL != "" {
+		return sourceURL
+	}
+	if fragmentSourceMetadataStringValue(metadata, sourceProviderKey) != "" {
+		return fragmentSourceMetadataStringValue(metadata, urlKey)
+	}
+	return ""
+}
+
+// ExtractFragmentSourceMetadata 从片段 metadata 或 metadata.ext 中提取可安全返回给调用方的来源字段。
+func ExtractFragmentSourceMetadata(metadata map[string]any) map[string]any {
+	result := map[string]any{}
+	sourceURL := ResolveFragmentSourceURL(metadata)
+	if sourceURL != "" {
+		result[sourceURLKey] = sourceURL
+		result[urlKey] = sourceURL
+	}
+	if sourceProvider := fragmentSourceMetadataStringValue(metadata, sourceProviderKey); sourceProvider != "" {
+		result[sourceProviderKey] = sourceProvider
+	}
+	if thirdFileID := fragmentSourceMetadataStringValue(metadata, thirdFileIDKey); thirdFileID != "" {
+		result[thirdFileIDKey] = thirdFileID
+	}
+	if fileKey := fragmentSourceMetadataStringValue(metadata, fileKeyKey); fileKey != "" {
+		result[fileKeyKey] = fileKey
+	}
+	if sourceTitle := firstNonEmptyString(
+		fragmentSourceMetadataStringValue(metadata, sourceTitleKey),
+		fragmentSourceMetadataStringValue(metadata, documentNameKey),
+	); sourceTitle != "" {
+		result[sourceTitleKey] = sourceTitle
+	}
+	return result
+}
+
 // CloneMetadata 返回 metadata 的浅拷贝。
 func CloneMetadata(metadata map[string]any) map[string]any {
 	if len(metadata) == 0 {
@@ -327,7 +378,7 @@ func CloneMetadata(metadata map[string]any) map[string]any {
 
 func formatFragmentDisplayContent(content, sectionPath, sectionTitle string) string {
 	trimmedContent := strings.TrimSpace(content)
-	displayParts := make([]string, 0, 3)
+	displayParts := make([]string, 0, fragmentDisplayPartCap)
 
 	trimmedPath := strings.TrimSpace(sectionPath)
 	if trimmedPath != "" {
@@ -347,6 +398,13 @@ func formatFragmentDisplayContent(content, sectionPath, sectionTitle string) str
 		return ""
 	}
 	return strings.Join(displayParts, "\n\n")
+}
+
+func fragmentSourceMetadataStringValue(metadata map[string]any, key string) string {
+	if value := displayMetadataStringValue(metadata, key); value != "" {
+		return value
+	}
+	return displayMetadataStringValue(metadataNestedMap(metadata, metadataExtKey), key)
 }
 
 func displayMetadataStringValue(metadata map[string]any, key string) string {

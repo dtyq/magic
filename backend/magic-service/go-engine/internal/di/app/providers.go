@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	embeddingapp "magic/internal/application/knowledge/embedding/service"
+	magicfsapp "magic/internal/application/magicfs/service"
 	autoloadcfg "magic/internal/config/autoload"
 	diknowledge "magic/internal/di/knowledge"
 	embeddingdomain "magic/internal/domain/knowledge/embedding"
@@ -20,6 +21,14 @@ func ProvideEmbeddingDefaultModel(cfg *autoloadcfg.Config) autoloadcfg.Embedding
 		model = "text-embedding-3-small" // 默认模型
 	}
 	return autoloadcfg.EmbeddingDefaultModel(model)
+}
+
+// ProvideMagicFSFileVersionService 提供 MagicFS 文件版本应用服务。
+func ProvideMagicFSFileVersionService(
+	repository magicfsapp.FileVersionRepository,
+	authorizer magicfsapp.FileAccessAuthorizer,
+) *magicfsapp.FileVersionService {
+	return magicfsapp.NewFileVersionService(repository, authorizer)
 }
 
 // ProvideQdrantConfig 提供知识库依赖的 Qdrant 配置快照。

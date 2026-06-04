@@ -52,6 +52,7 @@ import SilenceDetector from "./SilenceDetector"
 import { DurationTracker } from "./DurationTracker"
 import { getSummaryMessageService, SummaryStage } from "./SummaryMessageService"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { getDisplayText } from "@/components/base/FileTypeIcon/utils/fileTypeHelpers"
 
 const logger = createRecordingLogger("Main")
 
@@ -660,6 +661,24 @@ class RecordSummaryService {
 	}
 
 	/**
+	 * Sync directories to session for persistence
+	 * 同步目录信息到会话以持久化
+	 */
+	private syncDirectoriesToSession = () => {
+		const currentSession = this.sessionManager.getCurrentSession()
+		if (!currentSession) {
+			return
+		}
+
+		const directories = this.chunkUploader.getTokenManager().getDirectories(currentSession.id)
+		if (directories) {
+			currentSession.directories = directories
+			this.recordingPersistence.saveSession(currentSession)
+			logger.log("Directories synced to session", directories)
+		}
+	}
+
+	/**
 	 * Get note file information for current session
 	 * 获取当前会话的笔记文件信息
 	 */
@@ -737,6 +756,28 @@ class RecordSummaryService {
 		}
 
 		return presetFiles
+	}
+
+	getAsrDisplayDir = () => {
+		const currentSession = this.sessionManager.getCurrentSession()
+		if (!currentSession) {
+			return undefined
+		}
+
+		// Priority 1: Get from session (persisted)
+		if (currentSession.directories?.asr_display_dir) {
+			return currentSession.directories.asr_display_dir
+		}
+
+		// Priority 2: Get from token manager (memory cache)
+		const directories = this.chunkUploader.getTokenManager().getDirectories(currentSession.id)
+
+		// If found in token manager but not in session, sync to session
+		if (directories) {
+			this.syncDirectoriesToSession()
+		}
+
+		return directories?.asr_display_dir
 	}
 
 	/**
@@ -1241,6 +1282,12 @@ class RecordSummaryService {
 		if (session.presetFiles) {
 			this.chunkUploader.getTokenManager().restorePresetFiles(session.id, session.presetFiles)
 			logger.log("Preset files restored to token manager from session", session.presetFiles)
+		}
+
+		// 恢复 directories 到 tokenManager 缓存（如果 session 中有）
+		if (session.directories) {
+			this.chunkUploader.getTokenManager().restoreDirectories(session.id, session.directories)
+			logger.log("Directories restored to token manager from session", session.directories)
 		}
 
 		// 初始化或恢复内容文件管理器

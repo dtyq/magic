@@ -227,19 +227,19 @@ check_databases() {
 
 # 检查并释放端口占用
 ensure_port_available() {
-    SERVER_PORT=${SERVER_PORT:-81}
+    GO_SERVER_PORT=${GO_SERVER_PORT:-81}
 
     if ! command -v lsof >/dev/null 2>&1; then
         print_warning "lsof 未安装，跳过端口占用检测"
         return
     fi
 
-    print_info "检查端口 ${SERVER_PORT} 是否被占用..."
+    print_info "检查端口 ${GO_SERVER_PORT} 是否被占用..."
 
-    if lsof -ti tcp:"${SERVER_PORT}" >/dev/null 2>&1; then
-        print_warning "端口 ${SERVER_PORT} 已被占用，尝试释放..."
+    if lsof -ti tcp:"${GO_SERVER_PORT}" >/dev/null 2>&1; then
+        print_warning "端口 ${GO_SERVER_PORT} 已被占用，尝试释放..."
         local pids
-        pids=$(lsof -ti tcp:"${SERVER_PORT}")
+        pids=$(lsof -ti tcp:"${GO_SERVER_PORT}")
 
         for pid in ${pids}; do
             if kill -TERM "${pid}" >/dev/null 2>&1; then
@@ -249,9 +249,9 @@ ensure_port_available() {
 
         sleep 1
 
-        if lsof -ti tcp:"${SERVER_PORT}" >/dev/null 2>&1; then
-            print_warning "端口 ${SERVER_PORT} 仍被占用，强制终止相关进程..."
-            for pid in $(lsof -ti tcp:"${SERVER_PORT}"); do
+        if lsof -ti tcp:"${GO_SERVER_PORT}" >/dev/null 2>&1; then
+            print_warning "端口 ${GO_SERVER_PORT} 仍被占用，强制终止相关进程..."
+            for pid in $(lsof -ti tcp:"${GO_SERVER_PORT}"); do
                 if kill -KILL "${pid}" >/dev/null 2>&1; then
                     print_info "已发送 SIGKILL 至进程 ${pid}"
                 fi
@@ -259,14 +259,14 @@ ensure_port_available() {
             sleep 1
         fi
 
-        if lsof -ti tcp:"${SERVER_PORT}" >/dev/null 2>&1; then
-            print_error "无法释放端口 ${SERVER_PORT}，请手动检查占用进程"
+        if lsof -ti tcp:"${GO_SERVER_PORT}" >/dev/null 2>&1; then
+            print_error "无法释放端口 ${GO_SERVER_PORT}，请手动检查占用进程"
             exit 1
         fi
 
-        print_success "端口 ${SERVER_PORT} 已释放"
+        print_success "端口 ${GO_SERVER_PORT} 已释放"
     else
-        print_success "端口 ${SERVER_PORT} 可用"
+        print_success "端口 ${GO_SERVER_PORT} 可用"
     fi
 }
 

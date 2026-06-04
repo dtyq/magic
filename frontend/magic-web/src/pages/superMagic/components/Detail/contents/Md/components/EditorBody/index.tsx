@@ -38,6 +38,11 @@ interface EditorBodyProps {
 	onOpenFile?: (fileItem: { file_id: string }) => void
 	onSave?: (editor: Editor | null) => void
 	"data-testid"?: string
+	/**
+	 * Async callback to resolve or create the images folder before upload.
+	 * Should return the file_id of the images folder, or undefined to fall back to root.
+	 */
+	resolveImagesFolderParentId?: (folderPath: string) => Promise<string | undefined>
 }
 
 function EditorBody({
@@ -61,6 +66,7 @@ function EditorBody({
 	onOpenFile,
 	onSave,
 	"data-testid": dataTestId,
+	resolveImagesFolderParentId,
 }: EditorBodyProps) {
 	// Use project image extensions hook
 	const projectImageExtensions = useProjectImageExtensions({
@@ -69,6 +75,7 @@ function EditorBody({
 		folderPath,
 		urlResolver,
 		onSuccess: onImageUploadSuccess,
+		resolveImagesFolderParentId,
 	})
 
 	// Handle link click: open external URLs in new tab, or open relative files in tab

@@ -1,6 +1,6 @@
 ---
 name: document-converter
-description: Use for reading, summarizing, analyzing, or converting large or complex documents without loading the whole file at once.
+description: Use for reading, analyzing, summarizing, and converting complex documents into Markdown artifacts or other supported document formats.
 ---
 
 # Document Converter Workflow
@@ -8,6 +8,22 @@ description: Use for reading, summarizing, analyzing, or converting large or com
 Use this workflow when the user asks to read, summarize, analyze, or convert a large or complex document.
 
 Do not start by converting the entire file into one large Markdown document. First build a lightweight understanding of the document, sample a few representative units, then decide how to read the rest.
+
+## What Conversion Means
+
+This skill uses "conversion" in two document-specific ways:
+
+- Semantic conversion: turn complex documents into model-readable Markdown artifacts, such as `document.md`, `chunks/`, `document.index.json`, `document.outline.md`, `document.reading_state.json`, visual-understanding records, and summaries. Use this for normal reading, analysis, summarization, and Markdown export.
+- Format conversion: create a new file in another supported document format. Use this only when the user explicitly asks for a converted file or when a format mismatch must be repaired before extraction.
+
+Current supported raw format conversions:
+
+- PDF -> `png`, `jpg`, `jpeg`
+- Office-like documents -> `pdf`, `docx`, `pptx`, `xlsx`
+
+Office-like documents include Word, PowerPoint, spreadsheets, WPS Office, OpenDocument, RTF, templates, macro-enabled files, and slide-show files when the current runtime converter can handle them.
+
+Other document types should usually be read or exported through semantic conversion, especially `export_document_markdown`, rather than forced through `convert_document_format`.
 
 ## Default Approach
 
@@ -225,6 +241,8 @@ Do not call this before extracting content.
 ### `convert_document_format`
 
 Use this only when the user explicitly asks for a converted file or conversion is required before extraction. It only changes file format.
+
+This tool is not a universal file converter. It supports the raw format conversion matrix described in "What Conversion Means". If a requested route is unsupported, use the tool error to decide whether to switch to `export_document_markdown`, correct the requested target format, or tell the user that this document-to-document conversion is not currently supported.
 
 After this tool succeeds, continue with the converted file path returned in `result.data["output_files"][0]`. Do not continue parsing, inspecting, extracting, or exporting with the original `input_path`, because the original file may still have the same format mismatch that required conversion.
 

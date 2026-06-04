@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -4318,6 +4319,8 @@ type documentDomainServiceStub struct {
 	listErr                              error
 	countByKnowledgeResult               map[string]int64
 	countByKnowledgeErr                  error
+	sumWordCountByKnowledgeResult        int64
+	sumWordCountByKnowledgeErr           error
 	saveErr                              error
 	updateErr                            error
 	deleteErr                            error
@@ -4327,6 +4330,7 @@ type documentDomainServiceStub struct {
 	lastListByThirdFileOrg      string
 	lastListByThirdFilePlatform string
 	lastListByThirdFileID       string
+	deleteMu                    sync.Mutex
 	deletedID                   int64
 	deletedIDs                  []int64
 	savedDocs                   []*docentity.KnowledgeBaseDocument
@@ -4660,7 +4664,13 @@ func (s *documentDomainServiceStub) CountByKnowledgeBaseCodes(context.Context, s
 	return s.countByKnowledgeResult, s.countByKnowledgeErr
 }
 
+func (s *documentDomainServiceStub) SumWordCountByKnowledgeBase(context.Context, string, string) (int64, error) {
+	return s.sumWordCountByKnowledgeResult, s.sumWordCountByKnowledgeErr
+}
+
 func (s *documentDomainServiceStub) Delete(_ context.Context, id int64) error {
+	s.deleteMu.Lock()
+	defer s.deleteMu.Unlock()
 	s.deletedID = id
 	s.deletedIDs = append(s.deletedIDs, id)
 	if s.deleteErrByID != nil && s.deleteErrByID[id] != nil {
@@ -5088,6 +5098,7 @@ func TestDocumentAppServiceFinalizeTerminalDocumentSyncTaskAdvancesProgressWhenD
 }
 
 type fragmentDestroyServiceStub struct {
+	mu                          sync.Mutex
 	deletePointsByDocumentCalls int
 	deleteByDocumentCalls       int
 	updateCalls                 int
@@ -5114,27 +5125,37 @@ func (s *fragmentDestroyServiceStub) SaveBatch(context.Context, []*fragmodel.Kno
 }
 
 func (s *fragmentDestroyServiceStub) Update(context.Context, *fragmodel.KnowledgeBaseFragment) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.updateCalls++
 	return nil
 }
 
 func (s *fragmentDestroyServiceStub) UpdateBatch(context.Context, []*fragmodel.KnowledgeBaseFragment) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.updateBatchCalls++
 	return nil
 }
 
 func (s *fragmentDestroyServiceStub) List(_ context.Context, query *fragmodel.Query) ([]*fragmodel.KnowledgeBaseFragment, int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.listCalls++
 	s.lastListQuery = query
 	return s.listResult, s.listTotal, s.listErr
 }
 
 func (s *fragmentDestroyServiceStub) ListByDocument(context.Context, string, string, int, int) ([]*fragmodel.KnowledgeBaseFragment, int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.listByDocumentCalls++
 	return nil, 0, nil
 }
 
 func (s *fragmentDestroyServiceStub) ListByDocumentAfterID(context.Context, string, string, int64, int) ([]*fragmodel.KnowledgeBaseFragment, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.listByDocumentCalls++
 	return nil, nil
 }
@@ -5149,22 +5170,30 @@ func (s *fragmentDestroyServiceStub) SyncFragmentBatch(
 	fragments []*fragmodel.KnowledgeBaseFragment,
 	_ *ctxmeta.BusinessParams,
 ) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.syncFragmentBatchCalls++
 	s.lastSyncedFragments = slices.Clone(fragments)
 	return nil
 }
 
 func (s *fragmentDestroyServiceStub) DeletePointData(context.Context, string, string, string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.deletePointDataCalls++
 	return nil
 }
 
 func (s *fragmentDestroyServiceStub) DeletePointDataBatch(context.Context, string, string, []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.deletePointDataBatchCalls++
 	return nil
 }
 
 func (s *fragmentDestroyServiceStub) DeletePointsByDocument(_ context.Context, collectionName, _, _, documentCode string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.deletePointsByDocumentCalls++
 	s.lastCollectionName = collectionName
 	s.lastDocumentCode = documentCode
@@ -5172,6 +5201,8 @@ func (s *fragmentDestroyServiceStub) DeletePointsByDocument(_ context.Context, c
 }
 
 func (s *fragmentDestroyServiceStub) DeleteByDocument(_ context.Context, knowledgeCode, documentCode string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.deleteByDocumentCalls++
 	s.lastKnowledgeCode = knowledgeCode
 	s.lastDocumentCode = documentCode
@@ -5179,6 +5210,8 @@ func (s *fragmentDestroyServiceStub) DeleteByDocument(_ context.Context, knowled
 }
 
 func (s *fragmentDestroyServiceStub) Destroy(_ context.Context, fragment *fragmodel.KnowledgeBaseFragment, collectionName string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.destroyCalls++
 	s.lastCollectionName = collectionName
 	if fragment != nil {
@@ -5188,6 +5221,8 @@ func (s *fragmentDestroyServiceStub) Destroy(_ context.Context, fragment *fragmo
 }
 
 func (s *fragmentDestroyServiceStub) DestroyBatch(_ context.Context, fragments []*fragmodel.KnowledgeBaseFragment, collectionName string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.destroyBatchCalls++
 	s.lastCollectionName = collectionName
 	if len(fragments) > 0 && fragments[0] != nil {
@@ -5309,6 +5344,18 @@ func (s *knowledgeBaseReaderStub) UpdateProgress(_ context.Context, kb *kbentity
 		cloned := *kb
 		s.lastUpdatedProgress = &cloned
 	}
+	return s.updateProgressErr
+}
+
+func (s *knowledgeBaseReaderStub) UpdateWordCount(_ context.Context, kb *kbentity.KnowledgeBase) error {
+	if kb != nil {
+		cloned := *kb
+		s.lastUpdatedProgress = &cloned
+	}
+	return s.updateProgressErr
+}
+
+func (s *knowledgeBaseReaderStub) RefreshWordCountByDocumentSum(context.Context, string, string, string) error {
 	return s.updateProgressErr
 }
 

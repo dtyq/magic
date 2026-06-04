@@ -29,7 +29,6 @@ export interface FileUploadStoreOptions {
 	maxUploadSize?: number
 	projectId?: string
 	topicId?: string
-	suffixDir?: string
 	onFileUpload?: (files: FileData[]) => void
 	onFileAdded?: (files: FileData[]) => void
 	onFileProgressUpdate?: (
@@ -60,7 +59,6 @@ export class FileUploadStore {
 	maxUploadSize = 1024 * 1024 * 100
 	projectId = ""
 	topicId = ""
-	suffixDir = "uploads"
 	needFilterSameFile = true
 	storageType: "workspace" | "topic" = "workspace"
 	source?: UploadSource
@@ -117,7 +115,6 @@ export class FileUploadStore {
 			this.maxUploadSize = options.maxUploadSize
 		if ("projectId" in options) this.projectId = options.projectId ?? ""
 		if ("topicId" in options) this.topicId = options.topicId ?? ""
-		if ("suffixDir" in options && options.suffixDir) this.suffixDir = options.suffixDir
 		if ("storageType" in options && options.storageType) this.storageType = options.storageType
 		if ("source" in options) this.source = options.source
 		if ("needFilterSameFile" in options && options.needFilterSameFile !== undefined)
@@ -254,11 +251,11 @@ export class FileUploadStore {
 		}
 	}
 
-	validateDuplicateFiles(newFiles: File[], targetSuffixDir: string) {
+	validateDuplicateFiles(newFiles: File[], targetParentId: string | undefined) {
 		return validateDuplicateFiles({
 			newFiles,
 			existingFiles: this.files,
-			targetSuffixDir,
+			targetParentId,
 			needFilterSameFile: this.needFilterSameFile,
 			t,
 			logger,
@@ -283,10 +280,8 @@ export class FileUploadStore {
 		return validateEmptyFiles(files, logger)
 	}
 
-	async addFiles(newFiles: File[], customSuffixDir?: string) {
-		const targetSuffixDir = customSuffixDir ?? this.suffixDir
-
-		const duplicateValidation = this.validateDuplicateFiles(newFiles, targetSuffixDir)
+	async addFiles(newFiles: File[], parentId?: string) {
+		const duplicateValidation = this.validateDuplicateFiles(newFiles, parentId)
 		let validFiles = duplicateValidation.validFiles
 
 		const sizeValidation = this.validateFileSize(validFiles)
@@ -301,7 +296,7 @@ export class FileUploadStore {
 
 		let fileDataList: FileData[] = []
 		const processedNames: string[] = this.files
-			.filter((f) => f.suffixDir === targetSuffixDir)
+			.filter((f) => f.parentId === parentId)
 			.map((f) => f.name)
 
 		for (const file of validFiles) {
@@ -309,7 +304,7 @@ export class FileUploadStore {
 				file.name,
 				this.files,
 				processedNames,
-				targetSuffixDir,
+				parentId,
 			)
 			processedNames.push(uniqueFileName)
 
@@ -326,13 +321,13 @@ export class FileUploadStore {
 				name: uniqueFileName,
 				file: renamedFile,
 				status: "init",
-				suffixDir: targetSuffixDir,
+				parentId,
 			})
 		}
 
 		const customCredentials = await superMagicUploadTokenService.getUploadToken(
 			this.projectId,
-			targetSuffixDir,
+			parentId,
 		)
 
 		if (this.projectId && customCredentials) {
@@ -341,7 +336,7 @@ export class FileUploadStore {
 			)
 
 			const existingFileNamesInSameDir = this.files
-				.filter((f) => f.suffixDir === targetSuffixDir)
+				.filter((f) => f.parentId === parentId)
 				.map((f) => f.name)
 			const processedFileNames: string[] = existingFileNamesInSameDir.concat(projectFileNames)
 
@@ -350,7 +345,7 @@ export class FileUploadStore {
 					fileData.name,
 					this.files,
 					processedFileNames,
-					targetSuffixDir,
+					parentId,
 				)
 				processedFileNames.push(finalFileName)
 
@@ -364,7 +359,7 @@ export class FileUploadStore {
 						...fileData,
 						name: finalFileName,
 						file: finalRenamedFile,
-						suffixDir: targetSuffixDir,
+						parentId,
 					}
 				}
 
@@ -396,7 +391,7 @@ export class FileUploadStore {
 
 					const newCustomCredentials = await superMagicUploadTokenService.getUploadToken(
 						this.projectId,
-						targetSuffixDir,
+						parentId,
 						true,
 					)
 
@@ -500,7 +495,7 @@ export class FileUploadStore {
 
 		const customCredentials = await superMagicUploadTokenService.getUploadToken(
 			this.projectId,
-			file.suffixDir ?? this.suffixDir,
+			file.parentId,
 			true,
 		)
 

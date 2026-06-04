@@ -550,6 +550,30 @@ func ProvideDocumentAppDeps(
 	return deps
 }
 
+// ProvideKnowledgeSourceFileLinkService 提供知识库源文件链接应用服务。
+func ProvideKnowledgeSourceFileLinkService(
+	authenticator *ipcclient.PHPWebAuthRPCClient,
+	documentDomainSvc *documentdomain.DomainService,
+	knowledgeBaseDomainSvc *knowledgebasedomain.DomainService,
+	fileLinkProvider *ipcclient.PHPFileRPCClient,
+	portDeps BasePortDeps,
+	thirdPlatformProviders *thirdplatformprovider.Registry,
+) *documentapp.KnowledgeSourceFileLinkService {
+	return documentapp.NewKnowledgeSourceFileLinkService(
+		authenticator,
+		documentapp.KnowledgeSourceFileLinkDeps{
+			DocumentReader:            documentDomainSvc,
+			KnowledgeBaseReader:       knowledgeBaseDomainSvc,
+			PermissionReader:          portDeps.KnowledgeBasePermissionPort,
+			ThirdPlatformAccess:       portDeps.ThirdPlatformPort,
+			FileLinkProvider:          fileLinkProvider,
+			ProjectFileContentPort:    portDeps.ProjectFilePort,
+			ThirdPlatformDocumentPort: portDeps.ThirdPlatformPort,
+			ThirdPlatformProviders:    thirdPlatformProviders,
+		},
+	)
+}
+
 // ProvideThirdPlatformProviderRegistry 提供第三方平台 provider registry。
 func ProvideThirdPlatformProviderRegistry(
 	thirdPlatformDocumentPort *ipcclient.PHPThirdPlatformDocumentRPCClient,

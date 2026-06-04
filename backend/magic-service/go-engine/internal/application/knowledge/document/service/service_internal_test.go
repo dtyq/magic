@@ -70,6 +70,19 @@ func (s *internalDocumentDomainServiceStub) Update(context.Context, *docentity.K
 	return s.updateErr
 }
 
+func (s *internalDocumentDomainServiceStub) SumWordCountByKnowledgeBase(context.Context, string, string) (int64, error) {
+	if s.lastUpdatedDoc != nil {
+		return int64(s.lastUpdatedDoc.WordCount), nil
+	}
+	if s.showResult != nil {
+		return int64(s.showResult.WordCount), nil
+	}
+	if s.showByCodeAndKBResult != nil {
+		return int64(s.showByCodeAndKBResult.WordCount), nil
+	}
+	return 0, nil
+}
+
 func (s *internalDocumentDomainServiceStub) Show(context.Context, string) (*docentity.KnowledgeBaseDocument, error) {
 	if s.showResult != nil {
 		return s.showResult, nil
@@ -625,6 +638,15 @@ func (s *internalKnowledgeBaseReaderStub) EnsureCollectionExists(_ context.Conte
 
 func (s *internalKnowledgeBaseReaderStub) UpdateProgress(_ context.Context, kb *kbentity.KnowledgeBase) error {
 	s.lastUpdatedProgress = kb
+	return s.updateProgressErr
+}
+
+func (s *internalKnowledgeBaseReaderStub) UpdateWordCount(_ context.Context, kb *kbentity.KnowledgeBase) error {
+	s.lastUpdatedProgress = kb
+	return s.updateProgressErr
+}
+
+func (s *internalKnowledgeBaseReaderStub) RefreshWordCountByDocumentSum(context.Context, string, string, string) error {
 	return s.updateProgressErr
 }
 

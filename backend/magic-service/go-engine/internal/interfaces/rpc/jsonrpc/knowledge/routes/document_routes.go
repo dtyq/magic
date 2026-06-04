@@ -14,7 +14,6 @@ func RegisterDocumentRoutes(router RPCRouter, h HandlerProvider) {
 		constants.MethodDocumentCreate,
 		constants.MethodDocumentUpdate,
 		constants.MethodDocumentShow,
-		constants.MethodDocumentGetOriginalFileLink,
 		constants.MethodDocumentList,
 		constants.MethodDocumentGetByThirdFileID,
 		constants.MethodDocumentCountByKnowledgeBaseCodes,

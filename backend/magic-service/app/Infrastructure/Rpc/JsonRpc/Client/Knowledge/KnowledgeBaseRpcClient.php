@@ -141,6 +141,43 @@ class KnowledgeBaseRpcClient extends AbstractRpcClient implements KnowledgeBaseG
     }
 
     /**
+     * 关联数字员工与已有 flow 向量知识库.
+     */
+    #[RpcMethod(name: SvcMethods::METHOD_LINK_AGENT_KNOWLEDGE_BASES)]
+    public function linkAgentKnowledgeBases(KnowledgeBaseRequestDTO $request): array
+    {
+        return $this->callRpc(__FUNCTION__, $this->buildAgentKnowledgeBaseBindingParams($request));
+    }
+
+    /**
+     * 解除数字员工与已有 flow 向量知识库的关联.
+     */
+    #[RpcMethod(name: SvcMethods::METHOD_UNLINK_AGENT_KNOWLEDGE_BASES)]
+    public function unlinkAgentKnowledgeBases(KnowledgeBaseRequestDTO $request): array
+    {
+        return $this->callRpc(__FUNCTION__, $this->buildAgentKnowledgeBaseBindingParams($request));
+    }
+
+    /**
+     * 更新数字员工下已关联 flow 向量知识库配置.
+     */
+    #[RpcMethod(name: SvcMethods::METHOD_UPDATE_AGENT_KNOWLEDGE_BASE_BINDING)]
+    public function updateAgentKnowledgeBaseBinding(KnowledgeBaseRequestDTO $request): array
+    {
+        $payload = $request->payload;
+        $params = [
+            'data_isolation' => $request->dataIsolation->toArray(),
+            'agent_code' => (string) ($payload['agent_code'] ?? ''),
+            'knowledge_base_code' => (string) ($payload['knowledge_base_code'] ?? ''),
+        ];
+        foreach (['name', 'description', 'icon', 'enabled'] as $field) {
+            $this->copyIfKeyExists($params, $payload, $field);
+        }
+
+        return $this->callRpc(__FUNCTION__, $params);
+    }
+
+    /**
      * 删除知识库.
      */
     #[RpcMethod(name: SvcMethods::METHOD_DESTROY)]
@@ -175,6 +212,36 @@ class KnowledgeBaseRpcClient extends AbstractRpcClient implements KnowledgeBaseG
             'batch_size',
             'retry',
         ] as $field) {
+            $this->copyIfKeyExists($params, $payload, $field);
+        }
+
+        return $this->callRpc(__FUNCTION__, $params);
+    }
+
+    /**
+     * 查询知识库重建运行状态.
+     */
+    #[RpcMethod(name: SvcMethods::METHOD_REBUILD_STATUS)]
+    public function rebuildStatus(KnowledgeBaseRequestDTO $request): array
+    {
+        $payload = $request->payload;
+
+        $params = ['data_isolation' => $request->dataIsolation->toArray()];
+        $this->copyIfKeyExists($params, $payload, 'run_id');
+
+        return $this->callRpc(__FUNCTION__, $params);
+    }
+
+    /**
+     * 直接切换共享知识库嵌入模型元数据.
+     */
+    #[RpcMethod(name: SvcMethods::METHOD_SWITCH_EMBEDDING_MODEL_META)]
+    public function switchEmbeddingModelMeta(KnowledgeBaseRequestDTO $request): array
+    {
+        $payload = $request->payload;
+
+        $params = ['data_isolation' => $request->dataIsolation->toArray()];
+        foreach (['target_model', 'target_dimension'] as $field) {
             $this->copyIfKeyExists($params, $payload, $field);
         }
 
@@ -233,6 +300,19 @@ class KnowledgeBaseRpcClient extends AbstractRpcClient implements KnowledgeBaseG
         }
 
         return $this->callRpc(__FUNCTION__, $params);
+    }
+
+    private function buildAgentKnowledgeBaseBindingParams(KnowledgeBaseRequestDTO $request): array
+    {
+        $payload = $request->payload;
+        return [
+            'data_isolation' => $request->dataIsolation->toArray(),
+            'agent_code' => (string) ($payload['agent_code'] ?? ''),
+            'knowledge_base_codes' => array_values(array_map(
+                'strval',
+                (array) ($payload['knowledge_base_codes'] ?? [])
+            )),
+        ];
     }
 
     /**

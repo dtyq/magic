@@ -17,8 +17,6 @@ interface DocumentGateway
 
     public function show(DocumentRequestDTO $request): array;
 
-    public function getOriginalFileLink(DocumentRequestDTO $request): array;
-
     public function list(DocumentRequestDTO $request): array;
 
     public function getByThirdFileId(DocumentRequestDTO $request): array;

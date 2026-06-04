@@ -20,9 +20,9 @@ import (
 
 // PptxParser 按幻灯片顺序提取文本与内嵌图片 OCR 文本。
 type PptxParser struct {
-	ocrClient     documentdomain.OCRClient
-	maxOCRPerFile int
-	limits        documentdomain.ResourceLimits
+	visualExtractor documentdomain.VisualTextExtractor
+	maxOCRPerFile   int
+	limits          documentdomain.ResourceLimits
 }
 
 type pptxRelationships struct {
@@ -55,14 +55,23 @@ func NewPptxParserWithLimit(
 	maxOCRPerFile int,
 	resourceLimits ...documentdomain.ResourceLimits,
 ) *PptxParser {
+	return NewPptxParserWithVisualLimit(newVisualTextExtractorFromOCR(ocrClient), maxOCRPerFile, resourceLimits...)
+}
+
+// NewPptxParserWithVisualLimit 创建带单文件视觉转文字限额的 PPTX 解析器。
+func NewPptxParserWithVisualLimit(
+	visualExtractor documentdomain.VisualTextExtractor,
+	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
+) *PptxParser {
 	limits := documentdomain.DefaultResourceLimits()
 	if len(resourceLimits) > 0 {
 		limits = resourceLimits[0]
 	}
 	return &PptxParser{
-		ocrClient:     ocrClient,
-		maxOCRPerFile: documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
-		limits:        documentdomain.NormalizeResourceLimits(limits),
+		visualExtractor: visualExtractor,
+		maxOCRPerFile:   documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:          documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -136,7 +145,7 @@ func (p *PptxParser) ParseDocumentWithOptions(
 	}
 	var ocrHelper *embeddedImageOCRHelper
 	if options.ImageExtraction && options.ImageOCR {
-		ocrHelper = newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
+		ocrHelper = newEmbeddedImageOCRHelper(p.visualExtractor, p.maxOCRPerFile)
 	}
 	blocks := make([]string, 0, len(slidePaths))
 	for _, slidePath := range slidePaths {

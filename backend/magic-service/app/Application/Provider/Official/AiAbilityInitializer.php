@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Provider\Official;
 
+use App\Application\Provider\Service\AiAbilityInitializationConfigService;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -37,7 +38,11 @@ class AiAbilityInitializer
         try {
             $dataIsolation = ProviderDataIsolation::create($orgCode, 'system');
             $aiAbilityDomainService = di(AiAbilityDomainService::class);
-            $count = $aiAbilityDomainService->initializeAbilities($dataIsolation);
+            $initializationConfigService = di(AiAbilityInitializationConfigService::class);
+            $count = $aiAbilityDomainService->initializeAbilities(
+                $dataIsolation,
+                $initializationConfigService->getAbilitiesForInitialization()
+            );
 
             return [
                 'success' => true,

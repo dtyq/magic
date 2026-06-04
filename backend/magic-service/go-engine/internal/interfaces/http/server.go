@@ -36,17 +36,18 @@ const (
 
 // ServerConfig 保存 HTTP 服务配置。
 type ServerConfig struct {
-	Enabled        bool
-	Host           string
-	Port           int
-	Mode           Mode
-	BasePath       string
-	Env            string // 环境：dev、staging、production 等
-	PprofEnabled   bool
-	Neo4jURI       string
-	QdrantHost     string
-	QdrantPort     int
-	AllowedOrigins []string
+	Enabled         bool
+	Host            string
+	Port            int
+	StripPathPrefix string
+	Mode            Mode
+	BasePath        string
+	Env             string // 环境：dev、staging、production 等
+	PprofEnabled    bool
+	Neo4jURI        string
+	QdrantHost      string
+	QdrantPort      int
+	AllowedOrigins  []string
 }
 
 // MetricsService 定义指标中间件与处理器接口
@@ -86,16 +87,18 @@ type TaskQueueLifecycleService interface {
 
 // ServerDependencies 服务器依赖参数
 type ServerDependencies struct {
-	Config              *ServerConfig
-	CacheCleanupService CacheCleanupService
-	TaskQueueService    TaskQueueService
-	RetrievalWarmup     RetrievalWarmupService
-	InfraServices       InfraServices
-	Logger              *logging.SugaredLogger
-	Metrics             MetricsService
-	RPCServer           RPCServer
-	RPCHandlers         RPCHandlers
-	DebugHandler        *handlers.DebugHandler
+	Config                     *ServerConfig
+	CacheCleanupService        CacheCleanupService
+	TaskQueueService           TaskQueueService
+	RetrievalWarmup            RetrievalWarmupService
+	InfraServices              InfraServices
+	Logger                     *logging.SugaredLogger
+	Metrics                    MetricsService
+	RPCServer                  RPCServer
+	RPCHandlers                RPCHandlers
+	DebugHandler               *handlers.DebugHandler
+	MagicFSFileHandler         *handlers.MagicFSFileHandler
+	KnowledgeSourceFileHandler *handlers.KnowledgeSourceFileHandler
 }
 
 // RPCHandlers RPC 处理器集合
@@ -134,9 +137,12 @@ type Server struct {
 	backgroundWG        sync.WaitGroup
 
 	// 处理器
-	healthHandler  *handlers.HealthHandler
-	metricsHandler *handlers.MetricsHandler
-	debugHandler   *handlers.DebugHandler
+	healthHandler          *handlers.HealthHandler
+	metricsHandler         *handlers.MetricsHandler
+	debugHandler           *handlers.DebugHandler
+	helloHandler           *handlers.HelloHandler
+	magicFSHandler         *handlers.MagicFSFileHandler
+	knowledgeSourceHandler *handlers.KnowledgeSourceFileHandler
 
 	// 日志
 	logger *logging.SugaredLogger
@@ -151,20 +157,23 @@ func NewServerWithDependencies(deps *ServerDependencies) *Server {
 	engine := gin.New()
 
 	return &Server{
-		engine:              engine,
-		config:              deps.Config,
-		infraServices:       deps.InfraServices,
-		cacheCleanupService: deps.CacheCleanupService,
-		taskQueueService:    deps.TaskQueueService,
-		retrievalWarmup:     deps.RetrievalWarmup,
-		logger:              deps.Logger,
-		metrics:             deps.Metrics,
-		rpcServer:           deps.RPCServer,
-		rpcHandlers:         deps.RPCHandlers,
-		healthHandler:       handlers.NewHealthHandler(deps.InfraServices),
-		metricsHandler:      handlers.NewMetricsHandler(deps.Metrics),
-		debugHandler:        deps.DebugHandler,
-		stopCh:              make(chan struct{}),
+		engine:                 engine,
+		config:                 deps.Config,
+		infraServices:          deps.InfraServices,
+		cacheCleanupService:    deps.CacheCleanupService,
+		taskQueueService:       deps.TaskQueueService,
+		retrievalWarmup:        deps.RetrievalWarmup,
+		logger:                 deps.Logger,
+		metrics:                deps.Metrics,
+		rpcServer:              deps.RPCServer,
+		rpcHandlers:            deps.RPCHandlers,
+		healthHandler:          handlers.NewHealthHandler(deps.InfraServices),
+		metricsHandler:         handlers.NewMetricsHandler(deps.Metrics),
+		debugHandler:           deps.DebugHandler,
+		helloHandler:           handlers.NewHelloHandler(),
+		magicFSHandler:         deps.MagicFSFileHandler,
+		knowledgeSourceHandler: deps.KnowledgeSourceFileHandler,
+		stopCh:                 make(chan struct{}),
 	}
 }
 
@@ -258,12 +267,15 @@ func (s *Server) setupRoutes() {
 	})
 
 	router.SetupRoutes(router.Dependencies{
-		Engine:         s.engine,
-		BasePath:       s.config.BasePath,
-		PprofEnabled:   s.config.PprofEnabled,
-		HealthHandler:  s.healthHandler,
-		MetricsHandler: s.metricsHandler,
-		DebugHandler:   s.debugHandler,
+		Engine:                     s.engine,
+		BasePath:                   s.config.BasePath,
+		PprofEnabled:               s.config.PprofEnabled,
+		HealthHandler:              s.healthHandler,
+		MetricsHandler:             s.metricsHandler,
+		DebugHandler:               s.debugHandler,
+		HelloHandler:               s.helloHandler,
+		MagicFSHandler:             s.magicFSHandler,
+		KnowledgeSourceFileHandler: s.knowledgeSourceHandler,
 	})
 
 	// 静态文件服务（如需）
@@ -272,13 +284,8 @@ func (s *Server) setupRoutes() {
 
 // Start 启动 HTTP 服务。
 func (s *Server) Start(ctx context.Context) error {
-	if s.config.Enabled {
-		// 仅在启用 HTTP 时初始化 HTTP 中间件与路由，避免 IPC-only 模式产生 Gin 路由注册副作用。
-		if err := s.Initialize(); err != nil {
-			return err
-		}
-	} else {
-		s.initializeRPC()
+	if err := s.Initialize(); err != nil {
+		return err
 	}
 
 	s.startBackgroundServices(ctx)
@@ -291,20 +298,10 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}
 
-	if !s.config.Enabled {
-		s.logger.InfoContext(ctx, "HTTP server disabled; running in IPC-only mode")
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-s.stopCh:
-			return nil
-		}
-	}
-
 	// 创建 HTTP 服务
 	httpServer := &http.Server{
-		Addr:              fmt.Sprintf("%s:%d", s.config.Host, s.config.Port),
-		Handler:           s.engine,
+		Addr:              fmt.Sprintf(":%d", s.config.Port),
+		Handler:           NewStripPathPrefixHandler(s.config.StripPathPrefix, s.engine),
 		ReadHeaderTimeout: constants.DefaultReadWriteTimeout,
 		WriteTimeout:      constants.DefaultReadWriteTimeout,
 		IdleTimeout:       constants.DefaultIdleTimeout,
@@ -425,6 +422,7 @@ func (s *Server) backgroundPanicOptions(scope string, policy runguard.Policy) ru
 func (s *Server) stopBackgroundServices(ctx context.Context) {
 	backgroundCancel := s.takeBackgroundCancel()
 	if backgroundCancel == nil {
+		s.waitBackgroundServices(ctx)
 		return
 	}
 

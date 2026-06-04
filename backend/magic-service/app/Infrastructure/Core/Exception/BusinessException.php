@@ -12,6 +12,8 @@ use Throwable;
 
 class BusinessException extends RuntimeException
 {
+    private array $data = [];
+
     public function __construct(string $message = '', int $code = 0, ?Throwable $previous = null)
     {
         parent::__construct($message, $code, $previous);
@@ -20,5 +22,20 @@ class BusinessException extends RuntimeException
     public function setMessage(string $message): void
     {
         $this->message = $message;
+    }
+
+    public function setData(array $data): void
+    {
+        $this->data = $data;
+    }
+
+    public function getData(): array
+    {
+        return $this->data;
+    }
+
+    public function hasData(): bool
+    {
+        return $this->data !== [];
     }
 }

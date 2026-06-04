@@ -1528,6 +1528,96 @@ func (q *Queries) ListDocumentsByOrganizationAndThirdFile(ctx context.Context, a
 	return items, nil
 }
 
+const listDocumentsByOrganizationKnowledgeBasesAndCodes = `-- name: ListDocumentsByOrganizationKnowledgeBasesAndCodes :many
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code IN (/*SLICE:knowledge_base_codes*/?)
+  AND code IN (/*SLICE:codes*/?)
+ORDER BY id DESC
+`
+
+type ListDocumentsByOrganizationKnowledgeBasesAndCodesParams struct {
+	OrganizationCode   string   `json:"organization_code"`
+	KnowledgeBaseCodes []string `json:"knowledge_base_codes"`
+	Codes              []string `json:"codes"`
+}
+
+func (q *Queries) ListDocumentsByOrganizationKnowledgeBasesAndCodes(ctx context.Context, arg ListDocumentsByOrganizationKnowledgeBasesAndCodesParams) ([]KnowledgeBaseDocument, error) {
+	query := listDocumentsByOrganizationKnowledgeBasesAndCodes
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	if len(arg.KnowledgeBaseCodes) > 0 {
+		for _, v := range arg.KnowledgeBaseCodes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_codes*/?", strings.Repeat(",?", len(arg.KnowledgeBaseCodes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_codes*/?", "NULL", 1)
+	}
+	if len(arg.Codes) > 0 {
+		for _, v := range arg.Codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(arg.Codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeBaseDocument{}
+	for rows.Next() {
+		var i KnowledgeBaseDocument
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.SourceBindingID,
+			&i.SourceItemID,
+			&i.AutoAdded,
+			&i.Name,
+			&i.Description,
+			&i.Code,
+			&i.Version,
+			&i.Enabled,
+			&i.DocType,
+			&i.DocMetadata,
+			&i.DocumentFile,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.EmbeddingModel,
+			&i.VectorDb,
+			&i.RetrieveConfig,
+			&i.FragmentConfig,
+			&i.EmbeddingConfig,
+			&i.VectorDbConfig,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentsBySourceFileID = `-- name: ListDocumentsBySourceFileID :many
 SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
 FROM knowledge_base_documents
@@ -1914,6 +2004,26 @@ func (q *Queries) ResetDocumentSyncStatusByOrganization(ctx context.Context, org
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const sumDocumentWordCountByKnowledgeBase = `-- name: SumDocumentWordCountByKnowledgeBase :one
+SELECT CAST(COALESCE(SUM(word_count), 0) AS UNSIGNED) AS word_count
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+`
+
+type SumDocumentWordCountByKnowledgeBaseParams struct {
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+}
+
+func (q *Queries) SumDocumentWordCountByKnowledgeBase(ctx context.Context, arg SumDocumentWordCountByKnowledgeBaseParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, sumDocumentWordCountByKnowledgeBase, arg.OrganizationCode, arg.KnowledgeBaseCode)
+	var word_count int64
+	err := row.Scan(&word_count)
+	return word_count, err
 }
 
 const updateDocument = `-- name: UpdateDocument :execrows

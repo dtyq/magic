@@ -19,7 +19,6 @@ use App\Infrastructure\Util\Http\RpcHttpPassthroughResponseFactory;
 use App\Interfaces\KnowledgeBase\DTO\Request\FragmentPreviewRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Psr\Http\Message\ResponseInterface;
 
 #[ApiResponse(version: 'low_code')]
 class KnowledgeBaseFragmentApi extends AbstractKnowledgeBaseApi
@@ -75,7 +74,7 @@ class KnowledgeBaseFragmentApi extends AbstractKnowledgeBaseApi
         );
     }
 
-    public function queries(string $knowledgeBaseCode, string $documentCode): ResponseInterface
+    public function queries(string $knowledgeBaseCode, string $documentCode)
     {
         $query = $this->request->all();
         $result = $this->knowledgeBaseFragmentAppService->queriesHttpPassthroughRaw(
@@ -109,7 +108,7 @@ class KnowledgeBaseFragmentApi extends AbstractKnowledgeBaseApi
         );
     }
 
-    public function fragmentPreview(): ResponseInterface
+    public function fragmentPreview()
     {
         $dto = FragmentPreviewRequestDTO::fromRequest($this->request);
         $userAuthorization = $this->getAuthorization();
@@ -126,7 +125,7 @@ class KnowledgeBaseFragmentApi extends AbstractKnowledgeBaseApi
         return $this->passthroughResponseFactory->fromResult($result);
     }
 
-    public function similarity(string $code): ResponseInterface
+    public function similarity(string $code)
     {
         $query = $this->request->input('query', '');
         $debug = $this->request->input('debug', false);

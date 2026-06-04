@@ -114,6 +114,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             "correlation_id": correlation_id or "",
             "topic_id": cls._get_topic_id(agent_context),
             "task_id": agent_context.get_task_id() or "",
+            "sandbox_id": agent_context.get_sandbox_id() or "",
         }
         for k, v in kwargs.items():
             if v is not None:

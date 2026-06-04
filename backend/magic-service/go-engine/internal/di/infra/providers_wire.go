@@ -5,6 +5,7 @@ package infra
 import (
 	"github.com/google/wire"
 
+	magicfsapp "magic/internal/application/magicfs/service"
 	diknowledge "magic/internal/di/knowledge"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/embedding"
@@ -16,6 +17,7 @@ import (
 	mysqlfragmentrepo "magic/internal/infrastructure/persistence/mysql/knowledge/fragment"
 	mysqlknowledgebase "magic/internal/infrastructure/persistence/mysql/knowledge/knowledgebase"
 	mysqltransaction "magic/internal/infrastructure/persistence/mysql/knowledge/transaction"
+	mysqlmagicfsrepo "magic/internal/infrastructure/persistence/mysql/magicfs"
 	redisrebuild "magic/internal/infrastructure/persistence/redis/rebuild"
 	ipcclient "magic/internal/infrastructure/rpc/jsonrpc/client"
 )
@@ -61,12 +63,19 @@ var ProviderSet = wire.NewSet(
 	ProvideAccessTokenProvider,
 	ProvideThirdPlatformDocumentPort,
 	ProvideProjectFilePort,
+	ProvideMagicFSFilePort,
+	ProvideMagicFSRepository,
+	wire.Bind(new(magicfsapp.FileAccessAuthorizer), new(*ipcclient.PHPMagicFSFileRPCClient)),
+	wire.Bind(new(magicfsapp.FileVersionRepository), new(*mysqlmagicfsrepo.Repository)),
 	ProvideTaskFileDomainService,
 	ProvideContactUserRepository,
 	ProvideContactUserDomainService,
 	ProvideKnowledgeBasePermissionPort,
 	ProvideSuperMagicAgentPort,
 	ProvideOCRConfigProvider,
+	ProvideAIAbilityConfigProvider,
+	ProvideModelCallConfigProvider,
+	ProvideWebAuthProvider,
 	wire.Bind(new(diknowledge.FragmentVectorDBDataRepository), new(*FragmentVectorDBDataRepository)),
 	wire.Bind(new(documentdomain.OCRConfigProviderPort), new(*ipcclient.PHPOCRConfigRPCClient)),
 	wire.Bind(new(documentdomain.OCRUsageReporterPort), new(*ipcclient.PHPOCRConfigRPCClient)),
@@ -80,6 +89,11 @@ var ProviderSet = wire.NewSet(
 	ProvideVolcengineOCRClient,
 	ProvidePHPFileRPCClient,
 	wire.Bind(new(documentdomain.FileFetcher), new(*ipcclient.PHPFileRPCClient)),
+	ProvideKnowledgeVisualUnderstandingConfig,
+	ProvideOpenAICompatibleVisionTextClient,
+	ProvidePDFiumPageRenderer,
+	ProvideModelVisualTextExtractor,
+	ProvideConfigurableVisualTextExtractor,
 	ProvideDocumentParsers,
 	ProvideDocumentParseService,
 )

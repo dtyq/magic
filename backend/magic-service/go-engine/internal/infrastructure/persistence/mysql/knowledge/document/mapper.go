@@ -216,6 +216,12 @@ func documentRecordFromListByOrganizationAndKnowledgeBaseRow(
 	return documentRecordFromFindByIDRow(row)
 }
 
+func documentRecordFromListByOrganizationKnowledgeBasesAndCodesRow(
+	row mysqlsqlc.KnowledgeBaseDocument,
+) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
 func documentRecordFromListByOrganizationAndSourceBindingAndSourceItemsRow(
 	row mysqlsqlc.KnowledgeBaseDocument,
 ) (documentRecord, error) {

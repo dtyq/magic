@@ -15,29 +15,13 @@ import (
 )
 
 // CORS 创建 CORS 中间件
-func CORS(allowedOrigins []string) gin.HandlerFunc {
+func CORS(_ []string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		origin := ctx.Request.Header.Get("Origin")
-
-		// 检查 origin 是否允许
-		allowed := false
-		for _, allowedOrigin := range allowedOrigins {
-			if allowedOrigin == "*" || allowedOrigin == origin {
-				allowed = true
-				break
-			}
-		}
-
-		if allowed {
-			ctx.Header("Access-Control-Allow-Origin", origin)
-		}
-
+		ctx.Header("Access-Control-Allow-Origin", allowOrigin(ctx.Request))
 		ctx.Header("Access-Control-Allow-Credentials", "true")
-		ctx.Header(
-			"Access-Control-Allow-Headers",
-			"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Request-ID",
-		)
-		ctx.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		ctx.Header("Access-Control-Allow-Headers", allowHeaders(ctx.Request))
+		ctx.Header("Access-Control-Allow-Methods", allowMethods(ctx.Request))
+		ctx.Header("Vary", "Origin, Access-Control-Request-Headers, Access-Control-Request-Method")
 
 		if ctx.Request.Method == http.MethodOptions {
 			ctx.AbortWithStatus(http.StatusNoContent)
@@ -46,6 +30,27 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 
 		ctx.Next()
 	}
+}
+
+func allowOrigin(request *http.Request) string {
+	if origin := request.Header.Get("Origin"); origin != "" {
+		return origin
+	}
+	return "*"
+}
+
+func allowHeaders(request *http.Request) string {
+	if headers := request.Header.Get("Access-Control-Request-Headers"); headers != "" {
+		return headers
+	}
+	return "*"
+}
+
+func allowMethods(request *http.Request) string {
+	if method := request.Header.Get("Access-Control-Request-Method"); method != "" {
+		return method
+	}
+	return "*"
 }
 
 // RequestID 创建请求 ID 中间件

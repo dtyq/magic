@@ -4,7 +4,9 @@ import pytest
 
 from agentlang.tools.tool_result import ToolResult
 from app.tools.document_parse.export_document_markdown import ExportDocumentMarkdown
+from app.utils.document_parse.conversion.models import UnsupportedConversionError
 from app.utils.document_parse.drivers.generic import GenericMarkItDownDriver
+from app.utils.document_parse.drivers.image_driver import ImageDocumentDriver
 from app.utils.document_parse.drivers.pdf_driver import PdfDocumentDriver
 from app.utils.document_parse.drivers.powerpoint_driver import PowerPointDocumentDriver
 from app.utils.document_parse.drivers.registry import get_document_driver_registry
@@ -21,6 +23,8 @@ from app.utils.document_parse.service.document_reading_planner import DocumentRe
 from app.utils.document_parse.service.document_sampler import DocumentSampler
 from app.utils.document_parse.service.document_summarizer import DocumentSummarizer
 from app.utils.document_parse.structure.chunk_store import ChunkStore
+from app.utils.document_parse.structure.image_feature_analyzer import ImageFeatureAnalyzer
+from app.utils.document_parse.structure.image_watermark_detector import ImageWatermarkDetector
 from app.utils.document_parse.structure.range_parser import RangeParser
 from app.utils.file_parse.driver.excel_driver import ExcelDriver as FileParseExcelDriver
 from app.utils.file_parse.driver.interfaces.file_parser_driver_interface import ParseMetadata, ParseResult
@@ -28,8 +32,70 @@ from app.utils.file_parse.driver.powerpoint_driver import PowerPointDriver as Fi
 from app.utils.file_parse.driver.word_driver import WordDriver as FileParseWordDriver
 
 
+def _save_mock_content_image(path: Path, size: tuple[int, int] = (32, 16), color: str = "blue") -> None:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", size, color=color)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((max(size[0] // 4, 1), max(size[1] // 4, 1), max(size[0] // 2, 2), max(size[1] // 2, 2)), fill="white")
+    draw.line((0, size[1] - 1, size[0] - 1, 0), fill="black")
+    image.save(path)
+
+
 def test_range_parser_compacts_numeric_ranges():
     assert RangeParser.parse_numeric("1-3,5,7-8", total=10) == [1, 2, 3, 5, 7, 8]
+
+
+def test_image_feature_analyzer_flags_solid_color_images(tmp_path: Path):
+    from PIL import Image
+
+    solid_path = tmp_path / "solid.png"
+    content_path = tmp_path / "content.png"
+    Image.new("RGB", (80, 40), color="red").save(solid_path)
+    _save_mock_content_image(content_path, size=(80, 40), color="red")
+
+    assert ImageFeatureAnalyzer.analyze_bytes(solid_path.read_bytes())["is_solid_or_blank"] is True
+    assert ImageFeatureAnalyzer.analyze_bytes(content_path.read_bytes())["is_solid_or_blank"] is False
+
+
+def test_image_watermark_detector_filters_solid_images_without_blank_name(tmp_path: Path):
+    from PIL import Image
+
+    solid_path = tmp_path / "panel.png"
+    Image.new("RGB", (80, 40), color="blue").save(solid_path)
+    features = ImageFeatureAnalyzer.analyze_bytes(solid_path.read_bytes())
+
+    kept, skipped = ImageWatermarkDetector.split_images([{
+        "path": str(solid_path),
+        "original_name": solid_path.name,
+        "name": solid_path.name,
+        "width": features["width"],
+        "height": features["height"],
+        "features": features,
+    }])
+
+    assert kept == []
+    assert skipped[0]["reason"] == "invalid solid or blank image"
+
+
+def test_image_watermark_detector_preserves_protected_solid_images(tmp_path: Path):
+    from PIL import Image
+
+    signature_path = tmp_path / "signature.png"
+    Image.new("RGB", (80, 40), color="black").save(signature_path)
+    features = ImageFeatureAnalyzer.analyze_bytes(signature_path.read_bytes())
+
+    kept, skipped = ImageWatermarkDetector.split_images([{
+        "path": str(signature_path),
+        "original_name": signature_path.name,
+        "name": signature_path.name,
+        "width": features["width"],
+        "height": features["height"],
+        "features": features,
+    }])
+
+    assert len(kept) == 1
+    assert skipped == []
 
 
 def test_wps_routes_to_word_document_driver():
@@ -102,7 +168,7 @@ async def test_document_format_converter_moves_office_output_with_cross_device_s
         "app.utils.file_parse.utils.libreoffice_util.LibreOfficeUtil.convert_document",
         fake_convert_document,
     )
-    monkeypatch.setattr("app.utils.document_parse.service.document_format_converter.async_move_file", fake_move_file)
+    monkeypatch.setattr("app.utils.document_parse.conversion.converters.office_converter.async_move_file", fake_move_file)
 
     result = await DocumentFormatConverter().convert(source, output_dir, "docx")
 
@@ -134,9 +200,9 @@ async def test_document_format_converter_moves_pdf_page_images_with_cross_device
         dst.write_bytes(src.read_bytes())
         src.unlink()
 
-    monkeypatch.setattr("app.utils.document_parse.pdf.pdf_metadata.PdfMetadata.inspect", fake_inspect)
-    monkeypatch.setattr("app.utils.document_parse.pdf.pdf_page_renderer.PdfPageRenderer.render_pages", fake_render_pages)
-    monkeypatch.setattr("app.utils.document_parse.service.document_format_converter.async_move_file", fake_move_file)
+    monkeypatch.setattr("app.utils.document_parse.conversion.converters.pdf_image_converter.PdfMetadata.inspect", fake_inspect)
+    monkeypatch.setattr("app.utils.document_parse.conversion.converters.pdf_image_converter.PdfPageRenderer.render_pages", fake_render_pages)
+    monkeypatch.setattr("app.utils.document_parse.conversion.converters.pdf_image_converter.async_move_file", fake_move_file)
 
     result = await DocumentFormatConverter().convert(source, output_dir, "png", ranges="1")
 
@@ -145,6 +211,23 @@ async def test_document_format_converter_moves_pdf_page_images_with_cross_device
     assert moves == [(page_image, expected)]
     assert expected.read_bytes() == b"png"
     assert not page_image.exists()
+
+
+@pytest.mark.asyncio
+async def test_document_format_converter_rejects_unsupported_routes_with_supported_matrix(tmp_path: Path):
+    source = tmp_path / "source.png"
+    source.write_bytes(b"png")
+    output_dir = tmp_path / "output"
+
+    with pytest.raises(UnsupportedConversionError) as exc_info:
+        await DocumentFormatConverter().convert(source, output_dir, "pdf")
+
+    message = str(exc_info.value)
+    assert "Unsupported document format conversion: .png -> pdf" in message
+    assert "Current supported format conversions" in message
+    assert "PDF -> png, jpg, jpeg" in message
+    assert "Office-like documents -> pdf, docx, pptx, xlsx" in message
+    assert "export_document_markdown" in message
 
 
 @pytest.mark.asyncio
@@ -312,11 +395,9 @@ async def test_markdown_document_parse_pipeline(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_image_document_parse_pipeline_uses_metadata_without_visual_model(tmp_path: Path):
-    from PIL import Image
-
     source = tmp_path / "sample.png"
     output_dir = tmp_path / "sample-image.document"
-    Image.new("RGB", (32, 16), color="white").save(source)
+    _save_mock_content_image(source, size=(32, 16), color="blue")
 
     profile = await DocumentInspector().inspect(source)
     extraction = await DocumentExtractor().extract(source, output_dir)
@@ -329,6 +410,23 @@ async def test_image_document_parse_pipeline_uses_metadata_without_visual_model(
     assert "![sample.png](assets/sample.png)" in extraction.chunks[0].content
     assert structure.metadata["chunk_lookup"]["chunk_0001"]["source_range"] == "image:1"
     assert (output_dir / "assets" / "sample.png").exists()
+
+
+@pytest.mark.asyncio
+async def test_image_document_driver_filters_solid_image_asset(tmp_path: Path):
+    from PIL import Image
+
+    source = tmp_path / "solid.png"
+    output_dir = tmp_path / "solid-image.document"
+    Image.new("RGB", (32, 16), color="green").save(source)
+
+    extraction = await ImageDocumentDriver().extract(source, output_dir)
+
+    assert extraction.assets == []
+    assert extraction.metadata["skipped_images"][0]["reason"] == "invalid solid or blank image"
+    assert "![" not in extraction.chunks[0].content
+    assert "Filtered solid/blank image" in extraction.chunks[0].content
+    assert not (output_dir / "assets" / "solid.png").exists()
 
 
 @pytest.mark.asyncio
@@ -444,10 +542,9 @@ async def test_document_indexer_merges_incremental_extraction_without_losing_vis
 @pytest.mark.asyncio
 async def test_sampler_recommends_image_understanding_for_scanned_pdf(tmp_path: Path):
     import fitz
-    from PIL import Image
 
     image_path = tmp_path / "page.png"
-    Image.new("RGB", (200, 120), color="white").save(image_path)
+    _save_mock_content_image(image_path, size=(200, 120), color="white")
 
     source = tmp_path / "scanned.pdf"
     doc = fitz.open()
@@ -816,10 +913,9 @@ async def test_pdf_visual_mode_persists_recognition_result(tmp_path: Path, monke
 @pytest.mark.asyncio
 async def test_pdf_local_text_extracts_image_assets_without_visual_understanding(tmp_path: Path):
     import fitz
-    from PIL import Image
 
     image_path = tmp_path / "embedded.png"
-    Image.new("RGB", (24, 16), color="red").save(image_path)
+    _save_mock_content_image(image_path, size=(24, 16), color="red")
 
     source = tmp_path / "with-image.pdf"
     doc = fitz.open()
@@ -839,6 +935,34 @@ async def test_pdf_local_text_extracts_image_assets_without_visual_understanding
     assert (output_dir / extraction.assets[0].path).exists()
     assert structure.assets[0].metadata["page"] == 1
     assert f"![PDF page 1 image 1]({extraction.assets[0].path})" in extraction.chunks[0].content
+
+
+@pytest.mark.asyncio
+async def test_pdf_local_text_filters_solid_image_assets(tmp_path: Path):
+    import fitz
+    from PIL import Image
+
+    solid_path = tmp_path / "solid.png"
+    figure_path = tmp_path / "figure.png"
+    Image.new("RGB", (24, 16), color="red").save(solid_path)
+    _save_mock_content_image(figure_path, size=(24, 16), color="green")
+
+    source = tmp_path / "with-solid-image.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=200, height=160)
+    page.insert_text((20, 30), "PDF text content")
+    page.insert_image(fitz.Rect(20, 50, 80, 90), filename=str(solid_path))
+    page.insert_image(fitz.Rect(90, 50, 150, 90), filename=str(figure_path))
+    doc.save(str(source))
+    doc.close()
+
+    output_dir = tmp_path / "with-solid-image.document"
+    extraction = await PdfDocumentDriver().extract(source, output_dir, mode="local_text", extract_images=True)
+
+    assert len(extraction.assets) == 1
+    assert extraction.metadata["skipped_images"][0]["reason"] == "invalid solid or blank image"
+    assert "Filtered solid/blank image 1" in extraction.chunks[0].content
+    assert "image 2" in extraction.chunks[0].content
 
 
 @pytest.mark.asyncio
@@ -875,10 +999,9 @@ async def test_export_small_pdf_defaults_to_simple_artifacts(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_export_small_scanned_pdf_simple_artifacts_keep_assets(tmp_path: Path):
     import fitz
-    from PIL import Image
 
     image_path = tmp_path / "scan.png"
-    Image.new("RGB", (80, 60), color="red").save(image_path)
+    _save_mock_content_image(image_path, size=(80, 60), color="red")
     source = tmp_path / "small-scanned.pdf"
     doc = fitz.open()
     for _ in range(3):
@@ -1053,11 +1176,9 @@ def test_artifact_mode_rejects_forced_simple_for_large_documents():
 
 @pytest.mark.asyncio
 async def test_generic_driver_normalizes_parser_images_to_assets(tmp_path: Path):
-    from PIL import Image
-
     raw_images = tmp_path / "sample.raw-images"
     raw_images.mkdir()
-    Image.new("RGB", (16, 12), color="blue").save(raw_images / "doc_image_001.png")
+    _save_mock_content_image(raw_images / "doc_image_001.png", size=(16, 12), color="blue")
 
     output_dir = tmp_path / "sample.document"
     driver = GenericMarkItDownDriver()
@@ -1098,8 +1219,8 @@ async def test_pdf_skips_watermark_images_and_keeps_one_repeated_logo(tmp_path: 
     logo_path = tmp_path / "logo.png"
     figure_path = tmp_path / "figure.png"
     Image.new("RGB", (160, 100), color=(230, 230, 230)).save(watermark_path)
-    Image.new("RGB", (24, 12), color="blue").save(logo_path)
-    Image.new("RGB", (36, 24), color="red").save(figure_path)
+    _save_mock_content_image(logo_path, size=(24, 12), color="blue")
+    _save_mock_content_image(figure_path, size=(36, 24), color="red")
 
     source = tmp_path / "with-watermark.pdf"
     doc = fitz.open()
@@ -1124,12 +1245,10 @@ async def test_pdf_skips_watermark_images_and_keeps_one_repeated_logo(tmp_path: 
 
 @pytest.mark.asyncio
 async def test_generic_driver_keeps_one_repeated_image_asset(tmp_path: Path):
-    from PIL import Image
-
     raw_images = tmp_path / "sample.raw-images"
     raw_images.mkdir()
-    Image.new("RGB", (16, 12), color="blue").save(raw_images / "logo_001.png")
-    Image.new("RGB", (16, 12), color="blue").save(raw_images / "logo_002.png")
+    _save_mock_content_image(raw_images / "logo_001.png", size=(16, 12), color="blue")
+    _save_mock_content_image(raw_images / "logo_002.png", size=(16, 12), color="blue")
 
     output_dir = tmp_path / "sample.document"
     driver = GenericMarkItDownDriver()
@@ -1157,17 +1276,25 @@ async def test_generic_driver_filters_lightweight_invalid_images(tmp_path: Path)
     Image.new("RGB", (2, 2), color="black").save(raw_images / "tiny.png")
     Image.new("RGBA", (24, 24), color=(255, 255, 255, 0)).save(raw_images / "transparent.png")
     Image.new("RGB", (400, 4), color="black").save(raw_images / "line.png")
-    Image.new("RGB", (80, 40), color="white").save(raw_images / "blank_spacer.png")
-    Image.new("RGB", (32, 16), color="green").save(raw_images / "logo.png")
+    Image.new("RGB", (80, 40), color="purple").save(raw_images / "solid_panel.png")
+    _save_mock_content_image(raw_images / "logo.png", size=(32, 16), color="green")
 
     output_dir = tmp_path / "sample.document"
     driver = GenericMarkItDownDriver()
     assets, skipped = await driver._collect_image_assets(str(raw_images), output_dir, "sample.docx")
+    content = "\n".join([
+        "![solid](./sample.raw-images/solid_panel.png)",
+        "![logo](./sample.raw-images/logo.png)",
+    ])
+    content = driver._remove_skipped_image_links(content, str(raw_images), skipped)
+    content = driver._rewrite_image_links_to_assets(content, str(raw_images), assets)
 
     assert len(assets) == 1
     assert assets[0].title == "logo.png"
+    assert "Filtered solid/blank image `solid_panel.png`" in content
+    assert "assets/sample_docx_image_0001.png" in content
     reasons = {item["original_name"]: item["reason"] for item in skipped}
     assert reasons["tiny.png"] == "invalid tiny image"
     assert reasons["transparent.png"] == "invalid transparent image"
     assert reasons["line.png"] == "invalid decorative line image"
-    assert reasons["blank_spacer.png"] == "invalid solid or blank image"
+    assert reasons["solid_panel.png"] == "invalid solid or blank image"

@@ -29,6 +29,7 @@ from app.path_manager import PathManager
 from app.service.agent_event.user_tool_call_listener_service import UserToolCallListenerService
 from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
+from app.service.home_persistence_service import HomePersistenceService
 from agentlang.logger import get_logger
 from app.core.base_service import Base
 
@@ -169,6 +170,8 @@ class AgentDispatcher(Base):
     async def initialize_workspace(self, init_message: InitClientMessage):
         """初始化工作区"""
         logger.info("开始工作区初始化流程")
+
+        await HomePersistenceService.initialize_from_environment()
 
         # ========== 配置更新阶段 - 每次都执行 ==========
         # 保存初始化消息到文件

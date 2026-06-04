@@ -193,6 +193,15 @@ func (kb *KnowledgeBase) SetProgress(expectedNum, completedNum int, updatedUID s
 	kb.UpdatedUID = updatedUID
 }
 
+// SetWordCount 更新知识库聚合词数。
+func (kb *KnowledgeBase) SetWordCount(wordCount int, updatedUID string) {
+	if kb == nil {
+		return
+	}
+	kb.WordCount = wordCount
+	kb.UpdatedUID = updatedUID
+}
+
 // IsVectorizationCompleted 返回知识库向量化是否已完成。
 //
 // Teamshare 可管理列表需要把空知识库（0/0）视为已完成，

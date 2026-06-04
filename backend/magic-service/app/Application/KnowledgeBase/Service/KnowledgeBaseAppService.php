@@ -147,6 +147,38 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         return $this->knowledgeBaseAppClient->nodes(KnowledgeBaseRequestDTO::forNodes($query, $context->dataIsolation()));
     }
 
+    public function linkAgentKnowledgeBases(Authenticatable $authorization, array $payload): array
+    {
+        return $this->saveAgentKnowledgeBaseBindings($authorization, $payload, true);
+    }
+
+    public function unlinkAgentKnowledgeBases(Authenticatable $authorization, array $payload): array
+    {
+        return $this->saveAgentKnowledgeBaseBindings($authorization, $payload, false);
+    }
+
+    public function updateAgentKnowledgeBaseBinding(
+        Authenticatable $authorization,
+        string $agentCode,
+        string $knowledgeBaseCode,
+        array $payload,
+    ): array {
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($this->createKnowledgeBaseDataIsolation($authorization));
+        $rpcPayload = [
+            'agent_code' => $agentCode,
+            'knowledge_base_code' => $knowledgeBaseCode,
+        ];
+        foreach (['name', 'description', 'icon', 'enabled'] as $field) {
+            if (array_key_exists($field, $payload)) {
+                $rpcPayload[$field] = $payload[$field];
+            }
+        }
+
+        return $this->knowledgeBaseAppClient->updateAgentKnowledgeBaseBinding(
+            KnowledgeBaseRequestDTO::forAgentBindingUpdate($rpcPayload, $context->dataIsolation())
+        );
+    }
+
     public function show(Authenticatable $authorization, string $code): KnowledgeBaseEntity
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
@@ -205,6 +237,20 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         );
     }
 
+    public function rebuildStatus(Authenticatable $authorization, array $payload = []): array
+    {
+        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+        $rpcPayload = [];
+        if (array_key_exists('run_id', $payload)) {
+            $rpcPayload['run_id'] = $payload['run_id'];
+        }
+
+        return $this->knowledgeBaseAppClient->rebuildStatus(
+            KnowledgeBaseRequestDTO::forRebuildStatus($rpcPayload, $context->dataIsolation())
+        );
+    }
+
     public function repairSourceBindings(Authenticatable $authorization, array $payload = []): array
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
@@ -233,5 +279,22 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         return $this->knowledgeBaseAppClient->rebuildCleanup(
             KnowledgeBaseRequestDTO::forRebuildCleanup($rpcPayload, $context->dataIsolation())
         );
+    }
+
+    private function saveAgentKnowledgeBaseBindings(Authenticatable $authorization, array $payload, bool $link): array
+    {
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($this->createKnowledgeBaseDataIsolation($authorization));
+        $rpcPayload = [
+            'agent_code' => (string) ($payload['agent_code'] ?? ''),
+            'knowledge_base_codes' => array_values(array_map(
+                'strval',
+                (array) ($payload['knowledge_base_codes'] ?? [])
+            )),
+        ];
+        $request = KnowledgeBaseRequestDTO::forAgentBindings($rpcPayload, $context->dataIsolation());
+
+        return $link
+            ? $this->knowledgeBaseAppClient->linkAgentKnowledgeBases($request)
+            : $this->knowledgeBaseAppClient->unlinkAgentKnowledgeBases($request);
     }
 }

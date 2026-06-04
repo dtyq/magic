@@ -13,6 +13,7 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseFragmentSavedEvent;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Infrastructure\Core\Embeddings\EmbeddingGenerator\EmbeddingGeneratorInterface;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Codec\Json;
@@ -67,7 +68,7 @@ readonly class KnowledgeBaseFragmentSyncSubscriber implements ListenerInterface
                         'organization_id' => $knowledge->getOrganizationCode(),
                         'user_id' => $fragment->getModifier(),
                         'business_id' => $knowledge->getCode(),
-                        'source_id' => 'fragment_saved',
+                        'source_id' => SourceId::FRAGMENT_SAVED,
                         'knowledge_info' => [
                             'id' => $knowledge->getId(),
                             'organization_code' => $knowledge->getOrganizationCode(),

@@ -24,40 +24,49 @@ import (
 	jsonrpc "magic/internal/pkg/jsonrpc"
 )
 
-const testFragmentKBCode = "KB1"
+const (
+	testFragmentKBCode     = "KB1"
+	testFlowVectorOrgCode  = "ORG-FLOW"
+	testFlowVectorMagicUID = "MAGIC-U1"
+)
 
-var errTestBucketNotFound = errors.New("bucket not found")
+var (
+	errTestBucketNotFound      = errors.New("bucket not found")
+	errDebugInternalLowCodeRPC = errors.New("qdrant search failed: collection missing")
+)
 
 type mockFragmentAppService struct {
-	lastCreateInput       *fragdto.CreateFragmentInput
-	lastRuntimeCreate     *fragdto.RuntimeCreateFragmentInput
-	lastListInput         *fragdto.ListFragmentInput
-	lastPreviewInput      *fragdto.PreviewFragmentInput
-	lastSimilarityInput   *fragdto.SimilarityInput
-	lastRuntimeSimilarity *fragdto.RuntimeSimilarityInput
-	lastAgentSimilarity   *fragdto.AgentSimilarityInput
-	lastSyncInput         *fragdto.SyncFragmentInput
-	lastShowID            int64
-	lastDestroyID         int64
-	createCalls           int
-	runtimeCreateCalls    int
-	destroyCalls          int
-	runtimeDestroyCalls   int
-	syncCalls             int
-	createErr             error
-	runtimeCreateErr      error
-	showErr               error
-	listErr               error
-	destroyErr            error
-	runtimeDestroyErr     error
-	syncErr               error
-	similarityErr         error
-	previewErr            error
-	agentSimilarityErr    error
-	agentSimilarityResult *fragdto.AgentSimilarityResultDTO
-	listResult            *fragdto.FragmentPageResultDTO
-	previewResult         *fragdto.FragmentPageResultDTO
-	similarityResults     []*fragdto.SimilarityResultDTO
+	lastCreateInput                *fragdto.CreateFragmentInput
+	lastRuntimeCreate              *fragdto.RuntimeCreateFragmentInput
+	lastListInput                  *fragdto.ListFragmentInput
+	lastPreviewInput               *fragdto.PreviewFragmentInput
+	lastSimilarityInput            *fragdto.SimilarityInput
+	lastRuntimeSimilarity          *fragdto.RuntimeSimilarityInput
+	lastFlowVectorSimilarityByUser *fragdto.FlowVectorSimilarityByUserInput
+	lastFlowVectorAccessActor      ctxmeta.AccessActor
+	lastAgentSimilarity            *fragdto.AgentSimilarityInput
+	lastSyncInput                  *fragdto.SyncFragmentInput
+	lastShowID                     int64
+	lastDestroyID                  int64
+	createCalls                    int
+	runtimeCreateCalls             int
+	destroyCalls                   int
+	runtimeDestroyCalls            int
+	syncCalls                      int
+	createErr                      error
+	runtimeCreateErr               error
+	showErr                        error
+	listErr                        error
+	destroyErr                     error
+	runtimeDestroyErr              error
+	syncErr                        error
+	similarityErr                  error
+	previewErr                     error
+	agentSimilarityErr             error
+	agentSimilarityResult          *fragdto.AgentSimilarityResultDTO
+	listResult                     *fragdto.FragmentPageResultDTO
+	previewResult                  *fragdto.FragmentPageResultDTO
+	similarityResults              []*fragdto.SimilarityResultDTO
 }
 
 func (m *mockFragmentAppService) Create(_ context.Context, input *fragdto.CreateFragmentInput) (*fragdto.FragmentDTO, error) {
@@ -206,6 +215,28 @@ func (m *mockFragmentAppService) RuntimeSimilarity(_ context.Context, input *fra
 	}}, nil
 }
 
+func (m *mockFragmentAppService) FlowVectorSimilarityByUser(ctx context.Context, input *fragdto.FlowVectorSimilarityByUserInput) ([]*fragdto.SimilarityResultDTO, error) {
+	m.lastFlowVectorSimilarityByUser = input
+	if actor, ok := ctxmeta.AccessActorFromContext(ctx); ok {
+		m.lastFlowVectorAccessActor = actor
+	}
+	if m.similarityErr != nil {
+		return nil, m.similarityErr
+	}
+	return []*fragdto.SimilarityResultDTO{{
+		ID:                28,
+		KnowledgeBaseCode: testFragmentKBCode,
+		KnowledgeCode:     testFragmentKBCode,
+		DocumentCode:      "DOC1",
+		DocumentName:      "demo.md",
+		DocumentType:      2,
+		DocType:           2,
+		Content:           "hello flow vector similarity",
+		Score:             0.93,
+		WordCount:         16,
+	}}, nil
+}
+
 func (m *mockFragmentAppService) SimilarityByAgent(_ context.Context, input *fragdto.AgentSimilarityInput) (*fragdto.AgentSimilarityResultDTO, error) {
 	m.lastAgentSimilarity = input
 	if m.agentSimilarityErr != nil {
@@ -222,10 +253,12 @@ func (m *mockFragmentAppService) SimilarityByAgent(_ context.Context, input *fra
 				ID:                8,
 				CitationID:        "KB1:DOC1:8",
 				KnowledgeBaseCode: testFragmentKBCode,
+				KnowledgeBaseName: "测试知识库",
 				KnowledgeCode:     testFragmentKBCode,
 				DocumentCode:      "DOC1",
 				DocumentName:      "demo.md",
 				DocumentType:      2,
+				FileKey:           "ORG1/files/demo.md",
 				DocType:           2,
 				Content:           "hello similarity",
 				Score:             0.91,
@@ -709,6 +742,78 @@ func TestFragmentSimilarityRPCUsesAppDefaultTopK(t *testing.T) {
 	}
 }
 
+func TestFragmentFlowVectorSimilarityByUserRPCMapsRequest(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+	wrapped := jsonrpc.WrapTyped(handler.FlowVectorSimilarityByUserRPC)
+	result, err := wrapped(context.Background(), "svc.knowledge.fragment.flowVectorSimilarityByUser", json.RawMessage(`{
+		"data_isolation": {
+			"organization_code": "`+testFlowVectorOrgCode+`",
+			"user_id": "API-U1",
+			"third_platform_user_id": "TP-U1",
+			"third_platform_organization_code": "TP-ORG"
+		},
+		"business_params": {"organization_code": "IGNORED", "user_id": "API-U1", "source_id": "oa-flow"},
+		"magic_user_id": "`+testFlowVectorMagicUID+`",
+		"keyword": "合同审批",
+		"score_threshold": 0
+	}`))
+	if err != nil {
+		t.Fatalf("expected request to pass through, got %v", err)
+	}
+	if appSvc.lastFlowVectorSimilarityByUser == nil {
+		t.Fatal("expected flow vector similarity input to be forwarded")
+	}
+	input := appSvc.lastFlowVectorSimilarityByUser
+	if input.OrganizationCode != testFlowVectorOrgCode || input.UserID != testFlowVectorMagicUID || input.Keyword != "合同审批" {
+		t.Fatalf("unexpected flow vector similarity input: %#v", input)
+	}
+	if input.TopK != 10 {
+		t.Fatalf("expected default top_k=10, got %d", input.TopK)
+	}
+	if input.ScoreThreshold == nil || *input.ScoreThreshold != 0 {
+		t.Fatalf("expected explicit zero score threshold, got %#v", input.ScoreThreshold)
+	}
+	if input.BusinessParams == nil ||
+		input.BusinessParams.OrganizationCode != testFlowVectorOrgCode ||
+		input.BusinessParams.UserID != testFlowVectorMagicUID ||
+		input.BusinessParams.SourceID != "oa-flow" {
+		t.Fatalf("expected business params to be forwarded, got %#v", input.BusinessParams)
+	}
+	if appSvc.lastFlowVectorAccessActor.OrganizationCode != testFlowVectorOrgCode ||
+		appSvc.lastFlowVectorAccessActor.UserID != testFlowVectorMagicUID ||
+		appSvc.lastFlowVectorAccessActor.ThirdPlatformUserID != "" ||
+		appSvc.lastFlowVectorAccessActor.ThirdPlatformOrganizationCode != "" {
+		t.Fatalf("expected access actor to trust magic_user_id, got %#v", appSvc.lastFlowVectorAccessActor)
+	}
+	response, ok := result.(*dto.SimilarityPageResponse)
+	if !ok || len(response.List) != 1 || response.List[0].ID != "28" {
+		t.Fatalf("unexpected response: %#v", result)
+	}
+}
+
+func TestFragmentFlowVectorSimilarityByUserRPCRejectsInvalidBounds(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+	wrapped := jsonrpc.WrapTyped(handler.FlowVectorSimilarityByUserRPC)
+	_, err := wrapped(context.Background(), "svc.knowledge.fragment.flowVectorSimilarityByUser", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG-FLOW", "user_id": "MAGIC-U1"},
+		"magic_user_id": "MAGIC-U1",
+		"keyword": "合同审批",
+		"top_k": 0
+	}`))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if appSvc.lastFlowVectorSimilarityByUser != nil {
+		t.Fatal("expected flow vector similarity input to remain nil on validation failure")
+	}
+}
+
 func TestFragmentSimilarityByAgentRPC(t *testing.T) {
 	t.Parallel()
 
@@ -737,12 +842,22 @@ func TestFragmentSimilarityByAgentRPC(t *testing.T) {
 		t.Fatalf("unexpected agent similarity response: %#v", result)
 	}
 	document := result.Documents[0]
-	if document.KnowledgeCode != testFragmentKBCode || document.DocumentCode != "DOC1" || document.DocumentName != "demo.md" {
-		t.Fatalf("unexpected document projection: %#v", document)
-	}
-	if len(document.Snippets) != 1 || document.Snippets[0].Text != "hello similarity" || document.Snippets[0].Score != 0.91 {
+	assertAgentSimilarityDocumentHeader(t, document, expectedAgentSimilarityDocument{
+		KnowledgeCode:     testFragmentKBCode,
+		KnowledgeBaseName: "测试知识库",
+		DocumentCode:      "DOC1",
+		DocumentName:      "demo.md",
+		FileKey:           "ORG1/files/demo.md",
+	})
+	if len(document.Snippets) != 1 {
 		t.Fatalf("unexpected nested snippets: %#v", document.Snippets)
 	}
+	assertAgentSimilaritySnippet(t, document.Snippets[0], expectedAgentSimilaritySnippet{
+		Text:      "hello similarity",
+		Score:     0.91,
+		WordCount: 12,
+		FileKey:   "ORG1/files/demo.md",
+	})
 	assertAgentSimilarityResponsePayload(t, result)
 }
 
@@ -772,37 +887,7 @@ func assertAgentSimilarityResponsePayload(t *testing.T, result *dto.AgentSimilar
 func TestFragmentSimilarityByAgentRPCGroupsDocuments(t *testing.T) {
 	t.Parallel()
 
-	appSvc := &mockFragmentAppService{
-		agentSimilarityResult: &fragdto.AgentSimilarityResultDTO{
-			Hits: []*fragdto.SimilarityResultDTO{
-				nil,
-				{
-					ID:                42,
-					KnowledgeBaseCode: "KB-FALLBACK",
-					DocumentCode:      "DOC-FALLBACK",
-					DocumentName:      "fallback.md",
-					Content:           "fallback content",
-					Score:             0.724,
-				},
-				{
-					ID:                43,
-					KnowledgeBaseCode: "KB-FALLBACK",
-					DocumentCode:      "DOC-FALLBACK",
-					DocumentName:      "fallback.md",
-					Content:           "second fallback content",
-					Score:             0.626,
-				},
-				{
-					ID:            44,
-					KnowledgeCode: "KB-SECOND",
-					DocumentCode:  "DOC-SECOND",
-					DocumentName:  "second.md",
-					Content:       "second document content",
-					Score:         0.524,
-				},
-			},
-		},
-	}
+	appSvc := newGroupedAgentSimilarityAppService()
 	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
 	result, err := handler.SimilarityByAgentRPC(context.Background(), &dto.AgentSimilarityRequest{
 		DataIsolation: dto.DataIsolation{
@@ -819,24 +904,124 @@ func TestFragmentSimilarityByAgentRPCGroupsDocuments(t *testing.T) {
 		t.Fatalf("unexpected fallback response: %#v", result)
 	}
 	firstDocument := result.Documents[0]
-	if firstDocument.KnowledgeCode != "KB-FALLBACK" || firstDocument.DocumentCode != "DOC-FALLBACK" || firstDocument.DocumentName != "fallback.md" {
-		t.Fatalf("unexpected fallback document: %#v", firstDocument)
-	}
-	if len(firstDocument.Snippets) != 2 ||
-		firstDocument.Snippets[0].Text != "fallback content" ||
-		firstDocument.Snippets[0].Score != 0.72 ||
-		firstDocument.Snippets[1].Text != "second fallback content" ||
-		firstDocument.Snippets[1].Score != 0.63 {
+	assertAgentSimilarityDocumentHeader(t, firstDocument, expectedAgentSimilarityDocument{
+		KnowledgeCode:     "KB-FALLBACK",
+		KnowledgeBaseName: "fallback 知识库",
+		DocumentCode:      "DOC-FALLBACK",
+		DocumentName:      "fallback.md",
+		FileKey:           "ORG1/files/fallback.md",
+	})
+	if len(firstDocument.Snippets) != 2 {
 		t.Fatalf("expected snippets to preserve hit order: %#v", firstDocument.Snippets)
 	}
+	assertAgentSimilaritySnippet(t, firstDocument.Snippets[0], expectedAgentSimilaritySnippet{
+		Text:    "fallback content",
+		Score:   0.72,
+		FileKey: "ORG1/files/fallback.md",
+	})
+	assertAgentSimilaritySnippet(t, firstDocument.Snippets[1], expectedAgentSimilaritySnippet{
+		Text:  "second fallback content",
+		Score: 0.63,
+	})
+
 	secondDocument := result.Documents[1]
-	if secondDocument.KnowledgeCode != "KB-SECOND" || secondDocument.DocumentCode != "DOC-SECOND" || secondDocument.DocumentName != "second.md" {
-		t.Fatalf("unexpected second document: %#v", secondDocument)
-	}
-	if len(secondDocument.Snippets) != 1 ||
-		secondDocument.Snippets[0].Text != "second document content" ||
-		secondDocument.Snippets[0].Score != 0.52 {
+	assertAgentSimilarityDocumentHeader(t, secondDocument, expectedAgentSimilarityDocument{
+		KnowledgeCode:     "KB-SECOND",
+		KnowledgeBaseName: "second 知识库",
+		DocumentCode:      "DOC-SECOND",
+		DocumentName:      "second.md",
+	})
+	if len(secondDocument.Snippets) != 1 {
 		t.Fatalf("unexpected second document snippets: %#v", secondDocument.Snippets)
+	}
+	assertAgentSimilaritySnippet(t, secondDocument.Snippets[0], expectedAgentSimilaritySnippet{
+		Text:  "second document content",
+		Score: 0.52,
+	})
+}
+
+func newGroupedAgentSimilarityAppService() *mockFragmentAppService {
+	return &mockFragmentAppService{
+		agentSimilarityResult: &fragdto.AgentSimilarityResultDTO{
+			Hits: []*fragdto.SimilarityResultDTO{
+				nil,
+				{
+					ID:                42,
+					KnowledgeBaseCode: "KB-FALLBACK",
+					KnowledgeBaseName: "fallback 知识库",
+					DocumentCode:      "DOC-FALLBACK",
+					DocumentName:      "fallback.md",
+					FileKey:           "ORG1/files/fallback.md",
+					Content:           "fallback content",
+					Score:             0.724,
+				},
+				{
+					ID:                43,
+					KnowledgeBaseCode: "KB-FALLBACK",
+					KnowledgeBaseName: "fallback 知识库",
+					DocumentCode:      "DOC-FALLBACK",
+					DocumentName:      "fallback.md",
+					Content:           "second fallback content",
+					Score:             0.626,
+				},
+				{
+					ID:                44,
+					KnowledgeCode:     "KB-SECOND",
+					KnowledgeBaseName: "second 知识库",
+					DocumentCode:      "DOC-SECOND",
+					DocumentName:      "second.md",
+					Content:           "second document content",
+					Score:             0.524,
+				},
+			},
+		},
+	}
+}
+
+type expectedAgentSimilarityDocument struct {
+	KnowledgeCode     string
+	KnowledgeBaseName string
+	DocumentCode      string
+	DocumentName      string
+	FileKey           string
+}
+
+func assertAgentSimilarityDocumentHeader(
+	t *testing.T,
+	document *dto.AgentSimilarityDocument,
+	expected expectedAgentSimilarityDocument,
+) {
+	t.Helper()
+
+	if document.KnowledgeCode != expected.KnowledgeCode ||
+		document.KnowledgeBaseID != expected.KnowledgeCode ||
+		document.KnowledgeBaseName != expected.KnowledgeBaseName ||
+		document.DocumentCode != expected.DocumentCode ||
+		document.DocumentName != expected.DocumentName ||
+		document.FileKey != expected.FileKey {
+		t.Fatalf("unexpected agent similarity document: %#v", document)
+	}
+}
+
+type expectedAgentSimilaritySnippet struct {
+	Text      string
+	Score     float64
+	WordCount int
+	FileKey   string
+}
+
+func assertAgentSimilaritySnippet(
+	t *testing.T,
+	snippet *dto.AgentSimilaritySnippet,
+	expected expectedAgentSimilaritySnippet,
+) {
+	t.Helper()
+
+	if snippet.Text != expected.Text ||
+		snippet.Score != expected.Score ||
+		snippet.WordCount != expected.WordCount ||
+		snippet.FileKey != expected.FileKey {
+		t.Fatalf("unexpected agent similarity snippet: %#v", snippet)
 	}
 }
 
@@ -1103,6 +1288,51 @@ func TestFragmentPreviewHTTPRPCMapsSourcePrecheckErrorToLowCodeBody(t *testing.T
 	if !strings.Contains(body, `"code":31005`) ||
 		!strings.Contains(body, `"message":"Document source precheck failed. Please check whether the file exists and is accessible."`) {
 		t.Fatalf("expected source precheck business error body, got %s", body)
+	}
+}
+
+func TestFragmentPreviewHTTPRPCDebugInternalErrorIncludesData(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{
+		previewErr: errDebugInternalLowCodeRPC,
+	}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+
+	ctx := ctxmeta.WithRequestID(ctxmeta.WithDebugErrorDetails(context.Background()), "req-low-code-debug-1")
+	result, err := handler.PreviewHTTPRPC(ctx, &dto.PreviewFragmentRequest{
+		DataIsolation: dto.DataIsolation{OrganizationCode: "ORG1", UserID: "U1"},
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected passthrough result")
+	}
+
+	raw, err := base64.StdEncoding.DecodeString(result.BodyBase64)
+	if err != nil {
+		t.Fatalf("decode base64: %v", err)
+	}
+	var body struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			Debug struct {
+				RequestID string `json:"request_id"`
+				Stack     string `json:"stack"`
+			} `json:"debug"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if body.Code != jsonrpc.ErrCodeInternalError || body.Message != errDebugInternalLowCodeRPC.Error() {
+		t.Fatalf("unexpected debug low code body: %s", string(raw))
+	}
+	if body.Data.Debug.RequestID != "req-low-code-debug-1" ||
+		!strings.Contains(body.Data.Debug.Stack, "TestFragmentPreviewHTTPRPCDebugInternalErrorIncludesData") {
+		t.Fatalf("expected debug data in low code body, got %s", string(raw))
 	}
 }
 

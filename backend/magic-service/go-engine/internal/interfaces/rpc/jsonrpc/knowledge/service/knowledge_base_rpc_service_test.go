@@ -64,6 +64,8 @@ type fakeKnowledgeBaseAppService struct {
 	destroyErr       error
 	repairResp       *kbdto.RepairSourceBindingsResult
 	repairErr        error
+	switchResp       *kbdto.SwitchEmbeddingModelMetaResult
+	switchErr        error
 	prepareErr       error
 	teamshareStart   *revectorizeshared.TeamshareStartResult
 	teamshareList    []*kbdto.TeamshareKnowledgeProgressDTO
@@ -81,6 +83,7 @@ type fakeKnowledgeBaseAppService struct {
 	lastDestroyCode      string
 	lastDestroyOrg       string
 	lastRepairInput      *kbdto.RepairSourceBindingsInput
+	lastSwitchInput      *kbdto.SwitchEmbeddingModelMetaInput
 	lastRepairRequestID  string
 	lastPrepareOrg       string
 	lastPrepareScope     kbapp.RebuildScope
@@ -185,6 +188,26 @@ func (f *fakeKnowledgeBaseAppService) RepairSourceBindings(ctx context.Context, 
 	return &kbdto.RepairSourceBindingsResult{}, nil
 }
 
+func (f *fakeKnowledgeBaseAppService) SwitchEmbeddingModelMeta(
+	_ context.Context,
+	input *kbdto.SwitchEmbeddingModelMetaInput,
+) (*kbdto.SwitchEmbeddingModelMetaResult, error) {
+	f.lastSwitchInput = input
+	if f.switchErr != nil {
+		return nil, f.switchErr
+	}
+	if f.switchResp != nil {
+		return f.switchResp, nil
+	}
+	return &kbdto.SwitchEmbeddingModelMetaResult{
+		CollectionName:         "magic_knowledge",
+		PhysicalCollectionName: "magic_knowledge_model_test",
+		Model:                  input.TargetModel,
+		VectorDimension:        input.TargetDimension,
+		SparseBackend:          "qdrant_bm25_zh_v1",
+	}, nil
+}
+
 func (f *fakeKnowledgeBaseAppService) PrepareRebuild(
 	ctx context.Context,
 	operatorOrganizationCode string,
@@ -274,6 +297,19 @@ func (f *fakeRebuildCleanupService) Cleanup(_ context.Context, input *rebuilddto
 		return f.resp, nil
 	}
 	return &rebuilddto.CleanupResult{}, nil
+}
+
+type fakeRebuildStateReader struct {
+	currentRun string
+	err        error
+}
+
+func (f *fakeRebuildStateReader) GetCurrentRun(context.Context) (string, error) {
+	return f.currentRun, f.err
+}
+
+func (f *fakeRebuildStateReader) LoadJob(context.Context, string) (map[string]string, error) {
+	return map[string]string{}, nil
 }
 
 func buildKnowledgeBaseRPCServiceForTest(
@@ -1985,6 +2021,73 @@ func TestKnowledgeBaseRebuildRPCMapsTriggerError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected rebuild trigger error")
+	}
+}
+
+func TestKnowledgeBaseSwitchEmbeddingModelMetaRPC(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &fakeKnowledgeBaseAppService{
+		switchResp: &kbdto.SwitchEmbeddingModelMetaResult{
+			CollectionName:         "magic_knowledge",
+			PhysicalCollectionName: "magic_knowledge_model_abc",
+			Model:                  "test-embed",
+			VectorDimension:        42,
+			SparseBackend:          "qdrant_bm25_zh_v1",
+		},
+	}
+	rpcSvc := buildKnowledgeBaseRPCServiceForTest(appSvc, nil)
+	wrapped := jsonrpc.WrapTyped(rpcSvc.SwitchEmbeddingModelMetaRPC)
+
+	resp, err := wrapped(context.Background(), "svc.knowledge.knowledgeBase.switchEmbeddingModelMeta", jsonRawMessagef(`{
+		"data_isolation": {
+			"organization_code": "%s",
+			"user_id": "%s"
+		},
+		"target_model": " test-embed ",
+		"target_dimension": "42"
+	}`, testKnowledgeBaseRPCOrgCode, testKBUserID))
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	result, ok := resp.(*dto.SwitchEmbeddingModelMetaResponse)
+	if !ok {
+		t.Fatalf("expected *SwitchEmbeddingModelMetaResponse, got %T", resp)
+	}
+	if result.Model != "test-embed" || result.VectorDimension != 42 || result.PhysicalCollectionName != "magic_knowledge_model_abc" {
+		t.Fatalf("unexpected response: %#v", result)
+	}
+	if appSvc.lastSwitchInput == nil ||
+		appSvc.lastSwitchInput.OrganizationCode != testKnowledgeBaseRPCOrgCode ||
+		appSvc.lastSwitchInput.UserID != testKBUserID ||
+		appSvc.lastSwitchInput.TargetModel != "test-embed" ||
+		appSvc.lastSwitchInput.TargetDimension != 42 {
+		t.Fatalf("unexpected switch input: %#v", appSvc.lastSwitchInput)
+	}
+}
+
+func TestKnowledgeBaseSwitchEmbeddingModelMetaRPCRejectsRunningRebuild(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &fakeKnowledgeBaseAppService{}
+	rpcSvc := buildKnowledgeBaseRPCServiceForTest(appSvc, nil)
+	rpcSvc.SetRebuildStateReader(&fakeRebuildStateReader{currentRun: "r-running"})
+	wrapped := jsonrpc.WrapTyped(rpcSvc.SwitchEmbeddingModelMetaRPC)
+
+	_, err := wrapped(context.Background(), "svc.knowledge.knowledgeBase.switchEmbeddingModelMeta", jsonRawMessagef(`{
+		"data_isolation": {
+			"organization_code": "%s",
+			"user_id": "%s"
+		},
+		"target_model": "test-embed",
+		"target_dimension": 42
+	}`, testKnowledgeBaseRPCOrgCode, testKBUserID))
+	if err == nil {
+		t.Fatal("expected running rebuild error")
+	}
+	if appSvc.lastSwitchInput != nil {
+		t.Fatalf("expected switch command not called, got %#v", appSvc.lastSwitchInput)
 	}
 }
 

@@ -693,7 +693,12 @@ class JsonRpcRuntimeClient
         $error = is_array($response['error'] ?? null) ? $response['error'] : [];
         $message = (string) ($error['message'] ?? 'Unknown error');
         $code = (int) ($error['code'] ?? -1);
-        return new BusinessException($message, $code);
+        $exception = new BusinessException($message, $code);
+        if (isset($error['data']) && is_array($error['data'])) {
+            $exception->setData($error['data']);
+        }
+
+        return $exception;
     }
 
     private function closeTransport(bool $silent = false): void

@@ -48,8 +48,15 @@ func newErrorPassthroughResponse(ctx context.Context, err error, acceptEncoding 
 	return buildPassthroughResponse(lowCodePayload{
 		Code:    bizErr.Code,
 		Message: bizErr.Message,
-		Data:    nil,
+		Data:    passthroughErrorData(bizErr.Data),
 	}, acceptEncoding)
+}
+
+func passthroughErrorData(data any) any {
+	if _, ok := data.(jsonrpc.ErrorDebugPayload); ok {
+		return data
+	}
+	return nil
 }
 
 func buildPassthroughResponse(payload lowCodePayload, acceptEncoding string) (*dto.HTTPPassthroughResponse, error) {

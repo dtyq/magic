@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -317,6 +318,45 @@ func (repo *BaseRepository) UpdateProgress(ctx context.Context, id int64, expect
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update progress: %w", err)
+	}
+	return nil
+}
+
+// UpdateWordCount 更新知识库聚合词数。
+func (repo *BaseRepository) UpdateWordCount(ctx context.Context, id int64, wordCount int) error {
+	if wordCount < 0 {
+		return fmt.Errorf("invalid word_count: %w: %d", convert.ErrValueNegative, wordCount)
+	}
+
+	_, err := repo.queries.UpdateKnowledgeBaseWordCount(ctx, mysqlsqlc.UpdateKnowledgeBaseWordCountParams{
+		WordCount: int64(wordCount),
+		UpdatedAt: time.Now(),
+		ID:        id,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update word count: %w", err)
+	}
+	return nil
+}
+
+// RefreshWordCountByDocumentSum 基于文档表在数据库内原子刷新知识库聚合词数。
+func (repo *BaseRepository) RefreshWordCountByDocumentSum(
+	ctx context.Context,
+	organizationCode string,
+	knowledgeBaseCode string,
+	updatedUID string,
+) error {
+	_, err := repo.queries.RefreshKnowledgeBaseWordCountByDocumentSum(
+		ctx,
+		mysqlsqlc.RefreshKnowledgeBaseWordCountByDocumentSumParams{
+			OrgCode:    strings.TrimSpace(organizationCode),
+			KbCode:     strings.TrimSpace(knowledgeBaseCode),
+			UpdatedUid: strings.TrimSpace(updatedUID),
+			UpdatedAt:  time.Now(),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to refresh word count by document sum: %w", err)
 	}
 	return nil
 }

@@ -510,6 +510,30 @@ func (s *DocumentAppService) finishSyncWithWordCount(ctx context.Context, doc *d
 	if err := s.domainService.MarkSynced(ctx, doc, wordCount); err != nil {
 		return fmt.Errorf("failed to mark document synced: %w", err)
 	}
+	if err := s.refreshKnowledgeBaseWordCount(ctx, doc); err != nil && s.logger != nil {
+		s.logger.KnowledgeWarnContext(
+			ctx,
+			"Failed to refresh knowledge base word count after document sync",
+			"knowledgeBaseCode", doc.KnowledgeBaseCode,
+			"documentCode", doc.Code,
+			"error", err,
+		)
+	}
+	return nil
+}
+
+func (s *DocumentAppService) refreshKnowledgeBaseWordCount(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
+	if s == nil || doc == nil || s.domainService == nil || s.kbService == nil {
+		return nil
+	}
+	if err := s.kbService.RefreshWordCountByDocumentSum(
+		ctx,
+		doc.OrganizationCode,
+		doc.KnowledgeBaseCode,
+		doc.UpdatedUID,
+	); err != nil {
+		return fmt.Errorf("refresh knowledge base word count by document sum: %w", err)
+	}
 	return nil
 }
 

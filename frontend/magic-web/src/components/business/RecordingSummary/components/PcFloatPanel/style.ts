@@ -115,6 +115,7 @@ export const useStyles = createStyles(({ token, css, prefixCls }) => {
 				rgba(255, 255, 255, 0.6) 70%,
 				transparent 100%
 			);
+			backdrop-filter: blur(8px);
 
 			animation: shadowAnimation 0.3s ease-out;
 

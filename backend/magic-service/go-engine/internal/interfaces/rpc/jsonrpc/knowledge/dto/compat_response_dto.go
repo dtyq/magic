@@ -85,7 +85,10 @@ type KnowledgeBaseResponse struct {
 	EmbeddingConfig   any                    `json:"embedding_config,omitempty"`
 	SourceType        *int                   `json:"source_type,omitempty"`
 	SourceBindings    []SourceBindingPayload `json:"source_bindings,omitempty"`
+	KnowledgeBaseType string                 `json:"knowledge_base_type"`
 	AgentCodes        []string               `json:"agent_codes,omitempty"`
+	BindingEnabled    *bool                  `json:"binding_enabled,omitempty"`
+	OriginEnabled     *bool                  `json:"origin_enabled,omitempty"`
 	Icon              string                 `json:"icon"`
 	CreatorInfo       *OperatorInfoResponse  `json:"creator_info,omitempty"`
 	ModifierInfo      *OperatorInfoResponse  `json:"modifier_info,omitempty"`
@@ -158,6 +161,7 @@ type FragmentResponse struct {
 	BusinessID        string                `json:"business_id"`
 	DocumentName      string                `json:"document_name"`
 	DocumentType      int                   `json:"document_type"`
+	FileKey           string                `json:"file_key,omitempty"`
 	DocType           int                   `json:"doc_type"`
 	Content           string                `json:"content"`
 	Score             float64               `json:"score"`
@@ -196,6 +200,7 @@ type SimilarityFragmentResponse struct {
 	BusinessID        string                `json:"business_id"`
 	DocumentName      string                `json:"document_name"`
 	DocumentType      int                   `json:"document_type"`
+	FileKey           string                `json:"file_key,omitempty"`
 	DocType           int                   `json:"doc_type"`
 	Content           string                `json:"content"`
 	Score             float64               `json:"score"`
@@ -226,16 +231,21 @@ type AgentSimilarityResponse struct {
 
 // AgentSimilarityDocument 是面向 agent 消费的知识检索文档分组。
 type AgentSimilarityDocument struct {
-	KnowledgeCode string                    `json:"knowledge_code"`
-	DocumentCode  string                    `json:"document_code"`
-	DocumentName  string                    `json:"document_name"`
-	Snippets      []*AgentSimilaritySnippet `json:"snippets"`
+	KnowledgeCode     string                    `json:"knowledge_code"`
+	KnowledgeBaseID   string                    `json:"knowledge_base_id"`
+	KnowledgeBaseName string                    `json:"knowledge_base_name"`
+	DocumentCode      string                    `json:"document_code"`
+	DocumentName      string                    `json:"document_name"`
+	FileKey           string                    `json:"file_key,omitempty"`
+	Snippets          []*AgentSimilaritySnippet `json:"snippets"`
 }
 
 // AgentSimilaritySnippet 是文档内命中的知识片段。
 type AgentSimilaritySnippet struct {
-	Score float64 `json:"score"`
-	Text  string  `json:"text"`
+	Score     float64 `json:"score"`
+	WordCount int     `json:"word_count"`
+	Text      string  `json:"text"`
+	FileKey   string  `json:"file_key,omitempty"`
 }
 
 func newOperatorInfoResponse(userID, datetime string) *OperatorInfoResponse {
@@ -306,7 +316,10 @@ func NewKnowledgeBaseResponse(kb *kbdto.KnowledgeBaseDTO, documentCount int64) *
 		RetrieveConfig:    normalizeCompatRetrieveConfig(kb.RetrieveConfig),
 		EmbeddingConfig:   kb.EmbeddingConfig,
 		SourceBindings:    projectKnowledgeBaseSourceBindings(kb.SourceBindings),
+		KnowledgeBaseType: kb.KnowledgeBaseType,
 		AgentCodes:        append([]string(nil), kb.AgentCodes...),
+		BindingEnabled:    kb.BindingEnabled,
+		OriginEnabled:     kb.OriginEnabled,
 		Icon:              kb.Icon,
 		CreatorInfo:       newOperatorInfoResponse(kb.Creator, kb.CreatedAt),
 		ModifierInfo:      newOperatorInfoResponse(kb.Modifier, kb.UpdatedAt),
@@ -1030,6 +1043,7 @@ func NewSimilarityResponse(result *fragdto.SimilarityResultDTO) *SimilarityFragm
 		BusinessID:        result.BusinessID,
 		DocumentName:      result.DocumentName,
 		DocumentType:      result.DocumentType,
+		FileKey:           result.FileKey,
 		DocType: projectFragmentResponseDocType(
 			result.KnowledgeBaseType,
 			result.SourceType,
@@ -1081,6 +1095,9 @@ func NewAgentSimilarityResponse(result *fragdto.AgentSimilarityResultDTO) *Agent
 			documentByKey[key] = existing
 			documents = append(documents, existing)
 		}
+		if existing.FileKey == "" {
+			existing.FileKey = item.FileKey
+		}
 		existing.Snippets = append(existing.Snippets, newAgentSimilaritySnippet(item))
 		hitCount++
 	}
@@ -1108,17 +1125,22 @@ func newAgentSimilarityDocument(hit *fragdto.SimilarityResultDTO) (agentSimilari
 		documentName:  hit.DocumentName,
 	}
 	return key, &AgentSimilarityDocument{
-		KnowledgeCode: knowledgeCode,
-		DocumentCode:  hit.DocumentCode,
-		DocumentName:  hit.DocumentName,
-		Snippets:      []*AgentSimilaritySnippet{},
+		KnowledgeCode:     knowledgeCode,
+		KnowledgeBaseID:   knowledgeCode,
+		KnowledgeBaseName: hit.KnowledgeBaseName,
+		DocumentCode:      hit.DocumentCode,
+		DocumentName:      hit.DocumentName,
+		FileKey:           hit.FileKey,
+		Snippets:          []*AgentSimilaritySnippet{},
 	}
 }
 
 func newAgentSimilaritySnippet(hit *fragdto.SimilarityResultDTO) *AgentSimilaritySnippet {
 	return &AgentSimilaritySnippet{
-		Score: roundAgentSimilarityScore(hit.Score),
-		Text:  hit.Content,
+		Score:     roundAgentSimilarityScore(hit.Score),
+		WordCount: hit.WordCount,
+		Text:      hit.Content,
+		FileKey:   hit.FileKey,
 	}
 }
 

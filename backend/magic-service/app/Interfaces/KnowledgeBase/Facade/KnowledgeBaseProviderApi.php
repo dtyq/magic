@@ -21,7 +21,7 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
      * 获取官方重排序提供商列表.
      * @return array<ProviderConfigModelsDTO>
      */
-    public function getOfficialRerankProviderList(): array
+    public function getOfficialRerankProviderList()
     {
         $dto = new ProviderConfigModelsDTO();
         $dto->setId('official_rerank');
@@ -59,7 +59,7 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
      * 获取嵌入提供商列表.
      * @return array<ProviderConfigModelsDTO>
      */
-    public function getEmbeddingProviderList(): array
+    public function getEmbeddingProviderList()
     {
         $userAuthorization = $this->getAuthorization();
         $businessParams = new BusinessParamsDTO(

@@ -31,6 +31,13 @@ class ProviderModelItemDTO extends AbstractDTO
 
     protected string $serviceProviderConfigId = '';
 
+    /**
+     * 关联的服务商配置摘要，键为 id、name（对应 service_provider_configs 记录）.
+     *
+     * @var null|array{id: string, name: string}
+     */
+    protected ?array $serviceProviderConfig = null;
+
     protected ?array $imageSizeConfig = null;
 
     public function getId(): string
@@ -146,10 +153,35 @@ class ProviderModelItemDTO extends AbstractDTO
     public function setServiceProviderConfigId(null|int|string $serviceProviderConfigId): self
     {
         if ($serviceProviderConfigId === null) {
-            $this->{$serviceProviderConfigId} = '';
+            $this->serviceProviderConfigId = '';
         } else {
             $this->serviceProviderConfigId = (string) $serviceProviderConfigId;
         }
+        return $this;
+    }
+
+    /**
+     * @return null|array{id: string, name: string}
+     */
+    public function getServiceProviderConfig(): ?array
+    {
+        return $this->serviceProviderConfig;
+    }
+
+    /**
+     * @param null|array{id?: int|string, name?: string} $serviceProviderConfig
+     */
+    public function setServiceProviderConfig(?array $serviceProviderConfig): self
+    {
+        if ($serviceProviderConfig === null || $serviceProviderConfig === []) {
+            $this->serviceProviderConfig = null;
+            return $this;
+        }
+
+        $this->serviceProviderConfig = [
+            'id' => isset($serviceProviderConfig['id']) ? (string) $serviceProviderConfig['id'] : '',
+            'name' => isset($serviceProviderConfig['name']) ? (string) $serviceProviderConfig['name'] : '',
+        ];
         return $this;
     }
 

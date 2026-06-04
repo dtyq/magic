@@ -37,7 +37,17 @@ final class SvcMethods
 
     public const string SERVICE_MODEL_GATEWAY_ACCESS_TOKEN = 'svc.modelGateway.accessToken';
 
+    public const string SERVICE_MODEL_GATEWAY_MODEL_CONFIG = 'svc.modelGateway.model.config';
+
+    public const string SERVICE_AI_ABILITY_CONFIG = 'svc.aiAbility.config';
+
+    public const string SERVICE_AUTH_WEB_AUTH = 'svc.auth.webAuth';
+
+    public const string SERVICE_AUTH_API_KEY = 'svc.auth.apiKey';
+
     public const string SERVICE_FILE = 'svc.file';
+
+    public const string SERVICE_MAGICFS_FILE = 'svc.magicfs.file';
 
     public const string SERVICE_SOCKETIO_REDIS = 'svc.socketio.redis';
 
@@ -49,13 +59,21 @@ final class SvcMethods
 
     public const string METHOD_QUERIES = 'queries';
 
-    public const string METHOD_GET_BY_THIRD_FILE_ID = 'getByThirdFileId';
+    public const string METHOD_LINK_AGENT_KNOWLEDGE_BASES = 'linkAgentKnowledgeBases';
 
-    public const string METHOD_GET_ORIGINAL_FILE_LINK = 'getOriginalFileLink';
+    public const string METHOD_UNLINK_AGENT_KNOWLEDGE_BASES = 'unlinkAgentKnowledgeBases';
+
+    public const string METHOD_UPDATE_AGENT_KNOWLEDGE_BASE_BINDING = 'updateAgentKnowledgeBaseBinding';
+
+    public const string METHOD_GET_BY_THIRD_FILE_ID = 'getByThirdFileId';
 
     public const string METHOD_DESTROY = 'destroy';
 
     public const string METHOD_REBUILD = 'rebuild';
+
+    public const string METHOD_REBUILD_STATUS = 'rebuildStatus';
+
+    public const string METHOD_SWITCH_EMBEDDING_MODEL_META = 'switchEmbeddingModelMeta';
 
     public const string METHOD_REBUILD_PERMISSIONS = 'rebuildPermissions';
 
@@ -87,6 +105,8 @@ final class SvcMethods
 
     public const string METHOD_RUNTIME_SIMILARITY = 'runtimeSimilarity';
 
+    public const string METHOD_FLOW_VECTOR_SIMILARITY_BY_USER = 'flowVectorSimilarityByUser';
+
     public const string METHOD_SIMILARITY_BY_AGENT = 'similarityByAgent';
 
     public const string METHOD_RUNTIME_CREATE = 'runtimeCreate';
@@ -102,6 +122,8 @@ final class SvcMethods
     public const string METHOD_COMPUTE = 'compute';
 
     public const string METHOD_GET = 'get';
+
+    public const string METHOD_AUTHENTICATE = 'authenticate';
 
     public const string METHOD_GET_LINK = 'getLink';
 
@@ -141,6 +163,8 @@ final class SvcMethods
 
     public const string METHOD_CHECK_OFFICIAL_ORGANIZATION_MEMBER = 'checkOfficialOrganizationMember';
 
+    public const string METHOD_CHECK_OFFICIAL_ORGANIZATION_ADMIN = 'checkOfficialOrganizationAdmin';
+
     public const string METHOD_NOTIFY_CHANGE = 'notifyChange';
 
     public const string METHOD_CONFIG = 'config';
@@ -150,6 +174,8 @@ final class SvcMethods
     public const string METHOD_ACCESS_OWNER = 'accessOwner';
 
     public const string METHOD_DELETE_BY_RESOURCE = 'deleteByResource';
+
+    public const string METHOD_AUTHORIZE_FILE_VIEWER = 'authorizeFileViewer';
 
     private function __construct()
     {

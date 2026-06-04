@@ -209,6 +209,43 @@ func (repo *DocumentRepository) ListByKnowledgeBaseAndSourceBindingIDs(
 	return repo.recordsToDocuments(ctx, records)
 }
 
+// ListByOrganizationKnowledgeBasesAndCodes 按组织、知识库集合和文档编码集合批量列出文档。
+func (repo *DocumentRepository) ListByOrganizationKnowledgeBasesAndCodes(
+	ctx context.Context,
+	organizationCode string,
+	knowledgeBaseCodes []string,
+	documentCodes []string,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	organizationCode = strings.TrimSpace(organizationCode)
+	knowledgeBaseCodes = uniqueTrimmedDocumentStrings(knowledgeBaseCodes)
+	documentCodes = uniqueTrimmedDocumentStrings(documentCodes)
+	if organizationCode == "" || len(knowledgeBaseCodes) == 0 || len(documentCodes) == 0 {
+		return []*docentity.KnowledgeBaseDocument{}, nil
+	}
+
+	rows, err := repo.queries.ListDocumentsByOrganizationKnowledgeBasesAndCodes(ctx, mysqlsqlc.ListDocumentsByOrganizationKnowledgeBasesAndCodesParams{
+		OrganizationCode:   organizationCode,
+		KnowledgeBaseCodes: knowledgeBaseCodes,
+		Codes:              documentCodes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list documents by organization knowledge bases and codes: %w", err)
+	}
+	docs := make([]*docentity.KnowledgeBaseDocument, 0, len(rows))
+	for _, row := range rows {
+		record, err := documentRecordFromListByOrganizationKnowledgeBasesAndCodesRow(row)
+		if err != nil {
+			return nil, fmt.Errorf("map documents by organization knowledge bases and codes: %w", err)
+		}
+		doc, err := toKnowledgeBaseDocument(record)
+		if err != nil {
+			return nil, fmt.Errorf("decode documents by organization knowledge bases and codes: %w", err)
+		}
+		docs = append(docs, doc)
+	}
+	return docs, nil
+}
+
 // ListByProjectFileInOrg 按组织和项目文件列出全部关联文档。
 func (repo *DocumentRepository) ListByProjectFileInOrg(
 	ctx context.Context,
@@ -455,6 +492,26 @@ func (repo *DocumentRepository) ListByKnowledgeBase(ctx context.Context, knowled
 	})
 }
 
+func uniqueTrimmedDocumentStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
 // CountByKnowledgeBaseCodes 统计组织内多个知识库的文档数。
 func (repo *DocumentRepository) CountByKnowledgeBaseCodes(ctx context.Context, organizationCode string, knowledgeBaseCodes []string) (map[string]int64, error) {
 	if len(knowledgeBaseCodes) == 0 {
@@ -481,6 +538,18 @@ func (repo *DocumentRepository) CountByKnowledgeBaseCodes(ctx context.Context, o
 		}
 	}
 	return result, nil
+}
+
+// SumWordCountByKnowledgeBase 统计知识库下全部未删除文档的正文词数。
+func (repo *DocumentRepository) SumWordCountByKnowledgeBase(ctx context.Context, organizationCode, knowledgeBaseCode string) (int64, error) {
+	wordCount, err := repo.queries.SumDocumentWordCountByKnowledgeBase(ctx, mysqlsqlc.SumDocumentWordCountByKnowledgeBaseParams{
+		OrganizationCode:  strings.TrimSpace(organizationCode),
+		KnowledgeBaseCode: strings.TrimSpace(knowledgeBaseCode),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("sum document word count by knowledge base: %w", err)
+	}
+	return wordCount, nil
 }
 
 func (repo *DocumentRepository) listDocumentsByOrganizationAndKnowledgeBase(

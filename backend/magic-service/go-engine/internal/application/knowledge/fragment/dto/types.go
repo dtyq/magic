@@ -90,10 +90,12 @@ type SimilarityResultDTO struct {
 	WordCount         int            `json:"word_count"`
 	Metadata          map[string]any `json:"metadata"`
 	KnowledgeBaseCode string         `json:"knowledge_base_code"`
+	KnowledgeBaseName string         `json:"knowledge_base_name"`
 	KnowledgeCode     string         `json:"knowledge_code"`
 	DocumentCode      string         `json:"document_code"`
 	DocumentName      string         `json:"document_name"`
 	DocumentType      int            `json:"document_type"`
+	FileKey           string         `json:"file_key,omitempty"`
 	KnowledgeBaseType string         `json:"-"`
 	SourceType        *int           `json:"-"`
 	// DocType 是历史兼容字段；RPC 兼容响应层会基于 KnowledgeBaseType/SourceType
@@ -163,6 +165,16 @@ type RuntimeSimilarityInput struct {
 	ScoreThreshold   *float64
 	MetadataFilter   map[string]any
 	Debug            bool
+	BusinessParams   *ctxmeta.BusinessParams
+}
+
+// FlowVectorSimilarityByUserInput 表示按用户可读 flow 向量知识库检索请求。
+type FlowVectorSimilarityByUserInput struct {
+	OrganizationCode string
+	UserID           string
+	Keyword          string
+	TopK             int
+	ScoreThreshold   *float64
 	BusinessParams   *ctxmeta.BusinessParams
 }
 

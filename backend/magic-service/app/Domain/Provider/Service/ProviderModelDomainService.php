@@ -31,12 +31,12 @@ use DateTime;
 
 use function Hyperf\Translation\__;
 
-readonly class ProviderModelDomainService
+class ProviderModelDomainService
 {
     public function __construct(
-        private ProviderModelRepositoryInterface $providerModelRepository,
-        private ProviderConfigRepositoryInterface $providerConfigRepository,
-        private ProviderModelConfigVersionRepositoryInterface $providerModelConfigVersionRepository,
+        private readonly ProviderModelRepositoryInterface $providerModelRepository,
+        private readonly ProviderConfigRepositoryInterface $providerConfigRepository,
+        private readonly ProviderModelConfigVersionRepositoryInterface $providerModelConfigVersionRepository,
     ) {
     }
 

@@ -2,13 +2,14 @@ package autoload
 
 // ServerConfig 保存 HTTP 服务设置。
 type ServerConfig struct {
-	Enabled      *bool   `json:"enabled"`
-	Host         string  `json:"host"`
-	Port         int     `json:"port"`
-	Mode         RunMode `json:"mode,omitempty"`
-	BasePath     string  `json:"base_path"`
-	Env          string  `json:"env"` // 环境：dev、staging、production 等
-	PprofEnabled bool    `json:"pprof_enabled"`
+	Enabled         *bool   `json:"enabled"`
+	Host            string  `json:"host"`
+	Port            int     `json:"port"`
+	StripPathPrefix string  `mapstructure:"stripPathPrefix" json:"strip_path_prefix"`
+	Mode            RunMode `json:"mode,omitempty"`
+	BasePath        string  `json:"base_path"`
+	Env             string  `json:"env"` // 环境：dev、staging、production 等
+	PprofEnabled    bool    `json:"pprof_enabled"`
 }
 
 // RunMode 表示服务运行模式

@@ -11,6 +11,8 @@ use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Rpc\Annotation\RpcMethod;
 use App\Infrastructure\Rpc\Annotation\RpcService;
 use App\Infrastructure\Rpc\JsonRpc\JsonRpcRuntimeClient;
+use App\Infrastructure\Rpc\Method\SvcMethods;
+use App\Interfaces\KnowledgeBase\Rpc\Service\KnowledgeBasePermissionRpcService;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
@@ -29,7 +31,6 @@ class RpcServiceRegistry
         $services = AnnotationCollector::getClassesByAnnotation(RpcService::class);
         if (empty($services)) {
             $this->logger->warning('goEngineException No RPC services found by annotation');
-            return;
         }
 
         $methods = AnnotationCollector::getMethodsByAnnotation(RpcMethod::class);
@@ -82,6 +83,39 @@ class RpcServiceRegistry
 
                 $this->logger->debug('RPC handler registered', ['method' => $rpcMethod, 'class' => $class, 'handler' => $method]);
             }
+        }
+
+        $this->registerKnowledgeBasePermissionHandlers($client, $container);
+    }
+
+    /**
+     * @throws ContainerExceptionInterface
+     * @throws NotFoundExceptionInterface
+     */
+    private function registerKnowledgeBasePermissionHandlers(JsonRpcRuntimeClient $client, ContainerInterface $container): void
+    {
+        $handler = $container->get(KnowledgeBasePermissionRpcService::class);
+        $serviceName = SvcMethods::SERVICE_KNOWLEDGE_KNOWLEDGE_BASE_PERMISSION;
+        $methods = [
+            SvcMethods::METHOD_LIST_OPERATIONS => 'listOperations',
+            SvcMethods::METHOD_INITIALIZE => 'initialize',
+            SvcMethods::METHOD_GRANT_OWNER => 'grantOwner',
+            SvcMethods::METHOD_CLEANUP => 'cleanup',
+            SvcMethods::METHOD_CHECK_OFFICIAL_ORGANIZATION_MEMBER => 'checkOfficialOrganizationMember',
+            SvcMethods::METHOD_CHECK_OFFICIAL_ORGANIZATION_ADMIN => 'checkOfficialOrganizationAdmin',
+        ];
+
+        foreach ($methods as $rpcMethodName => $handlerMethod) {
+            $rpcMethod = $serviceName . '.' . $rpcMethodName;
+            $client->registerHandler($rpcMethod, static function (mixed $params) use ($handler, $handlerMethod) {
+                return $handler->{$handlerMethod}($params ?? []);
+            });
+
+            $this->logger->debug('RPC handler registered by fallback', [
+                'method' => $rpcMethod,
+                'class' => KnowledgeBasePermissionRpcService::class,
+                'handler' => $handlerMethod,
+            ]);
         }
     }
 }

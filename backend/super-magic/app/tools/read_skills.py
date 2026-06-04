@@ -2,18 +2,17 @@
 
 import asyncio
 from pathlib import Path
-
-from app.i18n import i18n
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from agentlang.context.tool_context import ToolContext
-from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
+from agentlang.tools.tool_result import ToolResult
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.skill_manager import find_skill
+from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
-from app.core.skill_manager import get_global_skill_manager, find_skill
 
 logger = get_logger(__name__)
 
@@ -33,6 +32,16 @@ The list of skill names to read, e.g., ["canvas-design", "audio-chat"]""",
         description="""<!--zh: 是否检查 skill 版本更新，默认为 true。若用户已明确表示不更新或忽略更新提醒，后续调用时应传 false 以跳过版本检查。-->
 Whether to check for skill version updates. Defaults to true. If the user has explicitly declined or ignored the update reminder, pass false in subsequent calls to skip the version check.""",
     )
+
+    @field_validator("skill_names", mode="before")
+    @classmethod
+    def normalize_skill_names(cls, value: Any) -> Any:
+        """兼容模型把单个 skill 名称误传为字符串的情况。"""
+        if isinstance(value, str):
+            names = [item.strip() for item in value.split(",") if item.strip()]
+            if names:
+                return names
+        return value
 
 
 @tool()
@@ -141,7 +150,7 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
 
                     logger.error(traceback.format_exc())
 
-                    error_msg = f"读取 skill '{skill_name}' 失败: {str(e)}"
+                    error_msg = f"读取 skill '{skill_name}' 失败: {e!s}"
                     results.append({"skill_name": skill_name, "success": False, "error": error_msg})
                     failure_count += 1
                     failed_skills.append(skill_name)
@@ -219,7 +228,7 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
 
             logger.error(traceback.format_exc())
 
-            error_msg = f"批量读取 skills 失败: {str(e)}"
+            error_msg = f"批量读取 skills 失败: {e!s}"
             result = ToolResult(ok=False, content=error_msg)
             result.use_custom_remark = True
             return result
@@ -308,8 +317,8 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
         每个检查独立容错，整体不超过 8 秒。任何异常只 debug log，不影响主流程。
         """
         from app.core.skill_utils.manifest import read_manifest
-        from app.core.skill_utils.providers.registry import get_registry
         from app.core.skill_utils.providers.base import SkillProviderId
+        from app.core.skill_utils.providers.registry import get_registry
 
         async def check_one(skill_name: str, skill_dir: Path) -> Optional[Tuple[str, str, str]]:
             """检查单个 skill 版本，返回 (skill_name, current_version, latest_version) 或 None。"""

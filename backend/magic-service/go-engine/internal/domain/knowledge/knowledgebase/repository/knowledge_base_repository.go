@@ -33,4 +33,5 @@ type Repository interface {
 	Delete(ctx context.Context, id int64) error
 	UpdateSyncStatus(ctx context.Context, id int64, status shared.SyncStatus, message string) error
 	UpdateProgress(ctx context.Context, id int64, expectedNum, completedNum int) error
+	UpdateWordCount(ctx context.Context, id int64, wordCount int) error
 }

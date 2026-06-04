@@ -26,6 +26,7 @@ type fragmentRuntimeApplicationService interface {
 	RuntimeDestroyByBusinessID(ctx context.Context, input *fragdto.RuntimeDestroyByBusinessIDInput) error
 	RuntimeDestroyByMetadataFilter(ctx context.Context, input *fragdto.RuntimeDestroyByMetadataFilterInput) error
 	RuntimeSimilarity(ctx context.Context, input *fragdto.RuntimeSimilarityInput) ([]*fragdto.SimilarityResultDTO, error)
+	FlowVectorSimilarityByUser(ctx context.Context, input *fragdto.FlowVectorSimilarityByUserInput) ([]*fragdto.SimilarityResultDTO, error)
 }
 
 type fragmentApplicationService interface {
@@ -312,6 +313,37 @@ func (h *FragmentRPCService) RuntimeSimilarityRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime search similarity", "error", err)
+		return nil, mapBusinessError(ctx, err)
+	}
+	return dto.NewSimilarityPageResponse(results), nil
+}
+
+// FlowVectorSimilarityByUserRPC 按用户可读 flow 向量知识库检索。
+func (h *FragmentRPCService) FlowVectorSimilarityByUserRPC(
+	ctx context.Context,
+	req *dto.FlowVectorSimilarityByUserRequest,
+) (*dto.SimilarityPageResponse, error) {
+	dataIsolation := req.DataIsolation
+	dataIsolation.UserID = req.MagicUserID
+	dataIsolation.ThirdPlatformUserID = ""
+	dataIsolation.ThirdPlatformOrganizationCode = ""
+	ctx = withAccessActorFromDataIsolation(ctx, dataIsolation)
+	scoreThreshold := req.ScoreThreshold
+	results, err := h.appService.FlowVectorSimilarityByUser(ctx, &fragdto.FlowVectorSimilarityByUserInput{
+		OrganizationCode: dataIsolation.ResolveOrganizationCode(),
+		UserID:           req.MagicUserID,
+		Keyword:          req.Keyword,
+		TopK:             req.TopK,
+		ScoreThreshold:   &scoreThreshold,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: dataIsolation.ResolveOrganizationCode(),
+			UserID:           req.MagicUserID,
+			BusinessID:       req.BusinessParams.BusinessID,
+			SourceID:         req.BusinessParams.SourceID,
+		},
+	})
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to search flow vector similarity by user", "error", err)
 		return nil, mapBusinessError(ctx, err)
 	}
 	return dto.NewSimilarityPageResponse(results), nil

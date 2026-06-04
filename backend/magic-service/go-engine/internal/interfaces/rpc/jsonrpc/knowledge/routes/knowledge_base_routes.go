@@ -16,6 +16,9 @@ func RegisterKnowledgeBaseRoutes(router RPCRouter, h HandlerProvider) {
 		constants.MethodKnowledgeBaseSaveProcess,
 		constants.MethodKnowledgeBaseShow,
 		constants.MethodKnowledgeBaseList,
+		constants.MethodKnowledgeBaseLinkAgentKnowledgeBases,
+		constants.MethodKnowledgeBaseUnlinkAgentKnowledgeBases,
+		constants.MethodKnowledgeBaseUpdateAgentKnowledgeBaseBinding,
 		constants.MethodKnowledgeTeamshareStartVector,
 		constants.MethodKnowledgeTeamshareManageable,
 		constants.MethodKnowledgeTeamshareManageableProgress,
@@ -23,6 +26,8 @@ func RegisterKnowledgeBaseRoutes(router RPCRouter, h HandlerProvider) {
 		constants.MethodKnowledgeBaseDestroy,
 		constants.MethodKnowledgeBaseRebuildPermissions,
 		constants.MethodKnowledgeBaseRebuild,
+		constants.MethodKnowledgeBaseRebuildStatus,
+		constants.MethodKnowledgeBaseSwitchEmbeddingModelMeta,
 		constants.MethodKnowledgeBaseRepairSourceBindings,
 		constants.MethodKnowledgeBaseRebuildCleanup,
 	})

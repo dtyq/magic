@@ -198,15 +198,25 @@ class GenericMarkItDownDriver(DocumentDriver):
         if not images_dir or not skipped_assets:
             return content
         images_dir_name = re.escape(Path(images_dir).name)
-        names = [re.escape(str(asset.get("original_name"))) for asset in skipped_assets if asset.get("original_name")]
-        if not names:
-            return content
-        name_pattern = "|".join(names)
-        markdown_image_line = re.compile(
-            rf"^[ \t]*!\[[^\]]*]\((?:\./)?{images_dir_name}/(?:{name_pattern})\)[ \t]*$",
-            re.MULTILINE,
-        )
-        return markdown_image_line.sub("", content)
+        updated = content
+        for asset in skipped_assets:
+            original_name = str(asset.get("original_name") or "")
+            if not original_name:
+                continue
+            markdown_image_line = re.compile(
+                rf"^[ \t]*!\[[^\]]*]\((?:\./)?{images_dir_name}/{re.escape(original_name)}\)[ \t]*$",
+                re.MULTILINE,
+            )
+            replacement = GenericMarkItDownDriver._skipped_image_note(asset) if asset.get("reason") == "invalid solid or blank image" else ""
+            updated = markdown_image_line.sub(replacement, updated)
+        return updated
+
+    @staticmethod
+    def _skipped_image_note(asset: dict) -> str:
+        width = asset.get("width") or "unknown"
+        height = asset.get("height") or "unknown"
+        name = asset.get("original_name") or "image"
+        return f"- Filtered solid/blank image `{name}` ({width}x{height}); no asset was generated."
 
     @staticmethod
     def _rewrite_image_links_to_assets(content: str, images_dir: str, assets: list[DocumentAsset]) -> str:

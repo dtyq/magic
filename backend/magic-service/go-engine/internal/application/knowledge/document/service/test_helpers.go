@@ -94,6 +94,14 @@ func (defaultKnowledgeBaseReaderForTest) UpdateProgress(context.Context, *kbenti
 	return nil
 }
 
+func (defaultKnowledgeBaseReaderForTest) UpdateWordCount(context.Context, *kbentity.KnowledgeBase) error {
+	return nil
+}
+
+func (defaultKnowledgeBaseReaderForTest) RefreshWordCountByDocumentSum(context.Context, string, string, string) error {
+	return nil
+}
+
 // PreviewSegmentConfigForTest 暴露给测试的切片配置。
 type PreviewSegmentConfigForTest struct {
 	ChunkSize          int
@@ -169,6 +177,7 @@ type legacyDocumentLookupService interface {
 type legacyDocumentQueryService interface {
 	List(ctx context.Context, query *docrepo.DocumentQuery) ([]*docentity.KnowledgeBaseDocument, int64, error)
 	CountByKnowledgeBaseCodes(ctx context.Context, organizationCode string, knowledgeBaseCodes []string) (map[string]int64, error)
+	SumWordCountByKnowledgeBase(ctx context.Context, organizationCode, knowledgeBaseCode string) (int64, error)
 }
 
 // KnowledgeBaseSnapshotFromDomainForTest 供测试验证知识库快照隔离。
@@ -396,6 +405,14 @@ func (c documentDomainServiceCompat) CountByKnowledgeBaseCodes(ctx context.Conte
 		return nil, fmt.Errorf("count documents by knowledge bases: %w", err)
 	}
 	return counts, nil
+}
+
+func (c documentDomainServiceCompat) SumWordCountByKnowledgeBase(ctx context.Context, organizationCode, knowledgeBaseCode string) (int64, error) {
+	wordCount, err := c.query.SumWordCountByKnowledgeBase(ctx, organizationCode, knowledgeBaseCode)
+	if err != nil {
+		return 0, fmt.Errorf("sum document word count by knowledge base: %w", err)
+	}
+	return wordCount, nil
 }
 
 func (c documentDomainServiceCompat) ListByKnowledgeBase(ctx context.Context, knowledgeBaseCode string, offset, limit int) ([]*docentity.KnowledgeBaseDocument, int64, error) {

@@ -15,6 +15,7 @@ type KnowledgeBaseRPCDeps struct {
 	RevectorizeService *revectorizeapp.KnowledgeRevectorizeAppService
 	RebuildTrigger     *apprebuild.TriggerService
 	RebuildCleaner     *apprebuild.CleanupService
+	RebuildStateReader KnowledgeBaseRebuildStateReader
 	RedisClient        *redis.Client
 }
 
@@ -23,12 +24,14 @@ func ProvideKnowledgeBaseRPCDeps(
 	revectorizeService *revectorizeapp.KnowledgeRevectorizeAppService,
 	rebuildTrigger *apprebuild.TriggerService,
 	rebuildCleaner *apprebuild.CleanupService,
+	rebuildStateReader KnowledgeBaseRebuildStateReader,
 	redisClient *redis.Client,
 ) KnowledgeBaseRPCDeps {
 	return KnowledgeBaseRPCDeps{
 		RevectorizeService: revectorizeService,
 		RebuildTrigger:     rebuildTrigger,
 		RebuildCleaner:     rebuildCleaner,
+		RebuildStateReader: rebuildStateReader,
 		RedisClient:        redisClient,
 	}
 }
@@ -47,5 +50,6 @@ func ProvideKnowledgeBaseRPCService(
 	svc := NewKnowledgeBaseRPCService(appService, deps.RebuildTrigger, deps.RebuildCleaner, logger)
 	svc.SetTeamshareStartCommand(deps.RevectorizeService)
 	svc.SetDocumentCounter(documentService)
+	svc.SetRebuildStateReader(deps.RebuildStateReader)
 	return svc
 }

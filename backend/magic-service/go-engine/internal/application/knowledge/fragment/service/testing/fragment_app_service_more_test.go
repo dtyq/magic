@@ -6,6 +6,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -46,6 +47,7 @@ const (
 	testFragmentOrganization  = "ORG1"
 	testSimilarityBusinessID  = "BIZ-42"
 	testBackfillBusinessID    = "BIZ-88"
+	testBackfillDocumentKey   = "ORG1/files/doc-1.md"
 )
 
 func TestFragmentAppServiceCreate(t *testing.T) {
@@ -644,8 +646,8 @@ func TestFragmentAppServiceSimilarityByAgent(t *testing.T) {
 	if kbReader.lastListQuery == nil || kbReader.lastListQuery.Enabled == nil || !*kbReader.lastListQuery.Enabled {
 		t.Fatalf("expected agent similarity to list only enabled knowledge bases, got %#v", kbReader.lastListQuery)
 	}
-	if kbReader.lastListQuery.KnowledgeBaseType == nil || *kbReader.lastListQuery.KnowledgeBaseType != kbentity.KnowledgeBaseTypeDigitalEmployee {
-		t.Fatalf("expected agent similarity to scope by digital employee knowledge base type, got %#v", kbReader.lastListQuery)
+	if kbReader.lastListQuery.KnowledgeBaseType != nil {
+		t.Fatalf("expected agent similarity to include all bound knowledge base types, got %#v", kbReader.lastListQuery)
 	}
 	if kbReader.showCalls != 0 {
 		t.Fatalf("expected agent similarity to avoid per-knowledge-base show calls, got %d", kbReader.showCalls)
@@ -658,6 +660,112 @@ func TestFragmentAppServiceSimilarityByAgent(t *testing.T) {
 	}
 	if result.Hits[0].CitationID == "" || !strings.Contains(result.ContextText, result.Hits[0].CitationID) {
 		t.Fatalf("expected context text to include citation id, got %#v", result)
+	}
+}
+
+func TestFragmentAppServiceSimilarityByAgentFiltersLinkedFlowKnowledgeByReadPermission(t *testing.T) {
+	t.Parallel()
+
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			"FLOW-READ": {
+				{FragmentID: 11, KnowledgeCode: "FLOW-READ", DocumentCode: "DOC1", DocumentName: "flow-read.md", DocumentType: int(docentity.DocumentInputKindFile), Content: "可读 flow 命中", Score: 0.95},
+			},
+			"FLOW-HIDDEN": {
+				{FragmentID: 22, KnowledgeCode: "FLOW-HIDDEN", DocumentCode: "DOC2", DocumentName: "flow-hidden.md", DocumentType: int(docentity.DocumentInputKindFile), Content: "不可读 flow 命中", Score: 0.99},
+			},
+			"DIGITAL-1": {
+				{FragmentID: 33, KnowledgeCode: "DIGITAL-1", DocumentCode: "DOC3", DocumentName: "digital.md", DocumentType: int(docentity.DocumentInputKindFile), Content: "自建知识库命中", Score: 0.90},
+			},
+		},
+	}
+	kbReader := &fragmentAppKnowledgeReaderStub{
+		listResult: []*kbentity.KnowledgeBase{
+			{Code: "FLOW-READ", OrganizationCode: testFragmentOrganization, KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector, Enabled: true, Model: "text-embedding-3-small"},
+			{Code: "FLOW-HIDDEN", OrganizationCode: testFragmentOrganization, KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector, Enabled: true, Model: "text-embedding-3-small"},
+			{Code: "DIGITAL-1", OrganizationCode: testFragmentOrganization, KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee, Enabled: true, Model: "text-embedding-3-small"},
+		},
+		listTotal: 3,
+	}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService:       kbReader,
+		KnowledgeBaseBindingRepo: &fragmentAppKnowledgeBaseBindingReaderStub{
+			knowledgeBaseCodes: []string{"FLOW-READ", "FLOW-HIDDEN", "DIGITAL-1"},
+		},
+		SuperMagicAgentAccess: &fragmentAppSuperMagicAgentAccessCheckerStub{
+			accessibleCodes: map[string]struct{}{"SMA-001": {}},
+		},
+		PermissionReader: fragmentPermissionReaderStub{
+			operations: map[string]string{"FLOW-READ": "read"},
+		},
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	result, err := svc.SimilarityByAgent(context.Background(), &fragdto.AgentSimilarityInput{
+		OrganizationCode: testFragmentOrganization,
+		UserID:           "U1",
+		AgentCode:        "SMA-001",
+		Query:            "只搜索有权限的 flow",
+	})
+	if err != nil {
+		t.Fatalf("similarity by agent failed: %v", err)
+	}
+	if result == nil || result.HitCount != 2 || len(result.Hits) != 2 {
+		t.Fatalf("unexpected agent similarity result: %#v", result)
+	}
+	if _, searchedHiddenFlow := fragmentSvc.similarityCalls["FLOW-HIDDEN"]; searchedHiddenFlow {
+		t.Fatalf("expected unreadable linked flow knowledge base to be skipped")
+	}
+	if _, searchedReadableFlow := fragmentSvc.similarityCalls["FLOW-READ"]; !searchedReadableFlow {
+		t.Fatalf("expected readable linked flow knowledge base to be searched")
+	}
+	if _, searchedDigital := fragmentSvc.similarityCalls["DIGITAL-1"]; !searchedDigital {
+		t.Fatalf("expected digital employee knowledge base to keep agent visibility access")
+	}
+}
+
+func TestFragmentAppServiceSimilarityByAgentSkipsFlowKnowledgeWhenPermissionUnavailable(t *testing.T) {
+	t.Parallel()
+
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			"FLOW-READ": {
+				{FragmentID: 11, KnowledgeCode: "FLOW-READ", DocumentCode: "DOC1", DocumentName: "flow-read.md", DocumentType: int(docentity.DocumentInputKindFile), Content: "flow 命中", Score: 0.95},
+			},
+		},
+	}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService: &fragmentAppKnowledgeReaderStub{
+			listResult: []*kbentity.KnowledgeBase{
+				{Code: "FLOW-READ", OrganizationCode: testFragmentOrganization, KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector, Enabled: true, Model: "text-embedding-3-small"},
+			},
+			listTotal: 1,
+		},
+		KnowledgeBaseBindingRepo: &fragmentAppKnowledgeBaseBindingReaderStub{
+			knowledgeBaseCodes: []string{"FLOW-READ"},
+		},
+		SuperMagicAgentAccess: &fragmentAppSuperMagicAgentAccessCheckerStub{
+			accessibleCodes: map[string]struct{}{"SMA-001": {}},
+		},
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	result, err := svc.SimilarityByAgent(context.Background(), &fragdto.AgentSimilarityInput{
+		OrganizationCode: testFragmentOrganization,
+		UserID:           "U1",
+		AgentCode:        "SMA-001",
+		Query:            "权限不可判定时跳过 flow",
+	})
+	if err != nil {
+		t.Fatalf("similarity by agent failed: %v", err)
+	}
+	if result == nil || result.HitCount != 0 || len(result.Hits) != 0 {
+		t.Fatalf("expected linked flow knowledge base to be skipped without permission reader, got %#v", result)
+	}
+	if _, searchedFlow := fragmentSvc.similarityCalls["FLOW-READ"]; searchedFlow {
+		t.Fatalf("expected flow knowledge base not to be searched without read permission")
 	}
 }
 
@@ -676,7 +784,13 @@ func TestFragmentAppServiceSimilaritySanitizesMetadata(t *testing.T) {
 					"fragment_id":   int64(42),
 					"business_id":   "BIZ-42",
 					"custom_debug":  "hidden",
-					"ext":           map[string]any{"hidden": "value"},
+					"ext": map[string]any{
+						"hidden":          "value",
+						"source_url":      "https://docs.example.test/source-1/doc-1",
+						"source_provider": "external_docs",
+						"third_file_id":   "source-1:doc-1",
+						"source_title":    "external document.md",
+					},
 					"retrieval_ranking": fragretrieval.Ranking{
 						BM25Query: fragretrieval.BM25Query{Backend: fragretrieval.SparseBackendQdrantBM25ZHV1},
 					},
@@ -712,6 +826,15 @@ func TestFragmentAppServiceSimilaritySanitizesMetadata(t *testing.T) {
 	}
 	if results[0].Metadata["url"] != "https://example.test/doc" || results[0].Metadata["fragment_id"] != int64(42) || results[0].Metadata["business_id"] != "BIZ-42" {
 		t.Fatalf("expected whitelist metadata to be preserved, got %#v", results[0].Metadata)
+	}
+	if results[0].Metadata["source_url"] != "https://docs.example.test/source-1/doc-1" ||
+		results[0].Metadata["source_provider"] != "external_docs" ||
+		results[0].Metadata["third_file_id"] != "source-1:doc-1" ||
+		results[0].Metadata["source_title"] != "external document.md" {
+		t.Fatalf("expected source metadata to be projected, got %#v", results[0].Metadata)
+	}
+	if !strings.Contains(results[0].Content, "来源地址：https://docs.example.test/source-1/doc-1") {
+		t.Fatalf("expected display content to include source url, got %q", results[0].Content)
 	}
 }
 
@@ -808,6 +931,58 @@ func TestFragmentAppServiceSimilarityByAgentSkipsDisabledKnowledgeBases(t *testi
 	}
 	if result.Hits[0].KnowledgeBaseCode != testFragmentKnowledgeCode {
 		t.Fatalf("expected only enabled knowledge base hit, got %#v", result.Hits)
+	}
+}
+
+func TestFragmentAppServiceSimilarityByAgentSkipsBindingDisabledKnowledgeBases(t *testing.T) {
+	t.Parallel()
+
+	enabled := false
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			"KB1": {
+				{FragmentID: 11, KnowledgeCode: "KB1", DocumentCode: "DOC1", DocumentName: "doc-1.md", DocumentType: int(docentity.DocumentInputKindFile), Content: "启用绑定命中", Score: 0.88},
+			},
+			"KB2": {
+				{FragmentID: 22, KnowledgeCode: "KB2", DocumentCode: "DOC2", DocumentName: "doc-2.md", DocumentType: int(docentity.DocumentInputKindFile), Content: "禁用绑定命中", Score: 0.95},
+			},
+		},
+	}
+	kbReader := &fragmentAppKnowledgeReaderStub{
+		listResult: []*kbentity.KnowledgeBase{
+			{Code: "KB1", OrganizationCode: testFragmentOrganization, KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee, Enabled: true, Model: "text-embedding-3-small"},
+		},
+		listTotal: 1,
+	}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService:       kbReader,
+		KnowledgeBaseBindingRepo: &fragmentAppKnowledgeBaseBindingReaderStub{
+			knowledgeBaseCodes: []string{"KB1", "KB2"},
+			bindingMetadataByCode: map[string]kbentity.AgentKnowledgeBaseBindingMetadata{
+				"KB2": {Enabled: &enabled},
+			},
+		},
+		SuperMagicAgentAccess: &fragmentAppSuperMagicAgentAccessCheckerStub{
+			accessibleCodes: map[string]struct{}{"SMA-001": {}},
+		},
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	result, err := svc.SimilarityByAgent(context.Background(), &fragdto.AgentSimilarityInput{
+		OrganizationCode: testFragmentOrganization,
+		UserID:           "U1",
+		AgentCode:        "SMA-001",
+		Query:            "只搜索启用绑定",
+	})
+	if err != nil {
+		t.Fatalf("similarity by agent failed: %v", err)
+	}
+	if result == nil || result.HitCount != 1 || result.Hits[0].KnowledgeBaseCode != "KB1" {
+		t.Fatalf("expected only binding-enabled knowledge base hit, got %#v", result)
+	}
+	if _, searchedDisabled := fragmentSvc.similarityCalls["KB2"]; searchedDisabled {
+		t.Fatalf("expected disabled binding to be skipped")
 	}
 }
 
@@ -1067,6 +1242,193 @@ func TestFragmentAppServiceSimilarityAllowsDisabledKnowledgeBaseWhenExplicitlySc
 	}
 }
 
+func TestFragmentAppServiceSimilarityBackfillsFileKeyInBatch(t *testing.T) {
+	t.Parallel()
+
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			testFragmentKnowledgeCode: {
+				{
+					FragmentID:    11,
+					KnowledgeCode: testFragmentKnowledgeCode,
+					DocumentCode:  "DOC1",
+					DocumentName:  "doc-1.md",
+					DocumentType:  int(docentity.DocumentInputKindFile),
+					Content:       "命中内容",
+					Score:         0.88,
+				},
+			},
+		},
+	}
+	documentSvc := &fragmentAppDocumentReaderStub{
+		listByOrganizationKBCodesResult: []*docentity.KnowledgeBaseDocument{
+			{
+				OrganizationCode:  testFragmentOrganization,
+				KnowledgeBaseCode: testFragmentKnowledgeCode,
+				Code:              "DOC1",
+				Name:              "doc-1.md",
+				DocType:           int(docentity.DocumentInputKindFile),
+				DocumentFile:      &docentity.File{FileKey: testBackfillDocumentKey},
+			},
+		},
+	}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService: &fragmentAppKnowledgeReaderStub{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+				Code:             testFragmentKnowledgeCode,
+				OrganizationCode: testFragmentOrganization,
+			},
+		},
+		DocumentService:       documentSvc,
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	results, err := svc.Similarity(context.Background(), &fragdto.SimilarityInput{
+		OrganizationCode: testFragmentOrganization,
+		KnowledgeCode:    testFragmentKnowledgeCode,
+		Query:            "doc",
+	})
+	if err != nil {
+		t.Fatalf("similarity failed: %v", err)
+	}
+	if len(results) != 1 || results[0].FileKey != testBackfillDocumentKey {
+		t.Fatalf("expected file_key to be backfilled, got %#v", results)
+	}
+	if documentSvc.lastListDocumentsOrganization != testFragmentOrganization ||
+		!slices.Equal(documentSvc.lastListDocumentsKnowledgeCodes, []string{testFragmentKnowledgeCode}) ||
+		!slices.Equal(documentSvc.lastListDocumentsDocumentCodes, []string{"DOC1"}) {
+		t.Fatalf("expected batch document lookup, got %#v", documentSvc)
+	}
+	if results[0].Metadata["file_key"] != testBackfillDocumentKey {
+		t.Fatalf("expected file_key metadata to be synced, got %#v", results[0].Metadata)
+	}
+}
+
+func TestFragmentAppServiceSimilarityBackfillsFileKeyFromStorageURL(t *testing.T) {
+	t.Parallel()
+
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			testFragmentKnowledgeCode: {
+				{
+					FragmentID:    11,
+					KnowledgeCode: testFragmentKnowledgeCode,
+					DocumentCode:  "DOC1",
+					DocumentName:  "doc-1.md",
+					DocumentType:  int(docentity.DocumentInputKindFile),
+					Content:       "命中内容",
+					Score:         0.88,
+				},
+			},
+		},
+	}
+	documentSvc := &fragmentAppDocumentReaderStub{
+		listByOrganizationKBCodesResult: []*docentity.KnowledgeBaseDocument{
+			{
+				OrganizationCode:  testFragmentOrganization,
+				KnowledgeBaseCode: testFragmentKnowledgeCode,
+				Code:              "DOC1",
+				Name:              "doc-1.md",
+				DocType:           int(docentity.DocumentInputKindFile),
+				DocumentFile:      &docentity.File{URL: testBackfillDocumentKey},
+			},
+		},
+	}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService: &fragmentAppKnowledgeReaderStub{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+				Code:             testFragmentKnowledgeCode,
+				OrganizationCode: testFragmentOrganization,
+			},
+		},
+		DocumentService:       documentSvc,
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	results, err := svc.Similarity(context.Background(), &fragdto.SimilarityInput{
+		OrganizationCode: testFragmentOrganization,
+		KnowledgeCode:    testFragmentKnowledgeCode,
+		Query:            "doc",
+	})
+	if err != nil {
+		t.Fatalf("similarity failed: %v", err)
+	}
+	if len(results) != 1 || results[0].FileKey != testBackfillDocumentKey {
+		t.Fatalf("expected storage URL to be backfilled as file_key, got %#v", results)
+	}
+	if results[0].Metadata["file_key"] != testBackfillDocumentKey {
+		t.Fatalf("expected file_key metadata to be synced, got %#v", results[0].Metadata)
+	}
+}
+
+func TestFragmentAppServiceSimilarityBackfillsStableThirdPlatformFileKey(t *testing.T) {
+	t.Parallel()
+
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			testFragmentKnowledgeCode: {
+				{
+					FragmentID:    11,
+					KnowledgeCode: testFragmentKnowledgeCode,
+					DocumentCode:  "DOC1",
+					DocumentName:  "doc-1.md",
+					DocumentType:  int(docentity.DocumentInputKindFile),
+					Content:       "命中内容",
+					Score:         0.88,
+				},
+			},
+		},
+	}
+	documentSvc := &fragmentAppDocumentReaderStub{
+		listByOrganizationKBCodesResult: []*docentity.KnowledgeBaseDocument{
+			{
+				OrganizationCode:  testFragmentOrganization,
+				KnowledgeBaseCode: testFragmentKnowledgeCode,
+				Code:              "DOC1",
+				Name:              "doc-1.md",
+				DocType:           int(docentity.DocumentInputKindFile),
+				ThirdPlatformType: "teamshare",
+				ThirdFileID:       "FILE-1",
+				DocumentFile: &docentity.File{
+					Type:       "third_platform",
+					Name:       "doc-1.md",
+					URL:        "https://example.test/temporary/download?token=1",
+					SourceType: "teamshare",
+					ThirdID:    "FILE-1",
+				},
+			},
+		},
+	}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService: &fragmentAppKnowledgeReaderStub{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+				Code:             testFragmentKnowledgeCode,
+				OrganizationCode: testFragmentOrganization,
+			},
+		},
+		DocumentService:       documentSvc,
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	results, err := svc.Similarity(context.Background(), &fragdto.SimilarityInput{
+		OrganizationCode: testFragmentOrganization,
+		KnowledgeCode:    testFragmentKnowledgeCode,
+		Query:            "doc",
+	})
+	if err != nil {
+		t.Fatalf("similarity failed: %v", err)
+	}
+	if len(results) != 1 || results[0].FileKey != "third_platform/teamshare/FILE-1" {
+		t.Fatalf("expected stable third-platform file_key, got %#v", results)
+	}
+	if results[0].Metadata["file_key"] != "third_platform/teamshare/FILE-1" {
+		t.Fatalf("expected file_key metadata to be synced, got %#v", results[0].Metadata)
+	}
+}
+
 func TestFragmentAppServiceSimilarityAuthorizesByBoundAccessibleAgent(t *testing.T) {
 	t.Parallel()
 
@@ -1095,6 +1457,87 @@ func TestFragmentAppServiceSimilarityAuthorizesByBoundAccessibleAgent(t *testing
 	}
 	if fragmentSvc.lastSimilarityReq.Query != "intro" {
 		t.Fatalf("expected similarity search to run, got %#v", fragmentSvc.lastSimilarityReq)
+	}
+}
+
+func TestFragmentAppServiceSimilarityRejectsLinkedFlowKnowledgeWithoutReadPermission(t *testing.T) {
+	t.Parallel()
+
+	fragmentSvc, bindingRepo, agentAccess, svc := newSimilarityAuthorizationTestService(t, similarityAuthorizationTestDeps{
+		bindIDs:           []string{"AGENT-1"},
+		accessibleCodes:   map[string]struct{}{"AGENT-1": {}},
+		knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+		permissionReader: fragmentPermissionReaderStub{
+			operations: map[string]string{},
+		},
+	})
+
+	_, err := svc.Similarity(context.Background(), similarityAuthorizationInput())
+	if !errors.Is(err, appservice.ErrFragmentPermissionDenied) {
+		t.Fatalf("expected permission denied, got %v", err)
+	}
+	if bindingRepo.bindIDLookupCalls != 0 {
+		t.Fatalf("expected linked flow similarity to skip agent binding fallback, got %d binding lookups", bindingRepo.bindIDLookupCalls)
+	}
+	if len(agentAccess.lastCodes) != 0 {
+		t.Fatalf("expected linked flow similarity not to check agent visibility, got %#v", agentAccess.lastCodes)
+	}
+	if fragmentSvc.lastSimilarityReq.Query != "" {
+		t.Fatalf("expected similarity search not to run, got %#v", fragmentSvc.lastSimilarityReq)
+	}
+}
+
+func TestFragmentAppServiceSimilarityRejectsLinkedFlowKnowledgeWhenPermissionUnavailable(t *testing.T) {
+	t.Parallel()
+
+	fragmentSvc, bindingRepo, agentAccess, svc := newSimilarityAuthorizationTestService(t, similarityAuthorizationTestDeps{
+		bindIDs:           []string{"AGENT-1"},
+		accessibleCodes:   map[string]struct{}{"AGENT-1": {}},
+		knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+		permissionReader: fragmentPermissionReaderStub{
+			err: errFragmentKnowledgeFailed,
+		},
+	})
+
+	_, err := svc.Similarity(context.Background(), similarityAuthorizationInput())
+	if !errors.Is(err, appservice.ErrFragmentPermissionDenied) {
+		t.Fatalf("expected permission denied, got %v", err)
+	}
+	if bindingRepo.bindIDLookupCalls != 0 {
+		t.Fatalf("expected linked flow similarity to skip agent binding fallback, got %d binding lookups", bindingRepo.bindIDLookupCalls)
+	}
+	if len(agentAccess.lastCodes) != 0 {
+		t.Fatalf("expected linked flow similarity not to check agent visibility, got %#v", agentAccess.lastCodes)
+	}
+	if fragmentSvc.lastSimilarityReq.Query != "" {
+		t.Fatalf("expected similarity search not to run, got %#v", fragmentSvc.lastSimilarityReq)
+	}
+}
+
+func TestFragmentAppServiceSimilarityAllowsLinkedFlowKnowledgeWithReadPermission(t *testing.T) {
+	t.Parallel()
+
+	_, bindingRepo, agentAccess, svc := newSimilarityAuthorizationTestService(t, similarityAuthorizationTestDeps{
+		bindIDs:           []string{"AGENT-1"},
+		accessibleCodes:   map[string]struct{}{"AGENT-1": {}},
+		knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+		permissionReader: fragmentPermissionReaderStub{
+			operations: map[string]string{testFragmentKnowledgeCode: "read"},
+		},
+	})
+
+	results, err := svc.Similarity(context.Background(), similarityAuthorizationInput())
+	if err != nil {
+		t.Fatalf("similarity failed: %v", err)
+	}
+	if len(results) != 1 || results[0].KnowledgeBaseCode != testFragmentKnowledgeCode {
+		t.Fatalf("unexpected similarity results: %#v", results)
+	}
+	if bindingRepo.bindIDLookupCalls != 0 {
+		t.Fatalf("expected linked flow similarity to skip agent binding fallback, got %d binding lookups", bindingRepo.bindIDLookupCalls)
+	}
+	if len(agentAccess.lastCodes) != 0 {
+		t.Fatalf("expected linked flow similarity not to check agent visibility, got %#v", agentAccess.lastCodes)
 	}
 }
 
@@ -1194,10 +1637,11 @@ type fragmentAppServiceSimilarityCase struct {
 }
 
 type similarityAuthorizationTestDeps struct {
-	bindingRepo      *fragmentAppKnowledgeBaseBindingReaderStub
-	bindIDs          []string
-	accessibleCodes  map[string]struct{}
-	permissionReader fragmentPermissionReaderStub
+	bindingRepo       *fragmentAppKnowledgeBaseBindingReaderStub
+	bindIDs           []string
+	accessibleCodes   map[string]struct{}
+	knowledgeBaseType kbentity.Type
+	permissionReader  fragmentPermissionReaderStub
 }
 
 func newSimilarityAuthorizationTestService(
@@ -1226,14 +1670,19 @@ func newSimilarityAuthorizationTestService(
 	if bindingRepo == nil {
 		bindingRepo = &fragmentAppKnowledgeBaseBindingReaderStub{bindIDs: deps.bindIDs}
 	}
+	knowledgeBaseType := deps.knowledgeBaseType
+	if knowledgeBaseType == "" {
+		knowledgeBaseType = kbentity.KnowledgeBaseTypeDigitalEmployee
+	}
 	agentAccess := &fragmentAppSuperMagicAgentAccessCheckerStub{accessibleCodes: deps.accessibleCodes}
 	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
 		FragmentService: fragmentSvc,
 		KBService: &fragmentAppKnowledgeReaderStub{
 			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
-				Code:             testFragmentKnowledgeCode,
-				OrganizationCode: testFragmentOrganization,
-				Model:            "text-embedding-3-small",
+				Code:              testFragmentKnowledgeCode,
+				OrganizationCode:  testFragmentOrganization,
+				KnowledgeBaseType: knowledgeBaseType,
+				Model:             "text-embedding-3-small",
 			},
 		},
 		KnowledgeBaseBindingRepo: bindingRepo,
@@ -1768,6 +2217,286 @@ func TestFragmentAppServiceRuntimeSimilarityDoesNotReadUserKnowledgePermission(t
 	}
 }
 
+func TestFragmentAppServiceFlowVectorSimilarityByUserFiltersReadableEnabledFlowKnowledgeBases(t *testing.T) {
+	t.Parallel()
+
+	scoreThreshold := 0.5
+	fragmentSvc := newFlowVectorSimilarityFragmentStub()
+	kbReader := newFlowVectorSimilarityKnowledgeReader()
+	permissionLookup := &flowVectorPermissionLookup{}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService:       fragmentSvc,
+		KBService:             kbReader,
+		PermissionReader:      newFlowVectorPermissionReader(permissionLookup),
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	results, err := svc.FlowVectorSimilarityByUser(context.Background(), &fragdto.FlowVectorSimilarityByUserInput{
+		OrganizationCode: testFragmentOrganization,
+		UserID:           "MAGIC-U1",
+		Keyword:          "合同审批",
+		TopK:             3,
+		ScoreThreshold:   &scoreThreshold,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "IGNORED",
+			UserID:           "API-USER",
+		},
+	})
+	if err != nil {
+		t.Fatalf("flow vector similarity by user failed: %v", err)
+	}
+	assertFlowVectorPermissionLookup(t, permissionLookup)
+	assertFlowVectorKnowledgeQuery(t, kbReader.lastListQuery)
+	assertFlowVectorSimilarityCalls(t, fragmentSvc.similarityCalls)
+	if len(results) != 1 || results[0].KnowledgeCode != "KB-FLOW" {
+		t.Fatalf("unexpected flow vector similarity results: %#v", results)
+	}
+	assertFlowVectorSimilarityRequest(t, fragmentSvc.lastSimilarityReq)
+}
+
+type flowVectorPermissionLookup struct {
+	organizationCode string
+	userID           string
+	requestedBatches [][]string
+}
+
+func (l *flowVectorPermissionLookup) record(
+	organizationCode string,
+	userID string,
+	knowledgeBaseCodes []string,
+) {
+	l.organizationCode = organizationCode
+	l.userID = userID
+	l.requestedBatches = append(l.requestedBatches, append([]string(nil), knowledgeBaseCodes...))
+}
+
+func newFlowVectorPermissionReader(lookup *flowVectorPermissionLookup) fragmentPermissionReaderStub {
+	return fragmentPermissionReaderStub{
+		operations: map[string]string{
+			"KB-FLOW":     "read",
+			"KB-DIGITAL":  "read",
+			"KB-DISABLED": "admin",
+			"KB-NONE":     "none",
+		},
+		onList: lookup.record,
+	}
+}
+
+func newFlowVectorSimilarityFragmentStub() *fragmentAppFragmentServiceStub {
+	return &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			"KB-FLOW": {{
+				FragmentID:    52,
+				KnowledgeCode: "KB-FLOW",
+				DocumentCode:  "DOC1",
+				DocumentName:  "flow-doc.md",
+				DocumentType:  int(docentity.DocumentInputKindFile),
+				Content:       "flow vector hit",
+				Score:         0.82,
+			}},
+		},
+	}
+}
+
+func newFlowVectorSimilarityKnowledgeReader() *fragmentAppKnowledgeReaderStub {
+	return &fragmentAppKnowledgeReaderStub{
+		listResult: []*kbentity.KnowledgeBase{
+			{
+				Code:              "KB-FLOW",
+				OrganizationCode:  testFragmentOrganization,
+				Enabled:           true,
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+				Model:             "text-embedding-3-small",
+			},
+			{
+				Code:              "KB-DIGITAL",
+				OrganizationCode:  testFragmentOrganization,
+				Enabled:           true,
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+				Model:             "text-embedding-3-small",
+			},
+			{
+				Code:              "KB-DISABLED",
+				OrganizationCode:  testFragmentOrganization,
+				Enabled:           false,
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+				Model:             "text-embedding-3-small",
+			},
+		},
+		filterListByQuery: true,
+	}
+}
+
+func assertFlowVectorPermissionLookup(t *testing.T, lookup *flowVectorPermissionLookup) {
+	t.Helper()
+
+	if len(lookup.requestedBatches) != 1 ||
+		lookup.organizationCode != testFragmentOrganization || lookup.userID != "MAGIC-U1" ||
+		!slices.Equal(lookup.requestedBatches[0], []string{"KB-FLOW"}) {
+		t.Fatalf(
+			"unexpected permission lookup org=%q user=%q batches=%#v",
+			lookup.organizationCode,
+			lookup.userID,
+			lookup.requestedBatches,
+		)
+	}
+}
+
+func assertFlowVectorKnowledgeQuery(t *testing.T, query *kbrepository.Query) {
+	t.Helper()
+
+	if query == nil {
+		t.Fatal("expected accessible flow vector knowledge bases to be listed")
+	}
+	if query.OrganizationCode != testFragmentOrganization {
+		t.Fatalf("unexpected organization code in flow vector query: %#v", query)
+	}
+	if query.KnowledgeBaseType == nil || *query.KnowledgeBaseType != kbentity.KnowledgeBaseTypeFlowVector {
+		t.Fatalf("unexpected knowledge base type in flow vector query: %#v", query)
+	}
+	if query.Enabled == nil || !*query.Enabled {
+		t.Fatalf("unexpected enabled filter in flow vector query: %#v", query)
+	}
+}
+
+func assertFlowVectorSimilarityCalls(t *testing.T, calls map[string]int) {
+	t.Helper()
+
+	if calls["KB-FLOW"] != 1 || calls["KB-DIGITAL"] != 0 || calls["KB-DISABLED"] != 0 {
+		t.Fatalf("unexpected similarity calls: %#v", calls)
+	}
+}
+
+func assertFlowVectorSimilarityRequest(t *testing.T, req fragretrieval.SimilarityRequest) {
+	t.Helper()
+
+	if req.TopK != 3 || req.ResultScoreThreshold != 0.5 {
+		t.Fatalf("unexpected similarity request: %#v", req)
+	}
+	if req.BusinessParams == nil ||
+		req.BusinessParams.OrganizationCode != testFragmentOrganization ||
+		req.BusinessParams.UserID != "MAGIC-U1" {
+		t.Fatalf("expected trusted user business params, got %#v", req.BusinessParams)
+	}
+}
+
+func TestFragmentAppServiceFlowVectorSimilarityByUserReturnsEmptyWithoutPermission(t *testing.T) {
+	t.Parallel()
+
+	kbReader := &fragmentAppKnowledgeReaderStub{
+		listResult: []*kbentity.KnowledgeBase{{
+			Code:              "KB-FLOW",
+			OrganizationCode:  testFragmentOrganization,
+			Enabled:           true,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+		}},
+		filterListByQuery: true,
+	}
+	fragmentSvc := &fragmentAppFragmentServiceStub{}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService:       kbReader,
+		PermissionReader: fragmentPermissionReaderStub{
+			operations: map[string]string{},
+		},
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	results, err := svc.FlowVectorSimilarityByUser(context.Background(), &fragdto.FlowVectorSimilarityByUserInput{
+		OrganizationCode: testFragmentOrganization,
+		UserID:           "MAGIC-U1",
+		Keyword:          "合同审批",
+		TopK:             10,
+	})
+	if err != nil {
+		t.Fatalf("flow vector similarity by user failed: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected empty results, got %#v", results)
+	}
+	assertFlowVectorKnowledgeQuery(t, kbReader.lastListQuery)
+	if len(fragmentSvc.similarityCalls) != 0 {
+		t.Fatalf("expected no similarity calls without permissions, got %#v", fragmentSvc.similarityCalls)
+	}
+}
+
+func TestFragmentAppServiceFlowVectorSimilarityByUserChecksPermissionsByFlowPage(t *testing.T) {
+	t.Parallel()
+
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		similarityResultsByKB: map[string][]*fragmodel.SimilarityResult{
+			"KB-000": {{
+				FragmentID:    1,
+				KnowledgeCode: "KB-000",
+				DocumentCode:  "DOC-000",
+				Content:       "first page hit",
+			}},
+			"KB-500": {{
+				FragmentID:    2,
+				KnowledgeCode: "KB-500",
+				DocumentCode:  "DOC-500",
+				Content:       "second page hit",
+			}},
+		},
+	}
+	kbReader := &fragmentAppKnowledgeReaderStub{
+		listResult:        newFlowVectorKnowledgeBasesForPaginationTest(501),
+		filterListByQuery: true,
+	}
+	permissionLookup := &flowVectorPermissionLookup{}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService:       kbReader,
+		PermissionReader: fragmentPermissionReaderStub{
+			operations: map[string]string{
+				"KB-000": "read",
+				"KB-500": "read",
+			},
+			onList: permissionLookup.record,
+		},
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	})
+
+	results, err := svc.FlowVectorSimilarityByUser(context.Background(), &fragdto.FlowVectorSimilarityByUserInput{
+		OrganizationCode: testFragmentOrganization,
+		UserID:           "MAGIC-U1",
+		Keyword:          "合同审批",
+		TopK:             1,
+	})
+	if err != nil {
+		t.Fatalf("flow vector similarity by user failed: %v", err)
+	}
+	if len(kbReader.listQueries) != 2 {
+		t.Fatalf("expected two paged flow vector queries, got %#v", kbReader.listQueries)
+	}
+	if len(permissionLookup.requestedBatches) != 2 ||
+		len(permissionLookup.requestedBatches[0]) != 500 ||
+		!slices.Equal(permissionLookup.requestedBatches[1], []string{"KB-500"}) {
+		t.Fatalf("unexpected permission batches: %#v", permissionLookup.requestedBatches)
+	}
+	if len(results) != 2 || results[0].KnowledgeCode != "KB-000" || results[1].KnowledgeCode != "KB-500" {
+		t.Fatalf("unexpected paged flow vector results: %#v", results)
+	}
+	if fragmentSvc.similarityCalls["KB-001"] != 0 || fragmentSvc.similarityCalls["KB-499"] != 0 {
+		t.Fatalf("expected unreadable knowledge bases to be skipped, got calls=%#v", fragmentSvc.similarityCalls)
+	}
+}
+
+func newFlowVectorKnowledgeBasesForPaginationTest(count int) []*kbentity.KnowledgeBase {
+	items := make([]*kbentity.KnowledgeBase, 0, count)
+	for index := range count {
+		code := "KB-" + strings.Repeat("0", 3-len(strconv.Itoa(index))) + strconv.Itoa(index)
+		items = append(items, &kbentity.KnowledgeBase{
+			Code:              code,
+			OrganizationCode:  testFragmentOrganization,
+			Enabled:           true,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			Model:             "text-embedding-3-small",
+		})
+	}
+	return items
+}
+
 func TestFragmentAppServiceRuntimeSimilarityLoadsKnowledgeBasesInBatch(t *testing.T) {
 	t.Parallel()
 
@@ -2216,6 +2945,7 @@ type fragmentAppFragmentServiceStub struct {
 	syncErr                  error
 	similarityResults        []*fragmodel.SimilarityResult
 	similarityResultsByKB    map[string][]*fragmodel.SimilarityResult
+	similarityCalls          map[string]int
 	similarityErr            error
 	lastListQuery            *fragmodel.Query
 	destroyCollection        string
@@ -2296,6 +3026,10 @@ func (s *fragmentAppFragmentServiceStub) SyncFragment(_ context.Context, kb *sha
 func (s *fragmentAppFragmentServiceStub) Similarity(_ context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, req fragretrieval.SimilarityRequest) ([]*fragmodel.SimilarityResult, error) {
 	s.lastSimilarityReq = req
 	if kb != nil && s.similarityResultsByKB != nil {
+		if s.similarityCalls == nil {
+			s.similarityCalls = map[string]int{}
+		}
+		s.similarityCalls[kb.Code]++
 		if result, ok := s.similarityResultsByKB[kb.Code]; ok {
 			return result, s.similarityErr
 		}
@@ -2327,16 +3061,32 @@ type fragmentAppKnowledgeReaderStub struct {
 	listTotal              int64
 	listErr                error
 	lastListQuery          *kbrepository.Query
+	listQueries            []*kbrepository.Query
 	filterListByQuery      bool
 	showCalls              int
 }
 
+type fragmentPermissionListHook func(
+	organizationCode string,
+	userID string,
+	knowledgeBaseCodes []string,
+)
+
 type fragmentPermissionReaderStub struct {
 	operations map[string]string
 	err        error
+	onList     fragmentPermissionListHook
 }
 
-func (s fragmentPermissionReaderStub) ListOperations(context.Context, string, string, []string) (map[string]string, error) {
+func (s fragmentPermissionReaderStub) ListOperations(
+	_ context.Context,
+	organizationCode string,
+	userID string,
+	knowledgeBaseCodes []string,
+) (map[string]string, error) {
+	if s.onList != nil {
+		s.onList(organizationCode, userID, append([]string(nil), knowledgeBaseCodes...))
+	}
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -2350,9 +3100,11 @@ func (s fragmentPermissionReaderStub) ListOperations(context.Context, string, st
 
 type fragmentAppKnowledgeBaseBindingReaderStub struct {
 	knowledgeBaseCodes    []string
+	bindingMetadataByCode map[string]kbentity.AgentKnowledgeBaseBindingMetadata
 	bindIDs               []string
 	bindIDsByOrganization map[string][]string
 	err                   error
+	bindIDLookupCalls     int
 	lastOrganizationCode  string
 	lastKnowledgeBaseCode string
 	lastBindIDsBindType   kbentity.BindingType
@@ -2372,6 +3124,7 @@ func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListBindIDsByKnowledgeBaseIn
 	knowledgeBaseCode string,
 	bindType kbentity.BindingType,
 ) ([]string, error) {
+	s.bindIDLookupCalls++
 	s.lastOrganizationCode = organizationCode
 	s.lastKnowledgeBaseCode = knowledgeBaseCode
 	s.lastBindIDsBindType = bindType
@@ -2388,6 +3141,22 @@ func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListKnowledgeBaseCodesByBind
 	string,
 ) ([]string, error) {
 	return append([]string(nil), s.knowledgeBaseCodes...), s.err
+}
+
+func (s *fragmentAppKnowledgeBaseBindingReaderStub) ListKnowledgeBaseBindingsByBindID(
+	context.Context,
+	kbentity.BindingType,
+	string,
+	string,
+) ([]kbentity.AgentKnowledgeBaseBinding, error) {
+	result := make([]kbentity.AgentKnowledgeBaseBinding, 0, len(s.knowledgeBaseCodes))
+	for _, code := range s.knowledgeBaseCodes {
+		result = append(result, kbentity.AgentKnowledgeBaseBinding{
+			KnowledgeBaseCode: code,
+			Metadata:          s.bindingMetadataByCode[code],
+		})
+	}
+	return result, s.err
 }
 
 type fragmentAppSuperMagicAgentAccessCheckerStub struct {
@@ -2442,11 +3211,13 @@ func (s *fragmentAppKnowledgeReaderStub) ShowByCodeAndOrg(_ context.Context, cod
 }
 
 func (s *fragmentAppKnowledgeReaderStub) List(_ context.Context, query *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
-	s.lastListQuery = cloneKnowledgeBaseQuery(query)
+	clonedQuery := cloneKnowledgeBaseQuery(query)
+	s.lastListQuery = clonedQuery
+	s.listQueries = append(s.listQueries, clonedQuery)
 	if s.listResult != nil || s.listErr != nil {
 		if s.filterListByQuery {
 			filtered := s.filterKnowledgeBaseList(query)
-			return filtered, int64(len(filtered)), s.listErr
+			return paginateKnowledgeBaseList(filtered, query), int64(len(filtered)), s.listErr
 		}
 		return s.listResult, s.listTotal, s.listErr
 	}
@@ -2474,43 +3245,74 @@ func (s *fragmentAppKnowledgeReaderStub) lookupKnowledgeBase(code string) *kbent
 }
 
 func (s *fragmentAppKnowledgeReaderStub) filterKnowledgeBaseList(query *kbrepository.Query) []*kbentity.KnowledgeBase {
-	if len(s.listResult) == 0 {
+	if len(s.listResult) == 0 || query == nil {
 		return nil
 	}
-	codeSet := make(map[string]struct{}, len(query.Codes))
-	for _, code := range query.Codes {
-		if trimmed := strings.TrimSpace(code); trimmed != "" {
-			codeSet[trimmed] = struct{}{}
-		}
-	}
-	businessIDSet := make(map[string]struct{}, len(query.BusinessIDs))
-	for _, businessID := range query.BusinessIDs {
-		if trimmed := strings.TrimSpace(businessID); trimmed != "" {
-			businessIDSet[trimmed] = struct{}{}
-		}
-	}
+	codeSet := trimmedStringSet(query.Codes)
+	businessIDSet := trimmedStringSet(query.BusinessIDs)
 
 	filtered := make([]*kbentity.KnowledgeBase, 0, len(s.listResult))
 	for _, item := range s.listResult {
-		if item == nil {
-			continue
+		if knowledgeBaseMatchesQuery(item, query, codeSet, businessIDSet) {
+			filtered = append(filtered, item)
 		}
-		if orgCode := strings.TrimSpace(query.OrganizationCode); orgCode != "" && item.OrganizationCode != orgCode {
-			continue
-		}
-		if len(codeSet) > 0 {
-			if _, ok := codeSet[item.Code]; !ok {
-				continue
-			}
-		}
-		if len(businessIDSet) > 0 {
-			if _, ok := businessIDSet[item.BusinessID]; !ok {
-				continue
-			}
-		}
-		filtered = append(filtered, item)
 	}
 	return filtered
+}
+
+func paginateKnowledgeBaseList(items []*kbentity.KnowledgeBase, query *kbrepository.Query) []*kbentity.KnowledgeBase {
+	if query == nil {
+		return items
+	}
+	offset := max(query.Offset, 0)
+	if offset >= len(items) {
+		return nil
+	}
+	limit := query.Limit
+	if limit <= 0 {
+		return items[offset:]
+	}
+	end := min(offset+limit, len(items))
+	return items[offset:end]
+}
+
+func trimmedStringSet(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			result[trimmed] = struct{}{}
+		}
+	}
+	return result
+}
+
+func knowledgeBaseMatchesQuery(
+	item *kbentity.KnowledgeBase,
+	query *kbrepository.Query,
+	codeSet map[string]struct{},
+	businessIDSet map[string]struct{},
+) bool {
+	if item == nil || query == nil {
+		return false
+	}
+	if orgCode := strings.TrimSpace(query.OrganizationCode); orgCode != "" && item.OrganizationCode != orgCode {
+		return false
+	}
+	if query.KnowledgeBaseType != nil && item.KnowledgeBaseType != *query.KnowledgeBaseType {
+		return false
+	}
+	if query.Enabled != nil && item.Enabled != *query.Enabled {
+		return false
+	}
+	return stringSetAllows(codeSet, item.Code) && stringSetAllows(businessIDSet, item.BusinessID)
+}
+
+func stringSetAllows(values map[string]struct{}, value string) bool {
+	if len(values) == 0 {
+		return true
+	}
+	_, ok := values[value]
+	return ok
 }
 
 type fragmentAppTeamshareTempCodeMapperStub struct {
@@ -2576,6 +3378,11 @@ func cloneKnowledgeBaseQuery(query *kbrepository.Query) *kbrepository.Query {
 type fragmentAppDocumentReaderStub struct {
 	showResult                       *docentity.KnowledgeBaseDocument
 	showErr                          error
+	listByOrganizationKBCodesResult  []*docentity.KnowledgeBaseDocument
+	listByOrganizationKBCodesErr     error
+	lastListDocumentsOrganization    string
+	lastListDocumentsKnowledgeCodes  []string
+	lastListDocumentsDocumentCodes   []string
 	findByThirdFileResult            *docentity.KnowledgeBaseDocument
 	findByThirdFileErr               error
 	ensureResult                     *docentity.KnowledgeBaseDocument
@@ -2593,6 +3400,31 @@ func (s *fragmentAppDocumentReaderStub) ShowByCodeAndKnowledgeBase(context.Conte
 
 func (s *fragmentAppDocumentReaderStub) Show(context.Context, string) (*docentity.KnowledgeBaseDocument, error) {
 	return s.showResult, s.showErr
+}
+
+func (s *fragmentAppDocumentReaderStub) ListByOrganizationKnowledgeBasesAndCodes(
+	_ context.Context,
+	organizationCode string,
+	knowledgeBaseCodes []string,
+	documentCodes []string,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	s.lastListDocumentsOrganization = organizationCode
+	s.lastListDocumentsKnowledgeCodes = append([]string(nil), knowledgeBaseCodes...)
+	s.lastListDocumentsDocumentCodes = append([]string(nil), documentCodes...)
+	if s.listByOrganizationKBCodesErr != nil || s.listByOrganizationKBCodesResult != nil {
+		return s.listByOrganizationKBCodesResult, s.listByOrganizationKBCodesErr
+	}
+	if s.showResult == nil {
+		return []*docentity.KnowledgeBaseDocument{}, nil
+	}
+	doc := *s.showResult
+	if doc.KnowledgeBaseCode == "" && len(knowledgeBaseCodes) == 1 {
+		doc.KnowledgeBaseCode = knowledgeBaseCodes[0]
+	}
+	if doc.Code == "" && len(documentCodes) == 1 {
+		doc.Code = documentCodes[0]
+	}
+	return []*docentity.KnowledgeBaseDocument{&doc}, nil
 }
 
 func (s *fragmentAppDocumentReaderStub) FindByKnowledgeBaseAndThirdFile(

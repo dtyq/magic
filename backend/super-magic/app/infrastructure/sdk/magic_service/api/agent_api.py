@@ -149,7 +149,7 @@ class AgentApi(MagicServiceAbstractApi):
         agent_code = quote(parameter.get_agent_code(), safe="")
         endpoint_path = f"/api/v1/open-api/sandbox/knowledge/agents/{agent_code}/similarity"
         data = await self.request_by_parameter_async(parameter, "GET", endpoint_path)
-        return SearchKnowledgeResult(data)
+        return SearchKnowledgeResult(data, query=parameter.query)
 
     def ingest_third_party_message(
         self,

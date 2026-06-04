@@ -13,6 +13,7 @@ use App\Application\Provider\DTO\AiAbilityListDTO;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\Query\AiAbilityQuery;
 use App\Domain\Provider\Service\AiAbilityDomainService;
+use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -29,6 +30,9 @@ class AiAbilityAppService extends AbstractKernelAppService
 {
     public function __construct(
         private AiAbilityDomainService $aiAbilityDomainService,
+        private KnowledgeBaseEmbeddingModelAbilityAppService $knowledgeBaseEmbeddingModelAbilityAppService,
+        private AiAbilityInitializationConfigService $aiAbilityInitializationConfigService,
+        private ProviderModelDomainService $providerModelDomainService,
         private TranslatorInterface $translator
     ) {
     }
@@ -75,7 +79,8 @@ class AiAbilityAppService extends AbstractKernelAppService
         }
 
         $locale = $this->translator->getLocale();
-        return AiAbilityAssembler::entityToDetailDTO($entity, $locale);
+        $detailDTO = AiAbilityAssembler::entityToDetailDTO($entity, $locale);
+        return $this->knowledgeBaseEmbeddingModelAbilityAppService->enrichDetail($detailDTO);
     }
 
     /**
@@ -95,6 +100,9 @@ class AiAbilityAppService extends AbstractKernelAppService
         } catch (Throwable $e) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::AI_ABILITY_NOT_FOUND);
         }
+        if ($code === AiAbilityCode::KnowledgeBaseEmbeddingModel) {
+            return $this->knowledgeBaseEmbeddingModelAbilityAppService->update($authorization, $request);
+        }
 
         // 构建更新数据（支持选择性更新）
         $updateData = [];
@@ -107,6 +115,7 @@ class AiAbilityAppService extends AbstractKernelAppService
 
             // 智能合并配置（保留被脱敏的敏感字段）
             $mergedConfig = $entity->mergeConfig($request->getConfig());
+            $this->validateKnowledgeBaseVisualUnderstandingConfig($code, $mergedConfig);
             $updateData['config'] = $mergedConfig;
         }
 
@@ -129,6 +138,29 @@ class AiAbilityAppService extends AbstractKernelAppService
     {
         $dataIsolation = $this->createProviderDataIsolation($authorization);
 
-        return $this->aiAbilityDomainService->initializeAbilities($dataIsolation);
+        return $this->aiAbilityDomainService->initializeAbilities(
+            $dataIsolation,
+            $this->aiAbilityInitializationConfigService->getAbilitiesForInitialization()
+        );
+    }
+
+    private function validateKnowledgeBaseVisualUnderstandingConfig(AiAbilityCode $code, array $config): void
+    {
+        if ($code !== AiAbilityCode::KnowledgeBaseVisualUnderstanding) {
+            return;
+        }
+
+        $modelId = trim((string) ($config['model_id'] ?? ''));
+        if ($modelId === '') {
+            return;
+        }
+
+        $model = $this->providerModelDomainService->getModelByModelId($modelId);
+        if ($model === null || ! ($model->getConfig()?->isSupportMultiModal() ?? false)) {
+            ExceptionBuilder::throw(
+                ServiceProviderErrorCode::InvalidParameter,
+                sprintf('知识库视觉理解能力仅支持选择多模态模型，当前模型不可用或不支持多模态：%s', $modelId)
+            );
+        }
     }
 }

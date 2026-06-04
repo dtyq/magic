@@ -218,18 +218,7 @@ func EntityToDTO(e *docentity.KnowledgeBaseDocument) *docdto.DocumentDTO {
 }
 
 func resolveDocumentFileDTOKey(file *docentity.File) string {
-	if file == nil {
-		return ""
-	}
-	if key := strings.TrimSpace(file.FileKey); key != "" {
-		return key
-	}
-
-	url := strings.TrimSpace(file.URL)
-	if url == "" || strings.Contains(url, "://") {
-		return ""
-	}
-	return url
+	return documentdomain.ResolveDocumentSourceFileKey(file, "", "")
 }
 
 func resolveDocumentFileDTORelativePath(projectFileID int64, fileKey string) string {

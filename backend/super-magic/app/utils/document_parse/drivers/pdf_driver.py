@@ -96,7 +96,7 @@ class PdfDocumentDriver(DocumentDriver):
         else:
             visual_result_path = None
             segments = await PdfTextExtractor.extract_page_segments(path, pages)
-            chunks = self._chunk_page_segments(segments, path.name, max_chars, assets)
+            chunks = self._chunk_page_segments(segments, path.name, max_chars, assets, skipped_images)
         chunks = await ChunkStore.write_chunks(output_dir, chunks)
         outline = OutlineBuilder.build_tree(await PdfOutlineReader.read(path)) or VirtualOutlineBuilder.by_units("page", total_pages)
         self._attach_chunks_to_outline(outline, chunks)
@@ -264,12 +264,20 @@ class PdfDocumentDriver(DocumentDriver):
         title: str,
         max_chars: int,
         assets: Optional[List[DocumentAsset]] = None,
+        skipped_images: Optional[list[dict[str, Any]]] = None,
     ) -> List[DocumentChunk]:
         assets_by_page: dict[int, list[DocumentAsset]] = {}
         for asset in assets or []:
             page = asset.metadata.get("page")
             if isinstance(page, int):
                 assets_by_page.setdefault(page, []).append(asset)
+        skipped_solid_by_page: dict[int, list[dict[str, Any]]] = {}
+        for skipped_image in skipped_images or []:
+            if skipped_image.get("reason") != "invalid solid or blank image":
+                continue
+            page = skipped_image.get("page")
+            if isinstance(page, int):
+                skipped_solid_by_page.setdefault(page, []).append(skipped_image)
         chunks: List[DocumentChunk] = []
         current_parts: List[str] = []
         current_pages: List[int] = []
@@ -293,7 +301,12 @@ class PdfDocumentDriver(DocumentDriver):
             current_len = 0
 
         for page_no, page_text in segments:
-            page_markdown = PdfDocumentDriver._page_markdown(page_no, page_text, assets_by_page.get(page_no, []))
+            page_markdown = PdfDocumentDriver._page_markdown(
+                page_no,
+                page_text,
+                assets_by_page.get(page_no, []),
+                skipped_solid_by_page.get(page_no, []),
+            )
             page_len = len(page_markdown) + 2
             if current_parts and current_pages and (page_no - current_pages[0]) >= DEFAULT_VIRTUAL_PAGE_GROUP_SIZE:
                 flush()
@@ -312,12 +325,20 @@ class PdfDocumentDriver(DocumentDriver):
         return chunks
 
     @staticmethod
-    def _page_markdown(page_no: int, page_text: str, assets: List[DocumentAsset]) -> str:
+    def _page_markdown(page_no: int, page_text: str, assets: List[DocumentAsset], skipped_solid_images: Optional[list[dict[str, Any]]] = None) -> str:
         parts = [f"## 第 {page_no} 页", "", page_text.strip()]
         if assets:
             parts.extend(["", "### Images"])
             for asset in assets:
                 parts.append(f"![{asset.title}]({asset.path})")
+        if skipped_solid_images:
+            parts.extend(["", "### Filtered Images"])
+            for image in skipped_solid_images:
+                image_index = image.get("image_index")
+                width = image.get("width") or "unknown"
+                height = image.get("height") or "unknown"
+                label = f"image {image_index}" if image_index else "image"
+                parts.append(f"- Filtered solid/blank {label} ({width}x{height}); no asset was generated.")
         return "\n\n".join(part for part in parts if part)
 
     @staticmethod

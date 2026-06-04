@@ -29,6 +29,7 @@ enum ProviderCode: string
     case Wuyin = 'Wuyin';
     case Cloudsway = 'Cloudsway';
     case Volcengine = 'Volcengine'; // 火山
+    case MagicEngine = 'MagicEngine'; // Built-in self-hosted engine (go-engine)
     case OpenAI = 'OpenAI';
     case MicrosoftAzure = 'MicrosoftAzure';
     case Qwen = 'Qwen';

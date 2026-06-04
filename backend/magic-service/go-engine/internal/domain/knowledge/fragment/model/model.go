@@ -47,6 +47,7 @@ type FragmentPayload struct {
 	DocumentCode     string         `json:"document_code"`
 	DocumentName     string         `json:"document_name"`
 	DocumentType     int            `json:"document_type"`
+	FileKey          string         `json:"file_key,omitempty"`
 	FragmentID       int64          `json:"fragment_id"`
 	BusinessID       string         `json:"business_id"`
 	Content          string         `json:"content"`
@@ -69,6 +70,7 @@ type SimilarityResult struct {
 	DocumentCode  string         `json:"document_code"`
 	DocumentName  string         `json:"document_name"`
 	DocumentType  int            `json:"document_type"`
+	FileKey       string         `json:"file_key,omitempty"`
 	BusinessID    string         `json:"business_id"`
 }
 

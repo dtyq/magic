@@ -16,8 +16,8 @@ enum AiAbilityCode: string
     case Ocr = 'ocr';                                      // OCR 识别
     case WebSearch = 'web_search';                         // 互联网搜索
     case ImageSearch = 'image_search';                     // 图片搜索
-
-    //    case RealtimeSpeechRecognition = 'realtime_speech_recognition';  // 实时语音识别
+    case KnowledgeBaseEmbeddingModel = 'knowledge_base_embedding_model'; // 知识库嵌入模型
+    case KnowledgeBaseVisualUnderstanding = 'knowledge_base_visual_understanding'; // 知识库视觉理解能力
     case AudioFileRecognition = 'audio_file_recognition';  // 音频文件识别
     case AutoCompletion = 'auto_completion';               // 自动补全
     case ContentSummary = 'content_summary';               // 内容总结
@@ -47,7 +47,8 @@ enum AiAbilityCode: string
             self::Ocr => 'OCR 识别',
             self::WebSearch => '互联网搜索',
             self::ImageSearch => '图片搜索',
-            //            self::RealtimeSpeechRecognition => '实时语音识别',
+            self::KnowledgeBaseEmbeddingModel => '知识库嵌入模型',
+            self::KnowledgeBaseVisualUnderstanding => '知识库视觉理解能力',
             self::AudioFileRecognition => '音频文件识别',
             self::AutoCompletion => '自动补全',
             self::ContentSummary => '内容总结',
@@ -80,7 +81,8 @@ enum AiAbilityCode: string
             self::Ocr => '本能力覆盖平台所有 OCR 应用场景，精准捕捉并提取 PDF、扫描件及各类图片中的文字信息。',
             self::WebSearch => '本能力覆盖平台 AI 大模型的互联网搜索场景，精准获取并整合最新的新闻、事实和数据信息。',
             self::ImageSearch => '本能力覆盖平台 AI 大模型的图片搜索场景，精准检索互联网上的图片资源，支持多搜索引擎。',
-            //            self::RealtimeSpeechRecognition => '本能力覆盖平台所有语音转文字的应用场景，实时监听音频流并逐步输出准确的文字内容。',
+            self::KnowledgeBaseEmbeddingModel => '本能力覆盖平台所有知识库向量化、重建与检索场景，用于统一初始化或切换知识库嵌入模型。',
+            self::KnowledgeBaseVisualUnderstanding => '开启后使用配置的多模态模型识别知识库图片与 PDF 中的可见文字；关闭时使用 OCR 识别。',
             self::AudioFileRecognition => '本能力覆盖平台所有音频文件转文字的应用场景，精准识别说话人、音频文字等信息。',
             self::AutoCompletion => '本能力覆盖平台所有输入内容自动补全的应用场景，根据理解上下文为用户自动补全内容，由用户选择是否采纳。',
             self::ContentSummary => '本能力覆盖平台所有内容总结的应用场景，对长篇文档、报告或网页文章进行深度分析。',
@@ -116,7 +118,9 @@ enum AiAbilityCode: string
             self::ImageSearch => ['api_key'],
             self::ImageRemoveBackground => ['api_key'],
             self::Ocr => ['access_key', 'secret_key'],
-            self::AudioFileRecognition => ['app_key', 'access_key', 'cluster'],
+            self::AudioFileRecognition => ['app_key', 'access_key', 'cluster', 'api_key', 'authorization'],
+            self::KnowledgeBaseEmbeddingModel => [],
+            self::KnowledgeBaseVisualUnderstanding => [],
             default => [],
         };
     }

@@ -11,6 +11,50 @@ import (
 	"time"
 )
 
+const deleteFlowKnowledgeBaseBindingsByBindIDAndCodes = `-- name: DeleteFlowKnowledgeBaseBindingsByBindIDAndCodes :execrows
+DELETE kbb
+FROM knowledge_base_bindings AS kbb
+JOIN magic_flow_knowledge AS kb
+  ON kb.code = kbb.knowledge_base_code
+ AND kb.organization_code = kbb.organization_code
+WHERE kbb.organization_code = ?
+  AND kbb.bind_type = ?
+  AND kbb.bind_id = ?
+  AND kbb.knowledge_base_code IN (/*SLICE:knowledge_base_codes*/?)
+  AND kb.knowledge_base_type = ?
+  AND kb.deleted_at IS NULL
+`
+
+type DeleteFlowKnowledgeBaseBindingsByBindIDAndCodesParams struct {
+	OrganizationCode   string   `json:"organization_code"`
+	BindType           string   `json:"bind_type"`
+	BindID             string   `json:"bind_id"`
+	KnowledgeBaseCodes []string `json:"knowledge_base_codes"`
+	KnowledgeBaseType  string   `json:"knowledge_base_type"`
+}
+
+func (q *Queries) DeleteFlowKnowledgeBaseBindingsByBindIDAndCodes(ctx context.Context, arg DeleteFlowKnowledgeBaseBindingsByBindIDAndCodesParams) (int64, error) {
+	query := deleteFlowKnowledgeBaseBindingsByBindIDAndCodes
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.BindType)
+	queryParams = append(queryParams, arg.BindID)
+	if len(arg.KnowledgeBaseCodes) > 0 {
+		for _, v := range arg.KnowledgeBaseCodes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_codes*/?", strings.Repeat(",?", len(arg.KnowledgeBaseCodes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_codes*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.KnowledgeBaseType)
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteKnowledgeBaseBindingsByCode = `-- name: DeleteKnowledgeBaseBindingsByCode :execrows
 DELETE FROM knowledge_base_bindings
 WHERE knowledge_base_code = ?
@@ -41,6 +85,89 @@ func (q *Queries) DeleteKnowledgeBaseBindingsByCodeAndType(ctx context.Context, 
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const getFlowKnowledgeBaseBindingByBindIDAndCode = `-- name: GetFlowKnowledgeBaseBindingByBindIDAndCode :one
+SELECT kbb.knowledge_base_code, kbb.metadata
+FROM knowledge_base_bindings AS kbb
+JOIN magic_flow_knowledge AS kb
+  ON kb.code = kbb.knowledge_base_code
+ AND kb.organization_code = kbb.organization_code
+WHERE kbb.organization_code = ?
+  AND kbb.bind_type = ?
+  AND kbb.bind_id = ?
+  AND kbb.knowledge_base_code = ?
+  AND kb.knowledge_base_type = ?
+  AND kb.deleted_at IS NULL
+LIMIT 1
+`
+
+type GetFlowKnowledgeBaseBindingByBindIDAndCodeParams struct {
+	OrganizationCode  string `json:"organization_code"`
+	BindType          string `json:"bind_type"`
+	BindID            string `json:"bind_id"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	KnowledgeBaseType string `json:"knowledge_base_type"`
+}
+
+type GetFlowKnowledgeBaseBindingByBindIDAndCodeRow struct {
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Metadata          []byte `json:"metadata"`
+}
+
+func (q *Queries) GetFlowKnowledgeBaseBindingByBindIDAndCode(ctx context.Context, arg GetFlowKnowledgeBaseBindingByBindIDAndCodeParams) (GetFlowKnowledgeBaseBindingByBindIDAndCodeRow, error) {
+	row := q.db.QueryRowContext(ctx, getFlowKnowledgeBaseBindingByBindIDAndCode,
+		arg.OrganizationCode,
+		arg.BindType,
+		arg.BindID,
+		arg.KnowledgeBaseCode,
+		arg.KnowledgeBaseType,
+	)
+	var i GetFlowKnowledgeBaseBindingByBindIDAndCodeRow
+	err := row.Scan(&i.KnowledgeBaseCode, &i.Metadata)
+	return i, err
+}
+
+const getFlowKnowledgeBaseBindingByBindIDAndCodeForUpdate = `-- name: GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdate :one
+SELECT kbb.knowledge_base_code, kbb.metadata
+FROM knowledge_base_bindings AS kbb
+JOIN magic_flow_knowledge AS kb
+  ON kb.code = kbb.knowledge_base_code
+ AND kb.organization_code = kbb.organization_code
+WHERE kbb.organization_code = ?
+  AND kbb.bind_type = ?
+  AND kbb.bind_id = ?
+  AND kbb.knowledge_base_code = ?
+  AND kb.knowledge_base_type = ?
+  AND kb.deleted_at IS NULL
+LIMIT 1
+FOR UPDATE
+`
+
+type GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdateParams struct {
+	OrganizationCode  string `json:"organization_code"`
+	BindType          string `json:"bind_type"`
+	BindID            string `json:"bind_id"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	KnowledgeBaseType string `json:"knowledge_base_type"`
+}
+
+type GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdateRow struct {
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Metadata          []byte `json:"metadata"`
+}
+
+func (q *Queries) GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdate(ctx context.Context, arg GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdateParams) (GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdateRow, error) {
+	row := q.db.QueryRowContext(ctx, getFlowKnowledgeBaseBindingByBindIDAndCodeForUpdate,
+		arg.OrganizationCode,
+		arg.BindType,
+		arg.BindID,
+		arg.KnowledgeBaseCode,
+		arg.KnowledgeBaseType,
+	)
+	var i GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdateRow
+	err := row.Scan(&i.KnowledgeBaseCode, &i.Metadata)
+	return i, err
 }
 
 const insertKnowledgeBaseBinding = `-- name: InsertKnowledgeBaseBinding :exec
@@ -201,6 +328,104 @@ func (q *Queries) ListKnowledgeBaseBindingPairsByCodes(ctx context.Context, arg 
 	return items, nil
 }
 
+const listKnowledgeBaseBindingsByBindID = `-- name: ListKnowledgeBaseBindingsByBindID :many
+SELECT knowledge_base_code, metadata
+FROM knowledge_base_bindings
+WHERE bind_type = ?
+  AND bind_id = ?
+  AND organization_code = ?
+ORDER BY id ASC
+`
+
+type ListKnowledgeBaseBindingsByBindIDParams struct {
+	BindType         string `json:"bind_type"`
+	BindID           string `json:"bind_id"`
+	OrganizationCode string `json:"organization_code"`
+}
+
+type ListKnowledgeBaseBindingsByBindIDRow struct {
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Metadata          []byte `json:"metadata"`
+}
+
+func (q *Queries) ListKnowledgeBaseBindingsByBindID(ctx context.Context, arg ListKnowledgeBaseBindingsByBindIDParams) ([]ListKnowledgeBaseBindingsByBindIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listKnowledgeBaseBindingsByBindID, arg.BindType, arg.BindID, arg.OrganizationCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListKnowledgeBaseBindingsByBindIDRow{}
+	for rows.Next() {
+		var i ListKnowledgeBaseBindingsByBindIDRow
+		if err := rows.Scan(&i.KnowledgeBaseCode, &i.Metadata); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKnowledgeBaseBindingsByBindIDs = `-- name: ListKnowledgeBaseBindingsByBindIDs :many
+SELECT knowledge_base_code, metadata
+FROM knowledge_base_bindings
+WHERE bind_type = ?
+  AND bind_id IN (/*SLICE:bind_ids*/?)
+  AND organization_code = ?
+ORDER BY id ASC
+`
+
+type ListKnowledgeBaseBindingsByBindIDsParams struct {
+	BindType         string   `json:"bind_type"`
+	BindIds          []string `json:"bind_ids"`
+	OrganizationCode string   `json:"organization_code"`
+}
+
+type ListKnowledgeBaseBindingsByBindIDsRow struct {
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Metadata          []byte `json:"metadata"`
+}
+
+func (q *Queries) ListKnowledgeBaseBindingsByBindIDs(ctx context.Context, arg ListKnowledgeBaseBindingsByBindIDsParams) ([]ListKnowledgeBaseBindingsByBindIDsRow, error) {
+	query := listKnowledgeBaseBindingsByBindIDs
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.BindType)
+	if len(arg.BindIds) > 0 {
+		for _, v := range arg.BindIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:bind_ids*/?", strings.Repeat(",?", len(arg.BindIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:bind_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListKnowledgeBaseBindingsByBindIDsRow{}
+	for rows.Next() {
+		var i ListKnowledgeBaseBindingsByBindIDsRow
+		if err := rows.Scan(&i.KnowledgeBaseCode, &i.Metadata); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listKnowledgeBaseCodesByBindID = `-- name: ListKnowledgeBaseCodesByBindID :many
 SELECT knowledge_base_code
 FROM knowledge_base_bindings
@@ -237,4 +462,77 @@ func (q *Queries) ListKnowledgeBaseCodesByBindID(ctx context.Context, arg ListKn
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateKnowledgeBaseBindingMetadataByBindIDAndCode = `-- name: UpdateKnowledgeBaseBindingMetadataByBindIDAndCode :execrows
+UPDATE knowledge_base_bindings
+SET metadata = ?,
+    updated_uid = ?,
+    updated_at = ?
+WHERE organization_code = ?
+  AND bind_type = ?
+  AND bind_id = ?
+  AND knowledge_base_code = ?
+`
+
+type UpdateKnowledgeBaseBindingMetadataByBindIDAndCodeParams struct {
+	Metadata          []byte    `json:"metadata"`
+	UpdatedUid        string    `json:"updated_uid"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	OrganizationCode  string    `json:"organization_code"`
+	BindType          string    `json:"bind_type"`
+	BindID            string    `json:"bind_id"`
+	KnowledgeBaseCode string    `json:"knowledge_base_code"`
+}
+
+func (q *Queries) UpdateKnowledgeBaseBindingMetadataByBindIDAndCode(ctx context.Context, arg UpdateKnowledgeBaseBindingMetadataByBindIDAndCodeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateKnowledgeBaseBindingMetadataByBindIDAndCode,
+		arg.Metadata,
+		arg.UpdatedUid,
+		arg.UpdatedAt,
+		arg.OrganizationCode,
+		arg.BindType,
+		arg.BindID,
+		arg.KnowledgeBaseCode,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertKnowledgeBaseBinding = `-- name: UpsertKnowledgeBaseBinding :exec
+INSERT INTO knowledge_base_bindings
+    (knowledge_base_code, bind_type, bind_id, organization_code, created_uid, updated_uid, created_at, updated_at)
+VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    organization_code = VALUES(organization_code),
+    updated_uid = VALUES(updated_uid),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertKnowledgeBaseBindingParams struct {
+	KnowledgeBaseCode string    `json:"knowledge_base_code"`
+	BindType          string    `json:"bind_type"`
+	BindID            string    `json:"bind_id"`
+	OrganizationCode  string    `json:"organization_code"`
+	CreatedUid        string    `json:"created_uid"`
+	UpdatedUid        string    `json:"updated_uid"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+func (q *Queries) UpsertKnowledgeBaseBinding(ctx context.Context, arg UpsertKnowledgeBaseBindingParams) error {
+	_, err := q.db.ExecContext(ctx, upsertKnowledgeBaseBinding,
+		arg.KnowledgeBaseCode,
+		arg.BindType,
+		arg.BindID,
+		arg.OrganizationCode,
+		arg.CreatedUid,
+		arg.UpdatedUid,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
 }

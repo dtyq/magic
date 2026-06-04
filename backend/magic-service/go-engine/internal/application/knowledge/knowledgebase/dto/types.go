@@ -36,6 +36,8 @@ type KnowledgeBaseDTO struct {
 	SourceBindings    []SourceBindingDTO                    `json:"source_bindings,omitempty"`
 	KnowledgeBaseType string                                `json:"knowledge_base_type"`
 	AgentCodes        []string                              `json:"agent_codes,omitempty"`
+	BindingEnabled    *bool                                 `json:"binding_enabled,omitempty"`
+	OriginEnabled     *bool                                 `json:"origin_enabled,omitempty"`
 	CreatedAt         string                                `json:"created_at"`
 	UpdatedAt         string                                `json:"updated_at"`
 }
@@ -117,6 +119,23 @@ type RepairSourceBindingsInput struct {
 	BatchSize         int
 }
 
+// SwitchEmbeddingModelMetaInput 表示知识库共享 collection 元数据直接切换输入。
+type SwitchEmbeddingModelMetaInput struct {
+	OrganizationCode string
+	UserID           string
+	TargetModel      string
+	TargetDimension  int64
+}
+
+// SwitchEmbeddingModelMetaResult 表示知识库共享 collection 元数据直接切换结果。
+type SwitchEmbeddingModelMetaResult struct {
+	CollectionName         string `json:"collection_name"`
+	PhysicalCollectionName string `json:"physical_collection_name"`
+	Model                  string `json:"model"`
+	VectorDimension        int64  `json:"vector_dimension"`
+	SparseBackend          string `json:"sparse_backend"`
+}
+
 // RepairSourceBindingsFailure 表示修复失败样本。
 type RepairSourceBindingsFailure struct {
 	OrganizationCode string `json:"organization_code,omitempty"`
@@ -152,6 +171,42 @@ type RepairSourceBindingsResult struct {
 	FailedGroups         int                                      `json:"failed_groups"`
 	Organizations        []RepairSourceBindingsOrganizationResult `json:"organizations,omitempty"`
 	Failures             []RepairSourceBindingsFailure            `json:"failures"`
+}
+
+// AgentKnowledgeBaseBindingsInput 表示数字员工与 flow 向量知识库的增量绑定请求。
+type AgentKnowledgeBaseBindingsInput struct {
+	OrganizationCode   string
+	UserID             string
+	AgentCode          string
+	KnowledgeBaseCodes []string
+}
+
+// AgentKnowledgeBaseBindingsResult 表示数字员工与 flow 向量知识库绑定处理结果。
+type AgentKnowledgeBaseBindingsResult struct {
+	AgentCode          string   `json:"agent_code"`
+	KnowledgeBaseCodes []string `json:"knowledge_base_codes"`
+}
+
+// UpdateAgentKnowledgeBaseBindingInput 表示更新数字员工下关联 flow 知识库配置的请求。
+type UpdateAgentKnowledgeBaseBindingInput struct {
+	OrganizationCode  string
+	UserID            string
+	AgentCode         string
+	KnowledgeBaseCode string
+	Name              *string
+	Description       *string
+	Icon              *string
+	Enabled           *bool
+}
+
+// UpdateAgentKnowledgeBaseBindingResult 表示关联 flow 知识库配置的有效展示结果。
+type UpdateAgentKnowledgeBaseBindingResult struct {
+	AgentCode         string `json:"agent_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Name              string `json:"name"`
+	Description       string `json:"description"`
+	Icon              string `json:"icon"`
+	Enabled           bool   `json:"enabled"`
 }
 
 // CreateKnowledgeBaseInput 表示创建知识库请求。

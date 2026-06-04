@@ -14,6 +14,7 @@ use App\Domain\KnowledgeBase\Entity\KnowledgeBaseFragmentEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeRetrievalResult;
 use App\Domain\KnowledgeBase\Entity\ValueObject\RetrieveConfig;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use App\Infrastructure\Core\Embeddings\EmbeddingGenerator\EmbeddingGeneratorInterface;
 use App\Infrastructure\Core\Embeddings\Rerank\RerankGeneratorInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -54,7 +55,7 @@ class BaseSemanticSimilaritySearch implements SemanticSimilaritySearchInterface
                 'organization_id' => $dataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'business_id' => $knowledgeBaseEntity->getCode(),
-                'source_id' => 'semantic_search',
+                'source_id' => SourceId::SEMANTIC_SEARCH,
             ],
         ]);
         $points = $knowledgeBaseEntity->getVectorDBDriver()->searchPoints(

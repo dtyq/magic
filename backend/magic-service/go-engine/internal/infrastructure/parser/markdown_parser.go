@@ -15,11 +15,11 @@ import (
 
 // MarkdownParser 解析 Markdown 文档。
 type MarkdownParser struct {
-	assetLoader   richTextAssetLoader
-	htmlRenderer  htmlTextRenderer
-	ocrClient     documentdomain.OCRClient
-	maxOCRPerFile int
-	limits        documentdomain.ResourceLimits
+	assetLoader     richTextAssetLoader
+	htmlRenderer    htmlTextRenderer
+	visualExtractor documentdomain.VisualTextExtractor
+	maxOCRPerFile   int
+	limits          documentdomain.ResourceLimits
 }
 
 // NewMarkdownParser 创建 Markdown 解析器。
@@ -34,17 +34,32 @@ func NewMarkdownParserWithAssets(
 	maxOCRPerFile int,
 	resourceLimits ...documentdomain.ResourceLimits,
 ) *MarkdownParser {
+	return NewMarkdownParserWithVisualAssets(
+		fileFetcher,
+		newVisualTextExtractorFromOCR(ocrClient),
+		maxOCRPerFile,
+		resourceLimits...,
+	)
+}
+
+// NewMarkdownParserWithVisualAssets 创建带资源与视觉转文字能力的 Markdown 解析器。
+func NewMarkdownParserWithVisualAssets(
+	fileFetcher documentdomain.FileFetcher,
+	visualExtractor documentdomain.VisualTextExtractor,
+	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
+) *MarkdownParser {
 	limits := documentdomain.DefaultResourceLimits()
 	if len(resourceLimits) > 0 {
 		limits = resourceLimits[0]
 	}
 	assetLoader := newRichTextAssetLoader(fileFetcher, limits)
 	return &MarkdownParser{
-		assetLoader:   assetLoader,
-		htmlRenderer:  newHTMLTextRenderer(assetLoader),
-		ocrClient:     ocrClient,
-		maxOCRPerFile: documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
-		limits:        documentdomain.NormalizeResourceLimits(limits),
+		assetLoader:     assetLoader,
+		htmlRenderer:    newHTMLTextRenderer(assetLoader),
+		visualExtractor: visualExtractor,
+		maxOCRPerFile:   documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:          documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -100,7 +115,7 @@ func (p *MarkdownParser) ParseDocumentWithOptions(
 		return nil, err
 	}
 	root := goldmark.DefaultParser().Parse(gmtext.NewReader(content))
-	ocrHelper := newRichTextImageOCRHelper(p.ocrClient, p.maxOCRPerFile, options)
+	ocrHelper := newRichTextImageOCRHelper(p.visualExtractor, p.maxOCRPerFile, options)
 	enhancementBlocks := p.collectMarkdownEnhancementBlocks(ctx, fileURL, content, root, ocrHelper)
 	blocks := make([]string, 0, len(enhancementBlocks)+1)
 	blocks = append(blocks, string(content))

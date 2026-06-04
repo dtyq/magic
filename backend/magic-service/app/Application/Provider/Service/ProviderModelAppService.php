@@ -16,6 +16,7 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -26,6 +27,7 @@ class ProviderModelAppService extends AbstractProviderAppService
     public function __construct(
         private readonly ProviderModelDomainService $providerModelDomainService,
         FileDomainService $fileDomainService,
+        private readonly ProviderConfigDomainService $providerConfigDomainService,
     ) {
         parent::__construct($fileDomainService);
     }
@@ -55,6 +57,15 @@ class ProviderModelAppService extends AbstractProviderAppService
 
         $this->processModelIcons($models);
 
+        $configIds = [];
+        foreach ($models as $model) {
+            $configId = $model->getServiceProviderConfigId();
+            if ($configId > 0) {
+                $configIds[$configId] = $configId;
+            }
+        }
+        $providerConfigsById = $this->providerConfigDomainService->getByIds($dataIsolation, array_values($configIds));
+
         // 处理图标
         $providerModelDetailDTOs = [];
         foreach ($models as $model) {
@@ -62,11 +73,21 @@ class ProviderModelAppService extends AbstractProviderAppService
             $model->setDescription($model->getLocalizedDescription($locale));
 
             if (! $model->getName()) {
-                $model->setName($model->getModelId());
+                $model->setName($model->getDisplayModelId());
             }
 
             $providerModelItemDTO = new ProviderModelItemDTO($model->toArray());
             $providerModelItemDTO->setImageSizeConfig($this->getImageSizeConfig($model));
+
+            $serviceProviderConfigId = $model->getServiceProviderConfigId();
+            if ($serviceProviderConfigId > 0 && isset($providerConfigsById[$serviceProviderConfigId])) {
+                $providerConfigEntity = $providerConfigsById[$serviceProviderConfigId];
+                $providerModelItemDTO->setServiceProviderConfig([
+                    'id' => (string) $providerConfigEntity->getId(),
+                    'name' => $providerConfigEntity->getLocalizedAlias($locale),
+                ]);
+            }
+
             $providerModelDetailDTOs[] = $providerModelItemDTO;
         }
 
