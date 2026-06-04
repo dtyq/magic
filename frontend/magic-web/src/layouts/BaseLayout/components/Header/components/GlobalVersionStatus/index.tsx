@@ -2,6 +2,10 @@ import { memo, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { VersionService } from "./services/VersionService"
+import {
+	activateWaitingServiceWorkerAndReload,
+	getAppServiceWorkerRegistration,
+} from "@/workers/service-worker/register"
 
 function GlobalVersionStatus() {
 	const { t } = useTranslation("interface")
@@ -34,7 +38,9 @@ function GlobalVersionStatus() {
 			duration: Infinity,
 			action: {
 				label: t("globalServiceStatus.update"),
-				onClick: () => window.location.reload(),
+				onClick: () => {
+					void activateWaitingServiceWorkerAndReload(getAppServiceWorkerRegistration())
+				},
 			},
 			className: "!gap-2 [&_[data-icon]]:!mr-0",
 			icon: (

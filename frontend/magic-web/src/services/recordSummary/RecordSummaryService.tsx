@@ -36,7 +36,7 @@ import { UploadSource } from "@/pages/superMagic/components/MessageEditor/hooks/
 import RecordStatusChecker from "./RecordStatusChecker"
 import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { userStore } from "@/models/user"
-import { StoredAudioChunk } from "./MediaRecorderService/AudioChunkDB"
+import { StoredAudioChunk, AudioChunkDB } from "./MediaRecorderService/AudioChunkDB"
 import { formatDuration } from "./utils/format"
 import { createRecordingLogger } from "./utils/RecordingLogger"
 import { DEFAULT_RECORDING_CONFIG } from "./utils/config"
@@ -104,6 +104,12 @@ class RecordSummaryService {
 	private silenceMessageKey = "recording-silence-detected"
 	// 用于管理总结过程中的消息提示
 	private summaryMessageService = getSummaryMessageService()
+	// 分片生产监控定时器，用于检测录音是否正常产出分片
+	private chunkProductionWatchdog: NodeJS.Timeout | null = null
+	// 录音开始后是否已收到第一个分片
+	private hasReceivedFirstChunk = false
+	// 是否已尝试过自动恢复
+	private hasAttemptedChunkRecovery = false
 	constructor() {
 		logger.log("RecordSummaryService constructor")
 
@@ -150,11 +156,22 @@ class RecordSummaryService {
 		this.sessionManager = new RecordingSessionManager(DEFAULT_RECORDING_CONFIG.sessionRestore)
 
 		// Fire-and-forget cleanup of expired session history (30 days retention)
+		// 过期会话清理后，同步清理对应的音频分片
 		void this.sessionManager
 			.getHistoryDB()
 			.cleanupExpired()
+			.then(async (expiredSessionIds) => {
+				if (expiredSessionIds.length === 0) return
+				const chunkDB = new AudioChunkDB()
+				for (const sessionId of expiredSessionIds) {
+					await chunkDB.deleteAllSessionChunks(sessionId)
+				}
+				logger.log("已清理过期会话关联的音频分片", {
+					sessionCount: expiredSessionIds.length,
+				})
+			})
 			.catch((error) => {
-				logger.error("清理过期会话历史失败", {
+				logger.error("清理过期会话历史或音频分片失败", {
 					error: error instanceof Error ? error.message : String(error),
 				})
 			})
@@ -325,6 +342,12 @@ class RecordSummaryService {
 		chatTopic?: Topic | null
 		audioSource?: AudioSourceConfig
 	}) => {
+		// Guard: prevent concurrent startRecording calls
+		if (recordSummaryStore.isStartingRecord) {
+			logger.warn("startRecording：已在启动中，忽略重复请求")
+			return
+		}
+
 		try {
 			recordSummaryStore.setIsStartingRecord(true)
 
@@ -425,6 +448,9 @@ class RecordSummaryService {
 					audioSource = currentAudioSource
 					this.recordingPersistence.updateSessionAudioSource(audioSource)
 				}
+
+				// 启动分片生产监控：如果 30s 内没有收到任何分片，记录错误
+				this.startChunkProductionWatchdog(session.id)
 			} catch (error) {
 				this.handleMediaRecorderError(error as Error)
 				return
@@ -1937,6 +1963,9 @@ class RecordSummaryService {
 	reset = async () => {
 		const currentSessionId = this.sessionManager.getCurrentSession()?.id
 
+		// 停止分片生产监控
+		this.stopChunkProductionWatchdog()
+
 		// 停止语音服务
 		if (this.voiceToTextService) {
 			await this.voiceToTextService.stopRecording()
@@ -2054,12 +2083,131 @@ class RecordSummaryService {
 	) => {
 		logger.log(`${storedChunk.sessionId} 添加了一个分片`, storedChunk)
 
+		// 标记已收到第一个分片，清除生产监控
+		if (!this.hasReceivedFirstChunk) {
+			this.hasReceivedFirstChunk = true
+			this.stopChunkProductionWatchdog()
+			// 如果之前触发了分片异常提示，收到数据后清除
+			if (recordSummaryStore.errorState.hasChunkError) {
+				recordSummaryStore.setChunkError(false)
+				magicToast.destroy("recording-chunk-production-failed")
+			}
+		}
+
 		// 触发上传检查
 		const currentSession = this.sessionManager.getCurrentSession()
 		if (currentSession) {
 			// 更新会话分片索引
 			this.sessionManager.updateSessionChunkIndex(chunkIndex + 1) // +1 because MediaRecorder increments after emitting
 			this.handleAudioChunkSaved(storedChunk, indexdbSaveSuccess)
+		}
+	}
+
+	/**
+	 * 启动分片生产监控
+	 * 录音启动后如果一段时间内没有收到音频分片：
+	 * 1. 第一次超时：尝试自动重启 MediaRecorder 进行恢复
+	 * 2. 恢复后仍无分片：通过录音面板常驻错误条提示用户
+	 */
+	private startChunkProductionWatchdog(sessionId: string) {
+		this.hasReceivedFirstChunk = false
+		this.hasAttemptedChunkRecovery = false
+		this.stopChunkProductionWatchdog()
+
+		// 20s 超时 (chunkDuration 10s 的 2 倍)
+		const WATCHDOG_TIMEOUT_MS = 20000
+		this.chunkProductionWatchdog = setTimeout(() => {
+			this.handleChunkProductionTimeout(sessionId, WATCHDOG_TIMEOUT_MS)
+		}, WATCHDOG_TIMEOUT_MS)
+	}
+
+	/**
+	 * 处理分片生产超时
+	 */
+	private async handleChunkProductionTimeout(sessionId: string, timeoutMs: number) {
+		if (this.hasReceivedFirstChunk) return
+
+		const currentSession = this.sessionManager.getCurrentSession()
+		if (!currentSession || currentSession.id !== sessionId) return
+
+		if (!this.hasAttemptedChunkRecovery) {
+			// 第一次超时：尝试自动恢复
+			this.hasAttemptedChunkRecovery = true
+			logger.warn("分片生产监控：首次超时，尝试自动重启录音器", {
+				sessionId,
+				timeoutMs,
+			})
+
+			try {
+				// 停止并重启 MediaRecorder，保留同一 session
+				await this.mediaRecorderService.stopRecording()
+				this.mediaRecorderService.reset()
+				await this.mediaRecorderService.startRecording(sessionId, 0)
+
+				logger.log("分片生产监控：录音器已重启，等待分片产出")
+
+				// 重启后再等 20s 观察
+				this.chunkProductionWatchdog = setTimeout(() => {
+					this.handleChunkProductionTimeout(sessionId, timeoutMs)
+				}, timeoutMs)
+			} catch (error) {
+				logger.error("分片生产监控：自动重启录音器失败", { error: String(error) })
+				this.notifyUserChunkProductionFailed()
+			}
+		} else {
+			// 恢复尝试后仍无分片，通知用户
+			logger.error("分片生产监控：自动恢复失败，录音器无法正常产出分片", {
+				sessionId,
+			})
+			this.notifyUserChunkProductionFailed()
+		}
+	}
+
+	/**
+	 * 通知用户录音分片生产异常（常驻 toast，不自动消失，带停止按钮）
+	 */
+	private notifyUserChunkProductionFailed() {
+		recordSummaryStore.setChunkError(true)
+		magicToast.warning({
+			content: (
+				<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+					<span>
+						{i18n.t("recordingSummary.chunkProduction.failed", { ns: "super" })}
+					</span>
+					<button
+						type="button"
+						onClick={() => {
+							magicToast.destroy("recording-chunk-production-failed")
+							this.cancelRecording({ notifyServer: true })
+						}}
+						style={{
+							flexShrink: 0,
+							padding: "2px 8px",
+							fontSize: 12,
+							borderRadius: 4,
+							border: "1px solid currentColor",
+							background: "transparent",
+							color: "inherit",
+							cursor: "pointer",
+							whiteSpace: "nowrap",
+						}}
+					>
+						{i18n.t("recordingSummary.actions.stopRecording", { ns: "super" })}
+					</button>
+				</div>
+			),
+			duration: 0,
+			key: "recording-chunk-production-failed",
+		})
+	}
+
+	/**
+	 * 停止分片生产监控
+	 */
+	private stopChunkProductionWatchdog() {
+		if (this.chunkProductionWatchdog) {
+			clearTimeout(this.chunkProductionWatchdog)
+			this.chunkProductionWatchdog = null
 		}
 	}
 

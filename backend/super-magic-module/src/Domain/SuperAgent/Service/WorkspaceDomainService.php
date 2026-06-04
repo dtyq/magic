@@ -182,10 +182,15 @@ class WorkspaceDomainService
      * @param DataIsolation $dataIsolation 数据隔离对象
      * @param int $workspaceId 工作区ID
      * @param string $workspaceName 工作区名称
+     * @param null|bool $isPinned 是否置顶，null 表示不更新
      * @return bool 是否更新成功
      */
-    public function updateWorkspace(DataIsolation $dataIsolation, int $workspaceId, string $workspaceName = ''): bool
-    {
+    public function updateWorkspace(
+        DataIsolation $dataIsolation,
+        int $workspaceId,
+        string $workspaceName = '',
+        ?bool $isPinned = null
+    ): bool {
         // 获取工作区实体
         $workspaceEntity = $this->workspaceRepository->getWorkspaceById($workspaceId);
 
@@ -202,6 +207,12 @@ class WorkspaceDomainService
             $workspaceEntity->setName($workspaceName);
             $workspaceEntity->setUpdatedAt(date('Y-m-d H:i:s'));
             $workspaceEntity->setUpdatedUid($dataIsolation->getCurrentUserId()); // 设置更新者用户ID
+        }
+
+        if ($isPinned !== null) {
+            $workspaceEntity->setIsPinned($isPinned ? 1 : 0);
+            $workspaceEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+            $workspaceEntity->setUpdatedUid($dataIsolation->getCurrentUserId());
         }
 
         // 使用通用 save 方法保存

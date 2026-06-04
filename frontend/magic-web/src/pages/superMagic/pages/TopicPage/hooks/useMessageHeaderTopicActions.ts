@@ -10,16 +10,20 @@ import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory
 
 interface UseMessageHeaderTopicActionsParams {
 	selectedProject: ProjectListItem | null
+	selectedTopic?: Topic | null
 	topicStore: TopicStore
 }
 
 export function useMessageHeaderTopicActions({
 	selectedProject,
+	selectedTopic,
 	topicStore,
 }: UseMessageHeaderTopicActionsParams): MessageHeaderTopicActions {
 	const createTopic = useMemoizedFn(async () => {
 		await SuperMagicService.handleCreateTopic({
 			selectedProject,
+			// 创建请求保持空话题；sourceTopic 只用于前端沿用当前话题选择的员工。
+			sourceTopic: selectedTopic,
 		})
 	})
 

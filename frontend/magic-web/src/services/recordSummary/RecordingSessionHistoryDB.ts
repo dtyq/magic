@@ -5,7 +5,7 @@ import { recordingLogger } from "./utils/RecordingLogger"
 const logger = recordingLogger.namespace("History:DB")
 
 // Default retention window for historical sessions (days)
-export const RECORDING_HISTORY_RETENTION_DAYS = 30
+export const RECORDING_HISTORY_RETENTION_DAYS = 7
 
 /**
  * Stored session entity adds lightweight audit timestamps
@@ -78,11 +78,11 @@ export class RecordingSessionHistoryDB extends GlobalBaseRepository<StoredSessio
 
 	/**
 	 * Remove entries whose lastActivityTime is older than retention days
-	 * 清理过期历史
+	 * 清理过期历史，返回被清理的会话 ID 列表（供调用方清理关联数据，如音频分片）
 	 */
 	async cleanupExpired(
 		retentionDays: number = RECORDING_HISTORY_RETENTION_DAYS,
-	): Promise<number> {
+	): Promise<string[]> {
 		const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000
 		const rows = await this.getAll()
 		const expired = rows.filter((row) => {
@@ -90,8 +90,10 @@ export class RecordingSessionHistoryDB extends GlobalBaseRepository<StoredSessio
 			return anchor < cutoff
 		})
 
+		const expiredIds: string[] = []
 		for (const row of expired) {
 			await this.delete(row.id)
+			expiredIds.push(row.id)
 		}
 
 		if (expired.length > 0) {
@@ -101,6 +103,6 @@ export class RecordingSessionHistoryDB extends GlobalBaseRepository<StoredSessio
 			})
 		}
 
-		return expired.length
+		return expiredIds
 	}
 }

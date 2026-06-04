@@ -124,9 +124,9 @@ export class FetchMonitorPlugin implements LoggerPlugin {
 
 			// 请求头获取
 			const headers: Record<string, any> = {}
-			;(init?.headers as Headers)?.forEach?.((v, k) => {
-				headers[k] = v
-			})
+				; (init?.headers as Headers)?.forEach?.((v, k) => {
+					headers[k] = v
+				})
 
 			// 创建请求记录
 			const requestInfo: ApiRequestInfo = {
@@ -265,10 +265,12 @@ export class FetchMonitorPlugin implements LoggerPlugin {
 			data: {
 				url: requestInfo.url,
 				headers: requestInfo.headers,
+				body: requestInfo.body ? requestInfo.body.slice(0, 2048) : undefined,
 				method: requestInfo.method,
 				duration: requestInfo.duration,
 				status: requestInfo.status,
 				statusText: requestInfo.statusText,
+				responseCode: requestInfo.responseCode,
 				error: requestInfo.error,
 				arg,
 			},

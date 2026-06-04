@@ -33,6 +33,11 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
     public string $workspaceType = '';
 
     /**
+     * Whether pinned. Null means not changed.
+     */
+    public ?bool $isPinned = null;
+
+    /**
      * Get workspace ID (if exists).
      */
     public function getWorkspaceId(): ?string
@@ -56,6 +61,11 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
         return $this->workspaceType;
     }
 
+    public function getIsPinned(): ?bool
+    {
+        return $this->isPinned;
+    }
+
     /**
      * Check if this is an update operation.
      */
@@ -73,8 +83,9 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
 
         return [
             'id' => 'nullable|string',
-            'workspace_name' => 'required|string|max:50',
+            'workspace_name' => 'required_without:id|string|max:50',
             'workspace_type' => 'nullable|string|in:' . $validTypes,
+            'is_pinned' => 'nullable|boolean',
         ];
     }
 
@@ -87,9 +98,11 @@ class SaveWorkspaceRequestDTO extends AbstractRequestDTO
 
         return [
             'workspace_name.required' => 'Workspace name cannot be empty',
+            'workspace_name.required_without' => 'Workspace name cannot be empty',
             'workspace_name.string' => 'Workspace name must be a string',
             'workspace_name.max' => 'Workspace name cannot exceed 50 characters',
             'workspace_type.in' => 'Workspace type must be one of: ' . $validTypesString,
+            'is_pinned.boolean' => 'Pinned status must be a boolean',
         ];
     }
 }

@@ -429,6 +429,7 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 			allowMessageTooltip: true,
 			allowConversationCopy: true,
 			onTopicSwitch: topicStore.setSelectedTopic,
+			projectFilesStore,
 			renderAssistantAvatar: topicModeConfig?.mode
 				? ({ className } = {}) => (
 						<ModeAvatar

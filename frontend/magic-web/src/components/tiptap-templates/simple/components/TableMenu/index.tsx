@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import type { Editor } from "@tiptap/react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
@@ -10,11 +11,7 @@ import {
 	IconRowRemove,
 	IconColumnRemove,
 } from "@tabler/icons-react"
-import {
-	Tooltip,
-	TooltipTrigger,
-	TooltipContent,
-} from "@/components/tiptap-ui-primitive/tooltip"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/tiptap-ui-primitive/tooltip"
 import { isInTable, getTableCellCoordinates } from "./utils"
 import "./table-menu.scss"
 
@@ -135,7 +132,7 @@ export function TableMenu({ editor, isEditable }: TableMenuProps) {
 		return null
 	}
 
-	return (
+	return createPortal(
 		<div
 			className="table-menu"
 			style={{
@@ -229,6 +226,7 @@ export function TableMenu({ editor, isEditable }: TableMenuProps) {
 				</TooltipTrigger>
 				<TooltipContent>{t("tableMenu.deleteColumn")}</TooltipContent>
 			</Tooltip>
-		</div>
+		</div>,
+		document.body,
 	)
 }

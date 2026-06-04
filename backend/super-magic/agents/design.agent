@@ -24,6 +24,7 @@ skills:
     - name: skill-vetter
     - name: using-mcp
     - name: user-info
+    - name: document-converter
   workspace_skills: "*"
 ---
 

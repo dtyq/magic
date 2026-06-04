@@ -13,12 +13,14 @@ import { buildMessageKeysAndTurnGroups } from "@/pages/superMagic/components/Mes
 import { MessageTurnGroupList } from "@/pages/superMagic/components/MessageList/MessageTurnGroupList"
 import { MessageListProvider } from "@/pages/superMagic/components/MessageList/context"
 import { useIsMobile } from "@/hooks/useIsMobile"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 
 function MessageList({
 	messageList,
 	onSelectDetail,
 	currentTopicStatus,
 	stickyMessageClassName,
+	projectFilesStore,
 }: {
 	topicId: string
 	messageList: any[]
@@ -30,6 +32,7 @@ function MessageList({
 	 *  [--sticky-message-mask-fade-from:rgb(var(--background-rgb))]`
 	 */
 	stickyMessageClassName?: string
+	projectFilesStore?: ProjectFilesStore
 }) {
 	const { styles } = useStyles()
 	const { t } = useTranslation("super")
@@ -52,6 +55,7 @@ function MessageList({
 	const value = useMemo(() => {
 		return {
 			allowRevoke: false,
+			projectFilesStore,
 		}
 	}, [])
 

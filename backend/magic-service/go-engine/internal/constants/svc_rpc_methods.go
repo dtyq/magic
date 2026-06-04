@@ -44,6 +44,8 @@ const (
 	MethodKnowledgeBasePermissionCheckOfficialOrganizationMember = "svc.knowledge.knowledgeBasePermission.checkOfficialOrganizationMember"
 	// MethodKnowledgeBaseRebuildPermissions 补齐知识库权限
 	MethodKnowledgeBaseRebuildPermissions = "svc.knowledge.knowledgeBase.rebuildPermissions"
+	// MethodSocketIORedisCleanup 异步清理允许的 Socket.IO Redis key 前缀
+	MethodSocketIORedisCleanup = "svc.socketio.redis.cleanup"
 
 	// MethodFragmentCreate 创建片段
 	MethodFragmentCreate = "svc.knowledge.fragment.create"

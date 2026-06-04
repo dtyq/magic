@@ -13,6 +13,7 @@ vendor/
 *.cache
 *.lock
 .php-accessor/
+.codegraph/
 .phpunit*
 .vscode/
 static/web/.next

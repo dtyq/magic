@@ -736,8 +736,8 @@ class ProjectAppService extends AbstractAppService
             $conditions,
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
-            'updated_at',
-            'desc'
+            $requestDTO->getOrderBy(),
+            $requestDTO->getSort()
         );
 
         // 提取所有项目ID和工作区ID
@@ -747,6 +747,9 @@ class ProjectAppService extends AbstractAppService
         // 批量获取项目状态
         $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds, $dataIsolation->getCurrentUserId());
 
+        // 批量获取当前用户在项目下的可见话题数量
+        $topicCountMap = $this->topicDomainService->countUserVisibleTopicsByProjectIds($projectIds, $dataIsolation->getCurrentUserId());
+
         // 批量获取工作区名称
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
@@ -755,7 +758,7 @@ class ProjectAppService extends AbstractAppService
         $projectIdsWithMember = array_keys(array_filter($projectMemberCounts, fn ($count) => $count > 0));
 
         // 创建响应DTO并传入项目状态映射和工作区名称映射
-        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember, $projectStatusMap);
+        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember, $projectStatusMap, $topicCountMap);
 
         return $listResponseDTO->toArray();
     }
@@ -1262,7 +1265,8 @@ class ProjectAppService extends AbstractAppService
         $movedProjectEntity = $this->projectDomainService->moveProject(
             $requestDTO->getSourceProjectId(),
             $targetWorkspaceId,
-            $userAuthorization->getId()
+            $userAuthorization->getId(),
+            $requestDTO->getTargetProjectName()
         );
 
         $this->logger->info(sprintf(

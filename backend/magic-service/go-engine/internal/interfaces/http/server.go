@@ -104,6 +104,7 @@ type RPCHandlers struct {
 	Fragment  rpcRoutes.HandlerProvider
 	Document  rpcRoutes.HandlerProvider
 	Embedding rpcRoutes.HandlerProvider
+	Ops       rpcRoutes.HandlerProvider
 }
 
 // InfraServices 定义 Server 依赖的基础设施服务能力，避免直接依赖基础设施层具体实现
@@ -225,6 +226,7 @@ func (s *Server) setupRPCRoutes() {
 		FragmentHandler:  s.rpcHandlers.Fragment,
 		DocumentHandler:  s.rpcHandlers.Document,
 		EmbeddingHandler: s.rpcHandlers.Embedding,
+		OpsHandler:       s.rpcHandlers.Ops,
 	})
 }
 

@@ -206,8 +206,9 @@ export function AiChat(props: AiChatProps) {
 			allowScheduleTaskCreate: false,
 			allowMessageTooltip: true,
 			allowCreateNewTopic: false,
+			projectFilesStore,
 		}
-	}, [])
+	}, [projectFilesStore])
 
 	return (
 		<>

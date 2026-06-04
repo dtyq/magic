@@ -5,7 +5,6 @@ tools:
   - image_search
   - visual_understanding
   - video_understanding
-  - convert_to_markdown
   - list_dir
   - file_search
   - read_files

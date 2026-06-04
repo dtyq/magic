@@ -7,17 +7,18 @@
 """
 
 import asyncio
-import re
-import aiofiles
-import aiofiles.os
-import shutil
+import errno
 import json
 import os
+import re
+import shutil
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Callable, Union, Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
+import aiofiles
+import aiofiles.os
 import yaml
 
 from agentlang.logger import get_logger
@@ -294,6 +295,48 @@ async def async_rename(src: Union[str, Path], dst: Union[str, Path]) -> None:
     except Exception as e:
         logger.error(f"异步重命名失败 {src_str} -> {dst_str}: {e}")
         raise
+
+
+async def async_move_file(src: Union[str, Path], dst: Union[str, Path]) -> None:
+    """
+    异步移动文件，支持跨文件系统移动。
+
+    与 async_rename 不同，本函数只用于文件移动语义：优先使用 rename；
+    如果源和目标位于不同设备（例如 /tmp -> S3 挂载的 .workspace），
+    则回退为复制文件内容后删除源文件。
+
+    Args:
+        src: 源文件路径
+        dst: 目标文件路径
+
+    Raises:
+        FileNotFoundError: 源路径不存在
+        IsADirectoryError: 源路径或目标路径是目录
+        PermissionError: 权限不足
+        OSError: 移动失败
+    """
+    src_path = Path(src)
+    dst_path = Path(dst)
+    src_str = str(src_path)
+    dst_str = str(dst_path)
+
+    try:
+        logger.debug(f"开始异步移动文件: {src_str} -> {dst_str}")
+        await async_mkdir(dst_path.parent, parents=True, exist_ok=True)
+        await aiofiles.os.rename(src_str, dst_str)
+        logger.debug(f"异步移动文件完成(rename): {src_str} -> {dst_str}")
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            logger.error(f"异步移动文件失败 {src_str} -> {dst_str}: {e}")
+            raise
+        logger.warning(f"跨设备移动文件，改用复制后删除: {src_str} -> {dst_str}")
+        try:
+            await asyncio.to_thread(shutil.copyfile, src_path, dst_path)
+            await aiofiles.os.remove(src_str)
+            logger.debug(f"异步移动文件完成(copy+unlink): {src_str} -> {dst_str}")
+        except Exception as copy_error:
+            logger.error(f"跨设备移动文件失败 {src_str} -> {dst_str}: {copy_error}")
+            raise
 
 
 async def async_rmdir(path: Union[str, Path]) -> None:
@@ -600,13 +643,14 @@ async def async_write_bytes(
         raise
 
 
-async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') -> str:
+async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8', errors: Optional[str] = None) -> str:
     """
     异步读取文本文件
 
     Args:
         file_path: 文件路径
         encoding: 编码格式，默认utf-8
+        errors: 解码错误处理策略，例如 "replace" 或 "ignore"
 
     Returns:
         str: 文件内容
@@ -625,7 +669,7 @@ async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') 
             raise FileNotFoundError(f"文本文件不存在: {path_obj}")
 
         # 异步读取文件内容
-        async with aiofiles.open(path_obj, 'r', encoding=encoding) as f:
+        async with aiofiles.open(path_obj, 'r', encoding=encoding, errors=errors) as f:
             content = await f.read()
 
         logger.debug(f"异步读取文本文件完成: {path_obj}")
@@ -757,6 +801,46 @@ async def async_exists(path: Union[str, Path]) -> bool:
         return await aiofiles.os.path.exists(str(path))
     except Exception as e:
         logger.error(f"检查路径存在性失败 {path}: {e}")
+        raise
+
+
+async def async_is_dir(path: Union[str, Path]) -> bool:
+    """
+    异步检查路径是否为目录
+
+    Args:
+        path: 路径
+
+    Returns:
+        bool: 路径是否为目录
+
+    Raises:
+        OSError: 系统错误
+    """
+    try:
+        return await aiofiles.os.path.isdir(str(path))
+    except Exception as e:
+        logger.error(f"检查路径是否为目录失败 {path}: {e}")
+        raise
+
+
+async def async_is_file(path: Union[str, Path]) -> bool:
+    """
+    异步检查路径是否为文件
+
+    Args:
+        path: 路径
+
+    Returns:
+        bool: 路径是否为文件
+
+    Raises:
+        OSError: 系统错误
+    """
+    try:
+        return await aiofiles.os.path.isfile(str(path))
+    except Exception as e:
+        logger.error(f"检查路径是否为文件失败 {path}: {e}")
         raise
 
 

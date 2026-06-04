@@ -1,6 +1,7 @@
 const languageMiddleware = require("../middleware/languageMiddleware")
 const throttleMiddleware = require("../middleware/throttleMiddleware")
 const compressionMiddleware = require("../middleware/compressionMiddleware")
+const serviceWorkerMiddleware = require("../middleware/serviceWorkerMiddleware")
 const staticResourceMiddleware = require("../middleware/staticResourceMiddleware")
 const { defaultSEOMiddleware, generateSeoRoutes } = require("../middleware/seoMiddleware")
 const { getHtmlTemplate } = require("../middleware/seoMiddleware/getHtmlTemplate")
@@ -44,6 +45,7 @@ const configureRoutes = (app) => {
 		compressionMiddleware,
 		logsRoutes.report,
 	)
+	app.get("/sw.js", serviceWorkerMiddleware)
 
 	/**
 	 * ======================== 静态资源缓存配置 ========================

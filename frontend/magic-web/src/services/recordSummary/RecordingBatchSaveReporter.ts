@@ -13,6 +13,7 @@ interface RecordingBatchSaveFile {
 	fileName: string
 	fileSize: number
 	isHidden?: boolean
+	allowOverwrite?: boolean
 }
 
 export class RecordingBatchSaveReporter {
@@ -26,7 +27,9 @@ export class RecordingBatchSaveReporter {
 		}
 
 		const reportKey = this.getReportKey(file.sessionId, file.fileKey)
-		if (this.hasSavedFile(file.sessionId, file.fileKey)) {
+
+		// Skip duplicate reports unless allowOverwrite is set (for note/transcript files)
+		if (!file.allowOverwrite && this.hasSavedFile(file.sessionId, file.fileKey)) {
 			logger.log("Skip duplicate batch save", {
 				sessionId: file.sessionId,
 				fileKey: file.fileKey,
@@ -34,10 +37,10 @@ export class RecordingBatchSaveReporter {
 			return
 		}
 
+		// Wait for any in-flight report to complete before starting a new one
 		const activeReport = this.inFlightReports.get(reportKey)
 		if (activeReport) {
 			await activeReport
-			return
 		}
 
 		const reportPromise = this.saveUploadedFile(file)
@@ -81,9 +84,13 @@ export class RecordingBatchSaveReporter {
 				],
 			})
 
-			logger.log("Batch save reported", {
+			logger.report("Batch save reported", {
 				sessionId: file.sessionId,
 				fileKey: file.fileKey,
+				fileName: file.fileName,
+				fileSize: file.fileSize,
+				projectId: file.projectId,
+				topicId: file.topicId,
 				parentId: file.parentId,
 			})
 			this.markFileAsSaved(file.sessionId, file.fileKey)
@@ -91,6 +98,11 @@ export class RecordingBatchSaveReporter {
 			logger.error("Batch save failed", {
 				sessionId: file.sessionId,
 				fileKey: file.fileKey,
+				fileName: file.fileName,
+				fileSize: file.fileSize,
+				projectId: file.projectId,
+				topicId: file.topicId,
+				parentId: file.parentId,
 				error: error instanceof Error ? error.message : String(error),
 			})
 		}

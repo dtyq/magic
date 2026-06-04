@@ -13,9 +13,10 @@ __plugin_interface_version__ = 1  # 插件接口版本
 
 ACCEPTED_MIME_TYPE_PREFIXES = [
     "text/csv",
+    "text/tab-separated-values",
 ]
 
-ACCEPTED_FILE_EXTENSIONS = [".csv"]
+ACCEPTED_FILE_EXTENSIONS = [".csv", ".tsv"]
 
 # CSV处理的最大行数限制
 CSV_MAX_ROWS = 1000
@@ -84,6 +85,7 @@ class CSVConverter(DocumentConverter):
             encodings = ['utf-8', 'gbk', 'gb2312', 'latin1']
             df = None
             used_encoding = None
+            separator = '\t' if file_path.suffix.lower() == '.tsv' else ','
 
             for encoding in encodings:
                 try:
@@ -91,6 +93,7 @@ class CSVConverter(DocumentConverter):
                         df = pd.read_csv(
                             file_path,
                             encoding=encoding,
+                            sep=separator,
                             skiprows=range(1, offset + 1),  # 保留header行，但跳过其他行
                             nrows=read_limit  # None表示读取全部
                         )
@@ -98,6 +101,7 @@ class CSVConverter(DocumentConverter):
                         df = pd.read_csv(
                             file_path,
                             encoding=encoding,
+                            sep=separator,
                             nrows=read_limit  # None表示读取全部
                         )
                     used_encoding = encoding

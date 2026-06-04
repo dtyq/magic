@@ -1,0 +1,248 @@
+.x-markdown-debug-panel {
+  position: fixed;
+  z-index: 9999;
+  right: 0;
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 8px;
+  padding: 12px;
+  font-family:
+    "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", "Source Code Pro", monospace;
+  font-size: 12px;
+  color: #fff;
+  width: 180px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(8px);
+  user-select: none;
+  transition: box-shadow 0.2s;
+}
+
+.x-markdown-debug-panel:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.x-markdown-debug-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.x-markdown-debug-row:last-child {
+  margin-bottom: 0;
+}
+
+.x-markdown-debug-label {
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.x-markdown-debug-value {
+  font-weight: 600;
+  min-width: 50px;
+  text-align: right;
+}
+
+.x-markdown-debug-chart {
+  margin-left: auto;
+}
+
+/* Actions */
+.x-markdown-debug-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.x-markdown-debug-action {
+  flex: 1;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.x-markdown-debug-action:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.x-markdown-debug-action:active {
+  transform: scale(0.98);
+}
+
+/* Record Button */
+.x-markdown-debug-record-btn.recording {
+  background: rgba(255, 77, 79, 0.2);
+  border-color: #ff4d4f;
+  animation: recording-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 77, 79, 0);
+  }
+}
+
+/* Modal Overlay */
+.x-markdown-debug-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal */
+.x-markdown-debug-modal {
+  background: rgba(30, 30, 30, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+  animation: slideIn 0.3s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Modal Header */
+.x-markdown-debug-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.x-markdown-debug-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.x-markdown-debug-close-btn:hover {
+  background: rgba(255, 77, 79, 0.3);
+}
+
+/* Modal Content */
+.x-markdown-debug-modal-content {
+  padding: 24px;
+}
+
+/* Stats Summary */
+.x-markdown-debug-stats-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.x-markdown-debug-stat-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.x-markdown-debug-stat-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.x-markdown-debug-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Chart */
+.x-markdown-debug-chart-full {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.x-markdown-debug-chart-full .fps-line,
+.x-markdown-debug-chart-full .memory-line {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* Legend */
+.x-markdown-debug-legend {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.x-markdown-debug-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.x-markdown-debug-legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .x-markdown-debug-stats-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

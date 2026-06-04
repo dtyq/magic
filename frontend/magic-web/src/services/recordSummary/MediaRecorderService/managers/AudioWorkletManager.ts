@@ -5,6 +5,10 @@
 
 import type { LoggerInterface } from "../types/RecorderDependencies"
 import { RecorderError } from "../types/RecorderErrors"
+import { markServiceWorkerCacheableResourceUrl } from "@/workers/service-worker/register"
+
+// Worklet 资源变化极少，使用独立版本号手动维护缓存失效节奏。
+const WORKLET_CACHE_VERSION = "worklet-v1"
 
 /**
  * AudioWorklet metrics data
@@ -268,7 +272,10 @@ export class AudioWorkletManager {
 
 		// In production, use the compiled JavaScript file
 		// 在生产环境中，使用编译后的 JavaScript 文件
-		return "/worklets/recorder-worklet-processor.js"
+		return markServiceWorkerCacheableResourceUrl(
+			"/worklets/recorder-worklet-processor.js",
+			WORKLET_CACHE_VERSION,
+		)
 	}
 
 	/**

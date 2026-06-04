@@ -108,6 +108,7 @@ class HorizonStore:
             state.workspace_files = data.get("workspace_files", "")
             state.workspace_entries = data.get("workspace_entries", [])
             state.memory = data.get("memory", "")
+            state.client_context = data.get("client_context", "")
             state.context_usage_baseline_used = int(data.get("context_usage_baseline_used", 0))
             state.context_usage_baseline_total = int(data.get("context_usage_baseline_total", 0))
             state.context_usage_baseline_used_pct = int(data.get("context_usage_baseline_used_pct", 0))
@@ -133,6 +134,7 @@ class HorizonStore:
             "workspace_files": state.workspace_files,
             "workspace_entries": state.workspace_entries,
             "memory": state.memory,
+            "client_context": state.client_context,
             "context_usage_baseline_used": state.context_usage_baseline_used,
             "context_usage_baseline_total": state.context_usage_baseline_total,
             "context_usage_baseline_used_pct": state.context_usage_baseline_used_pct,

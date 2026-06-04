@@ -6,6 +6,7 @@ import { HttpClient, HttpClientParams } from "../core/HttpClient"
 import generatorUnionRequest from "@/apis/core/unionRequest"
 import { StringUtils } from "../utils"
 import { createWaitForAppInitRequestInterceptor } from "./await-app-init"
+import { swCacheRequestInterceptor } from "./interceptor/sw-cache"
 
 export class MagicHttpClient extends HttpClient {
 	constructor(props: HttpClientParams) {
@@ -15,6 +16,9 @@ export class MagicHttpClient extends HttpClient {
 
 	private setupInterceptors() {
 		this.addRequestInterceptor(createWaitForAppInitRequestInterceptor())
+
+		// SW API 缓存请求拦截器
+		this.addRequestInterceptor(swCacheRequestInterceptor)
 
 		// 请求拦截器
 		this.addRequestInterceptor(function request(config) {

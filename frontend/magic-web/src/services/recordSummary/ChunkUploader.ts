@@ -67,8 +67,8 @@ export class ChunkUploader {
 			{},
 			events.onTaskEnd
 				? (sessionId: string) => {
-						events.onTaskEnd?.(sessionId)
-					}
+					events.onTaskEnd?.(sessionId)
+				}
 				: undefined,
 		)
 		this.audioChunkDB = new AudioChunkDB()
@@ -431,14 +431,11 @@ export class ChunkUploader {
 	 * 处理上传成功
 	 */
 	private async handleUploadSuccess(chunk: StoredAudioChunk, uploadUrl: string): Promise<void> {
-		// // Update chunk status in IndexedDB
-		// await this.audioChunkDB.updateChunkUploadStatus(chunk.id, "uploaded")
-
+		// Mark chunk as uploaded (keep data in IndexedDB for export)
 		try {
-			// Delete chunk from IndexedDB
-			await this.audioChunkDB.deleteChunk(chunk.id)
+			await this.audioChunkDB.updateChunkUploadStatus(chunk.id, "uploaded")
 		} catch (error) {
-			logger.error(`Failed to delete chunk ${chunk.id}:`, error)
+			logger.error(`Failed to update chunk status ${chunk.id}:`, error)
 		}
 
 		// Remove from active uploads
@@ -452,11 +449,15 @@ export class ChunkUploader {
 
 		await this.reportUploadedChunk(chunk, uploadUrl)
 
-		// Sampling: log every 10 chunks
+		// Sampling: log every 10 chunks for upload progress monitoring
+		// Full traceability is handled by BatchSaveReporter's report log
 		if (chunk.index % 10 === 0) {
 			logger.report("分片上传成功", {
+				chunkId: chunk.id,
 				chunkIndex: chunk.index,
+				chunkSize: chunk.size,
 				uploadUrl,
+				sessionId: chunk.sessionId,
 			})
 		}
 
@@ -808,7 +809,7 @@ export class ChunkUploader {
 		// Clear topic mapping
 		this.sessionTopicMap.delete(sessionId)
 		this.sessionProjectMap.delete(sessionId)
-		return this.audioChunkDB.deleteSessionChunks(sessionId)
+		return this.audioChunkDB.deletePendingSessionChunks(sessionId)
 	}
 
 	/**

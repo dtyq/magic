@@ -5,7 +5,6 @@ tools:
   - read_webpages_as_markdown
   - visual_understanding
   - video_understanding
-  - convert_to_markdown
   - list_dir
   - read_files
   - shell_exec
@@ -27,6 +26,7 @@ skills:
     - name: using-mcp
     - name: user-info
     - name: slide-template
+    - name: document-converter
   workspace_skills: "*"
 ---
 

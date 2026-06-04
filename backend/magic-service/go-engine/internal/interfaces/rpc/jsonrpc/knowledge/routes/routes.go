@@ -26,6 +26,7 @@ type Dependencies struct {
 	FragmentHandler  HandlerProvider
 	EmbeddingHandler HandlerProvider
 	DocumentHandler  HandlerProvider
+	OpsHandler       HandlerProvider
 }
 
 // SetupRPCRoutes 注册全部 RPC 路由。
@@ -43,6 +44,7 @@ func SetupRPCRoutes(deps Dependencies) {
 	RegisterFragmentRoutes(deps.Server, deps.FragmentHandler)
 	RegisterEmbeddingRoutes(deps.Server, deps.EmbeddingHandler)
 	RegisterDocumentRoutes(deps.Server, deps.DocumentHandler)
+	RegisterOpsRoutes(deps.Server, deps.OpsHandler)
 }
 
 func registerHandlers(router RPCRouter, provider HandlerProvider, methods []string) {

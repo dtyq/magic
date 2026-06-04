@@ -15,6 +15,10 @@ use App\Infrastructure\Core\AbstractRequestDTO;
  */
 class GetProjectListRequestDTO extends AbstractRequestDTO
 {
+    private const ALLOWED_ORDER_BY = ['id', 'updated_at'];
+
+    private const ALLOWED_SORT = ['asc', 'desc'];
+
     /**
      * Page number.
      */
@@ -34,6 +38,16 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
      * Project name for fuzzy search.
      */
     public string $projectName = '';
+
+    /**
+     * Sort field: id, updated_at.
+     */
+    public string $orderBy = 'id';
+
+    /**
+     * Sort direction: asc, desc.
+     */
+    public string $sort = 'desc';
 
     /**
      * Get page number.
@@ -93,6 +107,26 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
         $this->projectName = $projectName;
     }
 
+    public function getOrderBy(): string
+    {
+        return $this->orderBy;
+    }
+
+    public function setOrderBy(string $orderBy): void
+    {
+        $this->orderBy = $this->normalizeOrderBy($orderBy);
+    }
+
+    public function getSort(): string
+    {
+        return $this->sort;
+    }
+
+    public function setSort(string $sort): void
+    {
+        $this->sort = $this->normalizeSort($sort);
+    }
+
     /**
      * Get validation rules.
      */
@@ -103,6 +137,8 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
             'page_size' => 'integer|min:1|max:100',
             'workspace_id' => 'nullable|string',
             'project_name' => 'nullable|string|max:255',
+            'order_by' => 'nullable|string|in:id,updated_at',
+            'sort' => 'nullable|string|in:asc,desc',
         ];
     }
 
@@ -120,6 +156,30 @@ class GetProjectListRequestDTO extends AbstractRequestDTO
             'workspace_id.string' => 'Workspace ID must be a string',
             'project_name.string' => 'Project name must be a string',
             'project_name.max' => 'Project name cannot exceed 255 characters',
+            'order_by.string' => 'Order by must be a string',
+            'order_by.in' => 'Order by must be one of: id, updated_at',
+            'sort.string' => 'Sort must be a string',
+            'sort.in' => 'Sort must be either asc or desc',
         ];
+    }
+
+    private function normalizeOrderBy(string $orderBy): string
+    {
+        $orderBy = strtolower($orderBy);
+        if (! in_array($orderBy, self::ALLOWED_ORDER_BY, true)) {
+            return 'id';
+        }
+
+        return $orderBy;
+    }
+
+    private function normalizeSort(string $sort): string
+    {
+        $sort = strtolower($sort);
+        if (! in_array($sort, self::ALLOWED_SORT, true)) {
+            return 'desc';
+        }
+
+        return $sort;
     }
 }

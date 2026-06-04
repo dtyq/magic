@@ -328,10 +328,15 @@ class ProjectDomainService
      * @param int $sourceProjectId Source project ID
      * @param null|int $targetWorkspaceId Target workspace ID (null means move to no workspace)
      * @param string $userId User ID performing the move
+     * @param null|string $targetProjectName Target project name, null means keep the current name
      */
-    public function moveProject(int $sourceProjectId, ?int $targetWorkspaceId, string $userId): ProjectEntity
-    {
-        return Db::transaction(function () use ($sourceProjectId, $targetWorkspaceId, $userId) {
+    public function moveProject(
+        int $sourceProjectId,
+        ?int $targetWorkspaceId,
+        string $userId,
+        ?string $targetProjectName = null
+    ): ProjectEntity {
+        return Db::transaction(function () use ($sourceProjectId, $targetWorkspaceId, $userId, $targetProjectName) {
             $currentTime = date('Y-m-d H:i:s');
 
             // Get the source project first to return updated entity
@@ -342,52 +347,61 @@ class ProjectDomainService
 
             // Get original workspace ID for topic and task updates
             $originalWorkspaceId = $sourceProject->getWorkspaceId();
+            $workspaceChanged = $originalWorkspaceId !== $targetWorkspaceId;
+            $projectNameChanged = $targetProjectName !== null
+                && $targetProjectName !== $sourceProject->getProjectName();
 
-            // Check if project is already in target workspace
-            if ($originalWorkspaceId === $targetWorkspaceId) {
-                // Project is already in the target workspace, no need to move
+            // Check if project is already in target workspace with the target name
+            if (! $workspaceChanged && ! $projectNameChanged) {
                 return $sourceProject;
             }
 
-            // Update project workspace_id
+            // Update project workspace_id and optional project name
+            $projectUpdateData = [
+                'workspace_id' => $targetWorkspaceId,
+                'updated_uid' => $userId,
+                'updated_at' => $currentTime,
+            ];
+            if ($projectNameChanged) {
+                $projectUpdateData['project_name'] = $targetProjectName;
+            }
+
             $projectUpdateResult = $this->projectRepository->updateProjectByCondition(
                 ['id' => $sourceProjectId],
-                [
-                    'workspace_id' => $targetWorkspaceId,
-                    'updated_uid' => $userId,
-                    'updated_at' => $currentTime,
-                ]
+                $projectUpdateData
             );
 
             if (! $projectUpdateResult) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::UPDATE_PROJECT_FAILED, trans('project.project_update_failed'));
             }
 
-            // Update topics workspace_id
-            $topicUpdateResult = $this->topicRepository->updateTopicByCondition(
-                [
-                    'project_id' => $sourceProjectId,
-                    'workspace_id' => $originalWorkspaceId,
-                ],
-                [
-                    'workspace_id' => $targetWorkspaceId,
-                    'updated_at' => $currentTime,
-                ]
-            );
+            if ($workspaceChanged) {
+                // Update topics workspace_id
+                $topicUpdateResult = $this->topicRepository->updateTopicByCondition(
+                    [
+                        'project_id' => $sourceProjectId,
+                        'workspace_id' => $originalWorkspaceId,
+                    ],
+                    [
+                        'workspace_id' => $targetWorkspaceId,
+                        'updated_at' => $currentTime,
+                    ]
+                );
 
-            // Update tasks workspace_id
-            $taskUpdateResult = $this->taskRepository->updateTaskByCondition(
-                [
-                    'project_id' => $sourceProjectId,
-                    'workspace_id' => $originalWorkspaceId,
-                ],
-                [
-                    'workspace_id' => $targetWorkspaceId,
-                    'updated_at' => $currentTime,
-                ]
-            );
+                // Update tasks workspace_id
+                $taskUpdateResult = $this->taskRepository->updateTaskByCondition(
+                    [
+                        'project_id' => $sourceProjectId,
+                        'workspace_id' => $originalWorkspaceId,
+                    ],
+                    [
+                        'workspace_id' => $targetWorkspaceId,
+                        'updated_at' => $currentTime,
+                    ]
+                );
 
-            $this->syncOwnerWorkspaceBinding($sourceProject, $targetWorkspaceId);
+                $this->syncOwnerWorkspaceBinding($sourceProject, $targetWorkspaceId);
+            }
 
             // Return updated project entity
             $updatedProject = $this->projectRepository->findById($sourceProjectId);

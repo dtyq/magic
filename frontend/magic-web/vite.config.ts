@@ -11,7 +11,7 @@ import { visualizer } from "rollup-plugin-visualizer"
 import keepConsole from "vite-plugin-keep-console"
 import babelPluginAntdStyle from "babel-plugin-antd-style"
 import { viteExternalsPlugin } from "vite-plugin-externals"
-import createCanvasDesignPublicAssetsPlugin from "./plugins/vite-plugin-canvas-design-public-assets"
+import createAppServiceWorkerPlugin from "./plugins/vite-plugin-app-service-worker"
 import vitePluginTransformBaseImports from "./plugins/vite-plugin-transform-base-imports"
 import vitePluginCriticalFontPreload from "./plugins/vite-plugin-font-preload"
 import { getViteEditionConfig } from "./vite/edition"
@@ -144,10 +144,44 @@ function getBaseViteConfig(): UserConfig {
 					find: "@enterprise",
 					replacement: resolve(__dirname, "enterprise/src"),
 				},
+				{
+					find: "@dtyq/x-markdown",
+					replacement: resolve(__dirname, "packages/x-markdown/src/index.ts"),
+				},
+				// packages/logger may have its own node_modules during local development.
+				// Pin ARMS to the app dependency so Vite does not resolve a nested version
+				// whose rrweb subpath imports are blocked by package exports.
+				{
+					find: "@arms/rum-browser",
+					replacement: resolve(__dirname, "node_modules/@arms/rum-browser/lib/index.js"),
+				},
+				{
+					find: "@admin",
+					replacement: resolve(__dirname, "packages/magic-admin/src"),
+				},
+				{
+					find: "@admin-components",
+					replacement: resolve(__dirname, "packages/magic-admin/components/index.ts"),
+				},
+				{
+					find: "@dtyq/magic-admin/components",
+					replacement: resolve(__dirname, "packages/magic-admin/components/index.ts"),
+				},
+				{
+					find: "@dtyq/magic-admin/provider",
+					replacement: resolve(
+						__dirname,
+						"packages/magic-admin/src/provider/AdminProvider/index.tsx",
+					),
+				},
+				{
+					find: "@dtyq/magic-admin",
+					replacement: resolve(__dirname, "packages/magic-admin/src/index.ts"),
+				},
 			],
 		},
 		plugins: [
-			createCanvasDesignPublicAssetsPlugin(),
+			createAppServiceWorkerPlugin(),
 			// Transform named imports from @/components/base to default imports
 			// 将 @/components/base 的命名导入转换为默认导入
 			vitePluginTransformBaseImports({

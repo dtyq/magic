@@ -2,6 +2,13 @@ import type { PPTStoreConfig } from "../stores/PPTStore"
 import type { PPTLoggerService } from "./PPTLoggerService"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 
+interface PPTFolderIndex {
+	mainFile?: any
+	baseFolderPath?: string
+	byFileId: Map<string, any>
+	byRelativePath: Map<string, any>
+}
+
 /**
  * PPTPathMappingService
  * Handles path to URL and path to file ID mappings
@@ -12,17 +19,60 @@ export class PPTPathMappingService {
 
 	/** Maps original path to file ID */
 	private pathToFileIdMapping: Map<string, string> = new Map()
+	private pptFolderIndexCache?: PPTFolderIndex
 
 	constructor(
 		private config: PPTStoreConfig,
 		private logger: PPTLoggerService,
-	) { }
+	) {}
 
 	/**
 	 * Update configuration
 	 */
 	updateConfig(config: Partial<PPTStoreConfig>): void {
 		this.config = { ...this.config, ...config }
+		this.pptFolderIndexCache = undefined
+	}
+
+	private collectAttachments(list: any[] | undefined, result: any[] = []): any[] {
+		if (!Array.isArray(list)) return result
+		for (const item of list) {
+			result.push(item)
+			this.collectAttachments(item?.children, result)
+		}
+		return result
+	}
+
+	private getPPTFolderIndex(): PPTFolderIndex {
+		if (this.pptFolderIndexCache) return this.pptFolderIndexCache
+
+		const allAttachments = this.collectAttachments(this.config.attachmentList, [])
+		const mainFile = allAttachments.find(
+			(item: any) => item?.file_id === this.config.mainFileId,
+		)
+		const baseFolderPath =
+			mainFile?.relative_file_path && mainFile?.file_name
+				? mainFile.relative_file_path.replace(mainFile.file_name, "")
+				: undefined
+		const byFileId = new Map<string, any>()
+		const byRelativePath = new Map<string, any>()
+
+		if (baseFolderPath !== undefined) {
+			allAttachments.forEach((item: any) => {
+				const relativePath = item?.relative_file_path
+				if (!relativePath || !relativePath.startsWith(baseFolderPath)) return
+				if (item?.file_id) byFileId.set(item.file_id, item)
+				byRelativePath.set(relativePath, item)
+			})
+		}
+
+		this.pptFolderIndexCache = {
+			mainFile,
+			baseFolderPath,
+			byFileId,
+			byRelativePath,
+		}
+		return this.pptFolderIndexCache
 	}
 
 	/**
@@ -30,9 +80,8 @@ export class PPTPathMappingService {
 	 * Converts path (relative to PPT folder) to absolute path (relative to workspace root)
 	 */
 	extractFileIdFromPath(path: string): string | undefined {
-		const mainFile = this.config.attachmentList?.find(
-			(item: any) => item.file_id === this.config.mainFileId,
-		)
+		const pptFolderIndex = this.getPPTFolderIndex()
+		const mainFile = pptFolderIndex.mainFile
 
 		if (!mainFile || !mainFile.relative_file_path || !mainFile.file_name) {
 			this.logger.warn("主文件未找到或缺少必需字段", {
@@ -52,9 +101,7 @@ export class PPTPathMappingService {
 		const absolutePath = this.resolveRelativePath(baseFolderPath, path)
 
 		// Find file by absolute path
-		const file = this.config.attachmentList?.find(
-			(item: any) => item.relative_file_path === absolutePath,
-		)
+		const file = pptFolderIndex.byRelativePath.get(absolutePath)
 
 		if (!file) {
 			this.logger.debug("未找到对应的文件 ID", {
@@ -225,16 +272,32 @@ export class PPTPathMappingService {
 	 * Converts e.g. "slide-1.html" to "project/ppt_folder/slide-1.html"
 	 */
 	getFullRelativePath(path: string): string | undefined {
-		const mainFile = this.config.attachmentList?.find(
-			(item: any) => item.file_id === this.config.mainFileId,
-		)
+		const { mainFile, baseFolderPath } = this.getPPTFolderIndex()
 
-		if (!mainFile?.relative_file_path || !mainFile?.file_name) {
+		if (!mainFile?.relative_file_path || !mainFile?.file_name || baseFolderPath === undefined) {
 			return undefined
 		}
 
-		const baseFolderPath = mainFile.relative_file_path.replace(mainFile.file_name, "")
 		return this.resolveRelativePath(baseFolderPath, path)
+	}
+
+	getPPTFolderPath(): string | undefined {
+		return this.getPPTFolderIndex().baseFolderPath
+	}
+
+	getPPTFolderFileIds(): Set<string> {
+		return new Set(this.getPPTFolderIndex().byFileId.keys())
+	}
+
+	getAttachmentByFileIdInPPTFolder(fileId: string): any | undefined {
+		return this.getPPTFolderIndex().byFileId.get(fileId)
+	}
+
+	getRelativeFilePathByFileId(fileId?: string): string | undefined {
+		if (!fileId) return undefined
+		const fileItem = this.getAttachmentByFileIdInPPTFolder(fileId)
+		if (!fileItem?.relative_file_path || !fileItem?.file_name) return undefined
+		return fileItem.relative_file_path.replace(fileItem.file_name, "")
 	}
 
 	/**

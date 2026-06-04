@@ -67,6 +67,10 @@ redis:
   connMaxIdleTime: 300      # Maximum idle time for connections (seconds)
   connMaxLifetime: 3600     # Maximum lifetime for connections (seconds)
   poolTimeout: 4            # Timeout for acquiring connection from pool (seconds)
+  socketioCleanupCountMax: ${SOCKETIO_REDIS_CLEANUP_COUNT_MAX:=5000}
+  socketioCleanupHeartbeatSeconds: ${SOCKETIO_REDIS_CLEANUP_HEARTBEAT_SECONDS:=5}
+  socketioCleanupStaleSeconds: ${SOCKETIO_REDIS_CLEANUP_STALE_SECONDS:=20}
+  socketioCleanupStateTTLSeconds: ${SOCKETIO_REDIS_CLEANUP_STATE_TTL_SECONDS:=3600}
 
 events:
   workerCount: 0            # Number of workers for async event processing (0 to disable)

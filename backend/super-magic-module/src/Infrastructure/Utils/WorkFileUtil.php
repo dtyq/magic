@@ -138,6 +138,21 @@ class WorkFileUtil
         return true;
     }
 
+    public static function sanitizeFileName(string $fileName, string $fallback = 'download'): string
+    {
+        $sanitizedFileName = self::sanitizeFileNameCandidate($fileName);
+        if (self::isValidFileName($sanitizedFileName)) {
+            return $sanitizedFileName;
+        }
+
+        $fallbackFileName = self::sanitizeFileNameCandidate($fallback);
+        if (self::isValidFileName($fallbackFileName)) {
+            return $fallbackFileName;
+        }
+
+        return 'download';
+    }
+
     /**
      * Check if a file path is a snapshot file.
      * Snapshot files are located in .webview-reports or .browser_screenshots directories.
@@ -166,5 +181,40 @@ class WorkFileUtil
         }
 
         return false;
+    }
+
+    private static function sanitizeFileNameCandidate(string $fileName): string
+    {
+        $fileName = trim($fileName);
+        $fileName = str_replace(['/', '\\'], '_', $fileName);
+        $fileName = preg_replace('/[<>:"|?*\x00-\x1f]/', '_', $fileName) ?? '';
+        $fileName = preg_replace('/\.{2,}/', '.', $fileName) ?? $fileName;
+        $fileName = preg_replace('/_+/', '_', $fileName) ?? $fileName;
+        $fileName = trim($fileName, " \t\n\r\0\x0B_.");
+
+        return self::truncateFileName($fileName);
+    }
+
+    private static function truncateFileName(string $fileName, int $maxBytes = 255): string
+    {
+        if (strlen($fileName) <= $maxBytes) {
+            return $fileName;
+        }
+
+        $extension = pathinfo($fileName, PATHINFO_EXTENSION);
+        $suffix = $extension === '' ? '' : '.' . $extension;
+        $baseName = $suffix === '' ? $fileName : substr($fileName, 0, -strlen($suffix));
+        $maxBaseBytes = max(1, $maxBytes - strlen($suffix));
+
+        while (strlen($baseName) > $maxBaseBytes) {
+            $nextBaseName = preg_replace('/.$/u', '', $baseName);
+            if ($nextBaseName === null || $nextBaseName === '') {
+                $baseName = substr($baseName, 0, $maxBaseBytes);
+                break;
+            }
+            $baseName = $nextBaseName;
+        }
+
+        return rtrim($baseName, ' ._') . $suffix;
     }
 }

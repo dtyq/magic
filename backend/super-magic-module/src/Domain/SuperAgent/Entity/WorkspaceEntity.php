@@ -26,6 +26,8 @@ class WorkspaceEntity extends AbstractEntity
 
     protected int $isArchived = 0;
 
+    protected int $isPinned = 0;
+
     protected string $createdUid = '';
 
     protected string $updatedUid = '';
@@ -130,6 +132,17 @@ class WorkspaceEntity extends AbstractEntity
     public function setArchiveStatus(WorkspaceArchiveStatus $archiveStatus): self
     {
         $this->isArchived = $archiveStatus->value;
+        return $this;
+    }
+
+    public function getIsPinned(): int
+    {
+        return $this->isPinned;
+    }
+
+    public function setIsPinned(int $isPinned): self
+    {
+        $this->isPinned = $isPinned;
         return $this;
     }
 
@@ -287,6 +300,7 @@ class WorkspaceEntity extends AbstractEntity
             'chat_conversation_id' => $this->chatConversationId,
             'name' => $this->name,
             'is_archived' => $this->isArchived,
+            'is_pinned' => $this->isPinned,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
             'created_at' => $this->createdAt,

@@ -120,6 +120,9 @@ class Config(Generic[T]):
             self._config_loaded = True
             return
 
+        self._config_path = config_path
+        self._raw_config = self._merge_local_model_config(config_path, self._raw_config)
+
         # 处理配置中的环境变量占位符
         self._config = self._process_env_placeholders(self._raw_config)
         self._config_loaded = True
@@ -138,6 +141,45 @@ class Config(Generic[T]):
             except Exception as e:
                 self._logger.error(f"使用 Pydantic 模型验证配置失败: {e}")
                 self._model = None
+
+    def _merge_local_model_config(self, config_path: str, base_config: Any) -> Any:
+        """合并同目录 config.local.yaml 中的本地模型配置"""
+        if not isinstance(base_config, dict):
+            return base_config
+
+        local_config_path = Path(config_path).with_name("config.local.yaml")
+        if not local_config_path.exists():
+            return base_config
+
+        try:
+            with open(local_config_path, "r", encoding="utf-8") as f:
+                local_config = yaml.safe_load(f) or {}
+        except Exception as e:
+            self._logger.error(f"加载或解析本地配置文件失败 {local_config_path}: {e}，将忽略本地模型配置")
+            return base_config
+
+        if not isinstance(local_config, dict):
+            self._logger.warning(f"本地配置文件 {local_config_path} 不是字典格式，将忽略本地模型配置")
+            return base_config
+
+        local_models = local_config.get("models")
+        if local_models is None:
+            return base_config
+        if not isinstance(local_models, dict):
+            self._logger.warning(f"本地配置文件 {local_config_path} 的 'models' 不是字典格式，将忽略")
+            return base_config
+
+        base_models = base_config.get("models")
+        if base_models is None:
+            base_config["models"] = dict(local_models)
+            return base_config
+        if not isinstance(base_models, dict):
+            self._logger.warning("默认配置中的 'models' 不是字典格式，将忽略本地模型配置")
+            return base_config
+
+        base_models.update(local_models)
+        self._logger.info(f"已合并本地模型配置: {local_config_path}")
+        return base_config
 
     def _load_model_aliases(self) -> None:
         """根据当前激活的模式加载和解析模型别名"""

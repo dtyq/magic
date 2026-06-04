@@ -124,6 +124,16 @@ readonly class AsrTitleGeneratorService
      */
     public function generateFromTaskStatus(AsrTaskStatusDTO $taskStatus): string
     {
+        return $this->generateNullableFromTaskStatus($taskStatus) ?? $this->generateDefaultDirectoryName();
+    }
+
+    /**
+     * 从任务状态生成标题，失败或内容不足时返回 null.
+     *
+     * @param AsrTaskStatusDTO $taskStatus 任务状态
+     */
+    public function generateNullableFromTaskStatus(AsrTaskStatusDTO $taskStatus): ?string
+    {
         try {
             // 使用上报时保存的语种，如果没有则使用当前语种
             $language = $taskStatus->language ?: $this->translator->getLocale() ?: 'zh_CN';
@@ -163,14 +173,14 @@ readonly class AsrTitleGeneratorService
                 return $this->sanitizeTitle($title);
             }
 
-            // 如果没有 ASR 内容，返回默认标题
-            return $this->generateDefaultDirectoryName();
+            // 如果没有 ASR 内容，交给调用方决定兜底标题
+            return null;
         } catch (Throwable $e) {
-            $this->logger->warning('生成标题失败，使用默认标题', [
+            $this->logger->warning('从任务状态生成标题失败', [
                 'task_key' => $taskStatus->taskKey,
                 'error' => $e->getMessage(),
             ]);
-            return $this->generateDefaultDirectoryName();
+            return null;
         }
     }
 

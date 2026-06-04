@@ -1,0 +1,66 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`XMarkdown animation parent is custom components 1`] = `
+<div>
+  <div
+    class="x-markdown"
+  >
+    <p>
+      This is Text.
+    </p>
+  </div>
+</div>
+`;
+
+exports[`XMarkdown animation parent is not custom components 1`] = `
+<div>
+  <div
+    class="x-markdown"
+  >
+    <p>
+      <span
+        style="animation: x-markdown-fade-in 200ms ease-in-out forwards; color: inherit;"
+      >
+        This is Text.
+      </span>
+    </p>
+  </div>
+</div>
+`;
+
+exports[`XMarkdown support checkbox is checked 1`] = `
+<div>
+  <div
+    class="x-markdown"
+  >
+    <ul>
+      <li>
+        <input
+          checked=""
+          disabled=""
+          type="checkbox"
+        />
+         checkbox
+      </li>
+    </ul>
+  </div>
+</div>
+`;
+
+exports[`XMarkdown support checkbox not checked 1`] = `
+<div>
+  <div
+    class="x-markdown"
+  >
+    <ul>
+      <li>
+        <input
+          disabled=""
+          type="checkbox"
+        />
+         checkbox
+      </li>
+    </ul>
+  </div>
+</div>
+`;

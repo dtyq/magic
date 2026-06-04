@@ -362,6 +362,7 @@ const ClawMobileConversationPanel = observer(
 			const messageListProviderValue = useClawPlaygroundMessageListContextValue({
 				setSelectedTopic: topicStore.setSelectedTopic,
 				magicClaw: store.magicClaw,
+				projectFilesStore: store.projectFilesStore,
 			})
 			const emptyStateSubtitle = t(
 				"superLobster.workspace.emptyHeroSubtitle",

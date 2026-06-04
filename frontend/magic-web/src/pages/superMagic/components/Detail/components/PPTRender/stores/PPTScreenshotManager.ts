@@ -2,6 +2,8 @@ import { makeAutoObservable, runInAction } from "mobx"
 import type { PPTLoggerService, SlideScreenshotService } from "../services"
 import type { SlideItem } from "../PPTSidebar/types"
 
+type ResolveSlideIndex = () => number
+
 /**
  * PPTScreenshotManager - Manages screenshot operations
  * Responsibilities:
@@ -31,8 +33,10 @@ export class PPTScreenshotManager {
 		index: number,
 		slides: SlideItem[],
 		targetContent?: string,
+		resolveSlideIndex?: ResolveSlideIndex,
 	): Promise<void> {
-		if (!slide || !slide.content) {
+		const contentForScreenshot = targetContent || slide?.content
+		if (!slide || !contentForScreenshot) {
 			this.logger.debug("跳过截图生成：幻灯片或内容不存在", {
 				operation: "generateSlideScreenshot",
 				slideIndex: index,
@@ -40,30 +44,28 @@ export class PPTScreenshotManager {
 			return
 		}
 
+		const getTargetSlide = () => {
+			const resolvedIndex = resolveSlideIndex?.() ?? index
+			return {
+				index: resolvedIndex,
+				slide: resolvedIndex >= 0 ? slides[resolvedIndex] : undefined,
+			}
+		}
+
 		this.logger.logOperationStart("generateSlideScreenshot", {
 			slideIndex: index,
 		})
 
 		try {
-			// Mark as loading
-			runInAction(() => {
-				if (slides[index]) {
-					slides[index].thumbnailLoading = true
-					slides[index].thumbnailError = undefined
-				}
-			})
-
 			// Use URL as cache key if available
 			const cacheKey = slide.url || `slide-${index}`
 
 			// Use targetContent if provided, otherwise use slide.content for cache check
-			const contentForCacheCheck = targetContent || slide.content
-
 			// Check cache first
 			const cachedUrl = this.screenshotService.getCachedScreenshot(cacheKey)
 			if (
 				cachedUrl &&
-				this.screenshotService.hasCachedScreenshot(cacheKey, contentForCacheCheck)
+				this.screenshotService.hasCachedScreenshot(cacheKey, contentForScreenshot)
 			) {
 				this.logger.debug("使用缓存的截图", {
 					operation: "generateSlideScreenshot",
@@ -71,13 +73,25 @@ export class PPTScreenshotManager {
 				})
 
 				runInAction(() => {
-					if (slides[index]) {
-						slides[index].thumbnailUrl = cachedUrl
-						slides[index].thumbnailLoading = false
+					const target = getTargetSlide()
+					if (target.slide) {
+						target.slide.thumbnailUrl = cachedUrl
+						if (target.slide.thumbnailLoading) {
+							target.slide.thumbnailLoading = false
+						}
 					}
 				})
 				return
 			}
+
+			// Mark as loading only when a new screenshot actually needs to be generated.
+			runInAction(() => {
+				const target = getTargetSlide()
+				if (target.slide) {
+					target.slide.thumbnailLoading = true
+					target.slide.thumbnailError = undefined
+				}
+			})
 
 			// Generate new screenshot
 			this.logger.debug("生成新的截图", {
@@ -87,13 +101,14 @@ export class PPTScreenshotManager {
 
 			const thumbnailUrl = await this.screenshotService.generateScreenshot(
 				cacheKey,
-				targetContent || slide.content,
+				contentForScreenshot,
 			)
 
 			runInAction(() => {
-				if (slides[index]) {
-					slides[index].thumbnailUrl = thumbnailUrl
-					slides[index].thumbnailLoading = false
+				const target = getTargetSlide()
+				if (target.slide) {
+					target.slide.thumbnailUrl = thumbnailUrl
+					target.slide.thumbnailLoading = false
 				}
 			})
 
@@ -106,9 +121,10 @@ export class PPTScreenshotManager {
 			})
 
 			runInAction(() => {
-				if (slides[index]) {
-					slides[index].thumbnailLoading = false
-					slides[index].thumbnailError =
+				const target = getTargetSlide()
+				if (target.slide) {
+					target.slide.thumbnailLoading = false
+					target.slide.thumbnailError =
 						error instanceof Error ? error : new Error("Unknown error")
 				}
 			})
@@ -136,7 +152,9 @@ export class PPTScreenshotManager {
 			await Promise.all(
 				slides.map((slide, index) => {
 					if (slide.loadingState === "loaded" && slide.content) {
-						return this.generateSlideScreenshot(slide, index, slides)
+						return this.generateSlideScreenshot(slide, index, slides, undefined, () =>
+							slides.indexOf(slide),
+						)
 					}
 					// 跳过未加载或未处理的幻灯片
 					return Promise.resolve()

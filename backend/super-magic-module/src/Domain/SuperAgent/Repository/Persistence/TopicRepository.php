@@ -526,6 +526,20 @@ class TopicRepository implements TopicRepositoryInterface
             ->count();
     }
 
+    public function countUserVisibleTopicsByProjectIds(array $projectIds, string $userId): array
+    {
+        $projectIds = array_values(array_unique(array_map('intval', $projectIds)));
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        $rows = $this->buildUserVisibleTopicCountQuery($projectIds, $userId)
+            ->selectRaw('project_id, COUNT(*) as topic_count')
+            ->get();
+
+        return $this->buildTopicCountMap($projectIds, $rows);
+    }
+
     public function findHiddenTopicByProjectAndUser(int $projectId, string $userId): ?TopicEntity
     {
         $model = $this->model::query()
@@ -1016,6 +1030,38 @@ class TopicRepository implements TopicRepositoryInterface
             'magic_super_agent_topics.updated_uid' => $userId,
             'magic_super_agent_topics.updated_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    private function buildUserVisibleTopicCountQuery(array $projectIds, string $userId)
+    {
+        return $this->model::query()
+            ->whereIn('project_id', $projectIds)
+            ->where('user_id', $userId)
+            ->where('is_hidden', false)
+            ->whereNull('deleted_at')
+            ->groupBy('project_id');
+    }
+
+    private function buildTopicCountMap(array $projectIds, iterable $rows): array
+    {
+        $countMap = array_fill_keys($projectIds, 0);
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $rowData = $row;
+            } elseif (method_exists($row, 'toArray')) {
+                $rowData = $row->toArray();
+            } else {
+                $rowData = (array) $row;
+            }
+
+            if (! isset($rowData['project_id'])) {
+                continue;
+            }
+
+            $countMap[(int) $rowData['project_id']] = (int) ($rowData['topic_count'] ?? 0);
+        }
+
+        return $countMap;
     }
 
     /**

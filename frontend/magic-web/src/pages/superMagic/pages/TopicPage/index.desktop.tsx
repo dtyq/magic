@@ -150,6 +150,7 @@ function TopicPage() {
 	const isReadOnly = isReadOnlyProject(selectedProject?.user_role)
 	const topicActions = useMessageHeaderTopicActions({
 		selectedProject,
+		selectedTopic,
 		topicStore,
 	})
 

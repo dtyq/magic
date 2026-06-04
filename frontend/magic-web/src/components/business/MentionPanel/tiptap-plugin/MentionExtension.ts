@@ -3,6 +3,9 @@ import type { Editor } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
 import { Suggestion } from "@tiptap/suggestion"
 import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state"
+import { logger as Logger } from "@/utils/log"
+
+const logger = Logger.createLogger("MentionExtension")
 
 // Types
 import type {
@@ -382,13 +385,13 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 			},
 			openMentionPanel:
 				() =>
-				({ editor }) => {
-					if (!this.storage.enabled) return false
-					const from = editor.state.selection.from
-					this.storage.lastAtInputAt = Date.now()
-					this.storage.lastAtInputPos = from
-					return editor.chain().focus().insertContent("@").run()
-				},
+					({ editor }) => {
+						if (!this.storage.enabled) return false
+						const from = editor.state.selection.from
+						this.storage.lastAtInputAt = Date.now()
+						this.storage.lastAtInputPos = from
+						return editor.chain().focus().insertContent("@").run()
+					},
 		}
 	},
 
@@ -457,9 +460,9 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 
 							const isAllowed = this.options.dataService
 								? (this.options.isAllowedMention?.(
-										attrs,
-										this.options.dataService,
-									) ?? true)
+									attrs,
+									this.options.dataService,
+								) ?? true)
 								: true
 
 							if (!isAllowed) {
@@ -659,6 +662,101 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					}
 
 					return null
+				},
+			}),
+			// Plugin to detect and recover "ghost" mention nodes where the React portal
+			// failed to render (DOM container exists but is empty). This can happen after
+			// long usage sessions due to React's portal system losing track of renderers.
+			new Plugin({
+				key: new PluginKey("mentionGhostNodeRecovery"),
+				view(editorView) {
+					let lastRecoveryAt = 0
+					const RECOVERY_COOLDOWN = 5000
+					let pendingCheck: ReturnType<typeof setTimeout> | null = null
+
+					function scheduleCheck() {
+						if (pendingCheck) return
+						// Defer check to after React has a chance to render portals
+						pendingCheck = setTimeout(() => {
+							pendingCheck = null
+							checkAndRecover()
+						}, 500)
+					}
+
+					function checkAndRecover() {
+						const editorDom = editorView.dom
+						if (!editorDom || !editorDom.isConnected) return
+
+						const mentionContainers = editorDom.querySelectorAll(
+							".react-renderer.node-mention",
+						)
+						if (mentionContainers.length === 0) return
+
+						let ghostCount = 0
+						mentionContainers.forEach((node) => {
+							if (
+								node.childElementCount === 0 &&
+								!node.textContent?.trim()
+							) {
+								ghostCount++
+							}
+						})
+
+						if (ghostCount === 0) return
+
+						const now = Date.now()
+						if (now - lastRecoveryAt < RECOVERY_COOLDOWN) return
+						lastRecoveryAt = now
+
+						logger.warn("ghost mention nodes detected, forcing re-render", {
+							ghostCount,
+							totalMentionNodes: mentionContainers.length,
+						})
+
+						try {
+							// Dispatch a no-op transaction to trigger tiptap's
+							// ReactRenderer to re-emit portals for node views
+							const { tr } = editorView.state
+							tr.setMeta("mentionGhostRecovery", true)
+							editorView.dispatch(tr)
+
+							// After next frame, verify recovery succeeded
+							requestAnimationFrame(() => {
+								let stillGhostCount = 0
+								editorDom
+									.querySelectorAll(".react-renderer.node-mention")
+									.forEach((node) => {
+										if (
+											node.childElementCount === 0 &&
+											!node.textContent?.trim()
+										) {
+											stillGhostCount++
+										}
+									})
+								if (stillGhostCount > 0) {
+									logger.warn(
+										"ghost nodes persist after recovery attempt",
+										{ stillGhostCount },
+									)
+								}
+							})
+						} catch (e) {
+							logger.error("ghost node recovery failed", e)
+						}
+					}
+
+					return {
+						update() {
+							// Check after each editor state update
+							scheduleCheck()
+						},
+						destroy() {
+							if (pendingCheck) {
+								clearTimeout(pendingCheck)
+								pendingCheck = null
+							}
+						},
+					}
 				},
 			}),
 		]
