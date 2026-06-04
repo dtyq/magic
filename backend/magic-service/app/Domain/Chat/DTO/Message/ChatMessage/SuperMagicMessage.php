@@ -19,6 +19,8 @@ class SuperMagicMessage extends MagicMessageStruct implements MessageInterface
 
     protected ?string $taskId = null;
 
+    protected ?string $sandboxId = null;
+
     protected string $role;
 
     protected ?string $reasoningContent = null;
@@ -65,6 +67,7 @@ class SuperMagicMessage extends MagicMessageStruct implements MessageInterface
         $data = [
             'message_id' => $this->messageId,
             'task_id' => $this->taskId,
+            'sandbox_id' => $this->sandboxId,
             'topic_id' => $this->topicId,
             'role' => $this->role,
             'reasoning_content' => $this->reasoningContent,
