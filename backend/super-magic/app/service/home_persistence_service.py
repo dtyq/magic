@@ -1,7 +1,6 @@
 """Initialize user HOME symlinks after the INIT message is available."""
 
 import os
-import uuid
 from pathlib import Path
 
 from agentlang.logger import get_logger
@@ -78,11 +77,27 @@ class HomePersistenceService:
     @classmethod
     def _move_local_path_aside(cls, path: Path) -> None:
         """Rename the local HOME path aside without scanning its contents."""
-        backup_path = cls._local_backup_path(path)
-        path.rename(backup_path)
+        backup_path = path.with_name(f"{path.name}.before-home-persistence")
+        index = 1
+        while backup_path.exists() or backup_path.is_symlink():
+            backup_path = path.with_name(f"{path.name}.before-home-persistence.{index}")
+            index += 1
+        try:
+            path.rename(backup_path)
+        except OSError as e:
+            logger.warning(f"[HomePersistence] 挪开本地路径失败，跳过软链创建: {path}, error={e}")
+            raise
         logger.info(
             f"[HomePersistence] 优先使用持久化目录，已挪开本地路径: {path} -> {backup_path}"
         )
+
+    @classmethod
+    def _discard_local_file(cls, path: Path) -> None:
+        """Remove a single local file/symlink so USER_HOME_DIR data wins."""
+        if path.is_dir() and not path.is_symlink():
+            raise IsADirectoryError(f"持久化文件路径被本地目录占用: {path}")
+        path.unlink()
+        logger.info(f"[HomePersistence] 优先使用持久化文件，已移除本地文件: {path}")
 
     @classmethod
     def _ensure_partial_dir(
@@ -96,26 +111,12 @@ class HomePersistenceService:
         target_root.mkdir(parents=True, exist_ok=True)
         link_root.parent.mkdir(parents=True, exist_ok=True)
 
-        backup_root: Path | None = None
-        if link_root.is_symlink() or link_root.exists():
-            if link_root.is_dir() and not link_root.is_symlink():
-                backup_root = cls._local_backup_path(link_root)
-                link_root.rename(backup_root)
-                logger.info(
-                    f"[HomePersistence] 已挪开本地目录以创建部分挂载: {link_root} -> {backup_root}"
-                )
-            else:
-                link_root.unlink()
+        if link_root.is_symlink():
+            link_root.unlink()
+        elif link_root.exists() and not link_root.is_dir():
+            cls._discard_local_file(link_root)
 
         link_root.mkdir(parents=True, exist_ok=True)
-
-        if backup_root is not None:
-            for local_dir in local_dirs:
-                source = backup_root / local_dir
-                destination = link_root / local_dir
-                if source.exists() and not destination.exists():
-                    source.rename(destination)
-                    logger.info(f"[HomePersistence] 已保留本地忽略目录: {destination}")
 
         for persistent_file in persistent_files:
             target = target_root / persistent_file
@@ -128,12 +129,7 @@ class HomePersistenceService:
                     continue
                 link.unlink()
             elif link.exists():
-                cls._move_local_path_aside(link)
+                cls._discard_local_file(link)
 
             link.symlink_to(target)
             logger.info(f"[HomePersistence] 已创建持久化文件软链: {link} -> {target}")
-
-    @staticmethod
-    def _local_backup_path(path: Path) -> Path:
-        suffix = uuid.uuid4().hex
-        return path.with_name(f"{path.name}.before-home-persistence-{suffix}")
