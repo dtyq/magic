@@ -3381,6 +3381,7 @@
 		"unsupportedPreview": "Preview is not supported for this knowledge source file. Open it in a new window."
 	},
 	"knowledgeSearch": {
+		"title": "Knowledge Search",
 		"action": "Search knowledge",
 		"running": "Searching…",
 		"hits": "hits",

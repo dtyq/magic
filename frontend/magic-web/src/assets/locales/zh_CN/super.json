@@ -3395,6 +3395,7 @@
 		"unsupportedPreview": "暂不支持预览该知识库来源文件，请在新窗口打开"
 	},
 	"knowledgeSearch": {
+		"title": "知识库检索",
 		"action": "检索知识库",
 		"running": "检索中…",
 		"hits": "命中",
