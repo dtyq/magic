@@ -3562,18 +3562,19 @@ class RecordSummaryService {
 	}
 
 	private formatUploadProgress(progress: SessionUploadProgress): string {
+		const percent =
+			progress.total > 0 ? Math.round((progress.uploaded / progress.total) * 100) : 100
+
 		if (progress.failed > 0) {
 			return i18n.t("recordingSummary.message.uploadProgressNeedsDecision", {
 				ns: "super",
-				uploaded: progress.uploaded,
-				total: progress.total,
+				percent,
 			})
 		}
 
 		return i18n.t("recordingSummary.message.uploadProgress", {
 			ns: "super",
-			uploaded: progress.uploaded,
-			total: progress.total,
+			percent,
 			pending: progress.pending,
 		})
 	}

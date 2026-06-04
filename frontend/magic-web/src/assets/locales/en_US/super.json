@@ -1817,8 +1817,8 @@
 			"uploadChunksPreparingError": "The audio is not fully ready yet. Please try again shortly",
 			"uploadFailureDecisionContent": "{{failed}}/{{total}} audio segments are not fully ready yet. We recommend trying again first to keep the recording as complete as possible. You can also continue the summary now; the result will be generated from the audio that is already ready, and unfinished time ranges may not be included.",
 			"uploadFailureDecisionTitle": "A little audio still needs confirmation",
-			"uploadProgress": "Preparing audio: {{uploaded}}/{{total}} segments ready, {{pending}} remaining",
-			"uploadProgressNeedsDecision": "Preparing audio: {{uploaded}}/{{total}} segments ready",
+			"uploadProgress": "Preparing audio: {{percent}}% ready, {{pending}} remaining",
+			"uploadProgressNeedsDecision": "Preparing audio: {{percent}}% ready",
 			"uploadingChunks": "Uploading audio chunks..."
 		},
 		"messageListFallback": {

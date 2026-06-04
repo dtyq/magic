@@ -1819,8 +1819,8 @@
 			"uploadChunksPreparingError": "音频还没有完全准备好，请稍后再试",
 			"uploadFailureDecisionContent": "本次录音有 {{failed}}/{{total}} 个音频片段暂未准备完成。建议先再试一次，以尽量保留完整内容；也可以直接继续总结，系统会基于已准备好的音频生成结果。未完成的时间段可能不会被纳入总结。",
 			"uploadFailureDecisionTitle": "还有少量音频需要确认",
-			"uploadProgress": "音频整理中：已完成 {{uploaded}}/{{total}} 个片段，待处理 {{pending}} 个",
-			"uploadProgressNeedsDecision": "音频整理中：已完成 {{uploaded}}/{{total}} 个片段",
+			"uploadProgress": "音频整理中：已完成 {{percent}}%，待处理 {{pending}} 个",
+			"uploadProgressNeedsDecision": "音频整理中：已完成 {{percent}}%",
 			"uploadingChunks": "正在上传音频分片..."
 		},
 		"messageListFallback": {
