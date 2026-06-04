@@ -241,7 +241,9 @@ class MagicClawAppService extends AbstractSuperMagicAppService
 
     /**
      * Batch-resolve sandbox running status indexed by project ID.
-     * Accepts a pre-computed topicIdMap to avoid redundant DB queries.
+     * Accepts a pre-computed topicIdMap to avoid redundant DB queries. The
+     * topic's real sandbox_id is resolved off the topic before querying the
+     * gateway, since warm-pool sandboxes do not use the topic id as sandbox id.
      *
      * @param array<int, null|int> $topicIdMap Map of projectId => topicId
      * @return array<int, null|string> Map of projectId => sandbox status string (null if unavailable)
@@ -252,12 +254,31 @@ class MagicClawAppService extends AbstractSuperMagicAppService
             return [];
         }
 
-        // Collect non-null topic IDs as sandbox IDs
-        $sandboxIds = array_values(array_map(
-            'strval',
-            array_filter(array_values($topicIdMap))
-        ));
+        // Resolve each topic's REAL sandbox_id. The sandbox id is NOT always
+        // equal to the topic id: warm-pool (预热) sandboxes are created with a
+        // pool-generated id that is later bound onto the topic's sandbox_id
+        // field. Querying the gateway with the topic id would miss those pods
+        // and report `NotFound` even though they are running in k8s. So we must
+        // look the real sandbox_id up off the topic before querying status.
+        $topicIds = array_values(array_unique(array_filter(
+            array_map('intval', array_values($topicIdMap)),
+            static fn (int $topicId) => $topicId > 0
+        )));
 
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        // Build topicId => real sandbox_id map.
+        $sandboxIdByTopicId = [];
+        foreach ($this->topicDomainService->getTopicsByIds($topicIds) as $topic) {
+            $sandboxId = (string) $topic->getSandboxId();
+            if ($sandboxId !== '') {
+                $sandboxIdByTopicId[(int) $topic->getId()] = $sandboxId;
+            }
+        }
+
+        $sandboxIds = array_values(array_unique($sandboxIdByTopicId));
         if (empty($sandboxIds)) {
             return [];
         }
@@ -273,11 +294,12 @@ class MagicClawAppService extends AbstractSuperMagicAppService
             }
         }
 
-        // Build final projectId => status map
+        // Build final projectId => status map, going through the real sandbox_id.
         $result = [];
         foreach ($topicIdMap as $projectId => $topicId) {
-            $result[$projectId] = $topicId !== null
-                ? ($statusBySandboxId[(string) $topicId] ?? null)
+            $sandboxId = $topicId !== null ? ($sandboxIdByTopicId[(int) $topicId] ?? null) : null;
+            $result[$projectId] = $sandboxId !== null
+                ? ($statusBySandboxId[$sandboxId] ?? null)
                 : null;
         }
 
