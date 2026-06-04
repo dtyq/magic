@@ -187,6 +187,10 @@ export interface CustomMetadataIconPathItem {
 		_customFolderId?: string
 		[key: string]: unknown
 	}
+	metadata?: {
+		_customFolderId?: string
+		[key: string]: unknown
+	}
 }
 
 /**
@@ -203,7 +207,7 @@ export function getChildrenForCustomMetadataIconPath(
 	if (item.is_directory) return item.children as unknown[] | undefined
 
 	// If entry file has _customFolderId, use the original custom folder's children
-	const customFolderId = item.display_config?._customFolderId
+	const customFolderId = item.display_config?._customFolderId ?? item.metadata?._customFolderId
 	if (customFolderId) {
 		const customFolder = findNodeByFileId(String(customFolderId))
 		if (customFolder?.is_directory) {
@@ -219,10 +223,22 @@ export function getChildrenForCustomMetadataIconPath(
 	return parent.children as unknown[] | undefined
 }
 
+/** app.json / display_config 入口相对路径 */
+function getDeclaredAppEntryPath(displayConfig: any): string | undefined {
+	const entry = displayConfig?.entry
+	if (typeof entry === "string" && entry.trim()) return entry.trim()
+	return undefined
+}
+
 /**
- * 解析「应用入口」文件：custom 类型按 index 相对路径解析，否则默认 index.html
+ * 解析「应用入口」文件：app.json entry 优先；custom 兼容 index/root_path；否则默认 index.html
  */
 export const getAppEntryFile = (treeNode: Array<any>, displayConfig?: any): any => {
+	const entryPath = getDeclaredAppEntryPath(displayConfig)
+	if (entryPath) {
+		return resolveFileByRelativePath(treeNode, entryPath)
+	}
+
 	const indexPath = getCustomIndexPath(displayConfig)
 	if (displayConfig?.type === "custom" && indexPath) {
 		return resolveFileByRelativePath(treeNode, indexPath)

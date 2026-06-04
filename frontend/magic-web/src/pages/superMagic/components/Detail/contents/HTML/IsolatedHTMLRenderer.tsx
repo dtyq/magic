@@ -100,10 +100,13 @@ import {
 	deleteIframeFiles,
 	moveIframeFile,
 	renameIframeFile,
+	getIframeDownloadUrl,
 } from "./iframe-api/iframeApi"
+import type { HTMLAppConfig } from "./iframe-api/types"
 
 import { env } from "@/utils/env"
 import { userStore } from "@/models/user"
+import MagicModal from "@/components/base/MagicModal"
 
 interface IsolatedHTMLRendererProps {
 	content: string
@@ -573,11 +576,52 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			return result
 		}, [attachmentList])
 
+		const [htmlAppConfig, setHtmlAppConfig] = useState<HTMLAppConfig | null>(null)
+
+		useEffect(() => {
+			let cancelled = false
+			const cleanedEntryPath = (relative_file_path || "").replace(/^\/+/, "")
+			const lastSlash = cleanedEntryPath.lastIndexOf("/")
+			const appRootDir = lastSlash >= 0 ? cleanedEntryPath.slice(0, lastSlash + 1) : ""
+			const appConfigPath = `${appRootDir}app.json`
+			const appConfigFile = flatFileList.find(
+				(file) => file.relative_file_path.replace(/^\/+/, "") === appConfigPath,
+			)
+
+			if (!appConfigFile) {
+				setHtmlAppConfig(null)
+				return
+			}
+
+			getIframeDownloadUrl([appConfigFile.file_id])
+				.then(async (urls) => {
+					const url = urls?.[0]?.url
+					if (!url) throw new Error("Failed to get app.json download URL")
+					const response = await fetch(url)
+					if (!response.ok) throw new Error(`HTTP ${response.status}`)
+					const config = (await response.json()) as HTMLAppConfig
+					if (!cancelled)
+						setHtmlAppConfig(config && typeof config === "object" ? config : null)
+				})
+				.catch((error) => {
+					if (cancelled) return
+					setHtmlAppConfig(null)
+					logger.warn("加载 HTML 微应用 app.json 失败", {
+						appConfigPath,
+						errorMessage: error instanceof Error ? error.message : String(error),
+					})
+				})
+
+			return () => {
+				cancelled = true
+			}
+		}, [flatFileList, relative_file_path])
+
 		const { handleFSMessage } = useIframeFS({
 			iframeRef,
 			entryPath: relative_file_path || "",
 			fileList: flatFileList,
-			appConfig: null,
+			appConfig: htmlAppConfig,
 			projectId: selectedProject?.id,
 			uploadFn: uploadImageFileToProject,
 			saveContentFn: ({ file_id, content }) => saveIframeFileContent([{ file_id, content }]),
@@ -641,6 +685,29 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					organization_code: info.organization_code || "",
 				}
 			}),
+			appConfig: htmlAppConfig,
+			authorizeUserInfo: useMemoizedFn(
+				({ appName, fields, reason }) =>
+					new Promise<boolean>((resolve) => {
+						const modal = MagicModal.confirm({
+							title: "授权用户信息访问",
+							content: `「${appName}」请求读取：${fields.join("、")}。${reason ? `用途：${reason}` : "该应用未提供用途说明。"}`,
+							okText: "允许",
+							cancelText: "拒绝",
+							closable: false,
+							maskClosable: false,
+							centered: true,
+							onOk: () => {
+								modal.destroy()
+								resolve(true)
+							},
+							onCancel: () => {
+								modal.destroy()
+								resolve(false)
+							},
+						})
+					}),
+			),
 		})
 
 		const isDynamicInterceptionEnabled = !disableDynamicResourceInterception

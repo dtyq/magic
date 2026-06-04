@@ -291,7 +291,7 @@ function activateEditorRuntime(scaleRatio: number): void {
 	if (typeof window !== "undefined") {
 		if ((window as unknown as Record<string, unknown>).__elementSelectorV2__) {
 			try {
-				; (
+				;(
 					(window as unknown as Record<string, unknown>).__elementSelectorV2__ as {
 						destroy?: () => void
 					}
@@ -549,14 +549,22 @@ declare global {
 				) => () => void
 			}
 			user?: {
-				getInfo: () => Promise<{
-					user_id: string
-					magic_id: string
-					nickname: string
-					real_name: string
+				getInfo: (options?: {
+					scopes?: Array<
+						| "user.profile.display"
+						| "user.profile.name"
+						| "user.profile.identity"
+						| "user.profile.organization"
+					>
+					reason?: string
+				}) => Promise<{
 					name: string
 					avatar: string
-					organization_code: string
+					nickname?: string
+					real_name?: string
+					user_id?: string
+					magic_id?: string
+					organization_code?: string
 				}>
 			}
 		}

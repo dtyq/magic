@@ -1,6 +1,6 @@
 ---
 name: html-api-sdk
-description: "Complete API reference for window.Magic.* in SuperMagic HTML micro-apps (HTML 微应用). Read this skill when you need exact method signatures, parameters, return types, or usage examples for: fs (readFile/writeFile/listFiles/deleteFile/deleteDir/moveFile/renameFile/watchFile), llm (chat/stream/getModels), agent (getAgents/selectAgent), project (createTopicAndSend/sendMessage/uploadFiles/downloadFiles), user (getInfo), getAppBasePath, setInputMessage, reload. Also covers tiptap JSON message format, @file and @skill mention structures, model selector UI rules, error handling patterns, and backward compatibility table. Trigger phrases: 'window.Magic API', 'readFile writeFile', 'deleteFile deleteDir', 'moveFile renameFile', 'watchFile callback', 'llm.stream', 'llm.chat', 'createTopicAndSend format', 'tiptap JSON mention', '@file mention structure', '@skill mention', 'getAppBasePath usage', 'model selector UI', 'user.getInfo', 'get user info', 'user avatar', 'Magic API 用法', 'fs 读写文件 API', 'fs 删除文件', 'fs 移动重命名', '流式调用参数', '文件监听回调', '话题消息格式', 'mention 结构', '模型选择器', '用户信息', '获取头像'."
+description: "Complete API reference for window.Magic.* in SuperMagic HTML micro-apps (HTML 微应用). Read this skill when you need exact method signatures, parameters, return types, or usage examples for: fs (readFile/writeFile/listFiles/deleteFile/deleteDir/moveFile/renameFile/watchFile), llm (chat/stream/getModels), agent (getAgents/selectAgent), project (createTopicAndSend/sendMessage/uploadFiles/downloadFiles), user (getInfo with app.json userInfo scopes), getAppBasePath, setInputMessage, reload. Also covers tiptap JSON message format, @file and @skill mention structures, model selector UI rules, user info authorization, error handling patterns, and backward compatibility table. Trigger phrases: 'window.Magic API', 'readFile writeFile', 'deleteFile deleteDir', 'moveFile renameFile', 'watchFile callback', 'llm.stream', 'llm.chat', 'createTopicAndSend format', 'tiptap JSON mention', '@file mention structure', '@skill mention', 'getAppBasePath usage', 'model selector UI', 'user.getInfo', 'get user info', 'user avatar', 'userInfo scopes', 'app.json permissions', 'Magic API 用法', 'fs 读写文件 API', 'fs 删除文件', 'fs 移动重命名', '流式调用参数', '文件监听回调', '话题消息格式', 'mention 结构', '模型选择器', '用户信息', '用户授权', '获取头像'."
 ---
 
 # window.Magic API — HTML Micro-App Guide
@@ -8,6 +8,7 @@ description: "Complete API reference for window.Magic.* in SuperMagic HTML micro
 ## How to Use This Document
 
 - API signatures & constraints → this document
+- App manifest & permission declarations → `app.json`
 - TiptapJSON & @mention structures → [references/tiptap-json-format.md](references/tiptap-json-format.md)
 - Complete HTML examples → [references/complete-examples.md](references/complete-examples.md)
 
@@ -19,14 +20,18 @@ description: "Complete API reference for window.Magic.* in SuperMagic HTML micro
 4. **No inline event handlers** — use `addEventListener`.
 5. **LLM calls must include model selector UI** unless user specifies model. Default `"auto"`.
 6. **Complex file-based AI** → use `createTopicAndSend` + `@file` + companion skill. Simple → `readFile` + `llm.chat/stream`.
-7. **Every micro-app folder must contain `magic.project.js`** — this enables click-to-open behavior (clicking folder opens `index.html` instead of expanding file tree). Format:
-   ```javascript
-   window.magicProjectConfig = {
-     version: "1.0.0",
-     type: "micro-app",
-     name: "App Name",
-   };
-   window.magicProjectConfigure(window.magicProjectConfig);
+7. **User info is privacy-gated** — `window.Magic.user.getInfo()` returns only `name` and `avatar` by default. Sensitive fields require `app.json.permissions.userInfo.scopes`, a matching runtime `getInfo({ scopes, reason })` request, and user confirmation.
+8. **Use `app.json` as the micro-app manifest** — every new HTML micro-app folder should include `app.json` next to `index.html`. Put `type`, `name`, `entry`, file aliases, watch hints, and permissions there. Do not generate `magic.project.js` for new HTML micro-apps.
+   ```json
+   {
+     "version": "1.0.0",
+     "type": "micro-app",
+     "name": "App Name",
+     "entry": "index.html",
+     "files": {},
+     "watch": [],
+     "permissions": {}
+   }
    ```
 
 ---
@@ -279,23 +284,68 @@ Options: `model?`. Timeout: 15s.
 
 ## 6. User Info (`window.Magic.user`)
 
-### `getInfo()` → `Promise<UserInfo>`
+### `getInfo(options?)` → `Promise<UserInfo>`
+
+Default call returns only display-safe fields:
 
 ```javascript
 const user = await window.Magic.user.getInfo();
-// {user_id, magic_id, nickname, real_name, name, avatar, organization_code}
+// {name, avatar}
 document.getElementById("avatar").src = user.avatar;
 ```
 
+Sensitive fields require permission declaration in `app.json` in the same folder as `index.html`. `app.json` is the declarative manifest read by the host before authorization checks; do not declare user info scopes in `magic.project.js`.
+
+```json
+{
+  "name": "Profile Card",
+  "permissions": {
+    "userInfo": {
+      "scopes": ["user.profile.name", "user.profile.identity"],
+      "reason": "Display the current user's profile"
+    }
+  }
+}
+```
+
+Then request the declared scopes at runtime:
+
+```javascript
+try {
+  const user = await window.Magic.user.getInfo({
+    scopes: ["user.profile.name", "user.profile.identity"],
+    reason: "Display the current user's profile",
+  });
+  // {name, avatar, nickname, real_name, user_id, magic_id}
+} catch (err) {
+  // Rejected when scopes are undeclared or the user denies authorization.
+}
+```
+
+| Scope | Returned fields | Authorization |
+| --- | --- | --- |
+| `user.profile.display` | `name`, `avatar` | No prompt; default |
+| `user.profile.name` | `nickname`, `real_name` | Requires declaration and user confirmation |
+| `user.profile.identity` | `user_id`, `magic_id` | Requires declaration and user confirmation |
+| `user.profile.organization` | `organization_code` | Requires declaration and user confirmation |
+
 | Field | Type | Description |
 | --- | --- | --- |
-| `user_id` | `string` | User ID in current org |
-| `magic_id` | `string` | Global unique ID |
-| `nickname` | `string` | Nickname |
-| `real_name` | `string` | Real name (may be empty) |
 | `name` | `string` | Display name (real_name > nickname) |
 | `avatar` | `string` | Avatar URL |
-| `organization_code` | `string` | Current org code |
+| `nickname` | `string` | Nickname; only with `user.profile.name` |
+| `real_name` | `string` | Real name; only with `user.profile.name` |
+| `user_id` | `string` | User ID in current org; only with `user.profile.identity` |
+| `magic_id` | `string` | Global unique ID; only with `user.profile.identity` |
+| `organization_code` | `string` | Current org code; only with `user.profile.organization` |
+
+Notes:
+
+- Sensitive scopes must be present in both `app.json.permissions.userInfo.scopes` and the runtime `getInfo({ scopes })` call.
+- `magic.project.js` is legacy for older HTML micro-apps and still used by other project types such as slides/design/media. It is not the HTML micro-app manifest.
+- `reason` should explain why the app needs these fields; runtime `reason` overrides the `app.json` reason in the confirmation dialog.
+- Approved sensitive scopes are cached only for the current iframe session.
+- Never assume identity or organization fields are available from a bare `getInfo()` call.
 
 Timeout: 15s.
 
@@ -370,4 +420,4 @@ window.Magic.llm.stream(
 | `window.Magic.project.addFilesToMessage(files)` | `Promise<unknown>` |
 | `window.Magic.project.createTopicAndSend(msg, opts?)` | `Promise<{topicId}>` |
 | `window.Magic.project.sendMessage(msg, opts?)` | `Promise<void>` |
-| `window.Magic.user.getInfo()` | `Promise<UserInfo>` |
+| `window.Magic.user.getInfo(options?)` | `Promise<UserInfo>` |
