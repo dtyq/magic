@@ -188,6 +188,27 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
             ->update($attrs) > 0;
     }
 
+    public function markForEviction(int $id, string $reason): bool
+    {
+        // Conditional transition: only pooled states (creating / ready / dead)
+        // may be flipped to `dead`. A row that a concurrent user request has
+        // already claimed is intentionally excluded, so the eviction loser
+        // gets 0 affected rows and must leave that pod alone.
+        return WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
+            ->where('id', $id)
+            ->whereIn('status', [
+                WarmPoolSandboxStatus::Creating->value,
+                WarmPoolSandboxStatus::Ready->value,
+                WarmPoolSandboxStatus::Dead->value,
+            ])
+            ->update([
+                'status' => WarmPoolSandboxStatus::Dead->value,
+                'dead_reason' => mb_substr($reason, 0, 250),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]) > 0;
+    }
+
     public function markReady(int $id, ?int $provisionDurationMs = null): bool
     {
         $attrs = [

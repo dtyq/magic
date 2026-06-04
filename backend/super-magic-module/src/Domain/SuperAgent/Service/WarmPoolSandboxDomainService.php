@@ -82,6 +82,17 @@ class WarmPoolSandboxDomainService
         $this->repository->updateStatus($id, WarmPoolSandboxStatus::Dead->value, $reason);
     }
 
+    /**
+     * Atomically claim a pooled row for eviction by flipping it to `dead`.
+     * Only succeeds from creating / ready / dead; returns false when the row
+     * has been concurrently claimed by a user request, signalling the caller
+     * to leave that sandbox alone instead of tearing its pod down.
+     */
+    public function markForEviction(int $id, string $reason): bool
+    {
+        return $this->repository->markForEviction($id, $reason);
+    }
+
     public function findBySandboxId(string $sandboxId): ?WarmPoolSandboxEntity
     {
         return $this->repository->findBySandboxId($sandboxId);

@@ -479,7 +479,22 @@ class WarmPoolSandboxAppService extends AbstractAppService
 
     private function forceDelete(WarmPoolSandboxEntity $row, string $reason): bool
     {
-        // First try to delete the pod via gateway, then remove the row.
+        $id = $row->getId();
+
+        // Atomically claim the row for deletion BEFORE touching the pod. The
+        // transition only succeeds from pooled states (creating / ready /
+        // dead); if a concurrent user request has just flipped this row to
+        // `claimed`, we lose the race and must NOT delete its pod — otherwise
+        // we'd rip a sandbox out from under an active chat session.
+        if ($id !== null && ! $this->domain->markForEviction($id, $reason)) {
+            $this->logger->info('[WarmPoolSandbox] Skip eviction: row no longer evictable (likely claimed)', [
+                'sandbox_id' => $row->getSandboxId(),
+                'reason' => $reason,
+            ]);
+            return false;
+        }
+
+        // Row is now `dead` (or never had a DB id): safe to tear down the pod.
         // Even if the gateway call fails we still drop the DB row — the
         // pod-status reconciler in sandbox-gateway will catch orphans.
         try {
@@ -500,10 +515,10 @@ class WarmPoolSandboxAppService extends AbstractAppService
             ]);
         }
 
-        if ($row->getId() === null) {
+        if ($id === null) {
             return false;
         }
-        $this->domain->deleteEntry($row->getId());
+        $this->domain->deleteEntry($id);
         return true;
     }
 }

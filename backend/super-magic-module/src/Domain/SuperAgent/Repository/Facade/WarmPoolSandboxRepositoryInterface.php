@@ -67,6 +67,14 @@ interface WarmPoolSandboxRepositoryInterface
     public function updateStatus(int $id, string $status, ?string $deadReason = null): bool;
 
     /**
+     * Atomically flip a pooled row (creating / ready / dead) to `dead` so it can
+     * be safely evicted. Returns false when the row is no longer evictable —
+     * most importantly when a concurrent user request has just claimed it — in
+     * which case the caller must leave the underlying pod untouched.
+     */
+    public function markForEviction(int $id, string $reason): bool;
+
+    /**
      * Flip a `creating` row to `ready`. Optionally records how long
      * (in milliseconds) provisioning took, for debugging.
      */
