@@ -5,6 +5,7 @@ from app.service.mention.handlers import (
     FileHandler,
     MCPHandler,
     AgentHandler,
+    ToolHandler,
     DesignMarkerHandler,
     ProjectDirectoryHandler,
     SkillHandler,
@@ -35,6 +36,7 @@ class MentionContextBuilder:
         # 其他处理器
         self._handlers['mcp'] = MCPHandler()
         self._handlers['agent'] = AgentHandler()
+        self._handlers['tool'] = ToolHandler()
         self._handlers['design_marker'] = DesignMarkerHandler()
         self._handlers['project_directory'] = ProjectDirectoryHandler()
         self._handlers['skill'] = SkillHandler()

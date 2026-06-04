@@ -388,13 +388,31 @@ class Agent(BaseAgent):
             raise ValueError("Prompt is not set")
         if not self.llm_id:
             raise ValueError("LLM model is not set")
-        self.llm_client = LLMFactory.get(self.llm_id)
-        model_config = LLMFactory.get_model_config(self.llm_id)
-        self.llm_name = model_config.name
-        self.model_config = model_config
-        # 去掉 self.model_config 中的 api_key 和 api_base_url 等敏感信息
-        self.model_config.api_key = None
-        self.model_config.api_base_url = None
+
+        # 延迟获取 LLM client 和 model config：
+        # 如果有动态模型配置，初始化时的模型可能尚未注册（由更高优先级 provider 管理），
+        # 此时不应阻塞 agent 创建，真正调用时由 _resolve_effective_model_info() 动态选择模型。
+        try:
+            self.llm_client = LLMFactory.get(self.llm_id)
+            model_config = LLMFactory.get_model_config(self.llm_id)
+            self.llm_name = model_config.name
+            self.model_config = model_config
+            # 去掉 self.model_config 中的 api_key 和 api_base_url 等敏感信息
+            self.model_config.api_key = None
+            self.model_config.api_base_url = None
+        except (ValueError, Exception) as e:
+            # 如果有动态模型可用，初始化时的默认模型配置获取失败不阻塞启动
+            if self.agent_context and self.agent_context.has_dynamic_model_id():
+                dynamic_model_id = self.agent_context.get_dynamic_model_id()
+                logger.info(
+                    f"默认模型 '{self.llm_id}' 配置获取失败: {e}，"
+                    f"将在对话时使用动态模型 '{dynamic_model_id}'"
+                )
+                self.llm_client = None
+                self.llm_name = self.llm_id  # 暂用 model_id 作为 name
+                self.model_config = None
+            else:
+                raise
 
         # 准备静态变量并应用到 system_prompt
         static_vars = self._prepare_prompt_static_variables()
@@ -845,7 +863,7 @@ class Agent(BaseAgent):
 
         # 在首次 build_context_update 前设置输出预算，确保 output_size_limit 能写入 initial_context
         # set_output_token_budget 只在首次设置时生效，_handle_agent_loop 里的调用会成为幂等 no-op
-        budget = self.model_config.max_output_tokens
+        budget = self.model_config.max_output_tokens if hasattr(self, "model_config") and self.model_config else 4096
         self.agent_context.horizon.set_output_token_budget(budget)
 
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
@@ -1869,6 +1887,8 @@ class Agent(BaseAgent):
                     horizon_model_info.description,
                 )
                 self.agent_context.horizon.update_context_usage(token_usage.input_tokens, context_window_total)
+                # 记录当前模型的最大上下文 token 数，供前端实时展示
+                token_usage.max_context_tokens = context_window_total or None
             except Exception as _horizon_err:
                 logger.warning(f"[AgentHorizon] 更新模型/上下文用量失败: {_horizon_err}")
 
@@ -2704,8 +2724,8 @@ Since your subsequent output will be merged with pre-interruption content and di
             if compact_param:
                 tools_list.append(compact_param)
 
-        # 3. 添加授权的 MCP 工具
-        await self._add_mcp_tools_to_list(tools_list)
+        # MCP 工具不再直接挂载：chat 维度的 MCP 配置由 using-mcp skill
+        # 按需查看并调用，不再通过 tool_factory 暴露给模型。
 
         # 保存工具列表到与聊天记录同名的.tools.json文件
         if self.chat_history and tools_list:
@@ -2881,34 +2901,3 @@ Since your subsequent output will be merged with pre-interruption content and di
             bool: 是否具有该 skill
         """
         return skill_name in self.loaded_skills
-
-    async def _add_mcp_tools_to_list(self, tools_list: List[Dict[str, Any]]) -> None:
-        """添加授权的 MCP 工具到工具列表
-
-        Args:
-            tools_list: 工具列表，MCP 工具会被添加到此列表中
-        """
-        from app.mcp.manager import get_global_mcp_manager, is_mcp_tool
-
-        # 检查是否有 using-mcp skill
-        has_using_mcp_skill = self.has_skill("using-mcp")
-
-        # 添加 MCP 工具（如果有 using-mcp skill，则只添加 SuperMagicChat 的工具）
-        global_manager = get_global_mcp_manager()
-        if global_manager:
-            all_mcp_tools = await global_manager.get_all_tools()
-            for tool_name, tool_info in all_mcp_tools.items():
-                # 如果有 using-mcp skill，只添加 SuperMagicChat 的工具
-                if has_using_mcp_skill and tool_info.server_name != 'SuperMagicChat':
-                    logger.debug(f"Agent 具有 'using-mcp' skill，跳过非 SuperMagicChat 的 MCP 工具: {tool_name}")
-                    continue
-
-                try:
-                    tool_instance = tool_factory.get_tool_instance(tool_name)
-                    if tool_instance:
-                        tool_param = tool_instance.to_param()
-                        tools_list.append(tool_param)
-                        logger.debug(f"添加 MCP 工具: {tool_name} (server: {tool_info.server_name})")
-                except ValueError as e:
-                    # MCP 工具未注册到 tool_factory，跳过
-                    logger.debug(f"跳过未注册的 MCP 工具: {tool_name}")

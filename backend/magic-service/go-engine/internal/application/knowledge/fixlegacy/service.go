@@ -287,6 +287,7 @@ func (r *Runner) processKnowledgeGroup(
 
 	if err := r.syncer.SyncFragmentBatch(ctx, knowledgeBaseSnapshotFromDomain(kb), reloaded, &ctxmeta.BusinessParams{
 		OrganizationCode: kb.OrganizationCode,
+		SourceID:         ctxmeta.SourceIDFragmentSaved,
 	}); err != nil {
 		return result.withFailure(knowledgeCode, ids, fmt.Sprintf("sync fragment batch: %v", err))
 	}

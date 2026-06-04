@@ -7,6 +7,96 @@ import videoTemplateIndexHtml from "./templates/video/index.html?raw"
 /** 详情页可视化预览使用构建内 templates 的场景 */
 export type HtmlPreviewBundledTemplateKind = "dashboard" | "audio" | "video"
 
+interface TemplateEntryRule {
+	path: string
+}
+
+type TemplateEntryRuleMap = Record<HtmlPreviewBundledTemplateKind, TemplateEntryRule[]>
+
+export interface ResolveHtmlPreviewBundledTemplateInput {
+	fileName?: string
+	relativeFilePath?: string
+	displayConfigType?: string
+	templateEntryRuleMap?: Partial<TemplateEntryRuleMap>
+}
+
+export const DEFAULT_TEMPLATE_ENTRY_RULE_MAP: TemplateEntryRuleMap = {
+	dashboard: [{ path: "index.html" }],
+	audio: [{ path: "index.html" }],
+	video: [{ path: "index.html" }],
+}
+
+const DASHBOARD_TEMPLATE_SHELL_REFERENCE_PATHS = new Set(["index.css", "dashboard.js"])
+
+function normalizePath(path?: string): string {
+	if (!path) return ""
+	return path.split(/[?#]/)[0].replace(/^\.\//, "").replace(/^\//, "").replace(/\\/g, "/")
+}
+
+function getFileName(path?: string): string {
+	const normalizedPath = normalizePath(path)
+	if (!normalizedPath) return ""
+	const segments = normalizedPath.split("/").filter(Boolean)
+	return segments[segments.length - 1] || ""
+}
+
+function matchesTemplateEntryRule(path: string, rule: TemplateEntryRule): boolean {
+	const normalizedPath = normalizePath(path)
+	const normalizedRulePath = normalizePath(rule.path)
+
+	if (!normalizedPath || !normalizedRulePath) return false
+	if (!normalizedRulePath.includes("/")) {
+		return getFileName(normalizedPath) === normalizedRulePath
+	}
+	return normalizedPath === normalizedRulePath
+}
+
+function mergeTemplateEntryRuleMap(
+	overrides?: Partial<TemplateEntryRuleMap>,
+): TemplateEntryRuleMap {
+	return {
+		dashboard: overrides?.dashboard || DEFAULT_TEMPLATE_ENTRY_RULE_MAP.dashboard,
+		audio: overrides?.audio || DEFAULT_TEMPLATE_ENTRY_RULE_MAP.audio,
+		video: overrides?.video || DEFAULT_TEMPLATE_ENTRY_RULE_MAP.video,
+	}
+}
+
+function resolveCandidateTemplateKind({
+	displayConfigType,
+}: Pick<ResolveHtmlPreviewBundledTemplateInput, "displayConfigType">):
+	| HtmlPreviewBundledTemplateKind
+	| undefined {
+	if (displayConfigType === "dashboard") return "dashboard"
+	if (displayConfigType === "audio") return "audio"
+	if (displayConfigType === "video") return "video"
+	return undefined
+}
+
+export function resolveHtmlPreviewBundledTemplate({
+	fileName,
+	relativeFilePath,
+	displayConfigType,
+	templateEntryRuleMap,
+}: ResolveHtmlPreviewBundledTemplateInput): HtmlPreviewBundledTemplateKind | undefined {
+	const candidateKind = resolveCandidateTemplateKind({
+		displayConfigType,
+	})
+
+	if (!candidateKind) return undefined
+
+	const normalizedPath = normalizePath(relativeFilePath || fileName)
+	if (!normalizedPath) return undefined
+
+	const ruleMap = mergeTemplateEntryRuleMap(templateEntryRuleMap)
+	const entryRules = ruleMap[candidateKind]
+
+	if (!entryRules.some((rule) => matchesTemplateEntryRule(normalizedPath, rule))) {
+		return undefined
+	}
+
+	return candidateKind
+}
+
 /** 与当前发版一致的 dashboard 入口 HTML（仅预览壳替换用） */
 export function getDashboardBundledTemplateHtml(): string {
 	return String(dashboardTemplateIndexHtml)
@@ -30,8 +120,7 @@ export function getBundledTemplateHtmlByKind(kind: HtmlPreviewBundledTemplateKin
 
 /** 与模板约定一致：仅根目录下的 ./index.css、./dashboard.js，避免误伤子路径同名文件 */
 export function isDashboardTemplateShellReferencePath(relativeAttrPath: string): boolean {
-	const normalized = relativeAttrPath.replace(/^\.\//, "").split("?")[0]
-	return normalized === "index.css" || normalized === "dashboard.js"
+	return DASHBOARD_TEMPLATE_SHELL_REFERENCE_PATHS.has(normalizePath(relativeAttrPath))
 }
 
 interface UrlMapShellEntry {
@@ -51,7 +140,7 @@ export function omitDashboardShellFromFetchPlan(
 	for (const [fid, raw] of Array.from(urlMap.entries())) {
 		const info = raw as UrlMapShellEntry
 		if (!info.path || !isDashboardTemplateShellReferencePath(info.path)) continue
-		const base = info.path.replace(/^\.\//, "").split("?")[0]
+		const base = normalizePath(info.path)
 		if (base === "index.css" && info.attr === "href") idsToRemove.add(fid)
 		else if (base === "dashboard.js" && info.attr === "src" && info.tag === "script")
 			idsToRemove.add(fid)

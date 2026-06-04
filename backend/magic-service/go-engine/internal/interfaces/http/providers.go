@@ -5,6 +5,7 @@ import (
 	"magic/internal/infrastructure/logging"
 	"magic/internal/interfaces/http/handlers"
 	rpchandler "magic/internal/interfaces/rpc/jsonrpc/knowledge/service"
+	opshandler "magic/internal/interfaces/rpc/jsonrpc/ops/service"
 )
 
 // ServerRuntimeDeps 聚合 RPC 运行时依赖，供 Wire 显式拼装。
@@ -27,12 +28,14 @@ func ProvideRPCHandlers(
 	fragment *rpchandler.FragmentRPCService,
 	document *rpchandler.DocumentRPCService,
 	embedding *rpchandler.EmbeddingRPCService,
+	ops *opshandler.OpsRPCService,
 ) RPCHandlers {
 	return RPCHandlers{
 		Knowledge: knowledge,
 		Fragment:  fragment,
 		Document:  document,
 		Embedding: embedding,
+		Ops:       ops,
 	}
 }
 

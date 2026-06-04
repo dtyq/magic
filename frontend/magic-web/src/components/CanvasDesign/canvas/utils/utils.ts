@@ -827,38 +827,6 @@ export function calculateHorizontalImageLayout(
 }
 
 /**
- * 画布剪贴板数据格式（统一格式，单个或多个元素都使用数组，向后兼容）
- */
-export interface CanvasClipboardData {
-	elements: LayerElement[]
-	/** 画布唯一标识，用于跨画布粘贴校验 */
-	id?: string
-}
-
-/**
- * 元素剪贴板元数据（用于关联图片文件和元素数据）
- */
-export interface ElementClipboardMetadata {
-	data: ImageElement
-	filename: string
-	mimeType: string
-	fileSize: number
-	renderMode?: "original" | "cropped"
-}
-
-/**
- * 类型守卫：检查是否为画布剪贴板数据格式
- */
-export function isCanvasClipboardData(data: unknown): data is CanvasClipboardData {
-	return (
-		typeof data === "object" &&
-		data !== null &&
-		"elements" in data &&
-		Array.isArray(data.elements)
-	)
-}
-
-/**
  * 类型守卫：检查元素是否为 ImageElement 实例（具有 preloadImage 方法）
  */
 export function isImageElementInstance(element: unknown): element is ImageElement & {

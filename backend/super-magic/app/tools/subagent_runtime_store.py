@@ -29,7 +29,6 @@ class SubagentRuntimeStore:
             model_id=value.get("model_id"),
             image_model_id=value.get("image_model_id"),
             image_model_sizes=value.get("image_model_sizes"),
-            mcp_servers=value.get("mcp_servers"),
         )
 
     @classmethod

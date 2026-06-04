@@ -568,6 +568,16 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
             if usage:
                 try:
                     token_usage = TokenUsage.from_response(usage)
+                    # 补充 model 信息和最大上下文 token 数，from_response 仅解析原始 token 计数
+                    token_usage.model_id = model_id
+                    token_usage.model_name = processor_config.model_name or model_id
+                    try:
+                        from agentlang.llms.llm_factory import LLMFactory
+                        _model_config = LLMFactory.get_model_config(model_id)
+                        token_usage.resolved_model_id = _model_config.resolved_model_id or None
+                        token_usage.max_context_tokens = _model_config.max_context_tokens or None
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 

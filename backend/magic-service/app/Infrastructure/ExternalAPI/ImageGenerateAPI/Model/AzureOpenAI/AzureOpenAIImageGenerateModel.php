@@ -80,6 +80,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             }
 
             $requestData = [
+                'model' => $this->model,
                 'prompt' => $imageGenerateRequest->getPrompt(),
                 'size' => $imageGenerateRequest->getSize(),
                 'n' => $imageGenerateRequest->getN(),
@@ -366,14 +367,30 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 
         // 如果Azure OpenAI响应包含usage信息，则使用它
         if (! empty($azureResult['usage']) && is_array($azureResult['usage'])) {
-            $usage = $azureResult['usage'];
-            $currentUsage->promptTokens += $usage['input_tokens'] ?? 0;
-            $currentUsage->completionTokens += $usage['output_tokens'] ?? 0;
-            $currentUsage->totalTokens += $usage['total_tokens'] ?? 0;
+            $tokenUsage = $this->extractTokenUsage($azureResult['usage']);
+            $currentUsage->addTokenUsage(
+                $tokenUsage['prompt_tokens'],
+                $tokenUsage['completion_tokens'],
+                $tokenUsage['thoughts_tokens'],
+                $tokenUsage['total_tokens']
+            );
         }
 
         // 更新响应对象
         $response->setData($currentData);
         $response->setUsage($currentUsage);
+    }
+
+    /**
+     * @return array{prompt_tokens: int, completion_tokens: int, thoughts_tokens: int, total_tokens: int}
+     */
+    private function extractTokenUsage(array $usage): array
+    {
+        return [
+            'prompt_tokens' => (int) ($usage['input_tokens'] ?? 0),
+            'completion_tokens' => (int) ($usage['output_tokens'] ?? 0),
+            'thoughts_tokens' => (int) ($usage['thoughts_tokens'] ?? 0),
+            'total_tokens' => (int) ($usage['total_tokens'] ?? 0),
+        ];
     }
 }

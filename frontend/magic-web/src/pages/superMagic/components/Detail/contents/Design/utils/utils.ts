@@ -1,4 +1,5 @@
 import { getFileContentById } from "@/pages/superMagic/utils/api"
+import { parseMagicProjectConfigContent } from "@/pages/superMagic/utils/magicProjectConfigParser"
 import { flattenAttachments, findMatchingFile } from "../../HTML/utils"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import { DesignData } from "../types"
@@ -138,15 +139,7 @@ export function parseMagicProjectJsContent(content: string): DesignData | null {
 	}
 
 	try {
-		// 创建一个临时的 window 对象来执行代码，避免污染全局作用域
-		const tempWindow: { magicProjectConfig?: unknown } = {}
-
-		// 使用 Function 构造函数来执行代码
-		const func = new Function("window", content)
-		func(tempWindow)
-
-		// 提取 magicProjectConfig
-		const config = tempWindow.magicProjectConfig
+		const config = parseMagicProjectConfigContent(content)
 
 		if (!config || typeof config !== "object") {
 			return null
@@ -607,19 +600,12 @@ export function replaceNameInMagicProjectJsContent(
 	}
 
 	try {
-		// 解析 magic.project.js 内容
-		const tempWindow: {
-			magicProjectConfig?: {
-				name?: string
-				canvas?: {
-					elements?: LayerElement[]
-				}
+		const config = parseMagicProjectConfigContent(content) as {
+			name?: string
+			canvas?: {
+				elements?: LayerElement[]
 			}
-		} = {}
-		const func = new Function("window", content)
-		func(tempWindow)
-
-		const config = tempWindow.magicProjectConfig
+		} | null
 		if (!config || typeof config !== "object") {
 			return content
 		}
@@ -1152,6 +1138,30 @@ export function resolveDesignProjectBasePathFromAttachments(options: {
 	if (!list.length) return undefined
 	const info = getDesignDirectoryInfo(actualCurrentFile, list)
 	return normalizeMagicProjectDirToBase(info.path)
+}
+
+/**
+ * 解析当前画布目录名称，供加载后的内存态名称对齐与保存前名称同步复用。
+ */
+export function resolveDesignDirectoryNameFromAttachments(options: {
+	currentFile?: { id?: string; name?: string }
+	flatAttachments?: FileItem[]
+	attachments?: FileItem[]
+	projectPath?: string
+}): string | undefined {
+	const { currentFile, flatAttachments, attachments, projectPath } = options
+	const actualCurrentFile = resolveActualDesignCurrentFile({
+		currentFile,
+		flatAttachments,
+		attachments,
+		projectPath,
+	})
+	if (!actualCurrentFile) return undefined
+	const list =
+		flatAttachments && flatAttachments.length > 0 ? flatAttachments : (attachments ?? [])
+	if (!list.length) return undefined
+	const info = getDesignDirectoryInfo(actualCurrentFile, list)
+	return info.name || undefined
 }
 
 /**

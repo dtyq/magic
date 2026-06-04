@@ -100,7 +100,7 @@ tools:
   - web_search
   - visual_understanding
   - video_understanding
-  - convert_to_markdown
+  - run_python_snippet
   - download_from_url
 ```
 
@@ -173,7 +173,7 @@ tools:
 
 | Tool | Description |
 |------|-------------|
-| `convert_to_markdown` | Convert documents (Excel, DOCX, PDF, CSV) to Markdown |
+| `run_python_snippet` | Use Code Mode; document parsing services are called from the `document-converter` skill |
 | `convert_pdf` | Convert files to/from PDF format |
 
 <!--zh
@@ -260,7 +260,7 @@ tools:
 | `deep_write` | Deep writing with multi-pass refinement |
 | `find_skills` | Search for skills by keyword across all sources |
 | `read_skills` | Read a skill's SKILL.md content |
-| `run_sdk_snippet` | Execute a Python code snippet with sdk.tool / sdk.mcp access; intermediate results stay in the execution environment and do not flow through model context |
+| `run_sdk_snippet` | Execute a Python code snippet with sdk.tool access (MCP capabilities exposed as mcp_* tools); intermediate results stay in the execution environment and do not flow through model context |
 
 <!--zh
 ### IM 渠道类

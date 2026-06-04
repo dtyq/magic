@@ -9,14 +9,14 @@ namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
 use Hyperf\Contract\ConfigInterface;
-use HyperfTest\Cases\BaseTest;
 use InvalidArgumentException;
+use PHPUnit\Framework\TestCase;
 
 /**
  * @internal
  * @covers \App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager
  */
-class SizeManagerTest extends BaseTest
+class SizeManagerTest extends TestCase
 {
     /**
      * 测试 Gemini 3.0 Pro 模型的所有 size 格式和边界情况
@@ -1029,6 +1029,14 @@ class SizeManagerTest extends BaseTest
         // 9. 测试中文乘号
         $result = SizeManager::parseToWidthHeight('1024×1024');
         $this->assertEquals(['1024', '1024'], $result);
+    }
+
+    public function testResolveResolutionByPixels()
+    {
+        $this->assertSame('1K', SizeManager::resolveResolutionByPixels(1024, 1024));
+        $this->assertSame('1K', SizeManager::resolveResolutionByPixels(1800, 1200));
+        $this->assertSame('2K', SizeManager::resolveResolutionByPixels(2496, 1664));
+        $this->assertSame('4K', SizeManager::resolveResolutionByPixels(4096, 4096));
     }
 
     /**

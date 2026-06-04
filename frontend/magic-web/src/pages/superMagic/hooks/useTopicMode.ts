@@ -4,6 +4,7 @@ import { TopicMode } from "../pages/Workspace/TopicMode"
 import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import ProjectTopicService from "@/services/superMagic/ProjectTopicService"
 import { useIsMobile } from "@/hooks/useIsMobile"
+import SuperMagicService from "@/pages/superMagic/services"
 
 function useTopicMode({
 	selectedTopic,
@@ -51,6 +52,12 @@ function useTopicMode({
 				mode,
 			)
 		}
+		// 手动切换员工/模式后，同步覆盖创建时继承下来的前端 patch。
+		// 否则刷新或重新拉详情时，旧员工会再次覆盖当前选择。
+		SuperMagicService.topic.syncTopicFrontendModePatch({
+			topic: selectedTopic,
+			mode,
+		})
 	})
 
 	return { topicMode, setTopicMode: handleSetTopicMode }

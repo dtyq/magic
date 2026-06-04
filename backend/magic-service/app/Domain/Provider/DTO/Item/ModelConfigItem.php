@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO\Item;
 
+use App\Domain\Provider\DTO\Item\TokenPricing\BillingTiers;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -60,6 +61,22 @@ class ModelConfigItem extends AbstractDTO
     protected ?string $timeCost = null;
 
     protected ?string $secondCost = null;
+
+    protected ?BillingTiers $billingTiers = null;
+
+    public function __construct(?array $data = null)
+    {
+        if (empty($data)) {
+            return;
+        }
+
+        $billingTiers = $data['billing_tiers'] ?? null;
+        unset($data['billing_tiers']);
+
+        parent::__construct($data);
+
+        $this->setBillingTiers($billingTiers);
+    }
 
     public function getMaxTokens(): ?int
     {
@@ -336,6 +353,37 @@ class ModelConfigItem extends AbstractDTO
     public function setSecondCost(null|float|string $secondCost): void
     {
         $this->secondCost = $this->validateAndSetPricing($secondCost);
+    }
+
+    public function getBillingTiers(): ?BillingTiers
+    {
+        return $this->billingTiers;
+    }
+
+    public function setBillingTiers(null|array|BillingTiers|string $billingTiers): void
+    {
+        if ($billingTiers === null || $billingTiers === '' || $billingTiers === []) {
+            $this->billingTiers = null;
+            return;
+        }
+
+        if ($billingTiers instanceof BillingTiers) {
+            $this->billingTiers = $billingTiers;
+            return;
+        }
+
+        if (is_string($billingTiers)) {
+            if (! json_validate($billingTiers)) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $decoded = json_decode($billingTiers, true);
+            if (! is_array($decoded)) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidPricing);
+            }
+            $billingTiers = $decoded;
+        }
+
+        $this->billingTiers = new BillingTiers($billingTiers);
     }
 
     private function handleCreativityAndTemperatureConflict(): void

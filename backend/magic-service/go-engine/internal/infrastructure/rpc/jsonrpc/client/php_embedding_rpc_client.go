@@ -69,6 +69,7 @@ type BusinessParams struct {
 	OrganizationID   string `json:"organization_id,omitempty"`
 	UserID           string `json:"user_id,omitempty"`
 	BusinessID       string `json:"business_id,omitempty"`
+	SourceID         string `json:"source_id,omitempty"`
 }
 
 // EmbeddingResult 嵌入结果。
@@ -224,6 +225,7 @@ func applyBusinessParams(params map[string]any, businessParams *ctxmeta.Business
 		OrganizationID:   businessParams.GetOrganizationCode(),
 		UserID:           businessParams.UserID,
 		BusinessID:       businessParams.BusinessID,
+		SourceID:         businessParams.SourceID,
 	}
 }
 

@@ -5,7 +5,10 @@ import type { SlideItem } from "../../PPTSidebar/types"
 describe("PPTIncrementalUpdateService", () => {
 	let pathMappingService: {
 		getFileIdByPath: ReturnType<typeof vi.fn>
+		extractFileIdFromPath: ReturnType<typeof vi.fn>
+		setPathFileIdMapping: ReturnType<typeof vi.fn>
 		fetchUrlsForFileIds: ReturnType<typeof vi.fn>
+		getPPTFolderFileIds: ReturnType<typeof vi.fn>
 	}
 	let screenshotService: {
 		clearCache: ReturnType<typeof vi.fn>
@@ -15,11 +18,20 @@ describe("PPTIncrementalUpdateService", () => {
 	beforeEach(() => {
 		pathMappingService = {
 			getFileIdByPath: vi.fn((path: string) =>
-				path === "slide-1.html" ? "file-1" : undefined,
+				path === "slide-1.html" ? "file-1" : path === "slide-2.html" ? "file-2" : undefined,
 			),
+			extractFileIdFromPath: vi.fn((path: string) =>
+				path === "slide-1.html" ? "file-1" : path === "slide-2.html" ? "file-2" : undefined,
+			),
+			setPathFileIdMapping: vi.fn(),
 			fetchUrlsForFileIds: vi.fn(
-				async () => new Map([["file-1", "https://example.com/slide-1"]]),
+				async () =>
+					new Map([
+						["file-1", "https://example.com/slide-1"],
+						["file-2", "https://example.com/slide-2"],
+					]),
 			),
+			getPPTFolderFileIds: vi.fn(() => new Set(["file-1", "file-2"])),
 		}
 		screenshotService = {
 			clearCache: vi.fn(),
@@ -43,6 +55,7 @@ describe("PPTIncrementalUpdateService", () => {
 		clearManualSaveMark?: (fileId: string) => void
 		notifyServerUpdate?: (fileId: string, content: string) => void
 		generateSlideScreenshot?: (index: number, targetContent?: string) => Promise<void>
+		ensureSlideScreenshot?: (index: number) => Promise<void>
 		slides?: SlideItem[]
 	}) {
 		return {
@@ -62,6 +75,7 @@ describe("PPTIncrementalUpdateService", () => {
 			loadSlideContentSilently:
 				input?.loadSlideContentSilently || vi.fn(async () => "<div>saved-content</div>"),
 			generateSlideScreenshot: input?.generateSlideScreenshot || vi.fn(async () => undefined),
+			ensureSlideScreenshot: input?.ensureSlideScreenshot,
 			setSlides: vi.fn(),
 			setActiveIndex: vi.fn(),
 			isSlideManuallySaved: input?.isSlideManuallySaved,
@@ -119,5 +133,90 @@ describe("PPTIncrementalUpdateService", () => {
 		expect(clearManualSaveMark).toHaveBeenCalledWith("file-1")
 		expect(notifyServerUpdate).toHaveBeenCalledWith("file-1", "<div>server-new-content</div>")
 		expect(generateSlideScreenshot).toHaveBeenCalledWith(0, "<div>server-new-content</div>")
+	})
+
+	it("uses ensureSlideScreenshot for added slide thumbnails to avoid duplicate generation", async () => {
+		const generateSlideScreenshot = vi.fn(async () => undefined)
+		const ensureSlideScreenshot = vi.fn(async () => undefined)
+		const context = createContext({
+			slides: [
+				{
+					id: "slide-1",
+					path: "slide-1.html",
+					url: "https://example.com/slide-1",
+					index: 0,
+					content: "<div>slide 1</div>",
+					loadingState: "loaded",
+				},
+			],
+			generateSlideScreenshot,
+			ensureSlideScreenshot,
+		})
+
+		await incrementalUpdateService.applyIncrementalUpdates(
+			{
+				hasChanges: true,
+				added: [{ path: "slide-2.html", index: 1 }],
+				removed: [],
+				reordered: false,
+			},
+			new Set(),
+			["slide-1.html", "slide-2.html"],
+			context,
+		)
+
+		expect(ensureSlideScreenshot).toHaveBeenCalledWith(1)
+		expect(generateSlideScreenshot).not.toHaveBeenCalled()
+	})
+
+	it("detects updated files inside nested attachment items", () => {
+		const previousList = [
+			{
+				file_id: "folder-1",
+				file_name: "deck",
+				updated_at: "1",
+				children: [
+					{
+						file_id: "file-1",
+						file_name: "slide-1.html",
+						updated_at: "1",
+					},
+				],
+			},
+		]
+		const newList = [
+			{
+				file_id: "folder-1",
+				file_name: "deck",
+				updated_at: "1",
+				children: [
+					{
+						file_id: "file-1",
+						file_name: "slide-1.html",
+						updated_at: "2",
+					},
+					{
+						file_id: "file-2",
+						file_name: "slide-2.html",
+						updated_at: "1",
+					},
+					{
+						file_id: "outside-file",
+						file_name: "notes.html",
+						updated_at: "2",
+					},
+				],
+			},
+		]
+
+		const updatedFileIds = incrementalUpdateService.detectUpdatedFiles(
+			previousList as never,
+			newList as never,
+		)
+
+		expect(updatedFileIds.has("file-1")).toBe(true)
+		expect(updatedFileIds.has("file-2")).toBe(true)
+		expect(updatedFileIds.has("outside-file")).toBe(false)
+		expect(updatedFileIds.has("folder-1")).toBe(false)
 	})
 })

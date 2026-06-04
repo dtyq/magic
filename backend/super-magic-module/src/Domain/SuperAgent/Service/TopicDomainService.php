@@ -406,6 +406,21 @@ class TopicDomainService
         );
     }
 
+    /**
+     * 批量统计用户在项目下的可见话题数量.
+     *
+     * @param int[] $projectIds
+     * @return array<int, int> [project_id => topic_count]
+     */
+    public function countUserVisibleTopicsByProjectIds(array $projectIds, string $userId): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        return $this->topicRepository->countUserVisibleTopicsByProjectIds($projectIds, $userId);
+    }
+
     public function getProjectSidebarTopics(
         int $projectId,
         string $userId,

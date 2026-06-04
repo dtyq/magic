@@ -135,6 +135,7 @@ const PPTSlide = observer(function PPTSlide({
 	const [pendingDeactivate, setPendingDeactivate] = useState(false)
 	const [isSaving, setIsSaving] = useState(false)
 	const [isRefreshing, setIsRefreshing] = useState(false)
+	const [isAppendPicking, setIsAppendPicking] = useState(false)
 	// 保存 IsolatedHTMLRenderer 暴露的保存函数引用
 	const [triggerSaveRef, setTriggerSaveRef] = useState<
 		(() => Promise<SaveResult | undefined>) | null
@@ -784,6 +785,7 @@ const PPTSlide = observer(function PPTSlide({
 				slideIndex={index}
 				isPlaybackMode={isPlaybackMode}
 				className="h-[100%-40px]"
+				onAppendPickingChange={setIsAppendPicking}
 			/>
 		)
 	}
@@ -798,6 +800,8 @@ const PPTSlide = observer(function PPTSlide({
 				{showEditToolbar && (
 					<EditToolbar
 						onStartInspector={() => rendererRef.current?.startInspector()}
+						onStartInspectorAppend={() => rendererRef.current?.startInspectorAppend()}
+						isAppendPicking={isAppendPicking}
 						showAIOptimization={allowEdit && !fileVersion}
 						showFileEdit={allowEdit && !fileVersion}
 						isEditMode={isEditMode}

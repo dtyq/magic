@@ -488,6 +488,7 @@ export interface AgentVersionItem {
 	display_time: string
 	is_current_version: boolean
 	version_description_i18n: CrewI18nText | null
+	review_remark?: string | null
 	publish_target_value?: AgentPublishTargetValueResolved | null
 }
 

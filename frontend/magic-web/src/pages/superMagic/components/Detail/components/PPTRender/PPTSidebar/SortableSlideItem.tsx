@@ -63,6 +63,7 @@ function SortableSlideItem({
 	isMobile = false,
 	allowEdit = false,
 	slideFileId,
+	slideFullRelativePath,
 	...props
 }: SortableSlideItemProps) {
 	const { t } = useTranslation("super")
@@ -190,10 +191,10 @@ function SortableSlideItem({
 		return {
 			file_id: mainFileId, // Use main file ID as parent
 			file_name: fileName,
-			relative_file_path: item.path,
+			relative_file_path: slideFullRelativePath || item.path,
 			file_extension: fileExtension,
 		}
-	}, [mainFileId, item.path])
+	}, [mainFileId, item.path, slideFullRelativePath])
 
 	// Use AI edit hook
 	const { aiEditItems } = useAIEdit({ currentFile })
@@ -297,9 +298,9 @@ function SortableSlideItem({
 				"group relative rounded transition-all",
 				isMobile
 					? // Mobile: vertical layout with thumbnail first, no drag cursor
-					"flex h-full w-[140px] shrink-0 cursor-pointer !flex-col gap-1.5"
+						"flex h-full w-[140px] shrink-0 cursor-pointer !flex-col gap-1.5"
 					: // Desktop: vertical layout with thumbnail first, drag cursor
-					"flex h-full cursor-grab flex-col active:cursor-grabbing",
+						"flex h-full cursor-grab flex-col active:cursor-grabbing",
 				className,
 			)}
 			onClick={onClick}
@@ -311,7 +312,7 @@ function SortableSlideItem({
 					handlePPTSlideDragStart(e, {
 						file_id: slideFileId,
 						file_name: fileName,
-						relative_file_path: item.path,
+						relative_file_path: slideFullRelativePath || item.path,
 						file_extension: "html",
 						slide_index: item.index,
 						slide_title: item.title,
@@ -355,9 +356,9 @@ function SortableSlideItem({
 					"relative flex shrink-0 items-center justify-center overflow-hidden rounded-md border-2 bg-muted p-0.5 shadow-sm transition-shadow group-hover:shadow",
 					isMobile
 						? // Mobile: square aspect ratio with fixed width
-						"aspect-16/9 min-h-[90px] w-full"
+							"aspect-16/9 min-h-[90px] w-full"
 						: // Desktop: fixed height with flexible width
-						"h-full min-h-[90px] w-[100%]",
+							"h-full min-h-[90px] w-[100%]",
 					isActive
 						? "border-primary"
 						: "border-transparent bg-background hover:border-accent",

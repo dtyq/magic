@@ -17,6 +17,7 @@ use App\Application\Kernel\Contract\MagicPermissionInterface;
 use App\Application\Kernel\MagicPermission;
 use App\Application\KnowledgeBase\Port\EmbeddingProviderPort;
 use App\Application\KnowledgeBase\Port\FragmentHttpPassthroughPort;
+use App\Application\KnowledgeBase\Port\ThirdPlatformDocumentProviderPort;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\ExternalFileDocumentFileStrategyDriver;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
@@ -32,8 +33,6 @@ use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\GraphSimilari
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\HybridSimilaritySearchInterface;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\SemanticSimilaritySearchInterface;
 use App\Application\MCP\Packer\SerializePacker;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCP;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentSkill;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentSkillInterface;
 use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutor;
@@ -277,6 +276,7 @@ use App\Infrastructure\ImageGenerate\DefaultWatermarkConfig;
 use App\Infrastructure\ImageGenerate\DefaultWatermarkPolicy;
 use App\Infrastructure\ImageGenerate\NullImageEnhancementProcessor;
 use App\Infrastructure\ImageGenerate\WatermarkPolicyInterface;
+use App\Infrastructure\KnowledgeBase\ThirdPlatform\UnsupportedThirdPlatformDocumentProvider;
 use App\Infrastructure\ModelGateway\FfprobeVideoMediaProbe;
 use App\Infrastructure\ModelGateway\Queue\RedisQueueCoreRepository;
 use App\Infrastructure\ModelGateway\Queue\RedisVideoQueueOperationRepository;
@@ -387,6 +387,7 @@ $dependencies = [
     FragmentGateway::class => FragmentRpcClient::class,
     FragmentHttpPassthroughPort::class => FragmentRpcClient::class,
     EmbeddingProviderPort::class => EmbeddingRpcClient::class,
+    ThirdPlatformDocumentProviderPort::class => UnsupportedThirdPlatformDocumentProvider::class,
     KnowledgeBaseDocumentRepositoryInterface::class => KnowledgeBaseDocumentRepository::class,
     KnowledgeBaseFragmentRepositoryInterface::class => KnowledgeBaseFragmentRepository::class,
 
@@ -416,7 +417,6 @@ $dependencies = [
     MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,
     AuthenticatorInterface::class => ApiKeyProviderAuthenticator::class,
     MCPUserSettingRepositoryInterface::class => MCPUserSettingRepository::class,
-    SupperMagicAgentMCPInterface::class => SupperMagicAgentMCP::class,
     SupperMagicAgentSkillInterface::class => SupperMagicAgentSkill::class,
     ExternalStdioExecutorInterface::class => ExternalStdioExecutor::class,
     ExternalHttpExecutorInterface::class => ExternalHttpExecutor::class,

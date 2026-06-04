@@ -92,7 +92,10 @@ FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
   AND document_code = ?
-ORDER BY id ASC
+ORDER BY
+  CASE WHEN JSON_EXTRACT(metadata, '$.chunk_index') IS NULL THEN 1 ELSE 0 END ASC,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.chunk_index')) AS UNSIGNED) ASC,
+  id ASC
 LIMIT ? OFFSET ?;
 
 -- name: CountFragmentsByKnowledgeAndDocumentFiltered :one
@@ -112,7 +115,10 @@ WHERE deleted_at IS NULL
   AND document_code = sqlc.arg(document_code)
   AND content LIKE sqlc.arg(content_like)
   AND sync_status IN (sqlc.slice(sync_status_values))
-ORDER BY id ASC
+ORDER BY
+  CASE WHEN JSON_EXTRACT(metadata, '$.chunk_index') IS NULL THEN 1 ELSE 0 END ASC,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.chunk_index')) AS UNSIGNED) ASC,
+  id ASC
 LIMIT ? OFFSET ?;
 
 -- name: CountFragmentsByKnowledgeAndBusinessID :one

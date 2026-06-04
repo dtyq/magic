@@ -82,7 +82,7 @@ interface WorkspaceRepositoryInterface
         int $page = 1,
         int $pageSize = 10,
         string $orderBy = 'id',
-        string $orderDirection = 'asc'
+        string $orderDirection = 'desc'
     ): array;
 
     /**

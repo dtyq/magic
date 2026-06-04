@@ -75,6 +75,8 @@ interface ImageResource {
 export interface ImageResourceEntry {
 	/** 换取到的 ossSrc（可能为 null，表示换取失败或还未换取） */
 	ossSrc: string | null
+	/** getFileInfo 返回的真实源地址；当 SW 虚拟 URL 失效时用于主线程兜底 */
+	sourceUrl: string | null
 	/** ossSrc 过期时间戳（毫秒），null 表示永不过期 */
 	expiresAt: number | null
 	/** 换链 getFileInfo 返回的附件来源（与 GetFileInfoResponse.source 一致） */
@@ -251,6 +253,7 @@ export class ImageResourceManager {
 
 		// 检查 ossSrc 是否过期，过期则清除
 		this.clearExpiredOssSrc(entry)
+		this.applyVirtualResourceBypass(entry)
 
 		const cachedResource = await this.loadCachedImageResource(path, normalizedSrc, entry)
 		if (cachedResource) {
@@ -368,6 +371,7 @@ export class ImageResourceManager {
 			entry.expiresAt = null
 		} else {
 			this.clearExpiredOssSrc(entry)
+			this.applyVirtualResourceBypass(entry)
 		}
 
 		if (entry.ossSrc) {
@@ -380,6 +384,9 @@ export class ImageResourceManager {
 		const ossSrc = await this.exchangeOssSrc(path, entry)
 		if (!ossSrc) {
 			this.setFailureReason(entry, entry.lastFailureReason ?? "not-found")
+			if (this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource()) {
+				return null
+			}
 			const cached = await this.canvas.mediaResourceOfflineCacheManager.getCachedResource(
 				path,
 				"image",
@@ -487,6 +494,9 @@ export class ImageResourceManager {
 		entry: ImageResourceEntry,
 	): Promise<LoadedResource | null> {
 		try {
+			if (this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource()) {
+				return null
+			}
 			const cached = await this.canvas.mediaResourceOfflineCacheManager.getCachedResource(
 				path,
 				"image",
@@ -494,6 +504,7 @@ export class ImageResourceManager {
 			if (!cached?.url) return null
 
 			entry.ossSrc = cached.url
+			entry.sourceUrl = cached.sourceUrl ?? null
 			entry.expiresAt = cached.expiresAt ?? null
 			if (entry.resource) {
 				return this.buildLoadedResource(entry)
@@ -567,8 +578,21 @@ export class ImageResourceManager {
 	private clearExpiredOssSrc(entry: ImageResourceEntry): void {
 		if (entry.ossSrc && isOssExpired(entry.expiresAt)) {
 			entry.ossSrc = null
+			entry.sourceUrl = null
 			entry.expiresAt = null
 		}
+	}
+
+	private applyVirtualResourceBypass(entry: ImageResourceEntry): void {
+		if (
+			!entry.ossSrc ||
+			!this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource() ||
+			!this.canvas.mediaResourceOfflineCacheManager.isVirtualResourceUrl(entry.ossSrc)
+		) {
+			return
+		}
+
+		entry.ossSrc = entry.sourceUrl && !isOssExpired(entry.expiresAt) ? entry.sourceUrl : null
 	}
 
 	/**
@@ -580,7 +604,7 @@ export class ImageResourceManager {
 	private async exchangeOssSrc(
 		path: string,
 		entry: ImageResourceEntry,
-		options?: { forceRefresh?: boolean },
+		options?: { forceRefresh?: boolean; bypassVirtualResource?: boolean },
 	): Promise<string | null> {
 		const getFileInfo = this.canvas.magicConfigManager.config?.methods?.getFileInfo
 
@@ -604,15 +628,21 @@ export class ImageResourceManager {
 				if (fileInfo?.src) {
 					this.setFailureReason(entry, null)
 					entry.expiresAt = parseExpiresAt(fileInfo.expires_at)
+					entry.sourceUrl = fileInfo.src
 					entry.source = fileInfo.source
 					entry.fileName = fileInfo.fileName
 					const resourceUrl =
-						await this.canvas.mediaResourceOfflineCacheManager.resolveResourceUrl({
-							path,
-							url: fileInfo.src,
-							mediaType: "image",
-							expiresAt: entry.expiresAt,
-						})
+						await this.canvas.mediaResourceOfflineCacheManager.resolveResourceUrl(
+							{
+								path,
+								url: fileInfo.src,
+								mediaType: "image",
+								expiresAt: entry.expiresAt,
+							},
+							{
+								bypassVirtualResource: options?.bypassVirtualResource,
+							},
+						)
 					entry.ossSrc = resourceUrl
 					return resourceUrl
 				}
@@ -656,6 +686,7 @@ export class ImageResourceManager {
 		path: string,
 		ossSrc: string,
 		entry: ImageResourceEntry,
+		retryCount = 0,
 	): Promise<LoadedResource | null> {
 		const requestId = `img-${++this.requestIdCounter}-${Date.now()}`
 		try {
@@ -669,14 +700,31 @@ export class ImageResourceManager {
 				this.setFailureReason(entry, "load-error")
 				entry.ossSrc = null
 				entry.expiresAt = null
-				const newOssSrc = await this.exchangeOssSrc(path, entry)
+				const fallbackOssSrc = await this.resolveVirtualResourceFallbackOssSrc(
+					path,
+					ossSrc,
+					entry,
+					retryCount,
+				)
+				const newOssSrc =
+					fallbackOssSrc ??
+					(retryCount === 0 ? await this.exchangeOssSrc(path, entry) : null)
 				if (newOssSrc) {
-					return this.loadImageResource(path, newOssSrc, entry)
+					return this.loadImageResource(path, newOssSrc, entry, retryCount + 1)
 				}
 				return null
 			}
 
 			if (!result?.imageInfo || !result?.thumbnails) {
+				const fallbackOssSrc = await this.resolveVirtualResourceFallbackOssSrc(
+					path,
+					ossSrc,
+					entry,
+					retryCount,
+				)
+				if (fallbackOssSrc) {
+					return this.loadImageResource(path, fallbackOssSrc, entry, retryCount + 1)
+				}
 				this.setFailureReason(entry, getFailureReasonFromStatusCode(result?.statusCode))
 				return null
 			}
@@ -706,6 +754,7 @@ export class ImageResourceManager {
 			}
 			entry.resource = resource
 			this.setFailureReason(entry, null)
+			this.canvas.mediaResourceOfflineCacheManager.recordVirtualResourceLoadSuccess(ossSrc)
 
 			const loadedResource: LoadedResource = {
 				ossSrc,
@@ -721,14 +770,51 @@ export class ImageResourceManager {
 
 			return loadedResource
 		} catch (error) {
+			const fallbackOssSrc = await this.resolveVirtualResourceFallbackOssSrc(
+				path,
+				ossSrc,
+				entry,
+				retryCount,
+			)
+			if (fallbackOssSrc) {
+				return this.loadImageResource(path, fallbackOssSrc, entry, retryCount + 1)
+			}
 			this.setFailureReason(entry, "load-error")
 			return null
 		}
 	}
 
+	private async resolveVirtualResourceFallbackOssSrc(
+		path: string,
+		ossSrc: string,
+		entry: ImageResourceEntry,
+		retryCount: number,
+	): Promise<string | null> {
+		if (
+			retryCount > 0 ||
+			!this.canvas.mediaResourceOfflineCacheManager.isVirtualResourceUrl(ossSrc)
+		) {
+			return null
+		}
+
+		this.canvas.mediaResourceOfflineCacheManager.recordVirtualResourceLoadFailure(ossSrc)
+		if (entry.sourceUrl && !isOssExpired(entry.expiresAt)) {
+			entry.ossSrc = entry.sourceUrl
+			return entry.sourceUrl
+		}
+
+		entry.ossSrc = null
+		entry.expiresAt = null
+		return this.exchangeOssSrc(path, entry, {
+			forceRefresh: true,
+			bypassVirtualResource: true,
+		})
+	}
+
 	private createEntry(): ImageResourceEntry {
 		return {
 			ossSrc: null,
+			sourceUrl: null,
 			expiresAt: null,
 			exchangePromise: null,
 			loadingPromise: null,
@@ -756,6 +842,7 @@ export class ImageResourceManager {
 		const normalizedSrc = this.canonicalResourcePath(path)
 		const entry = this.getOrCreateEntry(normalizedSrc)
 		entry.ossSrc = fileInfo.src
+		entry.sourceUrl = fileInfo.src
 		entry.expiresAt = parseExpiresAt(fileInfo.expires_at)
 	}
 

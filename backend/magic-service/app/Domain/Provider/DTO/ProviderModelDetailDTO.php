@@ -24,6 +24,8 @@ class ProviderModelDetailDTO extends AbstractDTO
 
     protected string $serviceProviderConfigId; // 服务商配置ID
 
+    protected string $providerCode = ''; // 服务商编码
+
     protected string $modelId = ''; // 模型真实ID
 
     protected string $name;
@@ -59,6 +61,8 @@ class ProviderModelDetailDTO extends AbstractDTO
     protected array $visibleApplications = [];
 
     protected array $visiblePackages = [];
+
+    protected mixed $extra = null;
 
     public function getDisabledBy(): ?DisabledByType
     {
@@ -261,6 +265,20 @@ class ProviderModelDetailDTO extends AbstractDTO
         }
     }
 
+    public function getProviderCode(): string
+    {
+        return $this->providerCode;
+    }
+
+    public function setProviderCode(null|int|string $providerCode): void
+    {
+        if ($providerCode === null) {
+            $this->providerCode = '';
+        } else {
+            $this->providerCode = (string) $providerCode;
+        }
+    }
+
     public function getModelId(): string
     {
         return $this->modelId;
@@ -368,6 +386,24 @@ class ProviderModelDetailDTO extends AbstractDTO
             $this->visiblePackages = is_array($decoded) ? $decoded : [];
         } else {
             $this->visiblePackages = $visiblePackages;
+        }
+    }
+
+    public function getExtra(): mixed
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(mixed $extra): void
+    {
+        if ($extra === null) {
+            $this->extra = null;
+        } elseif (is_array($extra)) {
+            $this->extra = $extra;
+        } elseif (is_string($extra) && json_validate($extra)) {
+            $this->extra = json_decode($extra, true);
+        } else {
+            $this->extra = $extra;
         }
     }
 }

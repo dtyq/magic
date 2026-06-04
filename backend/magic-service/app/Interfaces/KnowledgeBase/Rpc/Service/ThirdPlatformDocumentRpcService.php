@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\KnowledgeBase\Rpc\Service;
 
 use App\Application\Kernel\EnvManager;
+use App\Application\KnowledgeBase\Port\ThirdPlatformDocumentProviderPort;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\DocumentFileStrategy;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\AbstractDocumentFile;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
@@ -16,14 +17,6 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Rpc\Annotation\RpcMethod;
 use App\Infrastructure\Rpc\Annotation\RpcService;
 use App\Infrastructure\Rpc\Method\SvcMethods;
-use Dtyq\MagicEnterprise\Application\Kernel\TeamshareMultipleEnvApiFactory;
-use Dtyq\MagicEnterprise\Application\TeamshareOpenPlatform\Service\FIleOauth2AppService;
-use Dtyq\MagicEnterprise\Application\TeamshareOpenPlatform\Service\Oauth2AuthenticationAppService;
-use Dtyq\MagicEnterprise\Domain\TeamshareOpenPlatform\Entity\ValueObject\FileType;
-use Dtyq\MagicEnterprise\Domain\TeamshareOpenPlatform\Entity\ValueObject\ThirdPartyPlatform;
-use Dtyq\MagicEnterprise\Infrastructure\Core\DataIsolation\EnterpriseThirdPlatformDataIsolationManager;
-use Dtyq\MagicEnterprise\Infrastructure\ExternalAPI\Teamshare\Oauth2\Teamshare\Api\Parameter\File\GetChildFilesParameter;
-use Dtyq\MagicEnterprise\Infrastructure\ExternalAPI\Teamshare\Oauth2\Teamshare\Api\Parameter\Knowledge\GetManageableParameter;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -31,6 +24,18 @@ use Throwable;
 readonly class ThirdPlatformDocumentRpcService
 {
     private const int TEAMSHARE_CHILDREN_PAGE_SIZE = 500;
+
+    private const int TEAMSHARE_FILE_TYPE_FOLDER = 0;
+
+    private const int TEAMSHARE_FILE_TYPE_MULTI_TABLE = 1;
+
+    private const int TEAMSHARE_FILE_TYPE_OLD_CLOUD_DOCUMENT = 7;
+
+    private const int TEAMSHARE_FILE_TYPE_KNOWLEDGE_BASE = 9;
+
+    private const int TEAMSHARE_FILE_TYPE_CLOUD_DOCUMENT = 16;
+
+    private const string DEFAULT_THIRD_PLATFORM_TYPE = 'teamshare_open_platform_pro';
 
     private const string SOURCE_KIND_RAW_CONTENT = 'raw_content';
 
@@ -42,9 +47,7 @@ readonly class ThirdPlatformDocumentRpcService
 
     public function __construct(
         private DocumentFileStrategy $documentFileStrategy,
-        private FIleOauth2AppService $fileOauth2AppService,
-        private Oauth2AuthenticationAppService $oauth2AuthenticationAppService,
-        private TeamshareMultipleEnvApiFactory $teamshareMultipleEnvApiFactory,
+        private ThirdPlatformDocumentProviderPort $thirdPlatformDocumentProvider,
         private LoggerInterface $logger,
     ) {
     }
@@ -191,33 +194,11 @@ readonly class ThirdPlatformDocumentRpcService
     {
         try {
             $dataIsolation = $this->createKnowledgeBaseDataIsolation($params);
-            /** @var EnterpriseThirdPlatformDataIsolationManager $thirdPlatformManager */
-            $thirdPlatformManager = $dataIsolation->getThirdPlatformDataIsolationManager();
-            $teamshareApi = $this->teamshareMultipleEnvApiFactory->getByEnvId(
-                $dataIsolation->getEnvId(),
-                $thirdPlatformManager->getTeamshareConfigManager()
-            );
-            $accessToken = $this->oauth2AuthenticationAppService->getAccessToken(
-                $dataIsolation,
-                $dataIsolation->getCurrentUserId(),
-                ThirdPartyPlatform::TeamshareOpenPlatformPro
-            );
-            $parameter = new GetManageableParameter($accessToken);
-            $result = $teamshareApi->knowledge->getManageable($parameter);
-
-            $items = [];
-            foreach ($result->getKnowledgeList() as $knowledge) {
-                $items[] = [
-                    'knowledge_base_id' => $knowledge->getId(),
-                    'name' => $knowledge->getName(),
-                    'description' => $knowledge->getDescription(),
-                ];
-            }
 
             return [
                 'code' => 0,
                 'message' => 'success',
-                'data' => $items,
+                'data' => $this->thirdPlatformDocumentProvider->listKnowledgeBases($dataIsolation),
             ];
         } catch (Throwable $e) {
             $this->logger->error('IPC ThirdPlatformDocument listKnowledgeBases failed', [
@@ -262,7 +243,7 @@ readonly class ThirdPlatformDocumentRpcService
     public function resolveNode(array $params): array
     {
         $thirdFileId = trim((string) ($params['third_file_id'] ?? ''));
-        $thirdPlatformType = trim((string) ($params['third_platform_type'] ?? ThirdPartyPlatform::TeamshareOpenPlatformPro->value));
+        $thirdPlatformType = trim((string) ($params['third_platform_type'] ?? self::DEFAULT_THIRD_PLATFORM_TYPE));
         $thirdKnowledgeId = trim((string) ($params['third_knowledge_id'] ?? ''));
         if ($thirdFileId === '') {
             return [
@@ -321,7 +302,7 @@ readonly class ThirdPlatformDocumentRpcService
                     'name' => $name,
                     'file_type' => $fileType,
                     'extension' => $extension,
-                    'is_directory' => in_array((int) $fileType, [FileType::FOLDER, FileType::KNOWLEDGE_BASE], true),
+                    'is_directory' => in_array((int) $fileType, [self::TEAMSHARE_FILE_TYPE_FOLDER, self::TEAMSHARE_FILE_TYPE_KNOWLEDGE_BASE], true),
                     'path' => $path,
                     'document_file' => $documentFile,
                 ],
@@ -343,20 +324,7 @@ readonly class ThirdPlatformDocumentRpcService
         KnowledgeBaseDataIsolation $dataIsolation,
         string $thirdFileId,
     ): array {
-        $fileInfos = $this->fileOauth2AppService->getFilesByIds($dataIsolation, [$thirdFileId])->toArray();
-        if (isset($fileInfos[$thirdFileId]) && is_array($fileInfos[$thirdFileId])) {
-            return $fileInfos[$thirdFileId];
-        }
-        foreach ($fileInfos as $fileInfo) {
-            if (! is_array($fileInfo)) {
-                continue;
-            }
-            $candidate = (string) ($fileInfo['id'] ?? $fileInfo['file_id'] ?? $fileInfo['third_file_id'] ?? '');
-            if ($candidate === $thirdFileId) {
-                return $fileInfo;
-            }
-        }
-        return [];
+        return $this->thirdPlatformDocumentProvider->getFileInfo($dataIsolation, $thirdFileId);
     }
 
     private function normalizeTeamsharePath(array $path): array
@@ -417,14 +385,13 @@ readonly class ThirdPlatformDocumentRpcService
         $lastFileId = 0;
 
         while (true) {
-            $parameter = new GetChildFilesParameter('');
-            $parameter
-                ->setParentId($parentId)
-                ->setLastFileId($lastFileId)
-                ->setPageSize(self::TEAMSHARE_CHILDREN_PAGE_SIZE);
-
             $page = array_values(
-                $this->fileOauth2AppService->getChildFilesByParams($dataIsolation, $parameter)->getData()
+                $this->thirdPlatformDocumentProvider->listDirectChildren(
+                    $dataIsolation,
+                    $parentId,
+                    $lastFileId,
+                    self::TEAMSHARE_CHILDREN_PAGE_SIZE
+                )
             );
             if ($page === []) {
                 break;
@@ -494,14 +461,14 @@ readonly class ThirdPlatformDocumentRpcService
     ): array {
         $fileType = method_exists($documentFile, 'getThirdFileType') ? (int) $documentFile->getThirdFileType() : null;
         $directContentFileTypes = array_flip([
-            FileType::CLOUD_DOCUMENT,
-            FileType::OLD_CLOUD_DOCUMENT,
-            FileType::MULTI_TABLE,
+            self::TEAMSHARE_FILE_TYPE_CLOUD_DOCUMENT,
+            self::TEAMSHARE_FILE_TYPE_OLD_CLOUD_DOCUMENT,
+            self::TEAMSHARE_FILE_TYPE_MULTI_TABLE,
         ]);
 
         if (isset($directContentFileTypes[$fileType])) {
-            $rawContent = (string) ($this->fileOauth2AppService->getFileMarkdown($dataIsolation, $documentFile->getThirdFileId())->getData()['content'] ?? '');
-            if ($fileType === FileType::MULTI_TABLE) {
+            $rawContent = $this->thirdPlatformDocumentProvider->getFileMarkdown($dataIsolation, $documentFile->getThirdFileId());
+            if ($fileType === self::TEAMSHARE_FILE_TYPE_MULTI_TABLE) {
                 $rawContent = $this->convertMarkdownTableToCsv($rawContent);
                 $this->overrideResolvedDocumentExtension($documentFile, 'csv');
             } else {
@@ -517,7 +484,7 @@ readonly class ThirdPlatformDocumentRpcService
         }
 
         $downloadURLs = $this->extractDownloadURLs(
-            $this->fileOauth2AppService->getTeamshareFileDownloadUrls($dataIsolation, [$documentFile->getThirdFileId()])->getData()
+            $this->thirdPlatformDocumentProvider->getFileDownloadUrls($dataIsolation, [$documentFile->getThirdFileId()])
         );
         $downloadURL = $downloadURLs[0] ?? '';
         $resolvedExtension = (string) ($this->normalizeDocumentFilePayload($documentFile)['extension'] ?? '');
@@ -544,10 +511,13 @@ readonly class ThirdPlatformDocumentRpcService
     {
         $downloadURLs = [];
         foreach ($downloadItems as $downloadItem) {
-            if (! is_array($downloadItem)) {
+            if (is_string($downloadItem)) {
+                $downloadURL = trim($downloadItem);
+            } elseif (is_array($downloadItem)) {
+                $downloadURL = trim((string) ($downloadItem['url'] ?? ''));
+            } else {
                 continue;
             }
-            $downloadURL = trim((string) ($downloadItem['url'] ?? ''));
             if ($downloadURL === '') {
                 continue;
             }

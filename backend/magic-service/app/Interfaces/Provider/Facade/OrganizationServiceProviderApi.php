@@ -15,12 +15,15 @@ use App\Application\Provider\Service\AdminOriginModelAppService;
 use App\Application\Provider\Service\AdminProviderAppService;
 use app\Application\Provider\Service\ProviderAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
+use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
+use App\Domain\Provider\Support\BillingTierFlatPriceCompatibility;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
+use App\Infrastructure\Util\Permission\Annotation\CheckProviderModelPermission;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\DTO\ConnectivityTestByConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderConfigRequest;
@@ -50,7 +53,11 @@ class OrganizationServiceProviderApi extends AbstractApi
      * 不需要判断管理员权限。
      * 根据分类获取服务商列表.
      */
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
+        MagicOperationEnum::QUERY
+    )]
     public function getServiceProviders(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
@@ -60,14 +67,22 @@ class OrganizationServiceProviderApi extends AbstractApi
      * 不需要判断管理员权限。
      * 根据分类获取服务商列表.
      */
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
+        MagicOperationEnum::QUERY
+    )]
     public function getOrganizationProvidersByCategory(RequestInterface $request)
     {
         return $this->getProvidersByCategory($request);
     }
 
     // 获取服务商和模型列表
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_PROVIDER_CONFIG_ID,
+        MagicOperationEnum::QUERY
+    )]
     public function getServiceProviderConfigModels(RequestInterface $request, ?string $serviceProviderConfigId = null)
     {
         $serviceProviderConfigId = $serviceProviderConfigId ?? $request->input('service_provider_config_id') ?? '';
@@ -75,11 +90,15 @@ class OrganizationServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
         $providerConfigAggregateDTO = $this->adminProviderAppService->getProviderModelsByConfigId($authenticatable, $serviceProviderConfigId);
         // 将新格式数据转换为旧格式以保持向后兼容性
-        return $this->convertToLegacyFormat($providerConfigAggregateDTO);
+        return $this->normalizeLegacyProviderModelsResponse($this->convertToLegacyFormat($providerConfigAggregateDTO));
     }
 
     // 更新服务商
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_PROVIDER_CONFIG_REQUEST,
+        MagicOperationEnum::EDIT
+    )]
     public function updateServiceProviderConfig(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -89,7 +108,11 @@ class OrganizationServiceProviderApi extends AbstractApi
     }
 
     // 修改模型状态
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_MODEL_ID,
+        MagicOperationEnum::EDIT
+    )]
     public function updateModelStatus(RequestInterface $request, ?string $modelId = null)
     {
         $modelId = $modelId ?? $request->input('model_id') ?? '';
@@ -110,27 +133,43 @@ class OrganizationServiceProviderApi extends AbstractApi
     }
 
     // 保存模型
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
+        MagicOperationEnum::EDIT
+    )]
     public function saveModelToServiceProvider(RequestInterface $request)
     {
         $authenticatable = $this->getAuthorization();
-        $saveProviderModelDTO = new SaveProviderModelDTO($request->all());
+        $saveProviderModelDTO = new SaveProviderModelDTO(
+            BillingTierFlatPriceCompatibility::normalizeSavePayload($request->all())
+        );
         return $this->adminProviderAppService->saveModel($authenticatable, $saveProviderModelDTO);
     }
 
     // 获取模型详情
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_MODEL_ID,
+        MagicOperationEnum::QUERY
+    )]
     public function getModelDetail(string $modelId)
     {
         $authenticatable = $this->getAuthorization();
-        return $this->adminProviderAppService->getModelDetail($authenticatable, $modelId);
+        return $this->normalizeModelDetailDTO(
+            $this->adminProviderAppService->getModelDetail($authenticatable, $modelId)
+        );
     }
 
     /**
      * 连通性测试.
      * @throws Exception
      */
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_MODEL_ID,
+        MagicOperationEnum::QUERY
+    )]
     public function connectivityTest(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -144,7 +183,11 @@ class OrganizationServiceProviderApi extends AbstractApi
     /**
      * @throws Exception
      */
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_MODEL_ID,
+        MagicOperationEnum::EDIT
+    )]
     public function deleteModel(RequestInterface $request, ?string $modelId = null)
     {
         $modelId = $modelId ?? $request->input('model_id') ?? '';
@@ -153,7 +196,7 @@ class OrganizationServiceProviderApi extends AbstractApi
     }
 
     // 获取原始模型id
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT, MagicOperationEnum::QUERY)]
     public function listOriginalModels()
     {
         $authenticatable = $this->getAuthorization();
@@ -161,7 +204,7 @@ class OrganizationServiceProviderApi extends AbstractApi
     }
 
     // 增加原始模型id
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT, MagicOperationEnum::EDIT)]
     public function addOriginalModel(RequestInterface $request)
     {
         $authenticatable = $this->getAuthorization();
@@ -171,7 +214,11 @@ class OrganizationServiceProviderApi extends AbstractApi
 
     // 组织添加服务商
     #[Deprecated]
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_PROVIDER_CONFIG_REQUEST,
+        MagicOperationEnum::EDIT
+    )]
     public function addServiceProviderForOrganization(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -181,7 +228,11 @@ class OrganizationServiceProviderApi extends AbstractApi
     }
 
     // 删除服务商
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_PROVIDER_CONFIG_ID,
+        MagicOperationEnum::EDIT
+    )]
     public function deleteServiceProviderForOrganization(RequestInterface $request, ?string $serviceProviderConfigId = null)
     {
         $serviceProviderConfigId = $serviceProviderConfigId ?? $request->input('service_provider_config_id') ?? '';
@@ -191,7 +242,7 @@ class OrganizationServiceProviderApi extends AbstractApi
     }
 
     // 组织添加模型标识
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT, MagicOperationEnum::EDIT)]
     public function addModelIdForOrganization(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -201,7 +252,7 @@ class OrganizationServiceProviderApi extends AbstractApi
     }
 
     // 组织删除模型标识
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT, MagicOperationEnum::EDIT)]
     public function deleteModelIdForOrganization(RequestInterface $request, ?string $modelId = null)
     {
         $modelId = $modelId ?? $request->input('model_id') ?? '';
@@ -215,7 +266,7 @@ class OrganizationServiceProviderApi extends AbstractApi
      * 直接从数据库中查询category为llm且provider_type不为OFFICIAL的服务商
      * 不依赖于当前组织，适用于需要添加服务商的场景.
      */
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT, MagicOperationEnum::QUERY)]
     public function getNonOfficialLlmProviders()
     {
         $authenticatable = $this->getAuthorization();
@@ -226,7 +277,7 @@ class OrganizationServiceProviderApi extends AbstractApi
     /**
      * 获取所有可用的LLM服务商列表（包括官方服务商）.
      */
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT, MagicOperationEnum::QUERY)]
     public function getAllAvailableLlmProviders()
     {
         $authenticatable = $this->getAuthorization();
@@ -246,7 +297,11 @@ class OrganizationServiceProviderApi extends AbstractApi
         return $this->providerAppService->getSuperMagicDisplayModelsForOrganization($authenticatable->getOrganizationCode());
     }
 
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
+        MagicOperationEnum::QUERY
+    )]
     public function queriesModels(RequestInterface $request): array
     {
         $authenticatable = $this->getAuthorization();
@@ -258,7 +313,11 @@ class OrganizationServiceProviderApi extends AbstractApi
      * 获取所有非官方服务商列表
      * 不依赖于当前组织，适用于需要添加服务商的场景.
      */
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
+        MagicOperationEnum::QUERY
+    )]
     public function queriesServiceProviderTemplates(RequestInterface $request)
     {
         $authenticatable = $this->getAuthorization();
@@ -273,7 +332,11 @@ class OrganizationServiceProviderApi extends AbstractApi
      * 按配置进行连通性测试（不依赖已保存的 model_id）.
      * @throws Exception
      */
-    #[CheckPermission([MagicResourceEnum::WORKSPACE_AI_MODEL, MagicResourceEnum::WORKSPACE_AI_IMAGE], MagicOperationEnum::QUERY)]
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_WORKSPACE,
+        CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
+        MagicOperationEnum::QUERY
+    )]
     public function connectivityTestByConfig(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
@@ -325,5 +388,32 @@ class OrganizationServiceProviderApi extends AbstractApi
             'alias' => $data['provider_config']['translate']['alias']['zh_CN'] ?? '',
             'models' => $data['models'] ?? [],
         ]);
+    }
+
+    private function normalizeLegacyProviderModelsResponse(array $data): array
+    {
+        if (! isset($data['models']) || ! is_array($data['models'])) {
+            return $data;
+        }
+
+        foreach ($data['models'] as $index => $model) {
+            if (! is_array($model) || ! isset($model['config']) || ! is_array($model['config'])) {
+                continue;
+            }
+
+            $data['models'][$index]['config'] = BillingTierFlatPriceCompatibility::deriveFlatFields($model['config']);
+        }
+
+        return $data;
+    }
+
+    private function normalizeModelDetailDTO(ProviderModelDetailDTO $modelDetailDTO): ProviderModelDetailDTO
+    {
+        $data = $modelDetailDTO->toArray();
+        if (isset($data['config']) && is_array($data['config'])) {
+            $data['config'] = BillingTierFlatPriceCompatibility::deriveFlatFields($data['config']);
+        }
+
+        return new ProviderModelDetailDTO($data);
     }
 }

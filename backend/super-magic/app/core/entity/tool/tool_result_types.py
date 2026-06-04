@@ -21,44 +21,6 @@ class WebSearchToolResult(ToolResult):
     # 存放需要返回给客户端的搜索结果
     search_results: Dict[str, List[SearchResult]] = Field(default_factory=dict)
 
-    def set_output_results(self, query: str, results: List[Dict[str, Any]]) -> None:
-        """将原始搜索结果转换为结构化的output_results
-
-        Args:
-            query: 搜索查询字符串
-            results: 原始搜索结果列表
-        """
-        if query not in self.output_results:
-            self.output_results[query] = []
-
-        for result in results:
-            search_result = SearchResult(
-                title=result.get("title", ""),
-                url=result.get("link", ""),
-                snippet=result.get("snippet"),
-            )
-            self.output_results[query].append(search_result)
-
-    def set_search_results(self, query: str, results: List[Dict[str, Any]]) -> None:
-        """将原始搜索结果转换为结构化的search_results
-
-        Args:
-            query: 搜索查询字符串
-            results: 原始搜索结果列表
-        """
-        if query not in self.search_results:
-            self.search_results[query] = []
-
-        for result in results:
-            search_result = SearchResult(
-                title=result.get("title", ""),
-                url=result.get("link", ""),
-                snippet=result.get("snippet"),
-                source=result.get("source"),
-                icon_url=result.get("icon_url", "")  # 添加图标URL，仅用于客户端显示
-            )
-            self.search_results[query].append(search_result)
-
     def add_query_results(self, query: str, results: List[SearchResult]) -> None:
         """添加查询结果到search_results
 

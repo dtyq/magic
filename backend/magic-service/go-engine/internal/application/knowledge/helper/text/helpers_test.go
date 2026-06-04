@@ -39,6 +39,7 @@ func TestHelperStringsAndBusinessParams(t *testing.T) {
 		OrganizationCode: "ORG",
 		UserID:           "USER",
 		BusinessID:       "BIZ",
+		SourceID:         ctxmeta.SourceIDFragmentSaved,
 	}
 	if *params != *want {
 		t.Fatalf("unexpected business params: %#v", params)

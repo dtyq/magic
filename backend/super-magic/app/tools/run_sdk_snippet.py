@@ -1,10 +1,10 @@
 """
 SDK 代码片段执行工具（Code Mode 执行器）
 
-执行模型生成的 Python 代码片段，代码通过 sdk.tool / sdk.mcp 调用底层工具。
+执行模型生成的 Python 代码片段，代码通过 sdk.tool 调用底层工具（MCP 能力作为 mcp_xxx 工具接入）。
 与 run_python_snippet 的区别：
 1. 自动注入 agent_context 到子进程环境变量，供 SDK 请求精确路由
-2. 子进程内的每次 tool.call() / mcp.call() 会触发独立的 before/after_tool_call 事件，
+2. 子进程内的每次 tool.call() 会触发独立的 before/after_tool_call 事件，
    在 v2 消息模式下对应各自一组 assistant + tool 消息
 
 注意：should_trigger_events() 返回 False 仅影响 v1 消息模式；
@@ -36,6 +36,7 @@ from app.i18n import i18n
 from app.path_manager import PathManager
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
+from app.tools.python_snippet_repair import prepare_python_code
 from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.utils.process_executor import ProcessExecutor
 
@@ -52,8 +53,8 @@ class RunSdkSnippetParams(BaseToolParams):
     """SDK 代码片段执行参数"""
     python_code: str = Field(
         ...,
-        description="""<!--zh: 要执行的 Python 代码，通过 sdk.tool / sdk.mcp 调用工具-->
-Python code to execute that calls tools via sdk.tool / sdk.mcp"""
+        description="""<!--zh: 要执行的 Python 代码，通过 sdk.tool 调用工具-->
+Python code to execute that calls tools via sdk.tool"""
     )
     timeout: int = Field(
         120,
@@ -90,12 +91,16 @@ hits = tool.call("grep_search", {"query": "def handle_error", "file_pattern": "*
 print(hits.content)
 ```
 
-也可以调 MCP：
+需要调 MCP 时，也是走 tool.call，具体用法参考 using-mcp skill：
 
 ```python
-from sdk.mcp import mcp
+from sdk.tool import tool
 
-result = mcp.call("server_name", "tool_name", {"key": "value"})
+result = tool.call("mcp_call_tool", {
+    "server_name": "server_name",
+    "tool_name": "tool_name",
+    "tool_params": '{"key": "value"}',  # JSON string, not a dict
+})
 print(result.content)
 ```
 
@@ -178,12 +183,16 @@ hits = tool.call("grep_search", {"query": "def handle_error", "file_pattern": "*
 print(hits.content)
 ```
 
-MCP calls work the same way:
+MCP capabilities are also accessed via tool.call (see the using-mcp skill for details):
 
 ```python
-from sdk.mcp import mcp
+from sdk.tool import tool
 
-result = mcp.call("server_name", "tool_name", {"key": "value"})
+result = tool.call("mcp_call_tool", {
+    "server_name": "server_name",
+    "tool_name": "tool_name",
+    "tool_params": '{"key": "value"}',  # JSON string, not a dict
+})
 print(result.content)
 ```
 
@@ -285,9 +294,15 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
                 pass
         return blocked
 
+    @staticmethod
+    def _prepare_python_code(python_code: str) -> str:
+        return prepare_python_code(python_code, logger=logger, caller="run_sdk_snippet")
+
     async def execute(self, tool_context: ToolContext, params: RunSdkSnippetParams) -> ToolResult:
+        python_code = self._prepare_python_code(params.python_code)
+
         # 检查是否包含不允许在 Code Mode 中调用的工具
-        blocked_tools = self._check_code_mode_compatibility(params.python_code)
+        blocked_tools = self._check_code_mode_compatibility(python_code)
         if blocked_tools:
             names = ", ".join(blocked_tools)
             return ToolResult.error(
@@ -312,7 +327,7 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
 
             try:
                 async with aiofiles.open(script_file_path, 'w', encoding='utf-8') as f:
-                    await f.write(params.python_code)
+                    await f.write(python_code)
                 logger.debug(f"成功写入代码到: {script_file_path}")
             except Exception as e:
                 logger.exception(f"写入 SDK 代码片段失败: {e}")
@@ -320,7 +335,7 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
 
             command = f"python {script_filename}"
             effective_timeout = SdkSnippetTimeoutRegistry.get_effective_timeout(
-                params.python_code, params.timeout
+                python_code, params.timeout
             )
             if effective_timeout != params.timeout:
                 logger.info(

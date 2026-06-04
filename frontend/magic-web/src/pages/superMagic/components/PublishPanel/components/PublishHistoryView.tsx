@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CircleAlert, CirclePlus, Info, LayoutTemplate, Loader2, X } from "lucide-react"
+import { CircleAlert, CirclePlus, LayoutTemplate, Loader2, X } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
@@ -13,6 +13,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/shadcn-ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
 import { cn } from "@/lib/utils"
 import { usePublishPanelStore } from "../context"
 import { getInternalTargetUiKey, getPublishToCopyKeys } from "../publishCopy"
@@ -148,6 +149,11 @@ export default observer(function PublishHistoryView({
 											"skillEditPage.publishPanel.history.columns.publishedDate",
 										)}
 									</TableHead>
+									<TableHead className="w-48 px-2 py-3 text-sm font-medium text-muted-foreground">
+										{t(
+											"skillEditPage.publishPanel.history.columns.reviewRemark",
+										)}
+									</TableHead>
 									<TableHead className="px-2 py-3 text-right text-sm font-medium text-muted-foreground">
 										{t("skillEditPage.publishPanel.history.columns.actions")}
 									</TableHead>
@@ -219,6 +225,12 @@ const PublishHistoryRow = observer(function PublishHistoryRow({
 			<TableCell className="px-2 py-3 text-sm text-foreground">
 				{record.publishedAt}
 			</TableCell>
+			<TableCell className="w-48 max-w-48 px-2 py-3 text-sm text-foreground">
+				<ReviewRemarkCell
+					value={record.reviewRemark}
+					emptyValue={t("skillEditPage.publishPanel.emptyValue")}
+				/>
+			</TableCell>
 			<TableCell className="px-2 py-3 text-right">
 				<Button
 					type="button"
@@ -234,3 +246,22 @@ const PublishHistoryRow = observer(function PublishHistoryRow({
 		</TableRow>
 	)
 })
+
+function ReviewRemarkCell({ value, emptyValue }: { value?: string; emptyValue: string }) {
+	const displayValue = value?.trim() ? value : emptyValue
+
+	if (!value?.trim()) {
+		return <span className="block truncate text-muted-foreground">{displayValue}</span>
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span className="block cursor-default truncate">{displayValue}</span>
+			</TooltipTrigger>
+			<TooltipContent side="top" className="max-w-80 whitespace-pre-wrap break-words">
+				{displayValue}
+			</TooltipContent>
+		</Tooltip>
+	)
+}

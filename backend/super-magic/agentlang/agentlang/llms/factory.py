@@ -19,7 +19,6 @@ from openai.types.chat import ChatCompletion
 from pydantic import BaseModel
 
 from agentlang.config.config import config
-from agentlang.config.dynamic_config import dynamic_config
 from agentlang.interface.context import AgentContextInterface
 from agentlang.llms.token_usage.tracker import TokenUsageTracker
 from agentlang.llms.token_usage.pricing import ModelPricing
@@ -346,12 +345,14 @@ class LLMFactory:
             raise ValueError(f"无法为模型 {model_id} 创建客户端")
 
     @classmethod
-    def get_model_config(cls, model_id: str, expected_type: str = None) -> LLMClientConfig:
+    def get_model_config(cls, model_id: str, expected_type: str = None, allow_fallback: bool = True) -> LLMClientConfig:
         """Get the model config for the given model ID.
 
         Args:
             model_id: The model ID to get the config for.
             expected_type: Expected model type (e.g., "llm", "embedding"). If None, no type validation.
+            allow_fallback: Whether to allow fallback to "auto" or first available model when model_id is not found.
+                           Defaults to True. Fallback is never applied for embedding type.
 
         Returns:
             The model config for the given model ID.
@@ -362,39 +363,48 @@ class LLMFactory:
         if model_id in cls._configs:
             return cls._configs[model_id]
 
-        # 优先读取动态配置文件
-        model_config = dynamic_config.get_model_config(model_id)
-        if model_config:
-            # 使用动态配置
-            logger.debug(f"使用动态配置创建模型客户端: {model_id}")
-        else:
-            # 兜底：从全局配置文件读取
-            global_models_config = config.get("models", {})
-            if model_id in global_models_config:
-                model_config = global_models_config[model_id]
-                logger.debug(f"使用全局配置创建模型客户端: {model_id}")
+        from agentlang.config.models.model_config_manager import model_config_manager
+        mc = model_config_manager.get(model_id)
+
+        # 当找不到配置时，尝试 fallback（仅非 embedding 场景）
+        if mc is None and allow_fallback and expected_type != "embedding":
+            # 优先尝试 "auto" 模型
+            mc = model_config_manager.get("auto")
+            if mc is not None:
+                logger.warning(f"模型 '{model_id}' 未找到配置，fallback 到 'auto' 模型")
             else:
-                raise ValueError(f"找不到模型 ID 为 {model_id} 的配置")
+                # 从所有已注册模型中取第一个 LLM 类型的模型
+                all_models = model_config_manager.list_all()
+                for candidate in all_models:
+                    if candidate.type == "llm":
+                        mc = candidate
+                        logger.warning(
+                            f"模型 '{model_id}' 未找到配置且 'auto' 不可用，"
+                            f"fallback 到第一个可用 LLM 模型 '{mc.model_id}'"
+                        )
+                        break
+
+        if mc is None:
+            raise ValueError(f"找不到模型 ID 为 {model_id} 的配置")
 
         # 验证模型类型（如果指定了预期类型）
-        if expected_type and (not model_config or model_config.get("type") != expected_type):
+        if expected_type and mc.type != expected_type:
             raise ValueError(f"模型 {model_id} 不是 {expected_type.upper()} 类型")
 
-        # 检查必需字段并创建配置对象
         try:
             return LLMClientConfig(
                 model_id=model_id,
-                api_key=model_config["api_key"],
-                api_base_url=model_config["api_base_url"],
-                name=str(model_config["name"]),
-                provider=model_config["provider"],
-                supports_tool_use=model_config.get("supports_tool_use", False),
-                max_output_tokens=model_config.get("max_output_tokens", 4 * 1024),
-                max_context_tokens=model_config.get("max_context_tokens", 8 * 1024),
-                temperature=model_config.get("temperature", 0.7),
-                top_p=model_config.get("top_p", 1.0),
-                type=model_config["type"],
-                resolved_model_id=model_config.get("resolved_model_id") or None,
+                api_key=mc.api_key,
+                api_base_url=mc.api_base_url,
+                name=mc.name,
+                provider=mc.provider,
+                supports_tool_use=mc.supports_tool_use,
+                max_output_tokens=mc.max_output_tokens,
+                max_context_tokens=mc.max_context_tokens,
+                temperature=mc.temperature,
+                top_p=mc.top_p,
+                type=mc.type,
+                resolved_model_id=mc.resolved_model_id,
             )
         except Exception as e:
             logger.error(f"创建配置失败: {e}")

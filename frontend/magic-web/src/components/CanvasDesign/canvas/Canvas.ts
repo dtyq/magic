@@ -42,6 +42,7 @@ import { ElementRenameManager } from "./interaction/ElementRenameManager"
 import { TextEditingManager } from "./interaction/TextEditingManager"
 import { TextFormattingManager } from "./interaction/TextFormattingManager"
 import { isCanvasUIComponentNode } from "./utils/domGuards"
+import { buildVirtualResourceScope } from "./utils/pathUtils"
 import {
 	editActions,
 	layerActions,
@@ -111,7 +112,7 @@ export class Canvas {
 
 	public readonly: boolean
 	public isMobileDevice: boolean
-	public id?: string
+	public id: string
 
 	public t?: TFunction
 	private scopeElement: HTMLElement
@@ -187,7 +188,10 @@ export class Canvas {
 			getResolveAbsolutePath: () =>
 				this.magicConfigManager.config?.methods?.resolveAbsolutePath,
 			getVirtualResourceScope: () =>
-				this.magicConfigManager.config?.methods?.getVirtualResourceScope?.(),
+				buildVirtualResourceScope(
+					this.magicConfigManager.config?.methods?.getVirtualResourceScope?.(),
+					this.id,
+				),
 		})
 
 		// 初始化 ImageResourceManager（图片资源管理器，每个 Canvas 实例独立）
@@ -637,9 +641,13 @@ export class Canvas {
 			this.userActionRegistry.execute("edit.copy-png")
 		})
 
-		// 监听粘贴快捷键
+		// Ctrl/Cmd+V 路径：KeyboardManager 会把原始 ClipboardEvent 传进来。
+		// 与菜单粘贴不同，这条路径可在后续解析中读取 clipboardData.files/items。
 		this.eventEmitter.on("keyboard:paste", async (event) => {
-			await this.userActionRegistry.execute("edit.paste", { clipboardEvent: event.data })
+			await this.userActionRegistry.execute("edit.paste", {
+				clipboardEvent: event.data,
+				pasteSource: "keyboard",
+			})
 		})
 
 		// 监听画框快捷键

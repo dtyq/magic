@@ -53,12 +53,6 @@ class GoogleGeminiRequest extends ImageGenerateRequest
      */
     protected array $referImages = [];
 
-    /**
-     * 分辨率预设：支持 1K, 2K, 4K（短边像素数）
-     * 用于 Nano Banana / Nano Banana Pro 模型.
-     */
-    protected ?string $resolutionPreset = null;
-
     public function __construct(
         string $width = '',
         string $height = '',
@@ -67,6 +61,7 @@ class GoogleGeminiRequest extends ImageGenerateRequest
         string $model = '',
     ) {
         parent::__construct($width, $height, $prompt, $negativePrompt, $model);
+        $this->setSize($width . 'x' . $height);
     }
 
     public function getTemperature(): float
@@ -139,16 +134,6 @@ class GoogleGeminiRequest extends ImageGenerateRequest
         $this->referImages = $referImages;
     }
 
-    public function getResolutionPreset(): ?string
-    {
-        return $this->resolutionPreset;
-    }
-
-    public function setResolutionPreset(?string $resolutionPreset): void
-    {
-        $this->resolutionPreset = $resolutionPreset;
-    }
-
     public function getGenerationConfig(): array
     {
         $config = [
@@ -170,8 +155,8 @@ class GoogleGeminiRequest extends ImageGenerateRequest
         // 分辨率预设：1k，2k，4k
         // gemini-2.5-flash-image-preview 支持 1k
         // gemini-3-pro-image-preview 支持 1k，2k，4k
-        if (! empty($this->getResolutionPreset())) {
-            $preset = $this->getResolutionPreset();
+        if (! empty($this->getResolution())) {
+            $preset = $this->getResolution();
             // 如果配置的是 4X, 2X 这种格式，转换为 4K, 2K
             // Nano Banana (Gemini) 模型 API 接受的参数格式为 "1K", "2K", "4K"
             $preset = str_replace('X', 'K', $preset);

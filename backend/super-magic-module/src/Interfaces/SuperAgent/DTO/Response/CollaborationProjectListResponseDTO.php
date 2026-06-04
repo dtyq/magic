@@ -23,6 +23,7 @@ class CollaborationProjectListResponseDTO
      *
      * @param int $total 总数
      * @param array $userRolesMap 用户角色映射 [project => role]
+     * @param array $topicCountMap 当前用户可见话题数量映射 [project_id => topic_count]
      */
     public static function fromProjectData(
         array $projects,
@@ -31,14 +32,15 @@ class CollaborationProjectListResponseDTO
         array $collaboratorsInfoMap = [],
         array $workspaceNameMap = [],
         int $total = 0,
-        array $userRolesMap = []
+        array $userRolesMap = [],
+        array $topicCountMap = []
     ): self {
         $projectIdMapEntities = [];
         foreach ($projects as $project) {
             $projectIdMapEntities[$project->getId()] = $project;
         }
 
-        $list = array_map(function ($collaborationProject) use ($creatorInfoMap, $collaboratorsInfoMap, $workspaceNameMap, $projectIdMapEntities, $userRolesMap) {
+        $list = array_map(function ($collaborationProject) use ($creatorInfoMap, $collaboratorsInfoMap, $workspaceNameMap, $projectIdMapEntities, $userRolesMap, $topicCountMap) {
             $projectId = $collaborationProject['project_id'];
             $projectEntity = $projectIdMapEntities[$projectId] ?? null;
             if (! $projectEntity) {
@@ -53,6 +55,7 @@ class CollaborationProjectListResponseDTO
             $isBindWorkspace = (bool) ($collaborationProject['is_bind_workspace'] ?? false);
             $bindWorkspaceId = (string) ($collaborationProject['bind_workspace_id'] ?? '');
             $userRole = $userRolesMap[$projectId] ?? null;
+            $topicCount = $topicCountMap[$projectId] ?? 0;
 
             return CollaborationProjectItemDTO::fromEntityWithExtendedInfo(
                 $projectEntity,
@@ -65,7 +68,8 @@ class CollaborationProjectListResponseDTO
                 $lastActiveAt,
                 $isBindWorkspace,
                 $bindWorkspaceId,
-                $userRole
+                $userRole,
+                $topicCount
             )->toArray();
         }, $collaborationProjects);
 

@@ -3,6 +3,7 @@ import {
 	RecordingSessionHistoryDB,
 	type StoredSessionHistory,
 } from "@/services/recordSummary/RecordingSessionHistoryDB"
+import { AudioChunkDB } from "@/services/recordSummary/MediaRecorderService/AudioChunkDB"
 import { userStore } from "@/models/user"
 
 export type SessionScope = "current" | "all"
@@ -18,6 +19,7 @@ interface UseSessionHistoryResult {
 }
 
 const db = new RecordingSessionHistoryDB()
+const audioChunkDB = new AudioChunkDB()
 
 export function useSessionHistory(enabled: boolean): UseSessionHistoryResult {
 	const [loading, setLoading] = useState(false)
@@ -42,17 +44,22 @@ export function useSessionHistory(enabled: boolean): UseSessionHistoryResult {
 	const removeOne = useCallback(
 		async (id: string) => {
 			await db.deleteById(id)
+			await audioChunkDB.deleteAllSessionChunks(id)
 			await refresh()
 		},
 		[refresh],
 	)
 
 	const cleanupExpired = useCallback(async () => {
-		const count = await db.cleanupExpired()
-		if (count > 0) {
+		const expiredIds = await db.cleanupExpired()
+		// 清理过期会话关联的音频分片
+		for (const sessionId of expiredIds) {
+			await audioChunkDB.deleteAllSessionChunks(sessionId)
+		}
+		if (expiredIds.length > 0) {
 			await refresh()
 		}
-		return count
+		return expiredIds.length
 	}, [refresh])
 
 	useEffect(() => {

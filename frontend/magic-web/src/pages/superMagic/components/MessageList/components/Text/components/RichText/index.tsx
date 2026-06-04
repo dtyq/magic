@@ -8,13 +8,14 @@ import { cn } from "@/lib/utils"
 import schemaConfig from "./schemaConfig"
 import { parseContent } from "./utils"
 import type { RichTextProps } from "./types"
-import { JSONContent } from "@tiptap/core"
+import type { JSONContent } from "@tiptap/core"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { getMentionDisplayName } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { getDisplayText } from "@/pages/superMagic/components/MessageEditor/extensions/super-placeholder/utils"
 import { INSPECTOR_DETAIL_TYPE } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/const"
 import { transformInspectorContent } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/transform"
+import type { InspectorDetailAttrs } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail"
 import InlineMention from "./components/InlineMention"
 import { InspectorDetailReadOnly } from "./components/InspectorDetailReadOnly"
 
@@ -56,7 +57,9 @@ const RichText = memo(
 					dom.className = "inspector-detail-node-view"
 
 					const root = createRoot(dom)
-					root.render(<InspectorDetailReadOnly attrs={node.attrs} />)
+					root.render(
+						<InspectorDetailReadOnly attrs={node.attrs as InspectorDetailAttrs} />,
+					)
 
 					return {
 						dom,
@@ -156,11 +159,52 @@ const RichText = memo(
 				// Remove trailing newline if it exists
 				plainText = plainText.replace(/\n$/, "")
 
+				// Extract mentions and build rich text JSON from the fragment
+				const mentions: TiptapMentionAttributes[] = []
+				const richTextJson: JSONContent = { type: "doc", content: [] }
+				fragment.content.forEach((node) => {
+					const nodeJson = node.toJSON()
+					richTextJson.content!.push(nodeJson)
+					// Collect mention nodes recursively
+					const collectMentions = (n: Node) => {
+						if (n.type.name === "mention" && n.attrs) {
+							mentions.push(n.attrs as TiptapMentionAttributes)
+						}
+						n.forEach((child) => collectMentions(child))
+					}
+					collectMentions(node)
+				})
+
+				// Build magic clipboard metadata
+				const metadata: Record<string, unknown> = {
+					richText: JSON.stringify(richTextJson),
+				}
+				if (mentions.length > 0) {
+					metadata.mentions = mentions.map((m) => ({ attrs: m }))
+				}
+				const metadataBase64 = btoa(encodeURIComponent(JSON.stringify(metadata)))
+				const htmlWithMetadata = `<div data-magic-clipboard="${metadataBase64}">${htmlContent}</div>`
+
 				// Write to clipboard with both formats
 				event.preventDefault()
 				if (event.clipboardData) {
-					event.clipboardData.setData("text/html", htmlContent)
+					event.clipboardData.setData("text/html", htmlWithMetadata)
 					event.clipboardData.setData("text/plain", plainText)
+					// Also set custom MIME types for desktop browsers
+					try {
+						event.clipboardData.setData(
+							"text/x-magic-message-rich-text",
+							metadata.richText as string,
+						)
+						if (mentions.length > 0) {
+							event.clipboardData.setData(
+								"text/x-magic-message-mentions",
+								JSON.stringify(metadata.mentions),
+							)
+						}
+					} catch {
+						// Custom MIME types may not be supported in all browsers
+					}
 				}
 
 				return true
@@ -253,7 +297,7 @@ const RichText = memo(
 				style={style}
 				className={cn(
 					"flex cursor-text flex-col overflow-hidden outline-none",
-					"[&_p]:break-all [&_p]:text-sm [&_p]:font-normal [&_p]:leading-[22px] [&_p]:text-foreground",
+					"[&_p]:whitespace-pre-wrap [&_p]:break-all [&_p]:text-sm [&_p]:font-normal [&_p]:leading-[22px] [&_p]:text-foreground",
 					"[&_p>.magic-mention:first-child]:ml-0",
 					"[&_p>.mention-node-view:first-child>.magic-marker-mention]:ml-0",
 					"[&_.mention-node-view]:inline [&_.mention-node-view]:align-baseline",

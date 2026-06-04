@@ -330,11 +330,67 @@ func (r *Repository) ListRealtimeTeamshareBindingsByKnowledgeBase(
 	if err != nil {
 		return nil, fmt.Errorf("list realtime teamshare source bindings: %w", err)
 	}
+	return r.foldTeamshareBindingRows(ctx, rows, "list realtime teamshare source binding targets")
+}
+
+// ListTeamshareBindingsByKnowledgeBase 查询 Teamshare 知识库下全部启用来源绑定。
+func (r *Repository) ListTeamshareBindingsByKnowledgeBase(
+	ctx context.Context,
+	organizationCode string,
+	platform string,
+	knowledgeBaseID string,
+) ([]sourcebindingentity.Binding, error) {
+	platform = sourcebindingentity.NormalizeProvider(platform)
+	knowledgeBaseID = strings.TrimSpace(knowledgeBaseID)
+	if r == nil || r.queries == nil || strings.TrimSpace(organizationCode) == "" || platform == "" || knowledgeBaseID == "" {
+		return []sourcebindingentity.Binding{}, nil
+	}
+	rows, err := r.queries.ListTeamshareSourceBindingsCoreByKnowledgeBase(ctx, mysqlsqlc.ListTeamshareSourceBindingsCoreByKnowledgeBaseParams{
+		OrganizationCode: strings.TrimSpace(organizationCode),
+		Provider:         platform,
+		RootRef:          knowledgeBaseID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list teamshare source bindings: %w", err)
+	}
+	return r.foldTeamshareBindingRows(ctx, rows, "list teamshare source binding targets")
+}
+
+func (r *Repository) foldTeamshareBindingRows(
+	ctx context.Context,
+	rows []mysqlsqlc.KnowledgeSourceBinding,
+	targetErrContext string,
+) ([]sourcebindingentity.Binding, error) {
 	targets, err := r.listBindingTargetsByBindingIDs(ctx, bindingIDsFromRows(rows))
 	if err != nil {
-		return nil, fmt.Errorf("list realtime teamshare source binding targets: %w", err)
+		return nil, fmt.Errorf("%s: %w", targetErrContext, err)
 	}
 	return foldBindingRows(rows, targets), nil
+}
+
+// MarkSourceBindingsRealtimeByIDs 将指定启用绑定修正为 realtime。
+func (r *Repository) MarkSourceBindingsRealtimeByIDs(ctx context.Context, bindingIDs []int64) (int64, error) {
+	bindingIDs = normalizePositiveIDs(bindingIDs)
+	if len(bindingIDs) == 0 {
+		return 0, nil
+	}
+	if r == nil || r.queries == nil {
+		return 0, errSourceBindingRepositoryNil
+	}
+
+	invalidatedOrgs := r.listSourceCallbackEligibilityOrganizationsByBindingIDs(ctx, bindingIDs)
+	rows, err := r.queries.UpdateKnowledgeSourceBindingsSyncModeRealtimeByIDs(
+		ctx,
+		mysqlsqlc.UpdateKnowledgeSourceBindingsSyncModeRealtimeByIDsParams{
+			Ids:       bindingIDs,
+			UpdatedAt: time.Now(),
+		},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("mark source bindings realtime: %w", err)
+	}
+	r.invalidateSourceCallbackEligibilityOrganizations(ctx, invalidatedOrgs)
+	return rows, nil
 }
 
 // HasRealtimeProjectBindingForFile 判断项目文件是否命中启用的实时项目来源绑定。
@@ -1619,6 +1675,25 @@ func bindingIDsFromRows(rows []mysqlsqlc.KnowledgeSourceBinding) []int64 {
 	result := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row.ID)
+	}
+	return result
+}
+
+func normalizePositiveIDs(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
 	}
 	return result
 }

@@ -7,6 +7,7 @@ declare(strict_types=1);
 use App\Interfaces\Chat\Facade\Open\MagicChatOpenApi;
 use App\Interfaces\Flow\Facade\Open\MagicFlowOpenApi;
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
+use App\Interfaces\ModelGateway\Facade\Open\DataQueryApi;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/open-api', function () {
@@ -24,4 +25,9 @@ Router::addGroup('/api/v1/open-api', function () {
 
 Router::addGroup('/api/v1/open-api', function () {
     Router::post('/im/messages/queries', [MagicChatOpenApi::class, 'messageQueries']);
+}, ['middleware' => [ApiKeyMiddleware::class]]);
+
+// Data query APIs
+Router::addGroup('/api/v1/open-api', function () {
+    Router::get('/weather/forecast', [DataQueryApi::class, 'weatherForecast']);
 }, ['middleware' => [ApiKeyMiddleware::class]]);

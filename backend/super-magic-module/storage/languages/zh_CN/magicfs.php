@@ -14,4 +14,5 @@ return [
     'name_is_required' => '文件名不能为空',
     'parent_not_directory' => '父级不是目录',
     'file_already_exists_in_target' => '目标目录中已存在同名文件',
+    'space_type_is_required' => '空间类型不能为空',
 ];

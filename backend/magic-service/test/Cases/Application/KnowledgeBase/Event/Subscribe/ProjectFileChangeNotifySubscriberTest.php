@@ -11,6 +11,7 @@ use App\Application\KnowledgeBase\Event\Subscribe\ProjectFileChangeNotifySubscri
 use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\ProjectFileRpcClient;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
@@ -36,6 +37,7 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
             FileUploadedEvent::class,
             FileContentSavedEvent::class,
             FileDeletedEvent::class,
+            DirectoryDeletedEvent::class,
             FilesBatchDeletedEvent::class,
             FileRenamedEvent::class,
             FileMovedEvent::class,
@@ -72,7 +74,7 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
     {
         $calls = [];
         $client = $this->createMock(ProjectFileRpcClient::class);
-        $client->expects($this->exactly(3))
+        $client->expects($this->exactly(2))
             ->method('notifyChange')
             ->willReturnCallback(static function (
                 int $projectFileId,
@@ -100,8 +102,22 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
         $this->assertSame([
             [501, 'ORG1', 900, 'deleted'],
             [502, 'ORG1', 900, 'deleted'],
-            [503, 'ORG1', 900, 'deleted'],
         ], $calls);
+    }
+
+    public function testProcessNotifiesGoForDirectoryDeletedEvent(): void
+    {
+        $client = $this->createMock(ProjectFileRpcClient::class);
+        $client->expects($this->once())
+            ->method('notifyChange')
+            ->with(503, 'ORG1', 900, 'deleted')
+            ->willReturn(true);
+
+        $subscriber = new ProjectFileChangeNotifySubscriber($client);
+        $subscriber->process(new DirectoryDeletedEvent(
+            self::createTaskFileEntity(503, true),
+            self::createAuthorization('U1', 'ORG1'),
+        ));
     }
 
     public function testProcessSkipsDirectory(): void

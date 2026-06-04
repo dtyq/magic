@@ -25,6 +25,7 @@ use App\Infrastructure\ExternalAPI\Proxy\ProxyConfigResolverInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\DTO\ConnectivityTestByConfigRequest;
 use Hyperf\Odin\Api\Request\ChatCompletionRequest;
+use Hyperf\Odin\Api\RequestOptions\ApiOptions;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
 use Hyperf\Odin\Factory\ModelFactory;
@@ -231,11 +232,11 @@ class LLMTestAppService extends AbstractLLMAppService
                 ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType);
             }
 
-            $message = MessageUtil::createFromArray(['role' => 'user', 'content' => '你好']);
+            $message = MessageUtil::createFromArray(['role' => 'user', 'content' => 'Hello, please reply to me 1']);
             $chatRequest = new ChatCompletionRequest(
                 messages: $message ? [$message] : [],
                 temperature: 0.7,
-                maxTokens: 16,
+                maxTokens: 10000,
                 stop: [],
                 tools: []
             );
@@ -275,8 +276,20 @@ class LLMTestAppService extends AbstractLLMAppService
                 'function_call' => ! $embedding,
                 'embedding' => $embedding,
                 'multi_modal' => $multiModal,
+            ]),
+            apiOptions: new ApiOptions([
+                'proxy' => $this->resolveConnectivityProxy($resolvedConfig),
             ])
         );
+    }
+
+    private function resolveConnectivityProxy(array $config): string
+    {
+        if (empty($config['use_proxy'])) {
+            return '';
+        }
+
+        return (string) ($this->resolveProxyUrl($config) ?? '');
     }
 
     private function resolveEmbeddingSupportMultiModal(

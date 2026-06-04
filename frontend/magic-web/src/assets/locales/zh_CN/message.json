@@ -29,6 +29,7 @@
 		}
 	},
 	"copy": {
+		"failed": "复制失败",
 		"success": "复制成功"
 	},
 	"drive": {

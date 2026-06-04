@@ -31,6 +31,11 @@ class CreateSpecialProjectRequestDTO extends AbstractRequestDTO
     public string $projectMode = '';
 
     /**
+     * Topic mode.
+     */
+    public string $topicMode = '';
+
+    /**
      * Dynamic parameters.
      */
     public array $dynamicParams = [];
@@ -50,6 +55,11 @@ class CreateSpecialProjectRequestDTO extends AbstractRequestDTO
         return $this->projectMode;
     }
 
+    public function getTopicMode(): string
+    {
+        return $this->topicMode;
+    }
+
     public function getDynamicParams(): array
     {
         return $this->dynamicParams;
@@ -61,6 +71,7 @@ class CreateSpecialProjectRequestDTO extends AbstractRequestDTO
             'key' => 'required|string|max:255',
             'project_name' => 'nullable|string|max:100',
             'project_mode' => 'nullable|string',
+            'topic_mode' => 'nullable|string',
             'dynamic_params' => 'nullable|array',
         ];
     }

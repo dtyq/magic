@@ -67,6 +67,10 @@ redis:
   connMaxIdleTime: 300      # Maximum idle time for connections (seconds)
   connMaxLifetime: 3600     # Maximum lifetime for connections (seconds)
   poolTimeout: 4            # Timeout for acquiring connection from pool (seconds)
+  socketioCleanupCountMax: ${SOCKETIO_REDIS_CLEANUP_COUNT_MAX:=5000}
+  socketioCleanupHeartbeatSeconds: ${SOCKETIO_REDIS_CLEANUP_HEARTBEAT_SECONDS:=5}
+  socketioCleanupStaleSeconds: ${SOCKETIO_REDIS_CLEANUP_STALE_SECONDS:=20}
+  socketioCleanupStateTTLSeconds: ${SOCKETIO_REDIS_CLEANUP_STATE_TTL_SECONDS:=3600}
 
 events:
   workerCount: 0            # Number of workers for async event processing (0 to disable)
@@ -127,7 +131,7 @@ documentResourceLimits:
   maxTabularCells: ${DOCUMENT_RESOURCE_MAX_TABULAR_CELLS:=2000000}
   maxPlainTextChars: ${DOCUMENT_RESOURCE_MAX_PLAIN_TEXT_CHARS:=20000000}
   maxParsedBlocks: ${DOCUMENT_RESOURCE_MAX_PARSED_BLOCKS:=250000}
-  maxFragmentsPerDocument: ${DOCUMENT_RESOURCE_MAX_FRAGMENTS_PER_DOCUMENT:=2000}
+  maxFragmentsPerDocument: ${DOCUMENT_RESOURCE_MAX_FRAGMENTS_PER_DOCUMENT:=3000}
   maxPDFPages: ${DOCUMENT_RESOURCE_MAX_PDF_PAGES:=300}
   maxArchiveUncompressedBytes: ${DOCUMENT_RESOURCE_MAX_ARCHIVE_UNCOMPRESSED_BYTES:=268435456}
   maxArchiveEntryBytes: ${DOCUMENT_RESOURCE_MAX_ARCHIVE_ENTRY_BYTES:=67108864}

@@ -160,15 +160,10 @@ export class VideoPlaybackManager {
 			this.release(consumerId)
 		}
 
-		const ossInfo = await this.canvas.videoResourceManager.ensureFreshOssInfo(path)
+		let ossInfo = await this.canvas.videoResourceManager.ensureFreshOssInfo(path)
 		if (!ossInfo) {
 			return null
 		}
-
-		const group = this.getOrCreateGroup(normalizedPath)
-		group.lastResolvedOssSrc = ossInfo.ossSrc
-		group.lastWarmupAt = Date.now()
-		await this.cachePlaybackResource(normalizedPath, ossInfo.ossSrc, ossInfo.expiresAt)
 
 		const video = document.createElement("video")
 		video.crossOrigin = "anonymous"
@@ -177,11 +172,28 @@ export class VideoPlaybackManager {
 		video.src = ossInfo.ossSrc
 		this.applyPlaybackOptions(video, options)
 
-		const isReady = await this.waitUntilReady(video, options?.currentTime)
+		let isReady = await this.waitUntilReady(video, options?.currentTime)
+		if (!isReady && this.isCanvasVirtualResourceUrl(ossInfo.ossSrc)) {
+			const fallbackOssInfo =
+				await this.canvas.videoResourceManager.resolveVirtualPlaybackFallbackOssInfo(
+					path,
+					ossInfo.ossSrc,
+				)
+			if (fallbackOssInfo) {
+				ossInfo = fallbackOssInfo
+				video.src = ossInfo.ossSrc
+				isReady = await this.waitUntilReady(video, options?.currentTime)
+			}
+		}
 		if (!isReady) {
 			this.disposeVideo(video)
 			return null
 		}
+
+		const group = this.getOrCreateGroup(normalizedPath)
+		group.lastResolvedOssSrc = ossInfo.ossSrc
+		group.lastWarmupAt = Date.now()
+		await this.cachePlaybackResource(normalizedPath, ossInfo.ossSrc, ossInfo.expiresAt)
 
 		const now = Date.now()
 		const session: InternalVideoPlaybackSession = {
@@ -419,8 +431,8 @@ export class VideoPlaybackManager {
 		}
 		const handleError = () => {
 			if (
-				session.expiresAt !== null &&
-				!this.isCanvasVirtualResourceUrl(session.resolvedOssSrc)
+				this.isCanvasVirtualResourceUrl(session.resolvedOssSrc) ||
+				session.expiresAt !== null
 			) {
 				void this.refreshSessionPlayback(session, "error")
 			}
@@ -552,12 +564,18 @@ export class VideoPlaybackManager {
 				playbackRate: video.playbackRate,
 			}
 
-			const ossInfo = await this.canvas.videoResourceManager.ensureFreshOssInfo(
-				session.path,
-				{
+			const fallbackOssInfo =
+				reason === "error" && this.isCanvasVirtualResourceUrl(previousOssSrc)
+					? await this.canvas.videoResourceManager.resolveVirtualPlaybackFallbackOssInfo(
+							session.path,
+							previousOssSrc,
+						)
+					: null
+			const ossInfo =
+				fallbackOssInfo ??
+				(await this.canvas.videoResourceManager.ensureFreshOssInfo(session.path, {
 					forceRefresh: true,
-				},
-			)
+				}))
 			if (!ossInfo || !this.isTrackedSession(session)) {
 				return false
 			}

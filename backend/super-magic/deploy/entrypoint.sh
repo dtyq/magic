@@ -7,12 +7,15 @@
 # .lark-cli   : lark-cli 应用配置（macOS 上存放 config.json）
 # .dws        : 钉钉 Workspace CLI 配置
 # .local/share: lark-cli 和 dws 在 Linux 上的凭据存储目录（加密 token、master.key、dek 等）
+# .magic      : Magic 自有 CLI 的统一持久化配置根目录
 #
-# 懒创建策略：此处只建立软链接，不预创建目标目录。
+# 懒创建策略：第三方 CLI 目录只建立软链接，不预创建目标目录。
 # 目标目录由 shell_exec 的 CliDirInitHandler 在对应 CLI 首次执行时按需创建。
-# 这样用户 workspace 中不会出现一堆从未使用的空目录。
+# .magic 需要在 CLI 二进制尚不存在时也可用，因此启动时预创建统一根目录。
 if [ -n "${IS_DOCKER}" ] && [ -n "${USER_HOME_DIR}" ]; then
-    for config_dir in .lark-cli .dws .local/share; do
+    mkdir -p "${USER_HOME_DIR}/.magic"
+
+    for config_dir in .lark-cli .dws .local/share .magic; do
         target="${USER_HOME_DIR}/${config_dir}"
         link="${HOME}/${config_dir}"
         mkdir -p "$(dirname "${link}")"

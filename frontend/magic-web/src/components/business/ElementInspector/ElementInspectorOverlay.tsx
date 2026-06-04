@@ -392,7 +392,7 @@ export function buildAgentPromptContent(
 	paragraphs.push(
 		para(
 			text(`${t("stylePanel.inspector.agentPromptSuffix")}`),
-			placeholder(t("stylePanel.inspector.agentPromptPlaceholder")),
+			// placeholder(t("stylePanel.inspector.agentPromptPlaceholder")),
 		),
 	)
 

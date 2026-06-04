@@ -516,6 +516,14 @@ class AsrFileAppService extends AbstractAppService
             // 生成标题
             $fileTitle = $this->titleGeneratorService->generateFromTaskStatus($taskStatus);
 
+            $this->ensureEmptyProjectAndTopicNames(
+                $taskStatus,
+                $userId,
+                $organizationCode,
+                null,
+                $fileTitle
+            );
+
             // 先生成新的显示目录路径并更新到 taskStatus（确保沙箱使用正确的目录）
             if (! empty($fileTitle)) {
                 $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
@@ -713,6 +721,15 @@ class AsrFileAppService extends AbstractAppService
         }
         $taskStatus->modelId = $effectiveModelId;
         $this->asrTaskDomainService->saveTaskStatus($taskStatus);
+
+        $this->ensureEmptyProjectAndTopicNames(
+            $taskStatus,
+            $userId,
+            $organizationCode,
+            $userAuthorization,
+            null,
+            $taskStatus->audioFileId
+        );
 
         // ===== Step 4: State Management - Start summarizing phase =====
         $this->asrTaskDomainService->startSummarizingPhase($taskStatus);
@@ -962,16 +979,16 @@ class AsrFileAppService extends AbstractAppService
             // Update progress: 10%
             $this->asrTaskDomainService->updatePhaseProgress($taskStatus, 10);
 
-            // finish-recording 与 /summary 行为不同：不改显示目录，只用于合并文件命名
-            $effectiveTitle = $generatedTitle;
-            if (empty($effectiveTitle)) {
-                $effectiveTitle = $taskStatus->uploadGeneratedTitle;
-            }
-
             // Execute merge
-            $fileTitle = $this->titleGeneratorService->sanitizeTitle($effectiveTitle ?? '');
-            if ($fileTitle === '') {
-                $fileTitle = $this->translator->trans('asr.file_names.original_recording');
+            $fileTitle = $this->resolveFinishRecordingFileTitle($taskStatus, $generatedTitle);
+            $this->renameProjectAfterFinishRecording($taskStatus, $fileTitle, $userId);
+            if ($fileTitle !== $this->translator->trans('asr.file_names.original_recording')) {
+                $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
+                    $taskStatus,
+                    $fileTitle,
+                    $this->titleGeneratorService
+                );
+                $taskStatus->displayDirectory = $newDisplayDirectory;
             }
 
             // Update progress: 50%
@@ -1303,12 +1320,22 @@ class AsrFileAppService extends AbstractAppService
             throw new RuntimeException('Model id is required for imported summary');
         }
 
+        $generatedTitle = $this->ensureEmptyProjectAndTopicNames(
+            $taskStatus,
+            $userAuthorization->getId(),
+            $userAuthorization->getOrganizationCode(),
+            $userAuthorization,
+            null,
+            (string) $fileId
+        );
+
         $summaryRequest = new SummaryRequestDTO(
             taskKey: $taskKey,
             projectId: (string) $taskStatus->projectId,
             topicId: (string) $topicId,
             modelId: $effectiveModelId,
-            fileId: (string) $fileId
+            fileId: (string) $fileId,
+            generatedTitle: $generatedTitle
         );
 
         $result = $this->processSummaryWithChat($summaryRequest, $userAuthorization);
@@ -1390,6 +1417,124 @@ class AsrFileAppService extends AbstractAppService
     }
 
     /**
+     * 空项目名/话题名兜底补标题。best-effort，不阻断总结主流程.
+     */
+    private function ensureEmptyProjectAndTopicNames(
+        AsrTaskStatusDTO $taskStatus,
+        string $userId,
+        string $organizationCode,
+        ?MagicUserAuthorization $userAuthorization = null,
+        ?string $preferredTitle = null,
+        ?string $audioFileId = null
+    ): ?string {
+        try {
+            if (empty($taskStatus->projectId) || empty($taskStatus->topicId)) {
+                return null;
+            }
+
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $taskStatus->projectId);
+            $projectName = $projectEntity?->getProjectName();
+            $topicEntity = $this->superAgentTopicDomainService->getTopicById((int) $taskStatus->topicId);
+            $topicName = $topicEntity?->getTopicName();
+
+            if (! $this->shouldUpdateNames($projectName, $topicName)) {
+                return null;
+            }
+
+            $generatedTitle = $this->resolveTitleForEmptyProjectAndTopicNames(
+                $taskStatus,
+                $userAuthorization,
+                $preferredTitle,
+                $audioFileId
+            );
+
+            $this->updateEmptyProjectAndTopicNames(
+                (string) $taskStatus->projectId,
+                (int) $taskStatus->topicId,
+                $generatedTitle,
+                $userId,
+                $organizationCode
+            );
+
+            return $generatedTitle;
+        } catch (Throwable $e) {
+            $this->logger->warning('空项目/话题名称自动补标题失败', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
+                'topic_id' => $taskStatus->topicId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    private function resolveTitleForEmptyProjectAndTopicNames(
+        AsrTaskStatusDTO $taskStatus,
+        ?MagicUserAuthorization $userAuthorization,
+        ?string $preferredTitle,
+        ?string $audioFileId
+    ): string {
+        $uploadGeneratedTitle = $this->titleGeneratorService->sanitizeTitle($taskStatus->uploadGeneratedTitle ?? '');
+        if ($uploadGeneratedTitle !== '') {
+            return $uploadGeneratedTitle;
+        }
+
+        $preferredTitle = $this->titleGeneratorService->sanitizeTitle($preferredTitle ?? '');
+        if ($preferredTitle !== '') {
+            return $preferredTitle;
+        }
+
+        $generatedFromTask = $this->titleGeneratorService->sanitizeTitle(
+            $this->titleGeneratorService->generateNullableFromTaskStatus($taskStatus) ?? ''
+        );
+        if ($generatedFromTask !== '') {
+            return $generatedFromTask;
+        }
+
+        $audioFileTitle = $this->generateTitleFromAudioFileName(
+            $taskStatus,
+            $audioFileId ?: $taskStatus->audioFileId,
+            $userAuthorization
+        );
+        if (! empty($audioFileTitle)) {
+            return $audioFileTitle;
+        }
+
+        return $this->titleGeneratorService->generateDefaultDirectoryName();
+    }
+
+    private function generateTitleFromAudioFileName(
+        AsrTaskStatusDTO $taskStatus,
+        ?string $audioFileId,
+        ?MagicUserAuthorization $userAuthorization
+    ): ?string {
+        if (empty($audioFileId)) {
+            return null;
+        }
+
+        try {
+            $fileEntity = $this->taskFileDomainService->getById((int) $audioFileId);
+            if ($fileEntity === null) {
+                return null;
+            }
+
+            $userAuthorization ??= $this->getUserAuthorizationFromUserId($taskStatus->userId);
+            return $this->titleGeneratorService->generateTitleForFileUpload(
+                $userAuthorization,
+                $fileEntity->getFileName(),
+                $taskStatus->taskKey
+            );
+        } catch (Throwable $e) {
+            $this->logger->warning('根据音频文件名生成补齐标题失败', [
+                'task_key' => $taskStatus->taskKey,
+                'audio_file_id' => $audioFileId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * 判断是否需要更新名称.
      */
     private function shouldUpdateNames(?string $projectName, ?string $topicName): bool
@@ -1426,6 +1571,47 @@ class AsrFileAppService extends AbstractAppService
             $this->logger->warning('更新项目/话题名称失败', [
                 'project_id' => $projectId,
                 'topic_id' => $topicId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * finish-recording 后使用语义标题补齐空项目名，不覆盖用户已有命名.
+     */
+    private function renameProjectAfterFinishRecording(
+        AsrTaskStatusDTO $taskStatus,
+        string $generatedTitle,
+        string $userId
+    ): void {
+        try {
+            if (empty($taskStatus->projectId)) {
+                return;
+            }
+
+            $projectName = $this->titleGeneratorService->sanitizeTitle($generatedTitle);
+            if ($projectName === '' || $projectName === $this->translator->trans('asr.file_names.original_recording')) {
+                return;
+            }
+
+            $projectEntity = $this->projectDomainService->getProject((int) $taskStatus->projectId, $userId);
+            if (! empty(trim($projectEntity->getProjectName() ?? ''))) {
+                return;
+            }
+
+            $projectEntity->setProjectName($projectName);
+            $projectEntity->setUpdatedUid($userId);
+            $this->projectDomainService->saveProjectEntity($projectEntity);
+
+            $this->logger->info('finish-recording 后补齐项目名称成功', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
+                'project_name' => $projectName,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->warning('finish-recording 后补齐项目名称失败', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -2146,6 +2332,44 @@ class AsrFileAppService extends AbstractAppService
                 $this->asrTaskDomainService->saveTaskStatus($taskStatus);
             }
         });
+    }
+
+    /**
+     * Resolve finish-recording title with the same server-side trust model as /summary.
+     */
+    private function resolveFinishRecordingFileTitle(AsrTaskStatusDTO $taskStatus, ?string $requestGeneratedTitle): string
+    {
+        $generatedFromTask = $this->titleGeneratorService->generateNullableFromTaskStatus($taskStatus);
+        $generatedFromTask = $this->titleGeneratorService->sanitizeTitle($generatedFromTask ?? '');
+        if ($generatedFromTask !== '') {
+            $this->logger->info('finish-recording 使用任务状态内容生成标题', [
+                'task_key' => $taskStatus->taskKey,
+                'title_source' => 'task_status',
+                'has_asr_content' => ! empty($taskStatus->asrStreamContent),
+                'has_note' => ! empty($taskStatus->noteContent),
+            ]);
+            return $generatedFromTask;
+        }
+
+        $uploadGeneratedTitle = $this->titleGeneratorService->sanitizeTitle($taskStatus->uploadGeneratedTitle ?? '');
+        if ($uploadGeneratedTitle !== '') {
+            $this->logger->info('finish-recording 使用 upload-tokens 生成的标题', [
+                'task_key' => $taskStatus->taskKey,
+                'title_source' => 'upload_generated_title',
+            ]);
+            return $uploadGeneratedTitle;
+        }
+
+        $requestTitle = $this->titleGeneratorService->sanitizeTitle($requestGeneratedTitle ?? '');
+        if ($requestTitle !== '') {
+            $this->logger->info('finish-recording 回退使用请求标题', [
+                'task_key' => $taskStatus->taskKey,
+                'title_source' => 'request_generated_title',
+            ]);
+            return $requestTitle;
+        }
+
+        return $this->translator->trans('asr.file_names.original_recording');
     }
 
     /**

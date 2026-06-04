@@ -37,6 +37,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property float $time_cost
  * @property float $second_pricing
  * @property float $second_cost
+ * @property array $billing_tiers
  * @property int $version
  * @property bool $is_current_version
  * @property string $created_at
@@ -75,6 +76,7 @@ class ProviderModelConfigVersionModel extends AbstractModel
         'time_cost',
         'second_pricing',
         'second_cost',
+        'billing_tiers',
         'version',
         'is_current_version',
         'created_at',
@@ -107,6 +109,7 @@ class ProviderModelConfigVersionModel extends AbstractModel
         'time_cost' => 'float',
         'second_pricing' => 'float',
         'second_cost' => 'float',
+        'billing_tiers' => 'array',
         'version' => 'integer',
         'is_current_version' => 'boolean',
         'created_at' => 'datetime',

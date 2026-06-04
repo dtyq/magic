@@ -114,6 +114,14 @@ type KnowledgeBaseDocumentSourceCallbackReader interface {
 	// ListRealtimeByProjectFileInOrg 按组织和项目文件列出 enabled + realtime 绑定下的文档。
 	ListRealtimeByProjectFileInOrg(ctx context.Context, organizationCode string, projectFileID int64) ([]*docentity.KnowledgeBaseDocument, error)
 
+	// ListRealtimeByProjectFilesAndSourceBindingsInOrg 按组织、项目文件集合和绑定集合列出实时文档。
+	ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+		ctx context.Context,
+		organizationCode string,
+		projectFileIDs []int64,
+		sourceBindingIDs []int64,
+	) ([]*docentity.KnowledgeBaseDocument, error)
+
 	// HasRealtimeProjectFileDocumentInOrg 判断组织内项目文件是否已有 enabled + realtime 绑定下的文档。
 	HasRealtimeProjectFileDocumentInOrg(ctx context.Context, organizationCode string, projectFileID int64) (bool, error)
 }

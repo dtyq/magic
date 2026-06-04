@@ -124,7 +124,7 @@ a.datas = exclude_files(a.datas)
 def exclude_sdk_modules(pure_list):
     """从 pure 列表中排除根目录的 sdk 模块，避免重复且保持不加密
 
-    注意：只排除根目录的 sdk 模块（如 sdk.mcp），不排除其他包中的 sdk 子模块
+    注意：只排除根目录的 sdk 模块（如 sdk.tool），不排除其他包中的 sdk 子模块
     """
     return [x for x in pure_list if not (
         x[0].startswith('sdk.') or x[0] == 'sdk'  # 只排除根目录的 sdk 模块

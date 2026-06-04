@@ -31,6 +31,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Request\FileConverterRequest;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckBatchDownloadResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateBatchDownloadResponseDTO;
@@ -117,7 +118,7 @@ class FileBatchAppService extends AbstractAppService
             return $cachedResponse;
         }
 
-        $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
+        $targetName = $this->buildBatchDownloadTargetName($projectEntity->getProjectName());
         $organizationCode = $projectEntity->getUserOrganizationCode();
         $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
 
@@ -246,7 +247,7 @@ class FileBatchAppService extends AbstractAppService
             return $cachedResponse;
         }
 
-        $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
+        $targetName = $this->buildBatchDownloadTargetName($projectEntity->getProjectName());
         $organizationCode = $projectEntity->getUserOrganizationCode();
         $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
 
@@ -406,6 +407,16 @@ class FileBatchAppService extends AbstractAppService
         return 'batch_' . md5($data);
     }
 
+    private function buildBatchDownloadTargetName(string $projectName): string
+    {
+        $timestamp = date('YmdHi');
+
+        return WorkFileUtil::sanitizeFileName(
+            sprintf('%s_%s.zip', $projectName, $timestamp),
+            sprintf('batch_download_%s.zip', $timestamp)
+        );
+    }
+
     /**
      * @param array{
      *   base_path:string,
@@ -456,9 +467,16 @@ class FileBatchAppService extends AbstractAppService
 
             $authorization = $this->agentDomainService->getAuthorizationByUserId($userId);
             $stsTemporaryCredential = $this->getStsCredential($organizationCode, $projectWorkDir);
+            $actualSandboxId = $this->agentDomainService->ensureSandboxRunning(
+                $userId,
+                $organizationCode,
+                $sandboxId,
+                (string) $projectEntity->getId(),
+                $fullBaseWorkDir
+            );
 
             $request = new FileConverterRequest(
-                $sandboxId,
+                $actualSandboxId,
                 'pack',
                 $packManifest['pack_entries'],
                 $stsTemporaryCredential,
@@ -475,13 +493,25 @@ class FileBatchAppService extends AbstractAppService
             $response = $this->batchDownloadPackDomainService->submitPackTask(
                 $userId,
                 $organizationCode,
-                $sandboxId,
+                $actualSandboxId,
                 (string) $projectEntity->getId(),
                 $request,
                 $fullBaseWorkDir
             );
 
             if (! $response->isSuccess()) {
+                if (
+                    $this->recoverExistingSandboxPackTask(
+                        $batchKey,
+                        $organizationCode,
+                        $actualSandboxId,
+                        (string) $projectEntity->getId(),
+                        count($packManifest['pack_entries'])
+                    )
+                ) {
+                    return;
+                }
+
                 ExceptionBuilder::throw(
                     SuperAgentErrorCode::BATCH_PUBLISH_FAILED,
                     'sandbox_pack_submit_failed: ' . $response->getMessage()
@@ -490,7 +520,7 @@ class FileBatchAppService extends AbstractAppService
 
             $this->logger->info('Batch pack task submitted to sandbox', [
                 'batch_key' => $batchKey,
-                'sandbox_id' => $sandboxId,
+                'sandbox_id' => $actualSandboxId,
                 'project_id' => $projectEntity->getId(),
                 'file_count' => count($packManifest['pack_entries']),
                 'target_name' => $targetName,
@@ -506,7 +536,31 @@ class FileBatchAppService extends AbstractAppService
         }
     }
 
-    private function syncTaskStatusFromSandbox(string $batchKey, array $taskStatus, string $organizationCode): void
+    private function recoverExistingSandboxPackTask(
+        string $batchKey,
+        string $organizationCode,
+        string $sandboxId,
+        string $projectId,
+        int $totalFiles
+    ): bool {
+        $this->logger->warning('Sandbox pack task already exists, syncing local status', [
+            'batch_key' => $batchKey,
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+            'organization_code' => $organizationCode,
+        ]);
+
+        return $this->syncTaskStatusFromSandbox($batchKey, [
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+            'task_key' => $batchKey,
+            'organization_code' => $organizationCode,
+            'progress' => ['total' => $totalFiles],
+            'zip_bucket_type' => StorageBucketType::Private->value,
+        ], $organizationCode);
+    }
+
+    private function syncTaskStatusFromSandbox(string $batchKey, array $taskStatus, string $organizationCode): bool
     {
         $sandboxId = (string) ($taskStatus['sandbox_id'] ?? '');
         $projectId = (string) ($taskStatus['project_id'] ?? '');
@@ -520,7 +574,7 @@ class FileBatchAppService extends AbstractAppService
                 'project_id' => $projectId,
                 'task_key' => $taskKey,
             ]);
-            return;
+            return false;
         }
 
         try {
@@ -533,7 +587,7 @@ class FileBatchAppService extends AbstractAppService
                 'task_key' => $taskKey,
                 'error' => $e->getMessage(),
             ]);
-            return;
+            return false;
         }
 
         if (! $response->isSuccess()) {
@@ -545,16 +599,19 @@ class FileBatchAppService extends AbstractAppService
                 'code' => $response->getCode(),
                 'message' => $response->getMessage(),
             ]);
-            return;
+            return false;
         }
 
         $mappedStatus = $this->batchDownloadPackDomainService->mapSandboxStatus($response);
         $status = (string) ($mappedStatus['status'] ?? 'processing');
 
         if ($status === 'processing') {
-            $total = (int) ($taskStatus['progress']['total'] ?? 0);
+            $total = (int) ($mappedStatus['file_count'] ?? 0);
             if ($total <= 0) {
-                $total = max(1, (int) ($mappedStatus['file_count'] ?? 1));
+                $total = (int) ($taskStatus['progress']['total'] ?? 0);
+            }
+            if ($total <= 0) {
+                $total = 1;
             }
 
             $progressPercent = (int) ($mappedStatus['progress'] ?? 0);
@@ -567,7 +624,7 @@ class FileBatchAppService extends AbstractAppService
                 $total,
                 (string) ($mappedStatus['message'] ?? 'Processing...')
             );
-            return;
+            return true;
         }
 
         if ($status === 'failed') {
@@ -575,17 +632,17 @@ class FileBatchAppService extends AbstractAppService
                 $batchKey,
                 (string) ($mappedStatus['error'] ?: $mappedStatus['message'] ?: 'Task failed')
             );
-            return;
+            return true;
         }
 
         if ($status !== 'ready') {
-            return;
+            return false;
         }
 
         $zipFileKey = trim((string) ($mappedStatus['zip_file_key'] ?? ''));
         if ($zipFileKey === '') {
             $this->statusManager->setTaskFailed($batchKey, 'Sandbox pack completed but zip file key is empty');
-            return;
+            return true;
         }
 
         $bucketType = $this->resolveZipBucketType($taskStatus);
@@ -612,6 +669,8 @@ class FileBatchAppService extends AbstractAppService
                 $bucketType
             );
         }
+
+        return true;
     }
 
     private function buildBatchDownloadResponse(

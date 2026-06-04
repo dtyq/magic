@@ -27,8 +27,8 @@ from app.utils.path_utils import get_workspace_dir
 from app.utils.path_utils import get_storage_dir
 from app.service.asr.asr_context_diff_service import AsrContextDiffService
 from app.service.channel_context_service import ChannelContextService
+from app.core.client_context import ClientContextService
 from app.service.image_model_sizes_service import ImageModelSizesService
-from app.service.mcp_servers_service import MCPServersService
 from app.service.video_model_config_service import VideoModelConfigService
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.core.base_service import Base
@@ -574,6 +574,12 @@ class AgentService(Base):
         if chat_client_message and hasattr(chat_client_message, "attachments") and chat_client_message.attachments:
             query = await self._process_attachments(agent_context, query, chat_client_message.attachments)
 
+        # 将前端页面上下文同步到 horizon。Horizon 会负责首次全文注入、后续 diff 注入和 baseline 推进。
+        await ClientContextService.sync_to_horizon(
+            chat_client_message.dynamic_config,
+            agent.agent_context.horizon,
+        )
+
         # 将图片/视频模型信息同步到 horizon（配置变化时 horizon 会在下次 system_injected_context 中注入，
         # 首次和上下文压缩后也会通过 initial_context 全量注入）
         await ImageModelSizesService.sync_to_horizon(
@@ -590,9 +596,6 @@ class AgentService(Base):
             await agent.refresh_workspace_files()
         except Exception as _e:
             logger.warning(f"[AgentService] 刷新工作区文件树失败: {_e}")
-
-        # 处理 MCP 服务器信息：为加载了 using-mcp skill 的 agent 追加可用服务器信息
-        query = await MCPServersService.append_mcp_servers_to_query(query, agent)
 
         try:
             await agent.run_main_agent(query)

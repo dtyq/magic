@@ -2,5 +2,6 @@ export interface MagicMermaidProps extends Omit<React.HTMLAttributes<HTMLDivElem
 	onClick?: (dom: HTMLDivElement | null) => Promise<void> | void
 	data?: string
 	allowShowCode?: boolean
+	allowPreview?: boolean
 	copyText?: string
 }

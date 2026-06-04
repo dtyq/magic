@@ -26,6 +26,7 @@ export interface PPTRootRenderProps {
 		isPPTEditMode?: boolean,
 	) => Promise<void>
 	className?: string
+	updatedAt?: string
 	displayConfig?: any
 	openFileTab?: (fileItem: any, autoEdit?: boolean) => void
 	selectedProject?: ProjectListItem | null

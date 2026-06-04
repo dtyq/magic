@@ -40,7 +40,6 @@ class SessionConfig:
     image_model_sizes: list[ImageModelSize] | None = None
     video_model_id: str | None = None
     video_generation_config: dict[str, object] | None = None
-    mcp_servers: dict[str, list[str]] | None = None
     message_version: str | None = None
     agent_mode: str | None = None
     agent_code: str | None = None
@@ -58,14 +57,6 @@ class SessionConfig:
         if isinstance(vgc_raw, dict):
             video_generation_config = vgc_raw
 
-        mcp_servers: dict[str, list[str]] | None = None
-        mcp_raw = raw.get("mcp_servers")
-        if isinstance(mcp_raw, dict):
-            mcp_servers = {
-                k: v if isinstance(v, list) else []
-                for k, v in mcp_raw.items()
-            }
-
         def _str_or_none(key: str) -> str | None:
             v = raw.get(key)
             return str(v).strip() if isinstance(v, str) and v.strip() else None
@@ -76,7 +67,6 @@ class SessionConfig:
             image_model_sizes=image_model_sizes,
             video_model_id=_str_or_none("video_model_id"),
             video_generation_config=video_generation_config,
-            mcp_servers=mcp_servers,
             message_version=_str_or_none("message_version"),
             agent_mode=_str_or_none("agent_mode"),
             agent_code=_str_or_none("agent_code"),
@@ -94,7 +84,6 @@ class SessionConfig:
             ),
             "video_model_id": self.video_model_id,
             "video_generation_config": self.video_generation_config,
-            "mcp_servers": self.mcp_servers,
             "message_version": self.message_version,
             "agent_mode": self.agent_mode,
             "agent_code": self.agent_code,

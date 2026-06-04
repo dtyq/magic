@@ -21,6 +21,7 @@ use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\ModelGateway\Event\ImageGenerateFailedEvent;
 use App\Domain\ModelGateway\Event\VideoGeneratedEvent;
 use App\Domain\ModelGateway\Event\VideoGenerateFailedEvent;
+use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Event\Annotation\Listener;
@@ -42,6 +43,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 {
     public function __construct(
         private readonly ModelCallAuditDomainService $modelCallAuditDomainService,
+        private readonly ProviderModelDomainService $providerModelDomainService,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -271,6 +273,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
         $usage = [
             'count' => 1,
             'duration_seconds' => $event->getDurationSeconds(),
+            'has_audio_output' => $event->hasAudioOutput(),
         ];
         $completionTokens = $event->getCompletionTokens();
         $totalTokens = $event->getTotalTokens();
@@ -580,6 +583,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             $modelVersion = trim((string) ($businessParams['model_version'] ?? ''));
             $providerName = trim((string) ($businessParams['provider_name'] ?? ''));
             $eventId = trim($eventId);
+            $serviceProviderConfigId = $this->resolveServiceProviderConfigId($detailInfo);
 
             $entity = AuditLogFactory::createNew(
                 userId: $userId,
@@ -600,6 +604,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
                 providerName: $providerName,
                 firstResponseLatency: $firstResponseLatency,
                 eventId: $eventId !== '' ? $eventId : null,
+                serviceProviderConfigId: $serviceProviderConfigId,
             );
 
             $this->modelCallAuditDomainService->record($entity);
@@ -639,6 +644,20 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
         ]);
 
         return $eventId;
+    }
+
+    private function resolveServiceProviderConfigId(?array $detailInfo): ?int
+    {
+        $providerModelId = trim((string) ($detailInfo['provider_model_id'] ?? ''));
+        if ($providerModelId === '' || ! ctype_digit($providerModelId)) {
+            return null;
+        }
+        try {
+            $model = $this->providerModelDomainService->getModelById($providerModelId);
+            return $model?->getServiceProviderConfigId() ?: null;
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     /**

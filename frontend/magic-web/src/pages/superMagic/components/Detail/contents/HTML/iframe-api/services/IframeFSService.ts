@@ -11,6 +11,7 @@ import {
 	FS_MESSAGE_TYPES,
 	type FSReadRequest,
 	type FSWriteRequest,
+	type FSWriteBlobRequest,
 	type FSListRequest,
 	type FSWatchRegister,
 	type FSWatchUnregister,
@@ -73,8 +74,12 @@ export interface IframeFSConfig {
 	mkdirFn?: MkdirFn
 }
 
-/** 文件大小限制：5 MB */
+/** 读取文件大小限制：5 MB */
 const MAX_READ_BYTES = 5 * 1024 * 1024
+/** 写入内容大小限制（单次 writeFile string）：5 MB */
+const MAX_WRITE_BYTES = 5 * 1024 * 1024
+/** Blob 写入大小限制：500 MB */
+const MAX_BLOB_WRITE_BYTES = 500 * 1024 * 1024
 
 export class IframeFSService {
 	private readonly cfg: IframeFSConfig
@@ -117,6 +122,9 @@ export class IframeFSService {
 				return true
 			case FS_MESSAGE_TYPES.WRITE_REQUEST:
 				await this.handleWrite(payload as FSWriteRequest)
+				return true
+			case FS_MESSAGE_TYPES.WRITE_BLOB_REQUEST:
+				await this.handleWriteBlob(payload as FSWriteBlobRequest)
 				return true
 			case FS_MESSAGE_TYPES.LIST_REQUEST:
 				this.handleList(payload as FSListRequest)
@@ -207,6 +215,17 @@ export class IframeFSService {
 			})
 		}
 
+		// Content size validation
+		const contentSize = new Blob([content]).size
+		if (contentSize > MAX_WRITE_BYTES) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.WRITE_RESPONSE,
+				requestId,
+				success: false,
+				error: `Content too large (${(contentSize / 1024 / 1024).toFixed(1)} MB). Max allowed: ${MAX_WRITE_BYTES / 1024 / 1024} MB`,
+			})
+		}
+
 		try {
 			const existingFile = this.findFile(resolved)
 
@@ -232,6 +251,70 @@ export class IframeFSService {
 		} catch (err) {
 			this.send({
 				type: FS_MESSAGE_TYPES.WRITE_RESPONSE,
+				requestId,
+				success: false,
+				error: err instanceof Error ? err.message : "Unknown error",
+			})
+		}
+	}
+
+	private async handleWriteBlob(req: FSWriteBlobRequest) {
+		const { requestId, path, blob, fileName: explicitName } = req
+		const replyType = FS_MESSAGE_TYPES.WRITE_BLOB_RESPONSE
+		const resolved = this.resolvePath(path)
+
+		if (!resolved) {
+			return this.send({
+				type: replyType,
+				requestId,
+				success: false,
+				error: `Write access denied or invalid path: ${path}`,
+			})
+		}
+
+		if (!(blob instanceof Blob)) {
+			return this.send({
+				type: replyType,
+				requestId,
+				success: false,
+				error: "Invalid request: blob field must be a Blob instance",
+			})
+		}
+
+		if (blob.size > MAX_BLOB_WRITE_BYTES) {
+			return this.send({
+				type: replyType,
+				requestId,
+				success: false,
+				error: `File too large (${(blob.size / 1024 / 1024).toFixed(1)} MB). Max allowed: ${MAX_BLOB_WRITE_BYTES / 1024 / 1024} MB`,
+			})
+		}
+
+		try {
+			const existingFile = this.findFile(resolved)
+
+			if (existingFile) {
+				// 文件已存在：读取 blob 内容更新
+				const content = await blob.text()
+				await this.cfg.saveContentFn({ file_id: existingFile.file_id, content })
+			} else {
+				// 文件不存在：直接用 Blob 构建 File 并上传
+				const name = explicitName || resolved.split("/").pop() || "file"
+				const file = new File([blob], name, { type: blob.type || "application/octet-stream" })
+				const parentId = await this.ensureParentDirs(resolved)
+
+				await this.cfg.uploadFn({
+					file,
+					path: resolved,
+					fileSize: blob.size,
+					parentId,
+				})
+			}
+
+			this.send({ type: replyType, requestId, success: true })
+		} catch (err) {
+			this.send({
+				type: replyType,
 				requestId,
 				success: false,
 				error: err instanceof Error ? err.message : "Unknown error",

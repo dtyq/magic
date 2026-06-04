@@ -536,6 +536,10 @@
 			"markerNeedDesignMode": "Markers need to switch to \"Design Mode\". Create a new topic to add markers",
 			"packingDownloading": "Packing and downloading {{count}} images..."
 		},
+		"offlineNotice": {
+			"description": "You can continue editing and saving the canvas after the network reconnects.",
+			"title": "Network disconnected. Canvas is read-only"
+		},
 		"saved": "Saved",
 		"saving": "Saving"
 	},
@@ -575,12 +579,15 @@
 				"untitledPost": "Untitled post"
 			},
 			"edit": {
+				"addArticleFileToChat": "Add article file to input",
 				"addCurrentPageToChat": "Add this card to chat",
 				"addPostFolderToCurrentChat": "Add this post to chat",
 				"cancel": "Cancel",
 				"discard": "Discard",
+				"goToArticleEdit": "Edit article",
 				"goToEdit": "Edit this card",
 				"noCards": "No cards in current post",
+				"refreshArticle": "Refresh article",
 				"refreshCard": "Refresh card",
 				"refreshConfirmDescription": "The current editor has unsaved changes. Save now or discard changes before refreshing.",
 				"refreshConfirmTitle": "Handle unsaved changes first",
@@ -768,6 +775,11 @@
 		"uploadFailed": "Upload failed",
 		"uploadFailedPrefix": "Upload failed: ",
 		"uploadedAttachments": "Uploaded Attachments ({{count}})"
+	},
+	"htmlEditor": {
+		"dropOverlay": {
+			"hint": "Release to insert image"
+		}
 	},
 	"fileViewer": {
 		"addNewSlide": "New Slide",
@@ -1210,6 +1222,8 @@
 		"modeNotAvailableMessage": "Current mode is not available, please create a \"New Topic\" and select an available mode to continue",
 		"modelSwitch": {
 			"autoModelDescription": "Auto mode automatically selects the most efficient AI model for the current task, suitable for handling most regular tasks with moderate credit consumption.",
+			"collapseDescription": "Collapse model description",
+			"expandDescription": "Expand model description",
 			"headerTitle": "Model Selection",
 			"imageModel": "Image",
 			"languageModel": "Text",
@@ -1411,6 +1425,8 @@
 	"modeToggle": {
 		"cannotSwitchModeMessage": "Current crew cannot be switched. Create a new topic to enable \"<strong>{{modeName}}</strong>\".",
 		"createNewTopic": "Create New Topic",
+		"emptySearchResult": "No matching crew found",
+		"searchPlaceholder": "Search crew",
 		"selectCrew": "Select Crew",
 		"selectMode": "Select Mode"
 	},
@@ -1812,6 +1828,9 @@
 				"takeNotes": "Take Notes"
 			},
 			"title": "Recording"
+		},
+		"chunkProduction": {
+			"failed": "Recording error: No audio data detected"
 		},
 		"network": {
 			"max_retries_reached": "Some audio chunks failed to upload. Please check your network connection and retry",
@@ -2318,6 +2337,7 @@
 		"shareMessageDashboard": "I've shared a data analytics dashboard with you:",
 		"shareMessageDesign": "I've shared a canvas with you:",
 		"shareMessageMultipleFiles": "I've shared some files with you ({{count}} files in total):",
+		"shareMessageMultipleFilesFile": "📄 File: {{shareName}}",
 		"shareMessageMultipleFilesLink": "🔗 Access link: {{shareUrl}}",
 		"shareMessageMultipleFilesTip": "💡 Click the link to view the files directly.",
 		"shareMessageProject": "I've shared a project with you:",
@@ -2651,7 +2671,7 @@
 		"insertImage": "Insert Image",
 		"inspector": {
 			"agentPromptPlaceholder": "Describe the problem here",
-			"agentPromptSuffix": "Please describe the problem you encountered:",
+			"agentPromptSuffix": "Please handle the selected element:",
 			"agentPromptTitle": "[HTML Element Inspection] I selected an element on the page. Here are its details:",
 			"computedStyles": "Computed Styles",
 			"copySelector": "Copy Selector",
@@ -2856,6 +2876,8 @@
 	},
 	"topicFiles": {
 		"AIOptimization": "AI Edit",
+		"aiPick": "AI Pick",
+		"aiPickTooltip": "Click to select a page element and let AI modify it",
 		"addFile": "Add File",
 		"addFolder": "Add Folder",
 		"batchExportingPdf": "Batch Exporting PDF...",
@@ -3191,8 +3213,12 @@
 		"aiGeneratedTip": "AI-generated content. Please verify.",
 		"attachments": "Attachments({{count}})",
 		"collapseUserMessage": "Collapse",
+		"consumptionPoints": "Used {{points}} points this round",
 		"consumptionPoints1": "This round used",
 		"consumptionPoints2": "points",
+		"usedModel": "Model：",
+		"usedImageModel": "Image Model: ",
+		"usedVideoModel": "Video Model: ",
 		"copyTopic": "Create a new topic from here",
 		"deleteProjectConfirm": "Are you sure to delete project: \"{{name}}\"?",
 		"deleteTopicConfirm": "Are you sure to delete topic: \"{{name}}\"?",

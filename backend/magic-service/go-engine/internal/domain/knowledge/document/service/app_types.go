@@ -19,6 +19,8 @@ const (
 	RevectorizeSourceProjectFileNotify = "project_file_notify"
 	// RevectorizeSourceTeamshareKnowledgeStartVector 表示 Teamshare 单知识库批量重向量化。
 	RevectorizeSourceTeamshareKnowledgeStartVector = "teamshare_knowledge_start_vector"
+	// RevectorizeSourceDocumentUpdate 表示文档配置更新触发的重向量化。
+	RevectorizeSourceDocumentUpdate = "document_update"
 )
 
 // CreateManagedDocumentInput 表示跨应用编排创建文档时的最小领域输入。
@@ -64,6 +66,12 @@ type SyncDocumentInput struct {
 	// 否则 consumer 看到 third-platform 文档时又会重定向回广播入口，形成回环。
 	SingleDocumentThirdPlatformResync bool
 	RevectorizeSessionID              string
+	// ThirdFileSourceCacheVersion 记录 fan-out producer 写入 Redis 的源内容版本，仅用于日志追踪。
+	// consumer 仍会读取 Redis 当前版本，避免旧 MQ 任务晚到时复用过期本地缓存。
+	ThirdFileSourceCacheVersion string
+	// SkipThirdFileSourceCache 表示本次 third-file broadcast 不允许使用进程内源内容缓存。
+	// Redis version 不可用时设置它，宁可重复解析，也不能跨 pod 吃到旧内容。
+	SkipThirdFileSourceCache bool
 }
 
 // ThirdFileRevectorizeInput 表示第三方文件重向量化调度输入。
@@ -97,7 +105,8 @@ func NormalizeRevectorizeSource(source string) string {
 func RevectorizeSourceAllowsThirdFileBroadcast(source string) bool {
 	switch NormalizeRevectorizeSource(source) {
 	case "",
-		RevectorizeSourceThirdFileBroadcast:
+		RevectorizeSourceThirdFileBroadcast,
+		RevectorizeSourceDocumentUpdate:
 		return true
 	default:
 		return false

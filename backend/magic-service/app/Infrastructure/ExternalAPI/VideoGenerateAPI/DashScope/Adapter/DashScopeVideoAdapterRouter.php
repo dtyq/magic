@@ -29,6 +29,11 @@ readonly class DashScopeVideoAdapterRouter implements VideoGenerationProviderAda
         return $this->wan27VideoAdapter->resolveGenerationConfig($modelVersion, $modelId);
     }
 
+    public function resolveHasAudioOutput(string $modelVersion, string $modelId, array $request): bool
+    {
+        return $this->wan27VideoAdapter->resolveHasAudioOutput($modelVersion, $modelId, $request);
+    }
+
     public function buildProviderPayload(VideoQueueOperationEntity $operation): array
     {
         return $this->wan27VideoAdapter->buildProviderPayload($operation);

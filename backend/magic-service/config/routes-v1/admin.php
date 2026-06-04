@@ -52,6 +52,7 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::post('/by-category', [ServiceProviderApi::class, 'getOrganizationProvidersByCategory']);
         Router::get('/office-info', [ServiceProviderApi::class, 'isCurrentOrganizationOfficial']);
         Router::get('/templates/queries', [ServiceProviderApi::class, 'queriesServiceProviderTemplates']);
+        Router::get('/model-pricing-templates/queries', [ServiceProviderApi::class, 'queriesProviderModelPricingTemplates']);
 
         // 废弃，上线后可删除
         Router::get('/available-llm', [ServiceProviderApi::class, 'getAllAvailableLlmProviders']);
@@ -123,6 +124,7 @@ Router::addGroup('/api/v1/admin', static function () {
     // 模型调用审计相关
     Router::addGroup('/model-audit-logs', static function () {
         Router::post('/list', [AdminOperationLogApi::class, 'listModelAudit']);
+        Router::post('/statistics', [AdminOperationLogApi::class, 'modelAuditStatistics']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 
     // 组织列表

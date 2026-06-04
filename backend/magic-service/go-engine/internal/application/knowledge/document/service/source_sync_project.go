@@ -19,6 +19,7 @@ import (
 var (
 	errDocumentSourceBindingRepositoryRequired = errors.New("source binding repository is required")
 	errProjectFileAncestorReaderRequired       = errors.New("project file ancestor reader is required")
+	errProjectFileDescendantReaderRequired     = errors.New("project file descendant reader is required")
 )
 
 type projectFileAncestorReader interface {
@@ -117,6 +118,27 @@ func (s *DocumentAppService) listProjectFileDocumentsInOrg(
 	docs, err := s.domainService.ListRealtimeByProjectFileInOrg(ctx, organizationCode, projectFileID)
 	if err != nil {
 		return nil, fmt.Errorf("list realtime project documents in org: %w", err)
+	}
+	return docs, nil
+}
+
+func (s *DocumentAppService) listRealtimeProjectFileDocumentsBySourceBindings(
+	ctx context.Context,
+	organizationCode string,
+	projectFileIDs []int64,
+	sourceBindingIDs []int64,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	if s == nil || s.domainService == nil || len(projectFileIDs) == 0 || len(sourceBindingIDs) == 0 || strings.TrimSpace(organizationCode) == "" {
+		return nil, nil
+	}
+	docs, err := s.domainService.ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+		ctx,
+		organizationCode,
+		projectFileIDs,
+		sourceBindingIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list realtime project documents by source bindings in org: %w", err)
 	}
 	return docs, nil
 }

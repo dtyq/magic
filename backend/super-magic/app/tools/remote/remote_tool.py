@@ -2,7 +2,6 @@
 """远程工具包装器
 
 将远程工具包装为标准的 BaseTool，实现动态参数类创建和工具执行。
-完全模仿 mcp_tool.py 的实现模式。
 """
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, Type
@@ -95,7 +94,7 @@ class RemoteToolParams(BaseToolParams):
 
 
 class RemoteTool(BaseTool):
-    """远程工具包装器类，模仿 MCPTool 实现"""
+    """远程工具包装器类"""
 
     def __init__(self, tool_info: "Tool"):
         """初始化远程工具

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Audit\ModelCall\Repository\Persistence;
 
 use App\Domain\Audit\ModelCall\Entity\AuditLogEntity;
+use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
 use App\Domain\Audit\ModelCall\Repository\Facade\AuditLogRepositoryInterface;
 use App\Domain\Audit\ModelCall\Repository\Persistence\Model\AuditLogModel;
@@ -134,6 +135,20 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         return $this->queryByCursor($builder, $pageSize, $cursorId, $direction);
     }
 
+    public function statistics(
+        array $filters,
+        string $currentOrganizationCode,
+        bool $isOfficialOrganization
+    ): array {
+        $organizationCode = $this->resolveOrganizationCodeFilter(
+            $filters,
+            $currentOrganizationCode,
+            $isOfficialOrganization
+        );
+
+        return $this->fetchStatisticsInOnePass($filters, $organizationCode);
+    }
+
     /**
      * 组装写库属性：排除 points；无值不写 event_id（兼容历史 INSERT）.
      *
@@ -255,5 +270,150 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         }
 
         return $list;
+    }
+
+    private function applyStatisticsFilters(
+        $builder,
+        array $filters,
+        ?string $organizationCode
+    ): void {
+        if ($organizationCode !== null) {
+            $builder->where('organization_code', $organizationCode);
+        }
+
+        $builder->where('operation_time', '>=', (int) $filters['start_operation_time']);
+        $builder->where('operation_time', '<=', (int) $filters['end_operation_time']);
+
+        $builder->whereNotIn('type', [AuditType::SEARCH->value, AuditType::WEB_SCRAPE->value]);
+
+        if (! empty($filters['service_provider_config_id'])) {
+            $builder->where('service_provider_config_id', (int) $filters['service_provider_config_id']);
+        }
+        if (! empty($filters['product_code'])) {
+            $builder->where('product_code', (string) $filters['product_code']);
+        }
+        if (! empty($filters['access_scope'])) {
+            $builder->where('access_scope', (string) $filters['access_scope']);
+        }
+    }
+
+    /**
+     * 一次扫表同时产出 summary / trend / breakdown 所需的全部原始数据。
+     * 分组粒度：(时间桶, service_provider_config_id, product_code)，
+     * 应用层再按维度做二次聚合，避免同一 WHERE 扫表三次。
+     *
+     * @return array{summary: array, trend: array, breakdown: array}
+     */
+    private function fetchStatisticsInOnePass(array $filters, ?string $organizationCode): array
+    {
+        $startMs = (int) $filters['start_operation_time'];
+        $endMs = (int) $filters['end_operation_time'];
+        $deltaMs = $endMs - $startMs;
+        $isHourly = $deltaMs <= 86400000;
+
+        $builder = AuditLogModel::query();
+        $this->applyStatisticsFilters($builder, $filters, $organizationCode);
+
+        $bucketExpr = $isHourly
+            ? 'FLOOR(operation_time / 3600000) * 3600000'
+            : "DATE_FORMAT(FROM_UNIXTIME(operation_time / 1000), '%Y-%m-%d')";
+
+        $rows = $builder->selectRaw(
+            "{$bucketExpr} as bucket_key,
+             CAST(service_provider_config_id AS CHAR) as service_provider_config_id,
+             product_code,
+             COUNT(*) as cnt,
+             SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as err_cnt,
+             SUM(CAST(JSON_EXTRACT(`usage`, '$.prompt_tokens') AS UNSIGNED)) as input_tokens,
+             SUM(CAST(JSON_EXTRACT(`usage`, '$.completion_tokens') AS UNSIGNED)) as output_tokens,
+             SUM(COALESCE(
+                 CAST(JSON_EXTRACT(`usage`, '$.total_tokens') AS UNSIGNED),
+                 CAST(JSON_EXTRACT(`usage`, '$.prompt_tokens') AS UNSIGNED) + CAST(JSON_EXTRACT(`usage`, '$.completion_tokens') AS UNSIGNED),
+                 0
+             )) as total_tokens",
+            [AuditStatus::FAIL->value]
+        )
+            ->groupBy('bucket_key', 'service_provider_config_id', 'product_code')
+            ->get()
+            ->toArray();
+
+        $summaryTotal = 0;
+        $summaryError = 0;
+        $summaryInputTokens = 0;
+        $summaryOutputTokens = 0;
+        $summaryTotalTokens = 0;
+
+        $trendMap = [];
+        $breakdownMap = [];
+
+        foreach ($rows as $r) {
+            $r = (array) $r;
+            $cnt = (int) ($r['cnt'] ?? 0);
+            $errCnt = (int) ($r['err_cnt'] ?? 0);
+            $inTok = (int) ($r['input_tokens'] ?? 0);
+            $outTok = (int) ($r['output_tokens'] ?? 0);
+            $totTok = (int) ($r['total_tokens'] ?? 0);
+
+            $summaryTotal += $cnt;
+            $summaryError += $errCnt;
+            $summaryInputTokens += $inTok;
+            $summaryOutputTokens += $outTok;
+            $summaryTotalTokens += $totTok;
+
+            $bucketKey = $isHourly ? (int) $r['bucket_key'] : (string) $r['bucket_key'];
+            if (! isset($trendMap[$bucketKey])) {
+                $trendMap[$bucketKey] = ['requests' => 0, 'errors' => 0];
+            }
+            $trendMap[$bucketKey]['requests'] += $cnt;
+            $trendMap[$bucketKey]['errors'] += $errCnt;
+
+            $bKey = ($r['service_provider_config_id'] ?? '') . '||' . ($r['product_code'] ?? '');
+            if (! isset($breakdownMap[$bKey])) {
+                $breakdownMap[$bKey] = [
+                    'service_provider_config_id' => (string) ($r['service_provider_config_id'] ?? ''),
+                    'product_code' => (string) ($r['product_code'] ?? ''),
+                    'total_requests' => 0,
+                    'error_requests' => 0,
+                ];
+            }
+            $breakdownMap[$bKey]['total_requests'] += $cnt;
+            $breakdownMap[$bKey]['error_requests'] += $errCnt;
+        }
+
+        $breakdown = array_values($breakdownMap);
+        usort($breakdown, function (array $a, array $b) {
+            return $b['total_requests'] <=> $a['total_requests']
+                ?: $a['service_provider_config_id'] <=> $b['service_provider_config_id']
+                ?: $a['product_code'] <=> $b['product_code'];
+        });
+
+        if ($isHourly) {
+            $trendRows = [];
+            foreach ($trendMap as $ms => $v) {
+                $trendRows[] = ['bucket_ms' => $ms, 'requests' => $v['requests'], 'errors' => $v['errors']];
+            }
+        } else {
+            $trendRows = [];
+            foreach ($trendMap as $day => $v) {
+                $trendRows[] = ['bucket_day' => $day, 'requests' => $v['requests'], 'errors' => $v['errors']];
+            }
+        }
+
+        return [
+            'summary' => [
+                'total' => $summaryTotal,
+                'error' => $summaryError,
+                'input_tokens' => $summaryInputTokens,
+                'output_tokens' => $summaryOutputTokens,
+                'total_tokens' => $summaryTotalTokens,
+            ],
+            'trend' => [
+                'bucket_type' => $isHourly ? 'hour' : 'day',
+                'rows' => $trendRows,
+                'start_ms' => $startMs,
+                'end_ms' => $endMs,
+            ],
+            'breakdown' => $breakdown,
+        ];
     }
 }

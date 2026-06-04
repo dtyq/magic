@@ -311,6 +311,7 @@ readonly class AdminProviderAppService
         // icon传入是 url，返回也需要是 url，但是保存在数据库是 file_key
         // 所以 SaveProviderModelDTO 的 setIcon 做了 url 到 file_key的转换
         $saveProviderModelData['icon'] = $this->getFileUrl($saveProviderModelDTO->getIcon());
+        $saveProviderModelData['extra'] = $this->decodeExtraForResponse($saveProviderModelDTO->getExtra());
         return $saveProviderModelData;
     }
 
@@ -466,6 +467,9 @@ readonly class AdminProviderAppService
         $modelArray = $modelEntity->toArray();
         // 返回时使用过滤后的 modelId（去掉组织编码前缀）
         $modelArray['model_id'] = $modelEntity->getDisplayModelId();
+        $providerConfig = $this->providerConfigDomainService->getProviderConfig($dataIsolation, (string) $modelEntity->getServiceProviderConfigId());
+        $providerCode = $providerConfig?->getProviderCode();
+        $modelArray['provider_code'] = $providerCode?->value ?? '';
 
         $modelDetailDTO = new ProviderModelDetailDTO($modelArray);
 
@@ -918,6 +922,15 @@ readonly class AdminProviderAppService
         }
 
         return substr($icon, 0, $separatorPosition);
+    }
+
+    private function decodeExtraForResponse(mixed $extra): mixed
+    {
+        if (is_string($extra) && json_validate($extra)) {
+            return json_decode($extra, true);
+        }
+
+        return $extra;
     }
 
     /**

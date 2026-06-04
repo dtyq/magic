@@ -1,6 +1,6 @@
 import { superMagicStore } from "@/pages/superMagic/stores"
 import type { NodeProps } from "../types"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ScrollArea, ScrollBar } from "@/components/shadcn-ui/scroll-area"
 import { useScrollAreaAutoScroll } from "../shared/hooks/useScrollAreaAutoScroll"
 import { useTranslation } from "react-i18next"
@@ -14,6 +14,13 @@ import type { AttachmentProps } from "@/pages/superMagic/components/MessageList/
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 import { useMemoizedFn } from "ahooks"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import {
+	buildFilePathAttachments,
+	type FilePathAttachment,
+} from "@/pages/superMagic/components/MessageList/utils/attachmentByFilePath"
+import { findAttachmentByPath } from "@/pages/superMagic/components/MessageList/components/Text/components/Markdown/parser/helper"
+import projectFilesStore from "@/stores/projectFiles"
+import { FilePathAttachmentList } from "./FilePathAttachmentList"
 
 const markdownBaseClassName = cn(
 	"w-full break-words leading-relaxed text-foreground",
@@ -82,6 +89,30 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 		: Array.isArray(props?.node?.attachments)
 			? (props?.node?.attachments as AttachmentProps[])
 			: []
+
+	// 解析前一条消息 content 中的 [@file_path:...]，仅保留在当前工作区附件树中真实存在的文件
+	const rawFilePathAttachments = useMemo<FilePathAttachment[]>(() => {
+		const prevAppMessageId = props?.prevNode?.app_message_id
+		if (!prevAppMessageId) return []
+		const prevMessageNode = superMagicStore.getMessageNode(prevAppMessageId) as
+			| Record<string, unknown>
+			| undefined
+		const prevContent =
+			typeof prevMessageNode?.content === "string" ? prevMessageNode.content : ""
+		if (!prevContent) return []
+		return buildFilePathAttachments(prevContent)
+	}, [props?.prevNode?.app_message_id])
+
+	const filePathAttachments = rawFilePathAttachments.filter((attachment) => {
+		const found = findAttachmentByPath(
+			projectFilesStore.workspaceFilesList,
+			attachment.filePath,
+		)
+		if (!found) return false
+		if (found.type === "directory" || found.is_directory) return false
+		return true
+	})
+
 	const streamState =
 		superMagicStore.getStreamState(topicId, correlationId)?.stage ||
 		superMagicStore.getStreamState(topicId, messageId)?.stage
@@ -104,12 +135,16 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 	if (node?.role === "tool") {
 		return (
 			<div className="mb-3">
-				{attachments.length > 0 && (
-					<Attachment
-						attachments={attachments}
-						onSelectDetail={onFileClick}
-						onFileClick={handleFileClick}
-					/>
+				{filePathAttachments.length > 0 ? (
+					<FilePathAttachmentList attachments={filePathAttachments} />
+				) : (
+					attachments.length > 0 && (
+						<Attachment
+							attachments={attachments}
+							onSelectDetail={onFileClick}
+							onFileClick={handleFileClick}
+						/>
+					)
 				)}
 			</div>
 		)
@@ -184,12 +219,17 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 						/>
 					)
 				})}
-			{attachments.length > 0 && (
-				<Attachment
-					attachments={attachments}
-					onSelectDetail={onFileClick}
-					onFileClick={handleFileClick}
-				/>
+			{/* 路径附件优先展示；无路径附件时兜底使用原有 attachments */}
+			{filePathAttachments.length > 0 ? (
+				<FilePathAttachmentList attachments={filePathAttachments} />
+			) : (
+				attachments.length > 0 && (
+					<Attachment
+						attachments={attachments}
+						onSelectDetail={onFileClick}
+						onFileClick={handleFileClick}
+					/>
+				)
 			)}
 		</div>
 	)

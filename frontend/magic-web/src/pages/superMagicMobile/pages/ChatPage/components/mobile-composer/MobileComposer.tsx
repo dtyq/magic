@@ -221,6 +221,7 @@ function MobileComposerComponent({
 				onFileUpload={logic.handleFileUploadClick}
 				mcpStorageKey={logic.mcpStorageKey}
 				useTempStorage={logic.mcpUseTempStorage}
+				modules={editorContext.modules}
 			/>
 
 			{logic.uploadModal}
@@ -270,6 +271,7 @@ function MobileComposerComponent({
 				onFileUpload={logic.handleFileUploadClick}
 				mcpStorageKey={logic.mcpStorageKey}
 				useTempStorage={logic.mcpUseTempStorage}
+				modules={editorContext.modules}
 			/>
 
 			{logic.uploadModal}

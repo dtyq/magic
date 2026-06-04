@@ -329,6 +329,7 @@
 				"noContent": "无内容",
 				"reason": "原因",
 				"reviewFailed": "审核失败",
+				"reviewRemark": "审核备注",
 				"skillsLibrary": {
 					"steps": {
 						"published": "发布到技能库",
@@ -348,6 +349,7 @@
 					"publishTo": "发布到",
 					"publishedDate": "发布时间",
 					"publisher": "发布者",
+					"reviewRemark": "审核备注",
 					"status": "状态",
 					"version": "版本"
 				},

@@ -34,6 +34,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property null|string $request_id 请求/链路 ID
  * @property null|string $event_id 事件唯一 ID（审计与计费关联）
  * @property null|int $points 计费回写积分
+ * @property null|string $service_provider_config_id 服务商配置ID
  * @property Carbon $created_at 创建时间
  * @property Carbon $updated_at 修改时间
  */
@@ -64,6 +65,7 @@ class AuditLogModel extends Model
         'request_id',
         'event_id',
         'points',
+        'service_provider_config_id',
     ];
 
     protected array $casts = [
@@ -87,6 +89,7 @@ class AuditLogModel extends Model
         'request_id' => 'string',
         'event_id' => 'string',
         'points' => 'integer',
+        'service_provider_config_id' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

@@ -17,7 +17,9 @@
 		/* alias */
 		"paths": {
 			"@/*": ["./src/*"],
-			"@enterprise/*": ["./enterprise/src/*"]
+			"@enterprise/*": ["./enterprise/src/*"],
+			"@admin/*": ["./packages/magic-admin/src/*"],
+			"@admin-components": ["./packages/magic-admin/components/index.ts"],
 		},
 		"resolveJsonModule": true,
 		"skipLibCheck": true,

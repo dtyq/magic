@@ -48,6 +48,7 @@ const mockState = vi.hoisted(() => ({
 	closeSaveHandler: vi.fn(async () => true),
 	discardHandler: vi.fn(async () => true),
 	confirmConfig: null as null | Record<string, unknown>,
+	lastStoreConfig: null as null | Record<string, any>,
 }))
 
 vi.mock("react-i18next", () => ({
@@ -95,7 +96,16 @@ vi.mock("@/utils/pubsub", () => ({
 }))
 
 vi.mock("../contexts/PPTContext", () => ({
-	PPTProvider: ({ children }: { children?: ReactNode }) => <>{children}</>,
+	PPTProvider: ({
+		children,
+		storeConfig,
+	}: {
+		children?: ReactNode
+		storeConfig?: Record<string, any>
+	}) => {
+		mockState.lastStoreConfig = storeConfig || null
+		return <>{children}</>
+	},
 }))
 
 vi.mock("../PPTSidebar/index", () => ({
@@ -271,6 +281,7 @@ function renderPPTRender(input?: {
 describe("PPTRender", () => {
 	beforeEach(() => {
 		mockState.confirmConfig = null
+		mockState.lastStoreConfig = null
 		mockState.store.setFullscreen.mockReset()
 		mockState.store.setActiveIndex.mockReset()
 		mockState.store.getFileIdByPath.mockClear()
@@ -296,6 +307,26 @@ describe("PPTRender", () => {
 				expect.any(Function),
 			)
 		})
+	})
+
+	it("passes slidePaths through displayConfig so the store sees fresh magic.project.js slides", () => {
+		render(
+			<PPTRender
+				slidePaths={["fresh-1.html", "fresh-2.html"]}
+				displayConfig={{
+					type: "slide",
+					slides: ["stale-1.html"],
+				}}
+				filePathMapping={new Map()}
+				mainFileId="ppt-root-file"
+				mainFileName="Deck.html"
+			/>,
+		)
+
+		expect(mockState.lastStoreConfig?.displayConfig?.slides).toEqual([
+			"fresh-1.html",
+			"fresh-2.html",
+		])
 	})
 
 	it("shows the save-and-close confirmation and calls the active slide close-save handler", async () => {

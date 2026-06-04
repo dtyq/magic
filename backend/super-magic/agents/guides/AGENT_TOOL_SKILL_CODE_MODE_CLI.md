@@ -83,7 +83,7 @@ Code Mode 是一种执行机制，不是能力暴露方式，也不是 Skill 的
 （中间结果在执行环境中处理，不流经模型上下文）
     │
     ▼
-sdk.tool.call(...) 或 sdk.mcp.call(...)
+sdk.tool.call(...)（包括 mcp_* 工具）
     │
     ▼
 服务端路由到当前 AgentContext，完成真实工具调用

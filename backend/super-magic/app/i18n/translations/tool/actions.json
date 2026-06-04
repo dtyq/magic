@@ -51,9 +51,41 @@
         "zh_CN": "转换PDF",
         "en_US": "Convert PDF"
     },
-    "convert_to_markdown": {
-        "zh_CN": "转换文档",
-        "en_US": "Convert document"
+    "inspect_document": {
+        "zh_CN": "探测文档",
+        "en_US": "Inspect document"
+    },
+    "extract_document_content": {
+        "zh_CN": "提取文档",
+        "en_US": "Extract document"
+    },
+    "build_document_index": {
+        "zh_CN": "建立文档索引",
+        "en_US": "Build document index"
+    },
+    "summarize_document": {
+        "zh_CN": "总结文档",
+        "en_US": "Summarize document"
+    },
+    "convert_document_format": {
+        "zh_CN": "转换文档格式",
+        "en_US": "Convert document format"
+    },
+    "export_document_markdown": {
+        "zh_CN": "导出 Markdown",
+        "en_US": "Export Markdown"
+    },
+    "sample_document_content": {
+        "zh_CN": "抽样阅读文档",
+        "en_US": "Sample document"
+    },
+    "plan_document_reading": {
+        "zh_CN": "规划文档阅读",
+        "en_US": "Plan document reading"
+    },
+    "understand_document_images": {
+        "zh_CN": "理解文档图片",
+        "en_US": "Understand document images"
     },
     "download_from_markdown": {
         "zh_CN": "下载资源",
@@ -410,5 +442,45 @@
     "install_skills": {
         "zh_CN": "安装技能",
         "en_US": "Install skills"
+    },
+    "list_servers": {
+        "zh_CN": "查看可用服务",
+        "en_US": "Check Available Services"
+    },
+    "list_tools": {
+        "zh_CN": "查看可用工具",
+        "en_US": "Check Available Tools"
+    },
+    "connect_server": {
+        "zh_CN": "连接服务",
+        "en_US": "Connect Service"
+    },
+    "install_server": {
+        "zh_CN": "安装服务",
+        "en_US": "Install Service"
+    },
+    "get_tool_schema": {
+        "zh_CN": "收集工具用法",
+        "en_US": "Collect Tool Usage"
+    },
+    "call_tool": {
+        "zh_CN": "调用工具",
+        "en_US": "Use Tool"
+    },
+    "add_server": {
+        "zh_CN": "添加新服务",
+        "en_US": "Add New Service"
+    },
+    "remove_server": {
+        "zh_CN": "移除服务",
+        "en_US": "Remove Service"
+    },
+    "call_simple_tool": {
+        "zh_CN": "调用工具",
+        "en_US": "Use Tool"
+    },
+    "call_simple_agent": {
+        "zh_CN": "调用助理",
+        "en_US": "Consult Agent"
     }
 }

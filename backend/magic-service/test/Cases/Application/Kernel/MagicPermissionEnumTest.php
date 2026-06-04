@@ -60,6 +60,12 @@ class MagicPermissionEnumTest extends HttpTestCase
         $this->assertContains('workspace.ai.model_management.edit', $permissionKeys);
         $this->assertContains('workspace.ai.image_generation.query', $permissionKeys);
         $this->assertContains('workspace.ai.image_generation.edit', $permissionKeys);
+        $this->assertContains('workspace.model.video.query', $permissionKeys);
+        $this->assertContains('workspace.model.video.edit', $permissionKeys);
+        $this->assertContains('platform.agent.official.query', $permissionKeys);
+        $this->assertContains('platform.agent.review.edit', $permissionKeys);
+        $this->assertContains('platform.skill.market.edit', $permissionKeys);
+        $this->assertNotContains('platform.agent.official.edit', $permissionKeys);
     }
 
     public function testIsValidPermission(): void
@@ -69,10 +75,15 @@ class MagicPermissionEnumTest extends HttpTestCase
         $this->assertTrue($this->permission->isValidPermission(MagicPermission::PLATFORM_PERMISSIONS));
         $this->assertTrue($this->permission->isValidPermission('workspace.ai.model_management.query'));
         $this->assertTrue($this->permission->isValidPermission('workspace.ai.image_generation.edit'));
+        $this->assertTrue($this->permission->isValidPermission('workspace.model.video.edit'));
         $this->assertTrue($this->permission->isValidPermission('admin.ai.model_access_role.query'));
         $this->assertTrue($this->permission->isValidPermission('admin.ai.model_access_role.edit'));
+        $this->assertTrue($this->permission->isValidPermission('platform.agent.official.query'));
+        $this->assertTrue($this->permission->isValidPermission('platform.agent.review.edit'));
+        $this->assertTrue($this->permission->isValidPermission('platform.skill.market.query'));
         $this->assertFalse($this->permission->isValidPermission('admin.ai.model_management.query'));
         $this->assertFalse($this->permission->isValidPermission('workspace.ai.model_management.manage'));
+        $this->assertFalse($this->permission->isValidPermission('platform.agent.official.edit'));
     }
 
     public function testBuildPermission(): void
@@ -89,8 +100,9 @@ class MagicPermissionEnumTest extends HttpTestCase
     {
         $tree = $this->permission->getPermissionTree(false);
 
-        $this->assertTrue($this->containsPermissionKey($tree, 'workspace.ai.model_management.query'));
-        $this->assertTrue($this->containsPermissionKey($tree, 'workspace.ai.image_generation.edit'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'workspace.model.text.query'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'workspace.model.image.edit'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'workspace.model.video.query'));
         $this->assertTrue($this->containsPermissionKey($tree, 'admin.ai.model_access_role.query'));
         $this->assertFalse($this->containsPermissionKey($tree, 'platform.ai.model_management.query'));
     }
@@ -110,7 +122,7 @@ class MagicPermissionEnumTest extends HttpTestCase
         ));
 
         $this->assertFalse($this->permission->checkPermission(
-            'platform.ai.model_management.query',
+            'platform.model.text.query',
             [MagicPermission::PERSON_PERMISSIONS],
             true
         ));
@@ -120,14 +132,14 @@ class MagicPermissionEnumTest extends HttpTestCase
     {
         // ALL 权限组不包含 platform.*
         $this->assertFalse($this->permission->checkPermission(
-            'platform.ai.model_management.query',
+            'platform.model.text.query',
             [MagicPermission::ALL_PERMISSIONS],
             true
         ));
 
         // PLATFORM 权限组包含 admin/workspace/platform
         $this->assertTrue($this->permission->checkPermission(
-            'platform.ai.model_management.query',
+            'platform.model.text.query',
             [MagicPermission::PLATFORM_PERMISSIONS],
             true
         ));
@@ -137,10 +149,24 @@ class MagicPermissionEnumTest extends HttpTestCase
             true
         ));
         $this->assertTrue($this->permission->checkPermission(
-            'workspace.ai.model_management.query',
+            'workspace.model.text.query',
             [MagicPermission::PLATFORM_PERMISSIONS],
             true
         ));
+    }
+
+    public function testGetPermissionTreeContainsPlatformApplicationPermissionWhenMapped(): void
+    {
+        $tree = $this->permission->getPermissionTree(true);
+        $applicationQueryPermission = $this->permission->buildPermission(
+            MagicResourceEnum::PLATFORM_SETTING_APPLICATION->value,
+            MagicOperationEnum::QUERY->value
+        );
+
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management.application_menu'));
+        $this->assertTrue($this->containsPermissionKey($tree, $applicationQueryPermission));
     }
 
     /**

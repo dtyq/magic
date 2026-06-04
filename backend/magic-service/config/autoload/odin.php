@@ -287,6 +287,8 @@ return [
                     'options.json.presence_penalty',
                     'options.json.business_params',
                     'options.json.thinking',
+                    'options.json.top_k',
+                    'options.json.repetition_penalty',
 
                     // 使用量统计
                     'usage',                       // 完整的usage对象
@@ -341,6 +343,8 @@ return [
             ],
             'network_retry_count' => 1,
             'use_swow_transport' => true,
+            // Swow SSE read(8192) 会攒几十个小 chunk 后再解析，流式场景默认用小 buffer 降低逐字延迟。
+            'buffer_size' => max(1, (int) env('ODIN_STREAM_BUFFER_SIZE', 64)),
         ],
         'models' => $models,
         // 全局模型 options，可被模型本身的 options 覆盖

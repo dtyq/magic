@@ -57,4 +57,20 @@ readonly class ModelCallAuditDomainService
             $direction
         );
     }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{summary: array, trend: array, breakdown: array}
+     */
+    public function statistics(
+        array $filters,
+        string $currentOrganizationCode,
+        bool $isOfficialOrganization
+    ): array {
+        return $this->auditLogRepository->statistics(
+            $filters,
+            $currentOrganizationCode,
+            $isOfficialOrganization
+        );
+    }
 }

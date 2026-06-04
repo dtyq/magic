@@ -795,7 +795,10 @@ FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
   AND document_code = ?
-ORDER BY id ASC
+ORDER BY
+  CASE WHEN JSON_EXTRACT(metadata, '$.chunk_index') IS NULL THEN 1 ELSE 0 END ASC,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.chunk_index')) AS UNSIGNED) ASC,
+  id ASC
 LIMIT ? OFFSET ?
 `
 
@@ -928,7 +931,10 @@ WHERE deleted_at IS NULL
   AND document_code = ?
   AND content LIKE ?
   AND sync_status IN (/*SLICE:sync_status_values*/?)
-ORDER BY id ASC
+ORDER BY
+  CASE WHEN JSON_EXTRACT(metadata, '$.chunk_index') IS NULL THEN 1 ELSE 0 END ASC,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.chunk_index')) AS UNSIGNED) ASC,
+  id ASC
 LIMIT ? OFFSET ?
 `
 

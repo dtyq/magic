@@ -57,33 +57,42 @@ const (
 
 // DocumentAppService 文档应用层服务
 type DocumentAppService struct {
-	domainService              documentDomainService
-	kbService                  knowledgeBaseReader
-	fragmentService            fragmentDocumentService
-	parseService               documentParseService
-	fileLinkProvider           originalFileLinkProvider
-	thirdPlatformDocumentPort  thirdPlatformDocumentResolver
-	projectFilePort            documentdomain.ProjectFileResolver
-	projectFileMetadataReader  documentdomain.ProjectFileMetadataReader
-	projectFileContentPort     documentdomain.ProjectFileContentAccessor
-	thirdPlatformProviders     *thirdplatformprovider.Registry
-	tokenizer                  *tokenizer.Service
-	syncScheduler              documentSyncScheduler
-	permissionReader           kbaccess.PermissionReader
-	thirdPlatformAccess        documentKnowledgeAccessPort
-	logger                     *logging.SugaredLogger
-	sourceBindingRepo          sourceBindingRepository
-	knowledgeBaseBindingRepo   knowledgeBaseBindingRepository
-	sourceBindingCache         sourcebindingrepository.SourceBindingCandidateCache
-	sourceCallbackSingleflight sourcebindingrepository.SourceCallbackSingleflight
-	revectorizeProgressStore   revectorizeshared.ProgressStore
-	userService                *userdomain.DomainService
-	resourceLimits             documentdomain.ResourceLimits
-	sourceResolveCache         sync.Map
+	domainService               documentDomainService
+	kbService                   knowledgeBaseReader
+	fragmentService             fragmentDocumentService
+	parseService                documentParseService
+	fileLinkProvider            originalFileLinkProvider
+	thirdPlatformDocumentPort   thirdPlatformDocumentResolver
+	projectFilePort             documentdomain.ProjectFileResolver
+	projectFileMetadataReader   documentdomain.ProjectFileMetadataReader
+	projectFileContentPort      documentdomain.ProjectFileContentAccessor
+	thirdPlatformProviders      *thirdplatformprovider.Registry
+	tokenizer                   *tokenizer.Service
+	syncScheduler               documentSyncScheduler
+	permissionReader            kbaccess.PermissionReader
+	thirdPlatformAccess         documentKnowledgeAccessPort
+	logger                      *logging.SugaredLogger
+	sourceBindingRepo           sourceBindingRepository
+	knowledgeBaseBindingRepo    knowledgeBaseBindingRepository
+	sourceBindingCache          sourcebindingrepository.SourceBindingCandidateCache
+	sourceCallbackSingleflight  sourcebindingrepository.SourceCallbackSingleflight
+	revectorizeProgressStore    revectorizeshared.ProgressStore
+	userService                 *userdomain.DomainService
+	resourceLimits              documentdomain.ResourceLimits
+	sourceResolveCache          sync.Map
+	sourceResolveCacheSweepMu   sync.Mutex
+	sourceResolveCacheSweptAt   time.Time
+	thirdFileSourceVersionStore ThirdFileSourceCacheVersionStore
 }
 
 type documentSyncScheduler interface {
 	Schedule(ctx context.Context, input *documentdomain.SyncDocumentInput)
+}
+
+// ThirdFileSourceCacheVersionStore 记录 third-file fan-out 使用的源内容缓存版本。
+type ThirdFileSourceCacheVersionStore interface {
+	Bump(ctx context.Context, sourceKey string) (string, error)
+	Get(ctx context.Context, sourceKey string) (string, bool, error)
 }
 
 type documentMutationService interface {
@@ -114,6 +123,12 @@ type documentLookupService interface {
 
 type documentSourceCallbackLookupService interface {
 	ListRealtimeByProjectFileInOrg(ctx context.Context, organizationCode string, projectFileID int64) ([]*docentity.KnowledgeBaseDocument, error)
+	ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+		ctx context.Context,
+		organizationCode string,
+		projectFileIDs []int64,
+		sourceBindingIDs []int64,
+	) ([]*docentity.KnowledgeBaseDocument, error)
 	HasRealtimeProjectFileDocumentInOrg(ctx context.Context, organizationCode string, projectFileID int64) (bool, error)
 	ResolveRealtimeThirdFileDocumentPlan(ctx context.Context, input documentdomain.ThirdFileDocumentPlanInput) (documentdomain.ThirdFileDocumentPlan, error)
 	ListRealtimeByThirdFileInOrg(ctx context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*docentity.KnowledgeBaseDocument, error)
@@ -312,6 +327,14 @@ func (s *DocumentAppService) SetSourceCallbackSingleflight(locker sourcebindingr
 		return
 	}
 	s.sourceCallbackSingleflight = locker
+}
+
+// SetThirdFileSourceCacheVersionStore 注入 third-file 源内容缓存版本存储。
+func (s *DocumentAppService) SetThirdFileSourceCacheVersionStore(store ThirdFileSourceCacheVersionStore) {
+	if s == nil {
+		return
+	}
+	s.thirdFileSourceVersionStore = store
 }
 
 // SetUserService 注入用户查询领域服务。

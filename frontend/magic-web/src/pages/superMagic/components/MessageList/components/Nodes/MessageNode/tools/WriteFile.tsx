@@ -1,23 +1,23 @@
 import type { NodeProps } from "../../types"
 import { cn } from "@/lib/utils"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import { observer } from "mobx-react-lite"
 import { useToolTooltip } from "../../ToolCall/hooks/useToolTooltip"
 import { useTranslation } from "react-i18next"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { isEmpty } from "lodash-es"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
-import projectFilesStore from "@/stores/projectFiles"
-import { LayerElement } from "@/components/CanvasDesign/canvas/types"
 import { FileItem } from "@/pages/superMagic/pages/Workspace/types"
 import { MonitorPlay, CircleAlert } from "lucide-react"
 import { MagicTooltip, VerticalLine } from "@/components/base"
 import type { ReactNode } from "react"
 import { IconLoader2 } from "@tabler/icons-react"
-import { ScrollArea, ScrollBar } from "@/components/shadcn-ui/scroll-area"
-import { useScrollAreaAutoScroll } from "../../shared/hooks/useScrollAreaAutoScroll"
-import MarkdownComponent from "../../../Text/components/Markdown"
+import XMarkdown from "@dtyq/x-markdown"
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
+import { useStreamingCommittedContent } from "./WriteFileStreamingContent"
+import { parseWriteFileContentSource } from "./streamingWriteFileContent"
+import ChunkedCodeBlock from "./ChunkedCodeBlock"
 
 interface ToolDataLike {
 	id?: string
@@ -43,128 +43,26 @@ const writeFileMarkdownClassName = cn(
 	"[&_h1]:mb-1.5 [&_h1]:mt-1.5 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:leading-tight",
 	"[&_h2]:mb-1.5 [&_h2]:mt-1.5 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:leading-tight",
 	"[&_h3]:mb-1 [&_h3]:mt-1 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:leading-tight",
-	"[&_blockquote]:mt-0 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:text-muted-foreground [&_p:has(+p)]:!mb-0.5 [&_p]:!mb-0 [&_p]:!mt-0 [&_p]:whitespace-pre-wrap",
+	"[&_blockquote]:my-1 [&_blockquote]:inline-table [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:bg-muted/30 [&_blockquote]:py-1 [&_blockquote]:px-2 [&_blockquote]:text-muted-foreground [&_blockquote]:rounded-r-md",
+	"[&_p:has(+p)]:!mb-0.5 [&_p]:!mb-0 [&_p]:!mt-0 [&_p]:whitespace-pre-wrap",
 	"[&_ul]:m-0 [&_ul]:list-outside [&_ul]:p-0 [&_ul]:pl-4",
 	"[&_ol]:m-0 [&_ol]:list-outside [&_ol]:p-0 [&_ol]:pl-4",
-	"[&_li]:!m-0 [&_li]:p-0 [&_li]:pl-0.5 [&_li]:align-top [&_li]:leading-5",
-	"[&_hr]:my-1.5 [&_hr]:border-border",
+	"[&_li]:!m-0 [&_li]:p-0 [&_li]:pl-0.5 [&_li]:align-top [&_li]:leading-5 [&_li_p]:!m-0",
+	"[&_hr]:my-0.5 [&_hr]:border-border",
 	"[&_strong]:font-semibold",
 	"[&_a]:text-primary [&_a]:no-underline hover:[&_a]:underline",
 	"[&_pre]:mt-0 [&_pre]:overflow-auto [&_pre]:rounded [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:text-[85%] [&_pre]:leading-[1.45]",
 	"[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[85%]",
 	"[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[100%]",
+	"[&_table]:my-1 [&_table]:border-collapse [&_table]:overflow-auto [&_table]:text-xs",
+	"[&_thead]:bg-muted",
+	"[&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold",
+	"[&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1",
+	"[&_tbody_tr:nth-child(even)]:bg-muted/50",
 )
 
-function unescapePartialJsonString(raw: string): string {
-	let result = ""
-	let i = 0
-	while (i < raw.length) {
-		if (raw[i] === "\\") {
-			if (i + 1 >= raw.length) break
-			const next = raw[i + 1]
-			switch (next) {
-				case "n":
-					result += "\n"
-					break
-				case "t":
-					result += "\t"
-					break
-				case "r":
-					result += "\r"
-					break
-				case '"':
-					result += '"'
-					break
-				case "\\":
-					result += "\\"
-					break
-				case "/":
-					result += "/"
-					break
-				case "b":
-					result += "\b"
-					break
-				case "f":
-					result += "\f"
-					break
-				default: {
-					if (next === "u" && i + 5 < raw.length) {
-						const hex = raw.slice(i + 2, i + 6)
-						const code = parseInt(hex, 16)
-						if (!isNaN(code)) {
-							result += String.fromCharCode(code)
-							i += 6
-							continue
-						}
-					}
-					result += raw[i] + next
-					break
-				}
-			}
-			i += 2
-		} else if (raw[i] === '"') {
-			break
-		} else {
-			result += raw[i]
-			i++
-		}
-	}
-	return result
-}
-
-function parseStreamingWriteFileArgs(args: string): { filePath: string; content: string } {
-	if (!args) return { filePath: "", content: "" }
-
-	try {
-		const parsed = JSON.parse(args)
-		return {
-			filePath: parsed.file_path || parsed.path || "",
-			content: parsed.content || "",
-		}
-	} catch {
-		// Partial JSON during streaming — extract fields manually
-	}
-
-	let filePath = ""
-	const filePathMatch = args.match(/"file_path"\s*:\s*"((?:[^"\\]|\\.)*)"/)
-	if (filePathMatch) {
-		filePath = unescapePartialJsonString(filePathMatch[1])
-	}
-
-	let content = ""
-	const contentKeyIdx = args.indexOf('"content"')
-	if (contentKeyIdx !== -1) {
-		const colonIdx = args.indexOf(":", contentKeyIdx + 9)
-		if (colonIdx !== -1) {
-			const quoteIdx = args.indexOf('"', colonIdx + 1)
-			if (quoteIdx !== -1) {
-				content = unescapePartialJsonString(args.slice(quoteIdx + 1))
-			}
-		}
-	}
-
-	return { filePath, content }
-}
-
-export const getToolDesignProjectInfo = (tool: unknown) => {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const toolData = tool as any
-	const magicProjectJSFile = toolData.attachments?.find(
-		(item: FileItem) => item.filename === "magic.project.js",
-	)
-	const fileTree = projectFilesStore.workspaceFileTree
-	const designProject = fileTree.find((item) =>
-		item.children?.find((child) => child.file_id === magicProjectJSFile?.file_id),
-	)
-	const designProjectId = designProject?.file_id || ""
-	const elements = (toolData.detail?.data?.elements || []) as LayerElement[]
-	return {
-		designProjectId,
-		designProject,
-		magicProjectJSFile,
-		elements,
-	}
-}
+const MAX_CONTENT_HEIGHT = 240
+const ESTIMATED_BLOCK_HEIGHT = 28
 
 function WriteTool(props: WriteToolProps) {
 	const { t } = useTranslation("super")
@@ -175,20 +73,43 @@ function WriteTool(props: WriteToolProps) {
 	const tool = props.toolData || node?.tool
 	const fileData = useMemo(() => tool?.detail?.data || {}, [tool?.detail?.data])
 
-	const streamingContent = useMemo(() => {
-		if (typeof fileData?.content === "string" && fileData.content) {
-			return {
-				filePath: (fileData?.file_path ?? "") as string,
-				content: fileData.content as string,
-			}
-		}
-		const args = tool?.rawArguments ?? (fileData?.arguments as string) ?? ""
-		return parseStreamingWriteFileArgs(args)
-	}, [fileData?.content, fileData?.file_path, fileData?.arguments, tool?.rawArguments])
+	const streamingContent = useMemo(
+		() =>
+			parseWriteFileContentSource(
+				tool?.rawArguments ?? "",
+				fileData as Record<string, unknown>,
+			),
+		[tool?.rawArguments, fileData],
+	)
 
-	const { viewportRef: toolViewportRef } = useScrollAreaAutoScroll({
-		isStreaming: !!loading,
-	})
+	const committedContent = useStreamingCommittedContent(
+		streamingContent.content || "",
+		loading,
+	)
+	const virtuosoRef = useRef<VirtuosoHandle>(null)
+
+	const renderVirtualContent = useCallback(
+		(blocks: React.ReactNode[]) => {
+			if (blocks.length === 0) return null
+			return (
+				<Virtuoso
+					ref={virtuosoRef}
+					data={blocks}
+					followOutput={loading ? "smooth" : false}
+					increaseViewportBy={160}
+					className="scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+					style={{
+						height: Math.min(
+							MAX_CONTENT_HEIGHT,
+							Math.max(blocks.length * ESTIMATED_BLOCK_HEIGHT, MAX_CONTENT_HEIGHT),
+						),
+					}}
+					itemContent={(_, element) => <div className="px-3 py-0.5">{element}</div>}
+				/>
+			)
+		},
+		[loading],
+	)
 
 	const { tooltipProps, renderTooltip } = useToolTooltip({
 		text: tool?.remark,
@@ -298,21 +219,17 @@ function WriteTool(props: WriteToolProps) {
 					</div>
 					{loading && (
 						<div className="w-full duration-200 animate-in fade-in slide-in-from-top-1">
-							<div className={cn("overflow-hidden")}>
-								<ScrollArea
-									viewportRef={toolViewportRef}
-									className="mx-[6px] mb-1 rounded-lg border-black/[0.08] bg-[#f5f6f7] dark:bg-white/10 [&_[data-radix-scroll-area-viewport]]:max-h-60"
-								>
-									<div className="w-full px-3 pb-1 pt-2">
-										<MarkdownComponent
-											allowRawHtml={false}
-											className={writeFileMarkdownClassName}
-											isStreaming={!!loading}
-											content={streamingContent.content || ""}
-										/>
-									</div>
-									<ScrollBar orientation="vertical" />
-								</ScrollArea>
+							<div className="mx-[6px] mb-1 overflow-hidden rounded-lg bg-[#f5f6f7] pb-1 pt-2 dark:bg-white/10">
+								{/* @ts-expect-error React 18/19 types mismatch in workspace package */}
+								<XMarkdown
+									className={cn(writeFileMarkdownClassName)}
+									style={{ whiteSpace: "pre-wrap" }}
+									escapeRawHtml
+									protectCustomTagNewlines={false}
+									content={committedContent}
+									renderContent={renderVirtualContent}
+									components={{ pre: ChunkedCodeBlock, code: ChunkedCodeBlock }}
+								/>
 							</div>
 						</div>
 					)}

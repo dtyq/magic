@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -134,28 +135,12 @@ class SuperMagicAgentVersionDomainService
      */
     public function queryVersions(
         SuperMagicAgentDataIsolation $dataIsolation,
-        ?string $reviewStatus,
-        ?string $publishStatus,
-        ?string $publishTargetType,
-        ?string $version,
-        ?string $organizationCode,
-        ?string $nameI18n,
-        ?string $startTime,
-        ?string $endTime,
-        string $orderBy,
+        AgentVersionAdminQuery $query,
         Page $page
     ): array {
         return $this->agentVersionRepository->queryVersions(
             $dataIsolation,
-            $reviewStatus,
-            $publishStatus,
-            $publishTargetType,
-            $version,
-            $organizationCode,
-            $nameI18n,
-            $startTime,
-            $endTime,
-            $orderBy,
+            $query,
             $page
         );
     }
@@ -231,7 +216,7 @@ class SuperMagicAgentVersionDomainService
         $versionEntity->setProjectId($agentEntity->getProjectId());
         $versionEntity->setFileKey($agentEntity->getFileKey());
 
-        if ($publishTargetType !== PublishTargetType::MARKET) {
+        if ($publishTargetType === PublishTargetType::PRIVATE) {
             $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
             $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
             $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
@@ -279,6 +264,51 @@ class SuperMagicAgentVersionDomainService
     }
 
     #[Transactional]
+    public function reviewOrganizationAgentVersion(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        int $versionId,
+        ReviewStatus $reviewStatus,
+        string $modifier,
+        ?string $reviewRemark = null
+    ): AgentVersionEntity {
+        $versionEntity = $this->agentVersionRepository->findPendingReviewById($dataIsolation, $versionId);
+        if (! $versionEntity) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::AgentVersionNotFound, 'super_magic.agent.agent_version_not_found');
+        }
+
+        if (! $versionEntity->getPublishTargetType()->requiresOrganizationReview()) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::CanOnlyReviewPendingVersion, 'super_magic.agent.can_only_review_pending_version');
+        }
+
+        if ($reviewStatus === ReviewStatus::APPROVED) {
+            $this->agentVersionRepository->clearCurrentVersion($dataIsolation, $versionEntity->getCode());
+            $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
+            $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setReviewRemark($reviewRemark);
+            $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
+            $versionEntity->setIsCurrentVersion(true);
+            $versionEntity->setModifier($modifier);
+            $versionEntity = $this->agentVersionRepository->save($dataIsolation, $versionEntity);
+
+            $agentEntity = $this->superMagicAgentRepository->getByCode($dataIsolation, $versionEntity->getCode());
+            if (! $agentEntity) {
+                ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $versionEntity->getCode()]);
+            }
+            $agentEntity->setLatestPublishedAt($versionEntity->getPublishedAt());
+            $agentEntity->setModifier($modifier);
+            $this->superMagicAgentRepository->save($dataIsolation, $agentEntity);
+
+            return $versionEntity;
+        }
+
+        $versionEntity->setReviewStatus(ReviewStatus::REJECTED);
+        $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
+        $versionEntity->setReviewRemark($reviewRemark);
+        $versionEntity->setModifier($modifier);
+        return $this->agentVersionRepository->save($dataIsolation, $versionEntity);
+    }
+
+    #[Transactional]
     public function reviewAgentVersion(
         SuperMagicAgentDataIsolation $dataIsolation,
         int $versionId,
@@ -286,7 +316,8 @@ class SuperMagicAgentVersionDomainService
         string $modifier,
         ?string $publisherType = null,
         ?bool $marketIsFeatured = null,
-        ?int $marketSortOrder = null
+        ?int $marketSortOrder = null,
+        ?string $reviewRemark = null
     ): void {
         $dataIsolation->disabled();
 
@@ -297,6 +328,10 @@ class SuperMagicAgentVersionDomainService
 
         if ($versionEntity->getPublishStatus() !== PublishStatus::UNPUBLISHED
             || $versionEntity->getReviewStatus() !== ReviewStatus::UNDER_REVIEW) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::CanOnlyReviewPendingVersion, 'super_magic.agent.can_only_review_pending_version');
+        }
+
+        if ($versionEntity->getPublishTargetType() !== PublishTargetType::MARKET) {
             ExceptionBuilder::throw(SuperMagicErrorCode::CanOnlyReviewPendingVersion, 'super_magic.agent.can_only_review_pending_version');
         }
 
@@ -317,9 +352,9 @@ class SuperMagicAgentVersionDomainService
             $versionEntity->setPublishTargetType(PublishTargetType::MARKET);
             $versionEntity->setIsCurrentVersion(true);
             $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
-            $versionEntity->setPublisherUserId($versionEntity->getCreator());
             $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
             $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setReviewRemark($reviewRemark);
             $versionEntity->setModifier($modifier);
             $this->agentVersionRepository->save($dataIsolation, $versionEntity);
 
@@ -389,7 +424,8 @@ class SuperMagicAgentVersionDomainService
             $versionId,
             ReviewStatus::REJECTED,
             PublishStatus::UNPUBLISHED,
-            $modifier
+            $modifier,
+            $reviewRemark
         );
 
         if (! $success) {

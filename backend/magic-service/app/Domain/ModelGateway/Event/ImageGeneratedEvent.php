@@ -74,6 +74,11 @@ class ImageGeneratedEvent extends AbstractEvent
      */
     protected ?int $responseTime = null;
 
+    /**
+     * 分辨率：1k，2k，4k.
+     */
+    protected ?string $resolution = null;
+
     protected array $businessParams = [];
 
     public function getProviderModelId(): string
@@ -144,6 +149,16 @@ class ImageGeneratedEvent extends AbstractEvent
     public function setResponseTime(?int $responseTime): void
     {
         $this->responseTime = $responseTime;
+    }
+
+    public function getResolution(): ?string
+    {
+        return $this->resolution;
+    }
+
+    public function setResolution(?string $resolution): void
+    {
+        $this->resolution = $resolution;
     }
 
     public function getBusinessParams(): array

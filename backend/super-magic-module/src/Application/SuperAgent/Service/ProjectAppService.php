@@ -392,7 +392,7 @@ class ProjectAppService extends AbstractAppService
 
                 // 6. 初始化项目
                 $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
-                $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
+                $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams, $requestDTO->getTopicMode());
 
                 // 7. 创建项目根目录
                 $this->taskFileDomainService->findOrCreateProjectRootDirectory(
@@ -736,8 +736,8 @@ class ProjectAppService extends AbstractAppService
             $conditions,
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
-            'updated_at',
-            'desc'
+            $requestDTO->getOrderBy(),
+            $requestDTO->getSort()
         );
 
         // 提取所有项目ID和工作区ID
@@ -747,6 +747,9 @@ class ProjectAppService extends AbstractAppService
         // 批量获取项目状态
         $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds, $dataIsolation->getCurrentUserId());
 
+        // 批量获取当前用户在项目下的可见话题数量
+        $topicCountMap = $this->topicDomainService->countUserVisibleTopicsByProjectIds($projectIds, $dataIsolation->getCurrentUserId());
+
         // 批量获取工作区名称
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
@@ -755,7 +758,7 @@ class ProjectAppService extends AbstractAppService
         $projectIdsWithMember = array_keys(array_filter($projectMemberCounts, fn ($count) => $count > 0));
 
         // 创建响应DTO并传入项目状态映射和工作区名称映射
-        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember, $projectStatusMap);
+        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember, $projectStatusMap, $topicCountMap);
 
         return $listResponseDTO->toArray();
     }
@@ -1262,7 +1265,8 @@ class ProjectAppService extends AbstractAppService
         $movedProjectEntity = $this->projectDomainService->moveProject(
             $requestDTO->getSourceProjectId(),
             $targetWorkspaceId,
-            $userAuthorization->getId()
+            $userAuthorization->getId(),
+            $requestDTO->getTargetProjectName()
         );
 
         $this->logger->info(sprintf(
@@ -2550,7 +2554,8 @@ class ProjectAppService extends AbstractAppService
         DataIsolation $dataIsolation,
         ?WorkspaceEntity $workspaceEntity,
         ProjectEntity $projectEntity,
-        ?array $dynamicParams = null
+        ?array $dynamicParams = null,
+        string $topicMode = ''
     ): TopicEntity {
         // 2. Get project work directory
         $workDir = WorkDirectoryUtil::getWorkDir(
@@ -2572,7 +2577,7 @@ class ProjectAppService extends AbstractAppService
             $chatConversationTopicId,
             '',
             $workDir,
-            '',
+            $topicMode,
             CreationSource::USER_CREATED->value,
             '',
             false,

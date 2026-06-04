@@ -17,6 +17,27 @@ export enum DRAG_TYPE {
 	PPTSlide = "ppt_slide",
 	SelfMediaCard = "self_media_card",
 }
+export const PROJECT_ATTACHMENT_DRAG_MIME = "application/x-magic-project-attachment"
+export const PROJECT_IMAGE_ATTACHMENT_DRAG_MIME = "application/x-magic-project-image-attachment"
+
+const IMAGE_FILE_EXTENSIONS = new Set([
+	"png",
+	"jpg",
+	"jpeg",
+	"gif",
+	"webp",
+	"svg",
+	"bmp",
+	"ico",
+	"avif",
+])
+
+function isImageAttachment(item: AttachmentItem): boolean {
+	if (item.is_directory) return false
+	const fileName = item.file_name || item.name || item.filename || ""
+	const ext = fileName.split(".").pop()?.toLowerCase() || ""
+	return IMAGE_FILE_EXTENSIONS.has(ext)
+}
 
 export interface TabDragData {
 	type: DRAG_TYPE.Tab
@@ -133,6 +154,10 @@ export function genMultipleFilesDragData(data: AttachmentItem[]) {
 export function handleAttachmentDragStart(e: React.DragEvent, file: AttachmentItem) {
 	const payload = genAttachmentDragData(file)
 	e.dataTransfer.setData("text/plain", payload)
+	e.dataTransfer.setData(PROJECT_ATTACHMENT_DRAG_MIME, payload)
+	if (isImageAttachment(file)) {
+		e.dataTransfer.setData(PROJECT_IMAGE_ATTACHMENT_DRAG_MIME, payload)
+	}
 	setProjectAttachmentDragHoverPlainText(payload)
 
 	// 📋 日志记录：开始拖拽附件
@@ -155,6 +180,10 @@ export function handleAttachmentDragStart(e: React.DragEvent, file: AttachmentIt
 export function handleMultipleFilesDragStart(e: React.DragEvent, files: AttachmentItem[]) {
 	const payload = genMultipleFilesDragData(files)
 	e.dataTransfer.setData("text/plain", payload)
+	e.dataTransfer.setData(PROJECT_ATTACHMENT_DRAG_MIME, payload)
+	if (files.some(isImageAttachment)) {
+		e.dataTransfer.setData(PROJECT_IMAGE_ATTACHMENT_DRAG_MIME, payload)
+	}
 	setProjectAttachmentDragHoverPlainText(payload)
 
 	// 📋 日志记录：开始拖拽多个文件
@@ -350,7 +379,16 @@ export function insertMentionFromDroppedData({
 			case DRAG_TYPE.Tab: {
 				const fileData = data.data.fileData
 
-				if (fileData.display_config?.type === "slide") {
+				// 如果是文件夹入口文件（slide、录音总结等 index.html），应该 @文件夹 而不是 @文件
+				const fileName =
+					fileData.file_name || fileData.display_filename || fileData.filename
+				const isFolderEntryFile =
+					fileData.display_config?.type === "slide" ||
+					(fileName?.toLowerCase() === "index.html" &&
+						fileData.display_config &&
+						fileData.parent_id)
+
+				if (isFolderEntryFile && fileData.parent_id) {
 					const folderData = projectFilesStore.getFolderData(fileData.parent_id)
 					if (folderData) {
 						editor.commands.insertContent({
@@ -367,7 +405,6 @@ export function insertMentionFromDroppedData({
 						})
 						editor.commands.focus()
 
-						// 📋 日志记录：Mention 插入成功
 						dragLogger.logMentionInsert({
 							success: true,
 							mentionType: MentionItemType.FOLDER,
@@ -375,15 +412,15 @@ export function insertMentionFromDroppedData({
 								directory_name: folderData.file_name,
 							},
 						})
+						return
 					}
-					return
 				}
 
 				const isDirectoryLikeTab =
 					fileData.is_directory === true ||
 					(typeof fileData.relative_file_path === "string" &&
 						fileData.relative_file_path.endsWith("/")) ||
-					fileData.metadata?.type === "design"
+					fileData.display_config?.type === "design"
 
 				if (isDirectoryLikeTab) {
 					editor.commands.insertContent({
@@ -394,7 +431,7 @@ export function insertMentionFromDroppedData({
 								directoryId: fileData.file_id,
 								directoryName: fileData.file_name,
 								directoryPath: fileData.relative_file_path,
-								directoryMetadata: fileData.metadata,
+								directoryMetadata: fileData.display_config,
 							}),
 						},
 					})

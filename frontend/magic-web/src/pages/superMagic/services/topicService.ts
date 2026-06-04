@@ -1,8 +1,10 @@
 import { SuperMagicApi } from "@/apis"
 import { runInAction } from "mobx"
+import { userStore } from "@/models/user"
+import { platformKey } from "@/utils/storage"
 import type { TopicStore } from "../stores/core/topic"
 import type { Topic, TaskStatus, ProjectListItem } from "../pages/Workspace/types"
-import type { TopicMode } from "../pages/Workspace/TopicMode"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import { RequestConfig } from "@/apis/core/HttpClient"
 import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
 
@@ -21,8 +23,8 @@ export interface UpdateTopicStatusParams {
 export interface CreateTopicParams {
 	projectId: string
 	topicName: string
-	/** Optional mode to set on the new topic */
-	topicMode?: TopicMode
+	/** Topic whose frontend employee selection should be inherited after creation */
+	sourceTopic?: Topic | null
 }
 
 export interface MarkTopicReadProgressParams {
@@ -43,12 +45,55 @@ interface GetSidebarTopicsByProjectIdParams {
 	searchKeyword?: string
 }
 
+interface SyncTopicFrontendModePatchParams {
+	topic?: Topic | null
+	mode: TopicMode
+}
+
+const FRONTEND_MODE_PATCH_TTL_MS = 30 * 60 * 1000
+
+type TopicFrontendModePatch = Pick<Topic, "project_id" | "topic_mode" | "agent_code"> & {
+	createdAt: number
+	expiresAt: number
+}
+type TopicFrontendModePatchStorage = Record<string, TopicFrontendModePatch>
+
+// 新建普通项目话题时，后端只创建空话题，不携带员工/mode。
+// 前端需要让新话题继续显示并使用当前话题选择的员工，所以只合并到本地话题对象。
+function inheritTopicFrontendMode<T extends Topic>(
+	topic: T,
+	sourceTopic?: Pick<Topic, "project_id" | "topic_mode" | "agent_code"> | null,
+): T {
+	if (!sourceTopic?.topic_mode || !canApplyFrontendModePatchToTopic(topic)) return topic
+
+	return {
+		...topic,
+		topic_mode: sourceTopic.topic_mode,
+		agent_code: sourceTopic.agent_code,
+	}
+}
+
+function canApplyFrontendModePatchToTopic(topic: Pick<Topic, "topic_mode">) {
+	return !topic.topic_mode || topic.topic_mode === TopicMode.Empty
+}
+
 class TopicService {
 	private topicStore: TopicStore
 	private pendingRequests = new Map<string, Promise<TopicsApiResponse>>()
+	// 创建后路由会按 topicId 重新拉详情/列表，后端返回可能仍是空话题。
+	// 用 topicId 暂存前端继承的员工字段，避免刷新后把 agent_code/topic_mode 冲掉。
+	// sessionStorage 只做短期兜底：刷新后可恢复；后端一旦返回真实 agent_code 会自动让位。
+	private frontendModePatches = new Map<string, TopicFrontendModePatch>()
 
 	private getRequestKey(apiName: string, ...params: (string | number)[]): string {
 		return `${apiName}:${JSON.stringify(params)}`
+	}
+
+	private get frontendModePatchStorageKey() {
+		const organizationCode = userStore.user.organizationCode
+		const userId = userStore.user.userInfo?.user_id
+		if (!organizationCode || !userId) return null
+		return platformKey(`super_magic/topic_frontend_mode_patch/${organizationCode}/${userId}`)
 	}
 
 	constructor({ store }: { store: TopicStore }) {
@@ -73,9 +118,16 @@ class TopicService {
 			id: projectId,
 			page,
 			page_size: pageSize,
-		}).finally(() => {
-			this.pendingRequests.delete(requestKey)
 		})
+			.then((response) => ({
+				...response,
+				list: Array.isArray(response.list)
+					? response.list.map((topic) => this.applyFrontendModePatch(topic))
+					: [],
+			}))
+			.finally(() => {
+				this.pendingRequests.delete(requestKey)
+			})
 
 		this.pendingRequests.set(requestKey, requestPromise)
 
@@ -108,7 +160,9 @@ class TopicService {
 			.then((response) => ({
 				...response,
 				list: Array.isArray(response.list)
-					? response.list.map(normalizeTopicHistoryItem)
+					? response.list.map((topic) =>
+							normalizeTopicHistoryItem(this.applyFrontendModePatch(topic)),
+						)
 					: [],
 			}))
 			.finally(() => {
@@ -163,19 +217,20 @@ class TopicService {
 	 * @returns 话题详情
 	 */
 	getTopicDetail(topicId: string, options?: Omit<RequestConfig, "url">): Promise<Topic | null> {
-		return SuperMagicApi.getTopicDetail({ id: topicId }, options)
+		return SuperMagicApi.getTopicDetail({ id: topicId }, options).then((topic) =>
+			topic ? this.applyFrontendModePatch(topic) : topic,
+		)
 	}
 
 	async createTopic({
 		projectId,
 		topicName,
-		topicMode,
+		sourceTopic,
 	}: CreateTopicParams): Promise<Topic | null> {
 		try {
 			const newTopic = await SuperMagicApi.createTopic({
 				topic_name: topicName,
 				project_id: projectId,
-				...(topicMode ? { project_mode: topicMode } : {}),
 			})
 
 			// Fetch latest topics list
@@ -185,19 +240,172 @@ class TopicService {
 				page_size: 999,
 			})
 			const updatedTopics = Array.isArray(topicsRes?.list) ? topicsRes?.list : []
+			const targetTopic = updatedTopics.find((topic: Topic) => topic?.id === newTopic?.id)
+			const backendTopic = targetTopic ?? newTopic ?? null
+			const selectedTopic = backendTopic
+				? inheritTopicFrontendMode(backendTopic, sourceTopic)
+				: null
+			if (backendTopic && selectedTopic !== backendTopic) {
+				this.rememberFrontendModePatch(selectedTopic.id, sourceTopic)
+			}
+			const topicsWithFrontendMode = selectedTopic
+				? updatedTopics.map((topic: Topic) =>
+						topic.id === selectedTopic.id ? selectedTopic : topic,
+					)
+				: updatedTopics
 
 			runInAction(() => {
-				this.topicStore.setTopics(updatedTopics)
-				const targetTopic = updatedTopics.find((topic: Topic) => topic?.id === newTopic?.id)
-				if (targetTopic) {
-					this.topicStore.setSelectedTopic(targetTopic)
+				this.topicStore.setTopics(topicsWithFrontendMode)
+				if (selectedTopic) {
+					this.topicStore.setSelectedTopic(selectedTopic)
 				}
 			})
 
-			return newTopic
+			return selectedTopic
 		} catch (error) {
 			console.error("创建话题失败:", error)
 			return null
+		}
+	}
+
+	syncTopicFrontendModePatch({ topic, mode }: SyncTopicFrontendModePatchParams) {
+		if (!topic?.id || !mode) return
+
+		const patchSource = this.resolveManualFrontendModeSource(topic, mode)
+		this.rememberFrontendModePatch(topic.id, patchSource)
+		runInAction(() => {
+			this.topicStore.mergeTopic(topic.id, {
+				topic_mode: patchSource.topic_mode,
+				agent_code: patchSource.agent_code,
+			})
+		})
+	}
+
+	private resolveManualFrontendModeSource(
+		topic: Topic,
+		mode: TopicMode,
+	): Pick<Topic, "project_id" | "topic_mode" | "agent_code"> {
+		const modeIdentifier = String(mode).trim()
+
+		// ModeToggle 选择自定义员工时传出的是 agent_code。只有 SMA 前缀才按员工归一化；
+		// 其他 identifier 仍是普通 topic_mode，避免把普通模式误写成 custom_agent。
+		if (modeIdentifier.startsWith("SMA")) {
+			return {
+				project_id: topic.project_id,
+				topic_mode: TopicMode.CustomAgent,
+				agent_code: modeIdentifier,
+			}
+		}
+
+		return {
+			project_id: topic.project_id,
+			topic_mode: mode,
+			agent_code: undefined,
+		}
+	}
+
+	private rememberFrontendModePatch(
+		topicId: string,
+		sourceTopic?: Pick<Topic, "project_id" | "topic_mode" | "agent_code"> | null,
+	) {
+		if (!sourceTopic?.topic_mode) return
+
+		const now = Date.now()
+		const patch: TopicFrontendModePatch = {
+			project_id: sourceTopic.project_id,
+			topic_mode: sourceTopic.topic_mode,
+			agent_code: sourceTopic.agent_code,
+			createdAt: now,
+			expiresAt: now + FRONTEND_MODE_PATCH_TTL_MS,
+		}
+		this.frontendModePatches.set(topicId, patch)
+		this.persistFrontendModePatch(topicId, patch)
+	}
+
+	private applyFrontendModePatch<T extends Topic>(topic: T): T {
+		const patch = this.getFrontendModePatch(topic)
+		if (!patch) return topic
+
+		// 只有后端仍返回空/占位 mode 时，前端 patch 才能补齐员工选择。
+		// 后端一旦返回明确 topic_mode（包含内置模式和带 agent_code 的 custom_agent），就以后端为准。
+		if (!this.canApplyFrontendModePatch(topic)) {
+			this.forgetFrontendModePatch(topic.id)
+			return topic
+		}
+
+		return {
+			...topic,
+			topic_mode: patch.topic_mode,
+			agent_code: patch.agent_code,
+		}
+	}
+
+	private getFrontendModePatch(topic: Topic) {
+		const memoryPatch = this.frontendModePatches.get(topic.id)
+		if (this.isFrontendModePatchUsable(topic, memoryPatch)) return memoryPatch
+
+		const storage = this.readFrontendModePatchStorage()
+		const storagePatch = storage[topic.id]
+		if (this.isFrontendModePatchUsable(topic, storagePatch)) {
+			this.frontendModePatches.set(topic.id, storagePatch)
+			return storagePatch
+		}
+
+		if (memoryPatch || storagePatch) this.forgetFrontendModePatch(topic.id)
+		return null
+	}
+
+	private isFrontendModePatchUsable(topic: Topic, patch?: TopicFrontendModePatch) {
+		if (!patch) return false
+		return patch.project_id === topic.project_id && patch.expiresAt > Date.now()
+	}
+
+	private canApplyFrontendModePatch(topic: Topic) {
+		return canApplyFrontendModePatchToTopic(topic)
+	}
+
+	private persistFrontendModePatch(topicId: string, patch: TopicFrontendModePatch) {
+		const storageKey = this.frontendModePatchStorageKey
+		if (!storageKey || typeof window === "undefined" || !window.sessionStorage) return
+
+		const storage = this.readFrontendModePatchStorage()
+		storage[topicId] = patch
+		this.writeFrontendModePatchStorage(storage)
+	}
+
+	private forgetFrontendModePatch(topicId: string) {
+		this.frontendModePatches.delete(topicId)
+		const storageKey = this.frontendModePatchStorageKey
+		if (!storageKey || typeof window === "undefined" || !window.sessionStorage) return
+
+		const storage = this.readFrontendModePatchStorage()
+		if (!(topicId in storage)) return
+		delete storage[topicId]
+		this.writeFrontendModePatchStorage(storage)
+	}
+
+	private readFrontendModePatchStorage(): TopicFrontendModePatchStorage {
+		const storageKey = this.frontendModePatchStorageKey
+		if (!storageKey || typeof window === "undefined" || !window.sessionStorage) return {}
+
+		try {
+			const raw = window.sessionStorage.getItem(storageKey)
+			if (!raw) return {}
+			const parsed = JSON.parse(raw)
+			return parsed && typeof parsed === "object" ? parsed : {}
+		} catch {
+			return {}
+		}
+	}
+
+	private writeFrontendModePatchStorage(storage: TopicFrontendModePatchStorage) {
+		const storageKey = this.frontendModePatchStorageKey
+		if (!storageKey || typeof window === "undefined" || !window.sessionStorage) return
+
+		try {
+			window.sessionStorage.setItem(storageKey, JSON.stringify(storage))
+		} catch {
+			// sessionStorage is a best-effort bridge for refresh. In-memory patch still works.
 		}
 	}
 

@@ -1,0 +1,47 @@
+{
+  "skill_name": "html-api-sdk",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Help me create an HTML micro-app that reads data/sales.json from the workspace, calls LLM for analysis, writes the result to output/report.md, and notifies the Agent to continue.",
+      "expected_output": "Generates a complete HTML file using window.Magic.fs.readFile to read data, window.Magic.llm.stream or chat for LLM calls, window.Magic.fs.writeFile to write results, and window.Magic.setInputMessage to notify the Agent. Events are bound with addEventListener, no inline handlers.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I need a real-time dashboard HTML page. The Agent will keep updating data/metrics.json and the page should auto-refresh to show the latest data.",
+      "expected_output": "Generates an HTML file using window.Magic.fs.watchFile to listen for changes on data/metrics.json, re-reads the file with readFile on update and re-renders the UI. Includes initial load logic and error handling.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Write an HTML page that lets users select different AI models, input questions, stream the AI reply in real time, and support cancellation mid-stream.",
+      "expected_output": "Generates an HTML file using window.Magic.llm.getModels() to populate the model dropdown (with 'auto' as default first option), window.Magic.llm.stream for streaming output, and binds the returned cancel function to a cancel button. All events use addEventListener.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "做一个 todolist 应用",
+      "expected_output": "Triggers the html-api-sdk skill and generates a complete HTML todo-list application using window.Magic.fs API for persistence (readFile/writeFile to store todos in a JSON file). Uses addEventListener for all event bindings. Includes add, toggle complete, and delete functionality.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "做一个访客管理系统",
+      "expected_output": "Triggers the html-api-sdk skill and generates an HTML visitor management system. Uses window.Magic.fs.readFile/writeFile for data persistence, includes visitor registration form, visitor list display, search/filter, and check-in/check-out functionality. Events bound with addEventListener.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Create an HTML data management page that reads order data from a database, calls LLM to generate an analysis report, then writes the report to a file and notifies the Agent.",
+      "expected_output": "Generates an HTML file combining window.Magic.db.queryRows() for database queries, window.Magic.llm.stream or chat for LLM analysis, window.Magic.fs.writeFile to write the report, and window.Magic.setInputMessage to notify the Agent. Demonstrates db + llm + fs API coordination.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "帮我做一个计算器",
+      "expected_output": "Triggers the html-api-sdk skill and generates an HTML calculator application with a functional UI. Uses addEventListener for button events. May optionally use window.Magic.fs for saving calculation history.",
+      "files": []
+    }
+  ]
+}

@@ -8,10 +8,12 @@ declare(strict_types=1);
 namespace App\Domain\ModelGateway\Service;
 
 use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterFactoryInterface;
+use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfigCandidate;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 
 /**
  * 视频统一参数配置领域服务。
@@ -30,23 +32,32 @@ readonly class VideoGenerationConfigDomainService
 {
     public function __construct(
         private VideoGenerationProviderAdapterFactoryInterface $adapterFactory,
+        private ?LoggerInterface $logger = null,
     ) {
     }
 
     public function resolve(string $modelVersion, string $modelId, ProviderCode $providerCode): ?VideoGenerationConfig
     {
-        try {
-            $adapter = $this->adapterFactory->createByProviderCode($providerCode, $modelVersion);
-        } catch (InvalidArgumentException) {
-            // 未接入该 provider 时，视为当前没有可用能力配置。
-            return null;
-        }
-
-        if (! $adapter->supportsModel($modelVersion, $modelId)) {
+        $adapter = $this->resolveAdapter($modelVersion, $modelId, $providerCode);
+        if ($adapter === null) {
             return null;
         }
 
         return $adapter->resolveGenerationConfig($modelVersion, $modelId);
+    }
+
+    public function resolveHasAudioOutput(
+        string $modelVersion,
+        string $modelId,
+        ProviderCode $providerCode,
+        array $request
+    ): bool {
+        $adapter = $this->resolveAdapter($modelVersion, $modelId, $providerCode);
+        if ($adapter === null) {
+            return true;
+        }
+
+        return $adapter->resolveHasAudioOutput($modelVersion, $modelId, $request);
     }
 
     /**
@@ -281,6 +292,31 @@ readonly class VideoGenerationConfigDomainService
             'constraints' => $constraints,
             'input_modes' => $inputModes,
         ]);
+    }
+
+    private function resolveAdapter(
+        string $modelVersion,
+        string $modelId,
+        ProviderCode $providerCode
+    ): ?VideoGenerationProviderAdapterInterface {
+        try {
+            $adapter = $this->adapterFactory->createByProviderCode($providerCode, $modelVersion);
+        } catch (InvalidArgumentException $exception) {
+            $this->logger?->warning('video generation adapter resolve failed', [
+                'provider_code' => $providerCode->value,
+                'model_version' => $modelVersion,
+                'model_id' => $modelId,
+                'error' => $exception->getMessage(),
+            ]);
+            // 未接入该 provider 时，视为当前没有可用能力配置。
+            return null;
+        }
+
+        if (! $adapter->supportsModel($modelVersion, $modelId)) {
+            return null;
+        }
+
+        return $adapter;
     }
 
     /**

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Union, List, Optional
 
 from agentlang.logger import get_logger
+from app.utils.document_parse.constants import POWERPOINT_EXTENSIONS
 from .abstract_driver import AbstractDriver
 from .interfaces.file_parser_driver_interface import ParseResult, ParseMetadata
 from .interfaces.powerpoint_driver_interface import PowerPointDriverInterface
@@ -18,19 +19,20 @@ logger = get_logger(__name__)
 class PowerPointDriver(AbstractDriver, PowerPointDriverInterface):
     """PowerPoint presentation parser driver using MarkItDown integration.
 
-    Supports both .pptx and .ppt formats:
+    Supports presentation-like office formats:
     - .pptx: Direct processing through existing PptxConverter plugin
-    - .ppt: Converted to .pptx using LibreOffice/unoconv, then processed
+    - Other PowerPoint/WPS/OpenDocument/show/template/macro formats: Converted
+      to .pptx using LibreOffice, then processed. Macros are never executed.
     """
 
     # Supported PowerPoint extensions
-    supported_extensions = ['.ppt', '.pptx']
+    supported_extensions = sorted(POWERPOINT_EXTENSIONS)
 
     async def parse(self, file_path: Union[str, Path], result: ParseResult, **kwargs) -> None:
         """Parse PowerPoint presentation and update the provided ParseResult object.
 
         Args:
-            file_path: Path to the PowerPoint presentation (.ppt or .pptx)
+            file_path: Path to the presentation-like document
             result: ParseResult object to update with parsed content and metadata
             **kwargs: Additional parsing options:
                 - offset (int): Starting offset for conversion, default 0
@@ -38,17 +40,18 @@ class PowerPointDriver(AbstractDriver, PowerPointDriverInterface):
                 - extract_images (bool): Whether to extract images from presentation, default True
         """
         file_path_obj = Path(file_path)
-        is_ppt_format = file_path_obj.suffix.lower() == '.ppt'
+        original_format = file_path_obj.suffix.lower().lstrip(".")
+        requires_conversion = file_path_obj.suffix.lower() != '.pptx'
 
-        logger.info(f"Parsing PowerPoint presentation: {file_path_obj} (format: {'PPT' if is_ppt_format else 'PPTX'})")
+        logger.info(f"Parsing PowerPoint presentation: {file_path_obj} (format: {original_format.upper()})")
 
         # Get local file path
         local_file_path = await self._get_file_path(file_path)
 
-        # Handle .ppt files by converting to .pptx first
+        # Convert non-.pptx inputs to the stable PPTX path used by MarkItDown.
         converted_file_path = None
         try:
-            if is_ppt_format:
+            if requires_conversion:
                 from ..utils.libreoffice_util import LibreOfficeUtil
                 converted_file_path = await LibreOfficeUtil.convert_document(
                     local_file_path, 'pptx', 'converted'
@@ -122,11 +125,11 @@ class PowerPointDriver(AbstractDriver, PowerPointDriverInterface):
             await MarkdownUtil.write_to_file(final_markdown_content, result.output_file_path)
             result.metadata.conversion_method = conversion_method
             result.metadata.additional_info = {
-                'presentation_format': 'ppt' if is_ppt_format else 'pptx',
+                'presentation_format': original_format,
                 'character_count': len(final_content),  # Use final content length
                 'slide_count': self._estimate_slide_count(markdown_content),
-                'original_format': 'ppt' if is_ppt_format else 'pptx',
-                'conversion_required': is_ppt_format,
+                'original_format': original_format,
+                'conversion_required': requires_conversion,
                 'images_extracted': extract_images
             }
         finally:

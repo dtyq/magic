@@ -17,6 +17,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.core import BaseToolParams, BaseTool, tool
 from app.tools.download_from_url import DownloadFromUrl, DownloadFromUrlParams
 
@@ -356,10 +357,95 @@ Prioritize using this tool for file downloads over wget or curl. Use batch downl
             size_bytes /= 1024.0
         return f"{size_bytes} B"
 
+    def _build_markdown_detail(self, batch_result: 'BatchDownloadResult') -> str:
+        """将批量下载结果渲染为 Markdown（英文、紧凑风格）"""
+        lines: List[str] = []
+        lines.append("# Batch Download Result")
+        lines.append("")
+        lines.append(
+                f"Total: {batch_result.total} · "
+                f"Success: {batch_result.success} · "
+                f"Failed: {batch_result.failed} · "
+                f"Size: {self._format_size(batch_result.total_size_bytes)} · "
+                f"Cache: {batch_result.cache_hits} hit / {batch_result.cache_misses} miss"
+        )
+        lines.append("")
+
+        if not batch_result.results:
+            lines.append("_No download tasks._")
+            return "\n".join(lines)
+
+        # Success list
+        success_items = [r for r in batch_result.results if r.get("status") == "success"]
+        if success_items:
+            lines.append("## Success")
+            for item in success_items:
+                file_path = str(item.get("file_path", "-"))
+                size = self._format_size(item.get("file_size_bytes", 0))
+                cache_tag = " (cached)" if item.get("from_cache") else ""
+                lines.append(f"- `{file_path}` — {size}{cache_tag}")
+            lines.append("")
+
+        # Failed list
+        failed_items = [r for r in batch_result.results if r.get("status") != "success"]
+        if failed_items:
+            lines.append("## Failed")
+            for item in failed_items:
+                file_path = str(item.get("file_path", "-"))
+                error = self._truncate(str(item.get("error", "unknown error")), 200)
+                lines.append(f"- `{file_path}` — {error}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _truncate(text: str, max_len: int) -> str:
+        """超长文本截断"""
+        if len(text) <= max_len:
+            return text
+        return text[: max_len - 1] + "…"
+
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: Dict[str, Any] = None,
+    ) -> Optional[ToolDetail]:
+        """以 Markdown 形式展示批量下载详情"""
+        if not result or not result.extra_info:
+            return None
+
+        detailed_results = result.extra_info.get("detailed_results") or []
+        if not detailed_results:
+            return None
+
+        # 重建一个轻量 BatchDownloadResult 以复用渲染逻辑
+        batch_result = BatchDownloadResult()
+        batch_result.results = detailed_results
+        batch_result.total = len(detailed_results)
+        batch_result.success = sum(1 for r in detailed_results if r.get("status") == "success")
+        batch_result.failed = batch_result.total - batch_result.success
+        batch_result.total_size_bytes = result.extra_info.get("total_size_bytes", 0)
+        batch_result.cache_hits = result.extra_info.get("cache_hits", 0)
+        batch_result.cache_misses = result.extra_info.get("cache_misses", 0)
+
+        markdown = self._build_markdown_detail(batch_result)
+
+        file_name = (
+                f"Batch download (success {batch_result.success} / failed {batch_result.failed})"
+        )
+        return ToolDetail(
+                type=DisplayType.MD,
+                data=FileContent(file_name=file_name, content=markdown),
+        )
+
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """
         获取工具调用后的友好动作和备注
         """
+        # 无论成功还是失败，都使用本工具自定义的 remark，避免被通用错误提示覆盖
+        result.use_custom_remark = True
+
         if not result.ok:
             return {
                 "action": i18n.translate("download_from_urls", category="tool.actions"),

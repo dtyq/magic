@@ -1,7 +1,7 @@
 """
 SDK in-flight 请求注册表。
 
-记录 /api/sdk/tool/call 和 /api/sdk/mcp/call 当前正在执行的 asyncio task，
+记录 /api/sdk/tool/call 当前正在执行的 asyncio task，
 支持按 agent_context_id + sdk_execution_id 精确取消本轮 Code Mode 发起的所有请求。
 
 设计原则：
@@ -25,7 +25,7 @@ class SdkCallEntry:
     agent_context_id: str
     sdk_execution_id: str
     tool_call_id: str
-    call_type: str  # "tool" | "mcp"
+    call_type: str  # "tool"
     task: asyncio.Task
 
 

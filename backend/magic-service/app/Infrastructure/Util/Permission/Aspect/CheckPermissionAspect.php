@@ -17,6 +17,8 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestCoContext;
 use App\Infrastructure\Util\Http\RequestHelper;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
+use App\Infrastructure\Util\Permission\Annotation\CheckProviderModelPermission;
+use App\Infrastructure\Util\Permission\Service\ProviderModelPermissionResolver;
 use Hyperf\Di\Annotation\Aspect;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\Di\Aop\AbstractAspect;
@@ -33,6 +35,7 @@ class CheckPermissionAspect extends AbstractAspect
      */
     public array $annotations = [
         CheckPermission::class,
+        CheckProviderModelPermission::class,
     ];
 
     #[Inject]
@@ -44,15 +47,20 @@ class CheckPermissionAspect extends AbstractAspect
     #[Inject]
     protected RequestInterface $request;
 
+    #[Inject]
+    protected ProviderModelPermissionResolver $providerModelPermissionResolver;
+
     public function process(ProceedingJoinPoint $proceedingJoinPoint)
     {
         $annotationMetadata = $proceedingJoinPoint->getAnnotationMetadata();
 
         /** @var null|CheckPermission $permissionAnnotation */
         $permissionAnnotation = $annotationMetadata->method[CheckPermission::class] ?? $annotationMetadata->class[CheckPermission::class] ?? null;
+        /** @var null|CheckProviderModelPermission $providerModelPermissionAnnotation */
+        $providerModelPermissionAnnotation = $annotationMetadata->method[CheckProviderModelPermission::class] ?? $annotationMetadata->class[CheckProviderModelPermission::class] ?? null;
 
         // 若无注解，直接放行
-        if ($permissionAnnotation === null) {
+        if ($permissionAnnotation === null && $providerModelPermissionAnnotation === null) {
             return $proceedingJoinPoint->process();
         }
 
@@ -63,9 +71,21 @@ class CheckPermissionAspect extends AbstractAspect
         }
 
         // 构建权限键（支持多个，任一满足即通过）
-        $permissionKeys = method_exists($permissionAnnotation, 'getPermissionKeys')
-            ? $permissionAnnotation->getPermissionKeys()
-            : [$permissionAnnotation->getPermissionKey()];
+        if ($providerModelPermissionAnnotation !== null) {
+            $permissionKeys = [
+                $this->providerModelPermissionResolver->resolvePermissionKey(
+                    $providerModelPermissionAnnotation->scope,
+                    $providerModelPermissionAnnotation->source,
+                    $providerModelPermissionAnnotation->operation,
+                    $authorization,
+                    $this->request,
+                ),
+            ];
+        } else {
+            $permissionKeys = method_exists($permissionAnnotation, 'getPermissionKeys')
+                ? $permissionAnnotation->getPermissionKeys()
+                : [$permissionAnnotation->getPermissionKey()];
+        }
 
         // 构建数据隔离上下文
         $dataIsolation = PermissionDataIsolation::create(

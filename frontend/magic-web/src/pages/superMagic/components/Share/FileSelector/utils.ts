@@ -44,9 +44,67 @@ function getFileId(file: Record<string, unknown>): string | null {
 	return (file.file_id as string) || (file.id as string) || null
 }
 
+function getFileName(file: Record<string, unknown>): string {
+	return (
+		(file.name as string) ||
+		(file.file_name as string) ||
+		(file.display_filename as string) ||
+		(file.filename as string) ||
+		""
+	)
+}
+
+function getChildren(file: Record<string, unknown>): Record<string, unknown>[] {
+	return Array.isArray(file.children) ? file.children : []
+}
+
+function isVisibleFile(file: Record<string, unknown> | undefined): file is Record<string, unknown> {
+	return Boolean(file && !file.is_hidden)
+}
+
+function isHtmlFile(file: Record<string, unknown>): boolean {
+	if (file.is_directory) return false
+	const fileExtension = (file.file_extension as string)?.toLowerCase()
+	return fileExtension === "html" || getFileName(file).toLowerCase().endsWith(".html")
+}
+
+function isIndexHtmlFile(file: Record<string, unknown>): boolean {
+	if (file.is_directory) return false
+	return getFileName(file).toLowerCase() === "index.html"
+}
+
+function isOpenableFile(file: Record<string, unknown>): boolean {
+	return Boolean(!file.is_directory || file.display_config)
+}
+
+function findFirstByLevel(
+	files: Record<string, unknown>[],
+	matcher: (file: Record<string, unknown>) => boolean,
+): string | null {
+	let level = [...files]
+
+	while (level.length > 0) {
+		for (const file of level) {
+			if (matcher(file)) return getFileId(file)
+		}
+
+		level = level.flatMap((file) => (file.is_directory ? getChildren(file) : []))
+	}
+
+	return null
+}
+
+function findDefaultOpenFileByPriority(files: Record<string, unknown>[]): string | null {
+	return (
+		findFirstByLevel(files, isIndexHtmlFile) ||
+		findFirstByLevel(files, isHtmlFile) ||
+		findFirstByLevel(files, isOpenableFile)
+	)
+}
+
 /**
  * 查找文件夹中第一个可以设置为默认打开的文件
- * 对于普通文件夹：优先匹配第一级的 index.html（只找第一层），否则递归查找第一个文件
+ * 对于普通文件夹：逐层查找 index.html > 逐层查找 html 文件 > 第一个可打开文件
  * 对于携带display_config的文件夹：返回文件夹本身
  * @param folder 文件夹项
  * @returns 第一个可设置为默认打开的文件ID，如果没有找到则返回 null
@@ -57,41 +115,7 @@ export function findFirstDefaultOpenFileInFolder(folder: Record<string, unknown>
 		return getFileId(folder)
 	}
 
-	// 对于普通文件夹，先检查第一级是否有 index.html
-	if (folder.children && Array.isArray(folder.children) && folder.children.length > 0) {
-		// 第一遍：优先查找第一级的 index.html（只找第一层）
-		for (const child of folder.children) {
-			// 只查找第一级的文件，跳过文件夹
-			if (child.is_directory) {
-				continue
-			}
-			// 检查是否是 index.html
-			const fileName = (child.name as string) || (child.file_name as string) || ""
-			if (fileName === "index.html") {
-				return getFileId(child)
-			}
-		}
-
-		// 第二遍：如果没有找到第一级的 index.html，递归查找第一个文件
-		for (const child of folder.children) {
-			// 如果是普通文件夹，递归查找
-			if (child.is_directory && !child.display_config) {
-				const found = findFirstDefaultOpenFileInFolder(child)
-				if (found) return found
-				continue
-			}
-			// 如果是携带display_config的文件夹，返回其ID
-			if (child.is_directory && child.display_config) {
-				return getFileId(child)
-			}
-			// 如果是文件，返回其ID
-			if (!child.is_directory) {
-				return getFileId(child)
-			}
-		}
-	}
-
-	return null
+	return findDefaultOpenFileByPriority(getChildren(folder))
 }
 
 /**
@@ -118,28 +142,16 @@ export function calculateDefaultOpenFileId(fileIds: string[], attachments: any[]
 	if (fileIds.length === 0) return null
 
 	const allFiles = flattenAttachments(attachments)
+	const selectedFiles = fileIds
+		.map((fileId) =>
+			allFiles.find((file) => {
+				const currentFileId = file.file_id || file.id
+				return currentFileId === fileId
+			}),
+		)
+		.filter(isVisibleFile)
 
-	// Find first file that can be set as default
-	for (const fileId of fileIds) {
-		const file = allFiles.find((f) => {
-			const fId = f.file_id || f.id
-			return fId === fileId
-		})
-		if (!file || file.is_hidden) continue
-
-		// 如果是普通文件夹，跳过
-		if (file.is_directory && !file?.display_config?.type) {
-			// 如果是文件夹，查找其第一个可设置为默认打开的子级文件
-			const found = findFirstDefaultOpenFileInFolder(file)
-			if (found) return found
-			continue
-		}
-
-		// 携带display_config的文件夹或普通文件都可以
-		return fileId
-	}
-
-	return null
+	return findDefaultOpenFileByPriority(selectedFiles)
 }
 
 /**

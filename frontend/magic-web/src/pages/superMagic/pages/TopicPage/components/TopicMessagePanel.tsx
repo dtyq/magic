@@ -12,6 +12,7 @@ import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/use
 import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { MessageListContextState } from "@/pages/superMagic/components/MessageList/context"
+import projectFilesStore from "@/stores/projectFiles"
 
 const ProjectPageInputContainer = lazy(
 	() => import("../../../components/ProjectPageInputContainer"),
@@ -106,6 +107,7 @@ function TopicMessagePanel({
 			allowMessageTooltip: true,
 			allowConversationCopy: true,
 			onTopicSwitch: setSelectedTopic,
+			projectFilesStore,
 			renderAssistantAvatar: topicModeConfig?.mode
 				? ({ className } = {}) => (
 						<ModeAvatar

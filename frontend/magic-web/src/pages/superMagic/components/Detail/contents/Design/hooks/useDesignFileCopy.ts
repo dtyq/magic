@@ -12,6 +12,7 @@ import { SuperMagicApi } from "@/apis"
 import { calculateUploadDirectory } from "../utils/calculateUploadDirectory"
 import { normalizePath, findFileBySrc } from "../utils/utils"
 import type { GetOrCreateImagesDirFn } from "./useGetOrCreateImagesDir"
+import { waitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
 import {
 	normalizeDesignAttachmentPathForCanvas,
 	resolveDesignDslPathCandidatesToWorkspaceRelative,
@@ -57,6 +58,16 @@ interface UseDesignFileCopyReturn {
 	getDataTransferFileInfo: (dataTransfer: DataTransfer) => Promise<string[]>
 }
 
+interface BatchOperationResult {
+	status?: "success" | "processing" | "completed" | "failed"
+	batch_key?: string
+	message?: string
+}
+
+const BATCH_OPERATION_POLL_INTERVAL = 1000
+const BATCH_OPERATION_MAX_ATTEMPTS = 30
+const ATTACHMENT_WAIT_TIMEOUT_MS = 15_000
+
 function isDesignAssetVideoPath(filePath: string): boolean {
 	const lower = filePath.toLowerCase()
 	return SUPPORTED_VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext))
@@ -81,6 +92,93 @@ export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignF
 		designProjectBasePath,
 		updateAttachments,
 	} = options
+
+	const sleep = useCallback((ms: number) => {
+		return new Promise<void>((resolve) => {
+			window.setTimeout(resolve, ms)
+		})
+	}, [])
+
+	const getProjectAttachments = useCallback(
+		async (targetProjectId: string): Promise<FileItem[]> => {
+			const result = await SuperMagicApi.getAttachmentsByProjectId({
+				projectId: targetProjectId,
+				temporaryToken: "",
+			})
+			return (result.list || []) as FileItem[]
+		},
+		[],
+	)
+
+	const waitForBatchOperation = useCallback(
+		async (result: BatchOperationResult): Promise<void> => {
+			if (result.status === "failed") {
+				throw new Error(result.message || "Project file copy failed")
+			}
+
+			if (result.status !== "processing" || !result.batch_key) {
+				return
+			}
+
+			for (let attempt = 0; attempt < BATCH_OPERATION_MAX_ATTEMPTS; attempt += 1) {
+				await sleep(BATCH_OPERATION_POLL_INTERVAL)
+				const checkResult = (await SuperMagicApi.checkBatchOperationStatus(
+					result.batch_key,
+				)) as BatchOperationResult
+
+				if (checkResult.status === "failed") {
+					throw new Error(checkResult.message || "Project file copy failed")
+				}
+				if (checkResult.status !== "processing") {
+					return
+				}
+			}
+
+			throw new Error("Project file copy timed out")
+		},
+		[projectId, sleep],
+	)
+
+	const waitForAttachmentVisible = useCallback(
+		async (path: string): Promise<void> => {
+			if (!projectId) {
+				return
+			}
+
+			const normalizedCandidates = resolveDesignDslPathCandidatesToWorkspaceRelative(
+				path,
+				designProjectBasePath,
+			).map((candidate) => normalizePath(candidate))
+
+			const maxAttempts = Math.max(1, Math.floor(ATTACHMENT_WAIT_TIMEOUT_MS / 1000))
+			for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+				updateAttachments()
+				try {
+					await waitForNextAttachmentsRefreshForProject(projectId, {
+						timeoutMs: BATCH_OPERATION_POLL_INTERVAL,
+					})
+				} catch (error) {
+					//
+				}
+
+				const latestAttachments = await getProjectAttachments(projectId)
+				const matchedAttachment = latestAttachments.find(
+					(item) =>
+						!item.is_directory &&
+						normalizedCandidates.includes(normalizePath(item.relative_file_path || "")),
+				)
+
+				if (matchedAttachment?.file_id) {
+					return
+				}
+
+				await sleep(BATCH_OPERATION_POLL_INTERVAL)
+			}
+
+			throw new Error(`Copied attachment not visible yet: ${path}`)
+		},
+		[projectId, designProjectBasePath, updateAttachments, getProjectAttachments, sleep],
+	)
 
 	const copyFileToDesignAssetDirectory = useCallback(
 		async (filePath: string, assetDirPath: string, assetDirItem: FileItem): Promise<string> => {
@@ -116,32 +214,41 @@ export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignF
 			}
 
 			try {
-				const copyResult = await SuperMagicApi.copyFiles({
+				const copyResult = (await SuperMagicApi.copyFiles({
 					file_ids: [fileItem.file_id],
 					project_id: projectId,
 					target_parent_id: assetDirItem.file_id,
 					pre_file_id: "",
-				})
+				})) as BatchOperationResult
 
 				const newPath = normalizeDesignAttachmentPathForCanvas(
 					`${assetDirPath}/${fileName}`,
 					designProjectBasePath,
 				)
 
-				if (copyResult.status === "success") {
-					updateAttachments()
+				if (copyResult.status === "success" || copyResult.status === "completed") {
+					await waitForAttachmentVisible(newPath)
 					return newPath
 				}
 				if (copyResult.status === "processing" && copyResult.batch_key) {
-					updateAttachments()
+					await waitForBatchOperation(copyResult)
+					await waitForAttachmentVisible(newPath)
 					return newPath
 				}
 				return filePath
-			} catch {
+			} catch (error) {
 				return filePath
 			}
 		},
-		[projectId, flatAttachments, attachmentIndex, designProjectBasePath, updateAttachments],
+		[
+			projectId,
+			currentFile,
+			flatAttachments,
+			attachmentIndex,
+			designProjectBasePath,
+			waitForAttachmentVisible,
+			waitForBatchOperation,
+		],
 	)
 
 	const getDataTransferFileInfo = useCallback(

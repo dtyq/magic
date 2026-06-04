@@ -28,6 +28,7 @@ import {
 	type HtmlPreviewBundledTemplateKind,
 } from "./html-preview-bundled-shell"
 import { resolveResourceUrlsWithVersionOverrides } from "./dashboard/resourceVersioning"
+import { parseMagicProjectJsContent } from "./utils/magicProjectParser"
 
 export type { HtmlPreviewBundledTemplateKind }
 
@@ -374,12 +375,21 @@ export async function processHtmlContent(
 		input
 
 	const previewKind = input.htmlPreviewBundledTemplate
-	const processingMetadata = mergePreviewBundledMetadata(displayConfig, previewKind)
-
-	const applyPreviewShell = (html: string) => finalizeHtmlPreviewBundledShell(html, input)
-
 	const bundledTemplateHtml = previewKind ? getBundledTemplateHtmlByKind(previewKind) : ""
 	const sourceHtml = bundledTemplateHtml.length > 0 ? bundledTemplateHtml : content || ""
+	const parsedMagicProject = parseMagicProjectJsContent(sourceHtml)
+	const processingMetadata = mergePreviewBundledMetadata(
+		parsedMagicProject?.config
+			? {
+					...displayConfig,
+					...parsedMagicProject.config,
+					slides: parsedMagicProject.slides,
+				}
+			: displayConfig,
+		previewKind,
+	)
+
+	const applyPreviewShell = (html: string) => finalizeHtmlPreviewBundledShell(html, input)
 
 	// 初始化返回值
 	const result: ProcessHtmlContentOutput = {
@@ -465,18 +475,20 @@ export async function processHtmlContent(
 	}
 
 	// 首先提取slides数组
-	let extractedSlides: string[] = []
-	let foundSlides = false
+	let extractedSlides: string[] = parsedMagicProject?.slides || []
+	let foundSlides = extractedSlides.length > 0
 	const scriptElements2 = newHtmlDoc.getElementsByTagName("script")
-	for (let i = 0; i < scriptElements2.length; i++) {
-		const script = scriptElements2[i]
-		const scriptContent = script.textContent || script.innerHTML || ""
-		if (scriptContent.includes("slides")) {
-			foundSlides = true
-			const slides = processingMetadata?.slides || extractSlidesFromScript(scriptContent)
-			if (slides.length > 0) {
-				extractedSlides = slides
-				break
+	if (extractedSlides.length === 0) {
+		for (let i = 0; i < scriptElements2.length; i++) {
+			const script = scriptElements2[i]
+			const scriptContent = script.textContent || script.innerHTML || ""
+			if (scriptContent.includes("slides")) {
+				foundSlides = true
+				const slides = processingMetadata?.slides || extractSlidesFromScript(scriptContent)
+				if (slides.length > 0) {
+					extractedSlides = slides
+					break
+				}
 			}
 		}
 	}

@@ -36,6 +36,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceArchiveStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
@@ -76,6 +77,8 @@ class WorkspaceAppService extends AbstractAppService
         protected LockerInterface $locker,
         protected ChatAppService $chatAppService,
         protected ProjectDomainService $projectDomainService,
+        protected ProjectMemberDomainService $projectMemberDomainService,
+        protected ProjectMemberAppService $projectMemberAppService,
         protected TopicDomainService $topicDomainService,
         protected Producer $producer,
         protected LoggerFactory $loggerFactory,
@@ -108,8 +111,8 @@ class WorkspaceAppService extends AbstractAppService
             $conditions,
             $requestDTO->page,
             $requestDTO->pageSize,
-            'id',
-            'desc',
+            $requestDTO->orderBy,
+            $requestDTO->sort,
             $dataIsolation
         );
 
@@ -148,8 +151,17 @@ class WorkspaceAppService extends AbstractAppService
         // 批量获取工作区项目数量（性能优化：单次 GROUP BY 查询）
         $projectCountMap = $this->projectDomainService->getProjectCountByWorkspaceIds($workspaceIds, $dataIsolation);
 
+        // 批量获取参与项目数量（与 participated 接口 show_collaboration=1 的 total 口径一致）
+        $collaborationPaidOrganizationCodes = $this->projectMemberAppService->getUserCollaborationPaidOrganizationCodes($requestContext);
+        $paidOrganizationCodes = array_unique(array_merge($collaborationPaidOrganizationCodes, [$dataIsolation->getCurrentOrganizationCode()]));
+        $cooperateProjectCountMap = $this->projectMemberDomainService->countCooperateProjectsByWorkspaceIds(
+            $currentUserId,
+            $workspaceIds,
+            $paidOrganizationCodes
+        );
+
         // 转换为响应DTO并传入状态映射和项目数量映射
-        return WorkspaceListResponseDTO::fromResult($result, $workspaceStatusMap, $projectCountMap);
+        return WorkspaceListResponseDTO::fromResult($result, $workspaceStatusMap, $projectCountMap, $cooperateProjectCountMap);
     }
 
     /**
@@ -246,7 +258,12 @@ class WorkspaceAppService extends AbstractAppService
         }
 
         $workspaceId = (int) $requestDTO->getWorkspaceId();
-        $this->workspaceDomainService->updateWorkspace($dataIsolation, $workspaceId, $requestDTO->getWorkspaceName());
+        $this->workspaceDomainService->updateWorkspace(
+            $dataIsolation,
+            $workspaceId,
+            $requestDTO->getWorkspaceName(),
+            $requestDTO->getIsPinned()
+        );
 
         // Get updated workspace entity
         $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($workspaceId);
@@ -281,7 +298,12 @@ class WorkspaceAppService extends AbstractAppService
             // Prepare workspace entity
             if ($requestDTO->getWorkspaceId()) {
                 // Update, currently only updates workspace name
-                $this->workspaceDomainService->updateWorkspace($dataIsolation, (int) $requestDTO->getWorkspaceId(), $requestDTO->getWorkspaceName());
+                $this->workspaceDomainService->updateWorkspace(
+                    $dataIsolation,
+                    (int) $requestDTO->getWorkspaceId(),
+                    $requestDTO->getWorkspaceName(),
+                    $requestDTO->getIsPinned()
+                );
                 Db::commit();
                 return SaveWorkspaceResultDTO::fromId((int) $requestDTO->getWorkspaceId());
             }

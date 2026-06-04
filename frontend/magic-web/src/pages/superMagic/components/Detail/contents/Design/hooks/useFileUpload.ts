@@ -8,6 +8,7 @@ import {
 	type GetFileInfoResponse,
 	type UploadFileResponse,
 	type UploadFile,
+	type UploadFilesOptions,
 	type UploadPrivateFile,
 	type UploadPrivateFileResponse,
 	type UploadSubDirType,
@@ -61,6 +62,7 @@ interface UseFileUploadReturn {
 	uploadFiles: (
 		uploadFiles: UploadFile[],
 		duplicateCheckList?: string[],
+		options?: UploadFilesOptions,
 	) => Promise<UploadFileResponse[]>
 	uploadPrivateFiles: (uploadFiles: UploadPrivateFile[]) => Promise<UploadPrivateFileResponse[]>
 	uploadProgress: number
@@ -230,6 +232,7 @@ export function useFileUpload(options: UseFileUploadOptions): UseFileUploadRetur
 		async (
 			uploadFiles: Parameters<UseFileUploadReturn["uploadFiles"]>[0],
 			duplicateCheckList?: string[],
+			options?: UploadFilesOptions,
 		): Promise<UploadFileResponse[]> => {
 			if (!uploadFiles || uploadFiles.length === 0) {
 				return []
@@ -290,6 +293,7 @@ export function useFileUpload(options: UseFileUploadOptions): UseFileUploadRetur
 					const callbacks = createUploadCallbacks({
 						suffixDir,
 						uploadSubDir: uploadSubDir as UploadSubDirType,
+						showSuccessToast: options?.showSuccessToast ?? true,
 						designProjectBasePath,
 						fileNameToUploadFileMap,
 						filesToUpload,

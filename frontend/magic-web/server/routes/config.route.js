@@ -1,40 +1,7 @@
-const R = require("ramda")
 const crypto = require("node:crypto")
+const { getSafeEnvVars } = require("../config")
 
-/**
- * @description 环境变脸白名单
- * @type {string[]}
- */
-const envVarWhitelist = [
-	"MAGIC_APP_ENV",
-	"MAGIC_IS_PRIVATE_DEPLOY",
-	"MAGIC_TEAMSHARE_BASE_URL",
-	"MAGIC_SOCKET_BASE_URL",
-	"MAGIC_SERVICE_BASE_URL",
-	"MAGIC_SERVICE_KEEWOOD_BASE_URL",
-	"MAGIC_SERVICE_TEAMSHARE_BASE_URL",
-	"MAGIC_AMAP_KEY",
-	"MAGIC_GATEWAY_ADDRESS",
-	"MAGIC_TEAMSHARE_WEB_URL",
-	"MAGIC_KEEWOOD_WEB_URL",
-	"MAGIC_WEB_URL",
-	"MAGIC_APP_VERSION",
-	"MAGIC_APP_SHA",
-	"MAGIC_EDITION",
-	"MAGIC_ICP_CODE",
-	"MAGIC_COPYRIGHT",
-	"MAGIC_PRIVATE_DEPLOYMENT_CONFIG",
-	"MAGIC_DEFAULT_LANGUAGE",
-	"MAGIC_LOGIN_CONFIG",
-	"MAGIC_PAYMENT_METHOD",
-	"MAGIC_PUBLIC_CDN_URL",
-	"MAGIC_CDNHOST",
-	"MAGIC_USER_BEHAVIOR_ANALYSIS",
-	"MAGIC_APM",
-	"MAGIC_LOGIN_AUTHORIZATION_WHITELIST",
-	"MAGIC_DEPLOYMENT_ID",
-	// "MAGIC_HTML_SANDBOX_URL",
-]
+
 
 class Config {
 	constructor() {
@@ -45,10 +12,7 @@ class Config {
 
 	_generateConfigETag() {
 		try {
-			const safeEnvVars = R.pickBy(
-				(_, key) => key.startsWith("MAGIC_") && envVarWhitelist.includes(key),
-				process.env,
-			)
+			const safeEnvVars = getSafeEnvVars()
 			const content = JSON.stringify(safeEnvVars)
 			return `"${crypto.createHash("md5").update(content).digest("hex")}"`
 		} catch (error) {
@@ -76,12 +40,7 @@ class Config {
 				return res.status(304).end()
 			}
 
-			const isSafeEnvironmentVariable = (key) => {
-				// Only expose environment variables starting with MAGIC_ and in whitelist
-				return key.startsWith("MAGIC_") && envVarWhitelist.includes(key)
-			}
-
-			const safeEnvVars = R.pickBy((_, key) => isSafeEnvironmentVariable(key), process.env)
+			const safeEnvVars = getSafeEnvVars()
 
 			res.set("Content-Type", "text/javascript")
 			res.setHeader("Cache-Control", "no-cache")
@@ -104,13 +63,12 @@ class Config {
 			}
 
 			const versionWhitelist = ["MAGIC_APP_VERSION", "MAGIC_APP_SHA"]
-
-			const isSafeEnvironmentVariable = (key) => {
-				// Only expose environment variables starting with MAGIC_ and in whitelist
-				return key.startsWith("MAGIC_") && versionWhitelist.includes(key)
+			const safeEnvVars = {}
+			for (const key of versionWhitelist) {
+				if (process.env[key] !== undefined) {
+					safeEnvVars[key] = process.env[key]
+				}
 			}
-
-			const safeEnvVars = R.pickBy((_, key) => isSafeEnvironmentVariable(key), process.env)
 
 			res.set("Content-Type", "application/json; charset=utf-8")
 			res.setHeader("Cache-Control", "no-cache")
