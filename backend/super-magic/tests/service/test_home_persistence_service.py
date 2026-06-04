@@ -90,7 +90,7 @@ async def test_dws_atomic_config_replace_writes_to_persistent_dir(tmp_path, monk
 
 
 @pytest.mark.asyncio
-async def test_initialize_moves_existing_local_lark_cli_aside_before_full_link(tmp_path, monkeypatch):
+async def test_initialize_discards_existing_local_lark_cli_before_full_link(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     local_lark_dir = home_dir / ".lark-cli"
@@ -108,13 +108,11 @@ async def test_initialize_moves_existing_local_lark_cli_aside_before_full_link(t
     assert lark_link.is_symlink()
     assert lark_link.resolve(strict=False) == persistent_lark_dir.resolve(strict=False)
     assert (persistent_lark_dir / "config.json").read_text(encoding="utf-8") == "persisted-config"
-    backups = list(home_dir.glob(".lark-cli.before-home-persistence*"))
-    assert len(backups) == 1
-    assert (backups[0] / "config.json").read_text(encoding="utf-8") == "install-config"
+    assert not list(home_dir.glob(".lark-cli.before-home-persistence*"))
 
 
 @pytest.mark.asyncio
-async def test_initialize_moves_existing_local_dws_aside_before_full_link(tmp_path, monkeypatch):
+async def test_initialize_discards_existing_local_dws_before_full_link(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     local_dws_dir = home_dir / ".dws"
@@ -132,13 +130,11 @@ async def test_initialize_moves_existing_local_dws_aside_before_full_link(tmp_pa
     assert dws_link.is_symlink()
     assert dws_link.resolve(strict=False) == persistent_dws_dir.resolve(strict=False)
     assert (persistent_dws_dir / "config.json").read_text(encoding="utf-8") == "persisted-dws-config"
-    backups = list(home_dir.glob(".dws.before-home-persistence*"))
-    assert len(backups) == 1
-    assert (backups[0] / "config.json").read_text(encoding="utf-8") == "install-dws-config"
+    assert not list(home_dir.glob(".dws.before-home-persistence*"))
 
 
 @pytest.mark.asyncio
-async def test_initialize_moves_existing_local_magic_aside_before_symlink(tmp_path, monkeypatch):
+async def test_initialize_discards_existing_local_magic_before_full_link(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     existing_magic_dir = home_dir / ".magic"
@@ -156,13 +152,11 @@ async def test_initialize_moves_existing_local_magic_aside_before_symlink(tmp_pa
     assert magic_link.is_symlink()
     assert magic_link.resolve(strict=False) == magic_target.resolve(strict=False)
     assert not (magic_target / "mock-config.json").exists()
-    backups = list(home_dir.glob(".magic.before-home-persistence*"))
-    assert len(backups) == 1
-    assert (backups[0] / "mock-config.json").read_text(encoding="utf-8") == "{}"
+    assert not list(home_dir.glob(".magic.before-home-persistence*"))
 
 
 @pytest.mark.asyncio
-async def test_initialize_moves_local_dws_runtime_dirs_aside_before_full_link(tmp_path, monkeypatch):
+async def test_initialize_discards_local_dws_runtime_dirs_before_full_link(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     source_logs_dir = home_dir / ".dws" / "logs"
@@ -183,9 +177,8 @@ async def test_initialize_moves_local_dws_runtime_dirs_aside_before_full_link(tm
     assert target_logs_dir.is_symlink()
     assert target_logs_dir.resolve(strict=False) == local_logs_dir.resolve(strict=False)
     assert not (dws_dir / "logs" / "local.log").exists()
-    backups = list(home_dir.glob(".dws.before-home-persistence*"))
-    assert len(backups) == 1
-    assert (backups[0] / "logs" / "local.log").read_text(encoding="utf-8") == "local"
+    assert not (local_logs_dir / "local.log").exists()
+    assert not list(home_dir.glob(".dws.before-home-persistence*"))
 
 
 @pytest.mark.asyncio
@@ -209,9 +202,7 @@ async def test_initialize_prefers_persistent_dws_config_over_local_install_confi
     assert dws_dir.is_symlink()
     assert dws_dir.resolve(strict=False) == dws_target.resolve(strict=False)
     assert target_config.read_text(encoding="utf-8") == "persisted-dws-config"
-    backups = list(home_dir.glob(".dws.before-home-persistence*"))
-    assert len(backups) == 1
-    assert (backups[0] / "config.json").read_text(encoding="utf-8") == "install-dws-config"
+    assert not list(home_dir.glob(".dws.before-home-persistence*"))
     assert not (dws_target / ".home-persistence-backup").exists()
 
 
