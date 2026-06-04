@@ -145,7 +145,7 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var
     echo "${TZ}" > /etc/timezone && \
     # 用bash做默认shell 不要用坑爹dash
     ln -sf /usr/bin/bash /bin/sh && \
-    # 让entrypoint执行bashrc，并在 Docker 环境中建立持久化目录软链接
+    # 让entrypoint执行bashrc，确保 nvm / pnpm 等 PATH 注入到服务进程环境
     cp /app/deploy/entrypoint.sh /entrypoint.sh && \
     chmod +x /entrypoint.sh && \
     # ensure locale is always set in interactive shells (e.g. kubectl exec -- bash)
