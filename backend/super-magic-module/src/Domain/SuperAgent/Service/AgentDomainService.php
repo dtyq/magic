@@ -357,7 +357,7 @@ class AgentDomainService
                     projectSpaceRootFileId: $projectSpaceRootFileId,
                     userSpaceRootFileId: $userSpaceRootFileId,
                     topicId: $topicEntity->getId(),
-                    magicClawCode: $this->resolveMagicClawCode($topicEntity)
+                    agentCode: $this->resolveAgentCodeLabel($topicEntity)
                 );
             }
 
@@ -419,7 +419,7 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null, ?string $magicClawCode = null): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null, ?string $agentCode = null): string
     {
         // 获取用户 authorization token，用于沙箱创建时的身份验证
         $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
@@ -437,10 +437,10 @@ class AgentDomainService
         // Stamp the topic id onto the pod labels so the sandbox can be
         // correlated back to its topic (warm pool stamps it at mount time).
         $labels = $topicId !== null ? ['topic-id' => (string) $topicId] : [];
-        // For magic-claw (龙虾) topics, also stamp the claw code (e.g. MC-xxxx)
-        // so the sandbox can be correlated back to its magic-claw entity.
-        if ($magicClawCode !== null && $magicClawCode !== '') {
-            $labels['magic-claw-code'] = $magicClawCode;
+        // Also stamp agent code so both custom-agent and magic-claw sandboxes
+        // can be correlated back to the original agent identity.
+        if ($agentCode !== null && $agentCode !== '') {
+            $labels['agent-code'] = $agentCode;
         }
         $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization, $labels);
 
@@ -1607,8 +1607,8 @@ class AgentDomainService
 
     /**
      * Build the pod labels for a topic's sandbox.
-     * Always stamps topic-id; for magic-claw (龙虾) topics it also stamps the
-     * claw code (e.g. MC-xxxx) so the sandbox can be correlated back to its claw.
+     * Always stamps topic-id; when topic.agent_code is present it also stamps
+     * agent-code so sandboxes can be correlated back to the original agent.
      *
      * @return array<string, string>
      */
@@ -1616,28 +1616,22 @@ class AgentDomainService
     {
         $labels = ['topic-id' => (string) $topicEntity->getId()];
 
-        $magicClawCode = $this->resolveMagicClawCode($topicEntity);
-        if ($magicClawCode !== null) {
-            $labels['magic-claw-code'] = $magicClawCode;
+        $agentCode = $this->resolveAgentCodeLabel($topicEntity);
+        if ($agentCode !== null) {
+            $labels['agent-code'] = $agentCode;
         }
 
         return $labels;
     }
 
     /**
-     * Resolve the magic-claw (龙虾) code for a topic, or null if the topic is
-     * not a magic-claw topic. The claw code (e.g. MC-xxxx) is stored on the
-     * topic's agent_code field for MAGICLAW mode topics.
+     * Resolve sanitized topic agent_code for pod labels, or null when absent.
      *
      * The raw code is sanitized to a valid k8s label value before being
      * returned so that an out-of-spec code can never break sandbox creation.
      */
-    private function resolveMagicClawCode(TopicEntity $topicEntity): ?string
+    private function resolveAgentCodeLabel(TopicEntity $topicEntity): ?string
     {
-        if ($topicEntity->getTopicMode() !== ProjectMode::MAGICLAW->value) {
-            return null;
-        }
-
         $agentCode = $topicEntity->getAgentCode();
         if ($agentCode === '') {
             return null;
@@ -1646,7 +1640,7 @@ class AgentDomainService
         $sanitized = $this->sanitizeLabelValue($agentCode);
         if ($sanitized === '') {
             // Nothing salvageable — skip the label rather than fail the pod.
-            $this->logger->warning('[Sandbox][Domain] Magic-claw code is not a valid k8s label value, skipping label', [
+            $this->logger->warning('[Sandbox][Domain] Agent code is not a valid k8s label value, skipping label', [
                 'topic_id' => $topicEntity->getId(),
                 'agent_code' => $agentCode,
             ]);
