@@ -1,7 +1,7 @@
 """Initialize user HOME symlinks after the INIT message is available."""
 
 import os
-import shutil
+import uuid
 from pathlib import Path
 
 from agentlang.logger import get_logger
@@ -12,12 +12,20 @@ logger = get_logger(__name__)
 class HomePersistenceService:
     """Prepare HOME config symlinks for the current sandbox user."""
 
-    _PERSISTENT_DIRS: tuple[str, ...] = (
-        ".lark-cli",
-        ".dws",
+    _FULL_LINK_DIRS: tuple[str, ...] = (
         ".local/share",
         ".magic",
     )
+    _PARTIAL_LINK_DIRS: dict[str, dict[str, tuple[str, ...]]] = {
+        ".lark-cli": {
+            "persistent_files": ("config.json",),
+            "local_dirs": ("skills", "logs", "cache"),
+        },
+        ".dws": {
+            "persistent_files": ("identity.json", "config.json"),
+            "local_dirs": ("skills", "logs", "cache"),
+        },
+    }
 
     @classmethod
     def initialize_from_environment(cls) -> None:
@@ -30,14 +38,22 @@ class HomePersistenceService:
         home_dir = Path.home()
         persistent_root = Path(user_home_dir)
 
-        for relative_path in cls._PERSISTENT_DIRS:
+        for relative_path, config in cls._PARTIAL_LINK_DIRS.items():
+            cls._ensure_partial_dir(
+                link_root=home_dir / relative_path,
+                target_root=persistent_root / relative_path,
+                persistent_files=config["persistent_files"],
+                local_dirs=config["local_dirs"],
+            )
+
+        for relative_path in cls._FULL_LINK_DIRS:
             target = persistent_root / relative_path
             link = home_dir / relative_path
             cls._ensure_symlink(link=link, target=target)
 
     @classmethod
     def _ensure_symlink(cls, link: Path, target: Path) -> None:
-        """Ensure link points to target without dropping existing local content."""
+        """Ensure link points to target, preferring USER_HOME_DIR data."""
         if link.resolve(strict=False) == target.resolve(strict=False):
             target.mkdir(parents=True, exist_ok=True)
             return
@@ -54,90 +70,70 @@ class HomePersistenceService:
             return
 
         if link.exists():
-            if not cls._merge_existing_path(source=link, target=target):
-                return
+            cls._move_local_path_aside(link)
 
         link.symlink_to(target)
         logger.info(f"[HomePersistence] 已创建软链: {link} -> {target}")
 
     @classmethod
-    def _merge_existing_path(cls, source: Path, target: Path) -> bool:
-        """Move existing source content into target, preferring target conflicts."""
-        if source.is_dir():
-            if not cls._merge_directory_contents(
-                source=source,
-                target=target,
-                source_root=source,
-                backup_root=target / ".home-persistence-backup",
-            ):
-                return False
-            source.rmdir()
-            logger.info(f"[HomePersistence] 已迁移已有目录内容: {source} -> {target}")
-            return True
-
-        destination = target / source.name
-        if destination.exists() or destination.is_symlink():
-            cls._backup_conflicting_source(
-                source=source,
-                backup_path=target / ".home-persistence-backup" / source.name,
-            )
-            return True
-
-        shutil.move(str(source), str(destination))
-        logger.info(f"[HomePersistence] 已迁移已有文件: {source} -> {destination}")
-        return True
-
-    @classmethod
-    def _merge_directory_contents(
-        cls,
-        source: Path,
-        target: Path,
-        source_root: Path,
-        backup_root: Path,
-    ) -> bool:
-        """Recursively merge source directory contents into target."""
-        for child in source.iterdir():
-            destination = target / child.name
-            if not destination.exists() and not destination.is_symlink():
-                shutil.move(str(child), str(destination))
-                continue
-
-            if child.is_dir() and destination.is_dir() and not destination.is_symlink():
-                if not cls._merge_directory_contents(
-                    source=child,
-                    target=destination,
-                    source_root=source_root,
-                    backup_root=backup_root,
-                ):
-                    return False
-                child.rmdir()
-                continue
-
-            cls._backup_conflicting_source(
-                source=child,
-                backup_path=backup_root / child.relative_to(source_root),
-            )
-
-        return True
-
-    @classmethod
-    def _backup_conflicting_source(cls, source: Path, backup_path: Path) -> None:
-        """Move a source-side conflict aside so USER_HOME_DIR data wins."""
-        backup_path = cls._unique_backup_path(backup_path)
-        backup_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(source), str(backup_path))
-        logger.warning(
-            f"[HomePersistence] 目标已存在，优先使用持久化目录，已备份本地冲突路径: {source} -> {backup_path}"
+    def _move_local_path_aside(cls, path: Path) -> None:
+        """Rename the local HOME path aside without scanning its contents."""
+        backup_path = cls._local_backup_path(path)
+        path.rename(backup_path)
+        logger.info(
+            f"[HomePersistence] 优先使用持久化目录，已挪开本地路径: {path} -> {backup_path}"
         )
 
+    @classmethod
+    def _ensure_partial_dir(
+        cls,
+        link_root: Path,
+        target_root: Path,
+        persistent_files: tuple[str, ...],
+        local_dirs: tuple[str, ...],
+    ) -> None:
+        """Keep selected local dirs while symlinking selected persistent files."""
+        target_root.mkdir(parents=True, exist_ok=True)
+        link_root.parent.mkdir(parents=True, exist_ok=True)
+
+        backup_root: Path | None = None
+        if link_root.is_symlink() or link_root.exists():
+            if link_root.is_dir() and not link_root.is_symlink():
+                backup_root = cls._local_backup_path(link_root)
+                link_root.rename(backup_root)
+                logger.info(
+                    f"[HomePersistence] 已挪开本地目录以创建部分挂载: {link_root} -> {backup_root}"
+                )
+            else:
+                link_root.unlink()
+
+        link_root.mkdir(parents=True, exist_ok=True)
+
+        if backup_root is not None:
+            for local_dir in local_dirs:
+                source = backup_root / local_dir
+                destination = link_root / local_dir
+                if source.exists() and not destination.exists():
+                    source.rename(destination)
+                    logger.info(f"[HomePersistence] 已保留本地忽略目录: {destination}")
+
+        for persistent_file in persistent_files:
+            target = target_root / persistent_file
+            link = link_root / persistent_file
+            link.parent.mkdir(parents=True, exist_ok=True)
+            target.parent.mkdir(parents=True, exist_ok=True)
+
+            if link.is_symlink():
+                if link.resolve(strict=False) == target.resolve(strict=False):
+                    continue
+                link.unlink()
+            elif link.exists():
+                cls._move_local_path_aside(link)
+
+            link.symlink_to(target)
+            logger.info(f"[HomePersistence] 已创建持久化文件软链: {link} -> {target}")
+
     @staticmethod
-    def _unique_backup_path(path: Path) -> Path:
-        if not path.exists() and not path.is_symlink():
-            return path
-
-        for index in range(1, 1000):
-            candidate = path.with_name(f"{path.name}.{index}")
-            if not candidate.exists() and not candidate.is_symlink():
-                return candidate
-
-        raise RuntimeError(f"无法为冲突路径生成备份文件名: {path}")
+    def _local_backup_path(path: Path) -> Path:
+        suffix = uuid.uuid4().hex
+        return path.with_name(f"{path.name}.before-home-persistence-{suffix}")

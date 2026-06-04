@@ -11,7 +11,7 @@ def test_initialize_creates_home_symlinks_after_user_home_is_available(tmp_path,
 
     HomePersistenceService.initialize_from_environment()
 
-    expected_dirs = (".lark-cli", ".dws", ".local/share", ".magic")
+    expected_dirs = (".local/share", ".magic")
     for relative_path in expected_dirs:
         link = home_dir / relative_path
         target = user_home_dir / relative_path
@@ -19,8 +19,25 @@ def test_initialize_creates_home_symlinks_after_user_home_is_available(tmp_path,
         assert link.resolve(strict=False) == target.resolve(strict=False)
         assert target.is_dir()
 
+    dws_dir = home_dir / ".dws"
+    dws_config = dws_dir / "config.json"
+    dws_identity = dws_dir / "identity.json"
+    assert dws_dir.is_dir()
+    assert not dws_dir.is_symlink()
+    assert dws_config.is_symlink()
+    assert dws_identity.is_symlink()
+    assert dws_config.resolve(strict=False) == (user_home_dir / ".dws" / "config.json").resolve(strict=False)
+    assert dws_identity.resolve(strict=False) == (user_home_dir / ".dws" / "identity.json").resolve(strict=False)
 
-def test_initialize_migrates_existing_magic_content_before_symlink(tmp_path, monkeypatch):
+    lark_dir = home_dir / ".lark-cli"
+    lark_config = lark_dir / "config.json"
+    assert lark_dir.is_dir()
+    assert not lark_dir.is_symlink()
+    assert lark_config.is_symlink()
+    assert lark_config.resolve(strict=False) == (user_home_dir / ".lark-cli" / "config.json").resolve(strict=False)
+
+
+def test_initialize_moves_existing_local_magic_aside_before_symlink(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     existing_magic_dir = home_dir / ".magic"
@@ -37,10 +54,13 @@ def test_initialize_migrates_existing_magic_content_before_symlink(tmp_path, mon
     magic_target = user_home_dir / ".magic"
     assert magic_link.is_symlink()
     assert magic_link.resolve(strict=False) == magic_target.resolve(strict=False)
-    assert (magic_target / "mock-config.json").read_text(encoding="utf-8") == "{}"
+    assert not (magic_target / "mock-config.json").exists()
+    backups = list(home_dir.glob(".magic.before-home-persistence-*"))
+    assert len(backups) == 1
+    assert (backups[0] / "mock-config.json").read_text(encoding="utf-8") == "{}"
 
 
-def test_initialize_recursively_merges_existing_directories(tmp_path, monkeypatch):
+def test_initialize_preserves_ignored_dws_local_directories(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     source_logs_dir = home_dir / ".dws" / "logs"
@@ -54,15 +74,19 @@ def test_initialize_recursively_merges_existing_directories(tmp_path, monkeypatc
 
     HomePersistenceService.initialize_from_environment()
 
-    dws_link = home_dir / ".dws"
+    dws_dir = home_dir / ".dws"
     dws_target = user_home_dir / ".dws"
-    assert dws_link.is_symlink()
-    assert dws_link.resolve(strict=False) == dws_target.resolve(strict=False)
-    assert (target_logs_dir / "local.log").read_text(encoding="utf-8") == "local"
+    assert dws_dir.is_dir()
+    assert not dws_dir.is_symlink()
+    assert not (target_logs_dir / "local.log").exists()
     assert (target_logs_dir / "persisted.log").read_text(encoding="utf-8") == "persisted"
+    assert (dws_dir / "logs" / "local.log").read_text(encoding="utf-8") == "local"
+    backups = list(home_dir.glob(".dws.before-home-persistence-*"))
+    assert len(backups) == 1
+    assert not (backups[0] / "logs").exists()
 
 
-def test_initialize_prefers_user_home_file_conflicts_and_still_symlinks(tmp_path, monkeypatch):
+def test_initialize_prefers_user_home_file_for_partial_dir(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     source_config = home_dir / ".dws" / "config.json"
@@ -76,13 +100,18 @@ def test_initialize_prefers_user_home_file_conflicts_and_still_symlinks(tmp_path
 
     HomePersistenceService.initialize_from_environment()
 
-    dws_link = home_dir / ".dws"
+    dws_dir = home_dir / ".dws"
     dws_target = user_home_dir / ".dws"
-    backup_config = dws_target / ".home-persistence-backup" / "config.json"
-    assert dws_link.is_symlink()
-    assert dws_link.resolve(strict=False) == dws_target.resolve(strict=False)
+    config_link = dws_dir / "config.json"
+    assert dws_dir.is_dir()
+    assert not dws_dir.is_symlink()
+    assert config_link.is_symlink()
+    assert config_link.resolve(strict=False) == target_config.resolve(strict=False)
     assert target_config.read_text(encoding="utf-8") == "persisted"
-    assert backup_config.read_text(encoding="utf-8") == "local"
+    assert not (dws_target / ".home-persistence-backup").exists()
+    backups = list(home_dir.glob(".dws.before-home-persistence-*"))
+    assert len(backups) == 1
+    assert (backups[0] / "config.json").read_text(encoding="utf-8") == "local"
 
 
 def test_initialize_skips_without_user_home_dir(tmp_path, monkeypatch):
