@@ -4,6 +4,7 @@ import pytest
 
 from agentlang.tools.tool_result import ToolResult
 from app.tools.document_parse.export_document_markdown import ExportDocumentMarkdown
+from app.utils.document_parse.conversion.models import UnsupportedConversionError
 from app.utils.document_parse.drivers.generic import GenericMarkItDownDriver
 from app.utils.document_parse.drivers.image_driver import ImageDocumentDriver
 from app.utils.document_parse.drivers.pdf_driver import PdfDocumentDriver
@@ -167,7 +168,7 @@ async def test_document_format_converter_moves_office_output_with_cross_device_s
         "app.utils.file_parse.utils.libreoffice_util.LibreOfficeUtil.convert_document",
         fake_convert_document,
     )
-    monkeypatch.setattr("app.utils.document_parse.service.document_format_converter.async_move_file", fake_move_file)
+    monkeypatch.setattr("app.utils.document_parse.conversion.converters.office_converter.async_move_file", fake_move_file)
 
     result = await DocumentFormatConverter().convert(source, output_dir, "docx")
 
@@ -199,9 +200,9 @@ async def test_document_format_converter_moves_pdf_page_images_with_cross_device
         dst.write_bytes(src.read_bytes())
         src.unlink()
 
-    monkeypatch.setattr("app.utils.document_parse.pdf.pdf_metadata.PdfMetadata.inspect", fake_inspect)
-    monkeypatch.setattr("app.utils.document_parse.pdf.pdf_page_renderer.PdfPageRenderer.render_pages", fake_render_pages)
-    monkeypatch.setattr("app.utils.document_parse.service.document_format_converter.async_move_file", fake_move_file)
+    monkeypatch.setattr("app.utils.document_parse.conversion.converters.pdf_image_converter.PdfMetadata.inspect", fake_inspect)
+    monkeypatch.setattr("app.utils.document_parse.conversion.converters.pdf_image_converter.PdfPageRenderer.render_pages", fake_render_pages)
+    monkeypatch.setattr("app.utils.document_parse.conversion.converters.pdf_image_converter.async_move_file", fake_move_file)
 
     result = await DocumentFormatConverter().convert(source, output_dir, "png", ranges="1")
 
@@ -210,6 +211,23 @@ async def test_document_format_converter_moves_pdf_page_images_with_cross_device
     assert moves == [(page_image, expected)]
     assert expected.read_bytes() == b"png"
     assert not page_image.exists()
+
+
+@pytest.mark.asyncio
+async def test_document_format_converter_rejects_unsupported_routes_with_supported_matrix(tmp_path: Path):
+    source = tmp_path / "source.png"
+    source.write_bytes(b"png")
+    output_dir = tmp_path / "output"
+
+    with pytest.raises(UnsupportedConversionError) as exc_info:
+        await DocumentFormatConverter().convert(source, output_dir, "pdf")
+
+    message = str(exc_info.value)
+    assert "Unsupported document format conversion: .png -> pdf" in message
+    assert "Current supported format conversions" in message
+    assert "PDF -> png, jpg, jpeg" in message
+    assert "Office-like documents -> pdf, docx, pptx, xlsx" in message
+    assert "export_document_markdown" in message
 
 
 @pytest.mark.asyncio

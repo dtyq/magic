@@ -208,6 +208,10 @@ def test_document_converter_skill_requires_using_converted_path():
     skill_path = Path(__file__).resolve().parents[2] / "agents" / "skills" / "document-converter" / "SKILL.md"
     skill = skill_path.read_text(encoding="utf-8")
 
+    assert "Semantic conversion" in skill
+    assert "Format conversion" in skill
+    assert "PDF -> `png`, `jpg`, `jpeg`" in skill
+    assert "Office-like documents -> `pdf`, `docx`, `pptx`, `xlsx`" in skill
     assert 'converted.data["output_files"][0]' in skill
     assert "Do not continue parsing, inspecting, extracting, or exporting with the original `input_path`" in skill
 
@@ -447,6 +451,30 @@ async def test_convert_document_format_allows_format_mismatch_before_conversion(
     assert str(converted) in result.content
     assert result.extra_info["output_files"] == [str(converted)]
     assert result.extra_info["converted_files"] == [str(converted)]
+
+
+@pytest.mark.asyncio
+async def test_convert_document_format_reports_supported_matrix_for_unsupported_route(tmp_path: Path):
+    source = tmp_path / "mock-image.png"
+    output_dir = tmp_path / "mock-output"
+    source.write_bytes(b"png")
+
+    result = await ConvertDocumentFormat().execute(
+        None,
+        ConvertDocumentFormat().get_params_class()(
+            input_path=str(source),
+            output_dir=str(output_dir),
+            target_format="pdf",
+        ),
+    )
+
+    assert not result.ok
+    assert "Document-converter tool failed: `convert_document_format`" in result.content
+    assert "Unsupported document format conversion: .png -> pdf" in result.content
+    assert "Current supported format conversions" in result.content
+    assert "PDF -> png, jpg, jpeg" in result.content
+    assert "Office-like documents -> pdf, docx, pptx, xlsx" in result.content
+    assert "export_document_markdown" in result.content
 
 
 @pytest.mark.asyncio
