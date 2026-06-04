@@ -101,6 +101,7 @@ export interface PcFloatPanelProps {
 	onImageUploadSuccess?: (relativePath: string) => void
 	editorRef?: React.RefObject<SimpleEditorRef>
 	onSave?: (editor: Editor | null) => void
+	resolveImagesFolderParentId?: (folderPath: string) => Promise<string | undefined>
 }
 
 const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
@@ -145,6 +146,7 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 		folderPath,
 		editorRef,
 		onSave,
+		resolveImagesFolderParentId,
 	} = props
 
 	const isEditMode = mode === "edit"
@@ -645,6 +647,9 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 													className={styles.editorBody}
 													folderPath={folderPath}
 													onImageUploadSuccess={checkNowDebounced}
+													resolveImagesFolderParentId={
+														resolveImagesFolderParentId
+													}
 													editorRef={editorRef}
 													placeholder={t(
 														"recordingSummary.ui.editorPlaceholder",

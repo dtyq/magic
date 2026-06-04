@@ -22,6 +22,12 @@ export interface UploadImageOptions {
 	 * Optional abort signal for cancellation support
 	 */
 	signal?: AbortSignal
+
+	/**
+	 * Optional parent folder file_id for saving to the correct directory.
+	 * When provided, the uploaded file will be saved under this folder.
+	 */
+	parentFolderId?: string
 }
 
 export interface ProjectImageStorageInterface {

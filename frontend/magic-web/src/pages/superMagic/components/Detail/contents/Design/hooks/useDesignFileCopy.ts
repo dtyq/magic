@@ -1,4 +1,5 @@
 import { useCallback } from "react"
+import { SuperMagicApiErrorCode } from "@/pages/superMagic/constants/apiErrorCodes"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import type { DesignAttachmentIndex } from "../utils/designAttachmentIndex"
 import {
@@ -393,7 +394,7 @@ export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignF
 						}
 					} catch (error: unknown) {
 						const errorObj = error as { code?: number; message?: string }
-						if (errorObj.code === 51168) {
+						if (errorObj.code === SuperMagicApiErrorCode.DuplicateFile) {
 							updateAttachments()
 							assetDirItem = flatAttachments.find(
 								(item: FileItem) =>

@@ -28,6 +28,8 @@ export const ERROR_CODES = {
 	TASK_NOT_FOUND: 43212,
 	/** Sandbox errors (43300-43399) */
 	SANDBOX_START_RETRY_EXCEEDED: 43305,
+	/** Project errors */
+	PROJECT_NOT_FOUND: 51200,
 } as const
 
 /**
@@ -47,6 +49,7 @@ export const TASK_END_CODES: ReadonlySet<number> = new Set([
 	ERROR_CODES.TASK_NOT_BELONG_TO_USER,
 	ERROR_CODES.TASK_NOT_FOUND,
 	ERROR_CODES.SANDBOX_START_RETRY_EXCEEDED,
+	ERROR_CODES.PROJECT_NOT_FOUND,
 ])
 
 /**

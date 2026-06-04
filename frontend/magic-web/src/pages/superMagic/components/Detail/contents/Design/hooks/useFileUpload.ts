@@ -3,6 +3,7 @@ import { UploadSource } from "@/pages/superMagic/components/MessageEditor/hooks/
 import { multiFolderUploadStore } from "@/stores/folderUpload"
 import { useTranslation } from "react-i18next"
 import { SuperMagicApi } from "@/apis"
+import { SuperMagicApiErrorCode } from "@/pages/superMagic/constants/apiErrorCodes"
 import {
 	type GetFileInfoResponse,
 	type UploadFileResponse,
@@ -206,7 +207,7 @@ export function useFileUpload(options: UseFileUploadOptions): UseFileUploadRetur
 				}
 			} catch (error: unknown) {
 				const errorObj = error as { code?: number }
-				if (errorObj.code === 51168) {
+				if (errorObj.code === SuperMagicApiErrorCode.DuplicateFile) {
 					updateAttachments()
 					assetDirItem = flatAttachments.find(
 						(item) =>

@@ -25,6 +25,12 @@ const ENV_PREFIX = "MAGIC_"
 /** 是否为开发环境 */
 const isDev = process.env.NODE_ENV === "development"
 
+/** 本地开发 HTTPS hosts，支持逗号分隔多个，默认 magic.t.teamshare.cn */
+const devHosts = (process.env.DEV_HOSTS ?? "magic.com")
+	.split(",")
+	.map((h) => h.trim())
+	.filter(Boolean)
+
 /** 是否开启依赖分析 */
 const isVisualizer = process.env.VISUALIZER === "true"
 
@@ -53,7 +59,6 @@ function getBaseViteConfig(): UserConfig {
 		},
 		build: {
 			outDir: resolve(__dirname, "dist"),
-			// Enterprise uses root `enterprise/`; outDir is repo `dist/` (outside root).
 			emptyOutDir: true,
 			reportCompressedSize: false,
 			sourcemap: isEnableSourceMap,
@@ -278,7 +283,8 @@ function getBaseViteConfig(): UserConfig {
 				? [
 						mkcert({
 							// 本地配置该地址的 host, 满足文件私有桶上传
-							hosts: ["magic.com"],
+							// 可通过环境变量 DEV_HOSTS 覆盖，多个 host 用逗号分隔
+							hosts: devHosts,
 						}),
 						// http2Proxy({ quiet: true }),
 					]
