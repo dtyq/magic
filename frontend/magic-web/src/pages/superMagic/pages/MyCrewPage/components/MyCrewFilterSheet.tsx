@@ -1,6 +1,7 @@
 import { Check, RotateCcw, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import {
 	MY_CREW_MOBILE_FILTER_DEFAULT,
@@ -115,13 +116,14 @@ export default function MyCrewFilterSheet({
 					</Button>
 				</div>
 
-				{/* Body: sort section first, then type (prototype order) */}
-				<div className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto px-[10px] pb-5 pt-2">
+				<ScrollEdgeFadeContainer
+					fadeColor="muted"
+					className="min-h-0 flex-1"
+					scrollClassName="no-scrollbar flex flex-col gap-2.5 px-[10px] pb-5 pt-2"
+					contentDeps={[filter.sort, filter.type]}
+				>
 					{/* Sort section */}
-					<div
-						className="flex flex-col gap-2"
-						data-testid="my-crew-filter-sort-section"
-					>
+					<div className="flex flex-col gap-2" data-testid="my-crew-filter-sort-section">
 						<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
 							{t("myCrewPage.filterSheet.sortLabel")}
 						</p>
@@ -143,10 +145,7 @@ export default function MyCrewFilterSheet({
 					</div>
 
 					{/* Type filter section — always shows all three scope options including team shared */}
-					<div
-						className="flex flex-col gap-2"
-						data-testid="my-crew-filter-type-section"
-					>
+					<div className="flex flex-col gap-2" data-testid="my-crew-filter-type-section">
 						<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
 							{t("myCrewPage.filterSheet.typeLabel")}
 						</p>
@@ -173,7 +172,7 @@ export default function MyCrewFilterSheet({
 							/>
 						</div>
 					</div>
-				</div>
+				</ScrollEdgeFadeContainer>
 			</SheetContent>
 		</Sheet>
 	)

@@ -1,6 +1,7 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { Check, ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import {
@@ -102,16 +103,7 @@ function MobileTrashRestorePickerSheet(props: MobileTrashRestorePickerSheetProps
 	const [workspaceId, setWorkspaceId] = useState<string | null>(null)
 	const [projectId, setProjectId] = useState<string | null>(null)
 
-	const scrollRef = useRef<HTMLDivElement>(null)
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(false)
-
-	const updateMasks = useCallback(() => {
-		const el = scrollRef.current
-		if (!el) return
-		setShowTopMask(el.scrollTop > 4)
-		setShowBottomMask(el.scrollTop + el.clientHeight < el.scrollHeight - 4)
-	}, [])
+	const scrollPortRef = useRef<HTMLDivElement | null>(null)
 
 	useEffect(() => {
 		if (!open) return
@@ -122,9 +114,10 @@ function MobileTrashRestorePickerSheet(props: MobileTrashRestorePickerSheetProps
 
 	useEffect(() => {
 		if (!open) return
-		const id = requestAnimationFrame(updateMasks)
-		return () => cancelAnimationFrame(id)
-	}, [open, updateMasks, step, workspaceId, projects.length])
+		if (scrollPortRef.current) {
+			scrollPortRef.current.scrollTop = 0
+		}
+	}, [open, step, workspaceId])
 
 	const canConfirm = needsProject ? projectId !== null : workspaceId !== null
 
@@ -252,56 +245,39 @@ function MobileTrashRestorePickerSheet(props: MobileTrashRestorePickerSheetProps
 					{stepTitle}
 				</p>
 
-				<div className="relative min-h-0 flex-1 overflow-hidden">
-					<div
-						ref={scrollRef}
-						onScroll={updateMasks}
-						className="no-scrollbar max-h-[50vh] overflow-y-auto px-[10px] pb-6 pt-2"
-					>
-						{step === "workspace" ? (
-							workspaces.length === 0 ? (
-								<div className="flex items-center justify-center rounded-lg bg-card py-10">
-									<p className="text-center text-[14px] text-muted-foreground">
-										{t("mobile.recycleBin.selectPathTopic.noWorkspace")}
-									</p>
-								</div>
-							) : (
-								<div className="overflow-hidden rounded-lg bg-card">
-									{workspaceRows}
-								</div>
-							)
-						) : isProjectsLoading && projects.length === 0 ? (
-							<div className="flex items-center justify-center rounded-lg bg-card py-10">
-								<Spinner className="size-6 text-muted-foreground" />
-							</div>
-						) : projects.length === 0 ? (
+				<ScrollEdgeFadeContainer
+					fadeColor="muted"
+					className="max-h-[50vh] min-h-0 flex-1"
+					scrollClassName="no-scrollbar flex flex-col px-[10px] pb-6 pt-2"
+					scrollPortRef={scrollPortRef}
+					contentDeps={[step, workspaceId, projects.length, workspaces.length]}
+				>
+					{step === "workspace" ? (
+						workspaces.length === 0 ? (
 							<div className="flex items-center justify-center rounded-lg bg-card py-10">
 								<p className="text-center text-[14px] text-muted-foreground">
-									{t("mobile.recycleBin.restorePicker.emptyProjects")}
+									{t("mobile.recycleBin.selectPathTopic.noWorkspace")}
 								</p>
 							</div>
 						) : (
-							<div className="overflow-hidden rounded-lg bg-card">{projectRows}</div>
-						)}
-					</div>
-
-					<div
-						className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
-						style={{
-							background:
-								"linear-gradient(to bottom, var(--background) 0%, transparent 100%)",
-							opacity: showTopMask ? 1 : 0,
-						}}
-					/>
-					<div
-						className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
-						style={{
-							background:
-								"linear-gradient(to top, var(--background) 0%, transparent 100%)",
-							opacity: showBottomMask ? 1 : 0,
-						}}
-					/>
-				</div>
+							<div className="overflow-hidden rounded-lg bg-card">
+								{workspaceRows}
+							</div>
+						)
+					) : isProjectsLoading && projects.length === 0 ? (
+						<div className="flex items-center justify-center rounded-lg bg-card py-10">
+							<Spinner className="size-6 text-muted-foreground" />
+						</div>
+					) : projects.length === 0 ? (
+						<div className="flex items-center justify-center rounded-lg bg-card py-10">
+							<p className="text-center text-[14px] text-muted-foreground">
+								{t("mobile.recycleBin.restorePicker.emptyProjects")}
+							</p>
+						</div>
+					) : (
+						<div className="overflow-hidden rounded-lg bg-card">{projectRows}</div>
+					)}
+				</ScrollEdgeFadeContainer>
 			</SheetContent>
 		</Sheet>
 	)

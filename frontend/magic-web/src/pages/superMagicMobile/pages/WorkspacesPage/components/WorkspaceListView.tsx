@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { observer } from "mobx-react-lite"
 import { ChevronRight, Ellipsis, Pin, PinOff, Plus, Share2, Trash2 } from "lucide-react"
 import { MobileResourceListSkeletonList } from "@/pages/superMagicMobile/components/skeletons"
@@ -17,6 +17,7 @@ import {
 } from "@/pages/superMagicMobile/components/MobileShell"
 import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 
 interface WorkspaceItemProps {
 	workspace: Workspace
@@ -185,25 +186,10 @@ function WorkspaceListViewInner({
 	 */
 	const pullToRefreshStretchClassName =
 		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
-	const scrollRef = useRef<HTMLDivElement>(null)
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(true)
 	// 同时只允许一行处于左滑展开状态
 	const [openItemId, setOpenItemId] = useState<string | null>(null)
 	// 共享工作区入口在重构版中改为更短的说明文案，避免列表首项副标题过长挤压布局。
 	const sharedWorkspaceDescription = t("workspace.collaborationProjectsDescV2")
-
-	const updateMasks = useCallback(() => {
-		const el = scrollRef.current
-		if (!el) return
-		setShowTopMask(el.scrollTop > 4)
-		setShowBottomMask(el.scrollTop + el.clientHeight < el.scrollHeight - 4)
-	}, [])
-
-	useEffect(() => {
-		const frame = requestAnimationFrame(updateMasks)
-		return () => cancelAnimationFrame(frame)
-	}, [updateMasks, workspaces.length])
 
 	return (
 		<div className="flex h-full min-h-0 flex-col bg-mobile-background">
@@ -228,14 +214,14 @@ function WorkspaceListViewInner({
 			</div>
 
 			{/* Scrollable list */}
-			<div
-				id="workspaces-list-scroll-container"
-				ref={scrollRef}
-				onScroll={updateMasks}
-				className="relative min-h-0 flex-1 overflow-y-auto"
+			<ScrollEdgeFadeContainer
+				fadeColor="mobile-background"
+				className="min-h-0 flex-1"
+				contentDeps={[workspaces.length, isLoading, isWorkspaceEmpty, isSearchEmpty]}
 			>
 				{/* 对齐对话页的单层滚动结构，让下拉提示固定出现在标题栏下方。 */}
 				<MagicPullToRefresh
+					embedInParentScroll
 					onRefresh={onRefresh}
 					showSuccessMessage={false}
 					containerClassName={cn(
@@ -318,26 +304,7 @@ function WorkspaceListViewInner({
 						)}
 					</div>
 				</MagicPullToRefresh>
-
-				{/* Top mask */}
-				<div
-					className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to bottom, var(--mobile-background) 0%, transparent 100%)",
-						opacity: showTopMask ? 1 : 0,
-					}}
-				/>
-				{/* Bottom mask */}
-				<div
-					className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to top, var(--mobile-background) 0%, transparent 100%)",
-						opacity: showBottomMask ? 1 : 0,
-					}}
-				/>
-			</div>
+			</ScrollEdgeFadeContainer>
 
 			{/* 底部搜索条抽成通用 UI 组件后，列表页只保留搜索值和文案等业务输入。 */}
 			<MobileBottomSearchBar

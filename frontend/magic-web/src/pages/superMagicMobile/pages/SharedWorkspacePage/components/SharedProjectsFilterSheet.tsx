@@ -3,6 +3,7 @@ import { Check, ChevronLeft, ChevronRight, RotateCcw, UserPlus, X } from "lucide
 import { useTranslation } from "react-i18next"
 
 import MagicPopup from "@/components/base-mobile/MagicPopup"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 
 import type { SharedWorkspaceCreatorOption, SharedWorkspaceTab } from "../types"
 
@@ -180,85 +181,96 @@ export function SharedProjectsFilterSheet({
 					: undefined
 			}
 			className="max-h-[78vh] gap-0 rounded-t-[14px] border-0 bg-muted p-0"
-			bodyClassName="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-[10px] pb-5 pt-2"
+			bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
 			data-testid="shared-projects-filter-sheet"
 		>
-			{view === "creatorPicker" ? (
-				<MenuGroup>
-					{availableCreators.map((creator, index) => (
-						<div key={creator.id}>
-							{index > 0 ? <Divider /> : null}
-							<SelectRow
-								label={creator.name}
-								selected={selectedCreatorIds.includes(creator.id)}
-								onClick={() => onCreatorToggle(creator.id)}
-								leadingSlot={<CreatorAvatar creator={creator} />}
-								testId={`shared-projects-filter-creator-${creator.id}`}
-							/>
-						</div>
-					))}
-				</MenuGroup>
-			) : (
-				<>
-					{tab === "sharedWithMe" && availableCreators.length > 0 ? (
-						<div className="flex flex-col gap-2">
-							<SectionLabel>{t("sharedProjects.filter.creatorLabel")}</SectionLabel>
-							<MenuGroup>
-								{selectedCreators.length > 0 ? (
-									<>
-										<div className="flex flex-wrap gap-2 px-[14px] py-3">
-											{selectedCreators.map((creator) => (
-												<div
-													key={creator.id}
-													className="flex items-center gap-1.5 rounded-full bg-primary/10 py-1 pl-1.5 pr-2"
-													data-testid={`shared-projects-filter-creator-chip-${creator.id}`}
-												>
-													<CreatorAvatar creator={creator} />
-													<span className="text-[13px] leading-none text-foreground">
-														{creator.name}
-													</span>
-													<button
-														type="button"
-														onClick={() => onCreatorRemove(creator.id)}
-														className="flex size-4 items-center justify-center active:opacity-60"
-														aria-label={t(
-															"sharedProjects.filter.removeCreator",
-															{
-																name: creator.name,
-															},
-														)}
-														data-testid={`shared-projects-filter-creator-remove-${creator.id}`}
+			<ScrollEdgeFadeContainer
+				fadeColor="muted"
+				className="min-h-0 flex-1"
+				scrollClassName="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 px-[10px] pb-5 pt-2"
+				contentDeps={[view, availableCreators.length, selectedCreatorIds.length]}
+			>
+				{view === "creatorPicker" ? (
+					<MenuGroup>
+						{availableCreators.map((creator, index) => (
+							<div key={creator.id}>
+								{index > 0 ? <Divider /> : null}
+								<SelectRow
+									label={creator.name}
+									selected={selectedCreatorIds.includes(creator.id)}
+									onClick={() => onCreatorToggle(creator.id)}
+									leadingSlot={<CreatorAvatar creator={creator} />}
+									testId={`shared-projects-filter-creator-${creator.id}`}
+								/>
+							</div>
+						))}
+					</MenuGroup>
+				) : (
+					<>
+						{tab === "sharedWithMe" && availableCreators.length > 0 ? (
+							<div className="flex flex-col gap-2">
+								<SectionLabel>
+									{t("sharedProjects.filter.creatorLabel")}
+								</SectionLabel>
+								<MenuGroup>
+									{selectedCreators.length > 0 ? (
+										<>
+											<div className="flex flex-wrap gap-2 px-[14px] py-3">
+												{selectedCreators.map((creator) => (
+													<div
+														key={creator.id}
+														className="flex items-center gap-1.5 rounded-full bg-primary/10 py-1 pl-1.5 pr-2"
+														data-testid={`shared-projects-filter-creator-chip-${creator.id}`}
 													>
-														<X className="size-3 text-muted-foreground" />
-													</button>
-												</div>
-											))}
-										</div>
-										<Divider />
-									</>
-								) : null}
+														<CreatorAvatar creator={creator} />
+														<span className="text-[13px] leading-none text-foreground">
+															{creator.name}
+														</span>
+														<button
+															type="button"
+															onClick={() =>
+																onCreatorRemove(creator.id)
+															}
+															className="flex size-4 items-center justify-center active:opacity-60"
+															aria-label={t(
+																"sharedProjects.filter.removeCreator",
+																{
+																	name: creator.name,
+																},
+															)}
+															data-testid={`shared-projects-filter-creator-remove-${creator.id}`}
+														>
+															<X className="size-3 text-muted-foreground" />
+														</button>
+													</div>
+												))}
+											</div>
+											<Divider />
+										</>
+									) : null}
 
-								<button
-									type="button"
-									onClick={() => setView("creatorPicker")}
-									className="flex h-12 w-full items-center gap-3 bg-transparent px-[14px] transition-opacity active:opacity-60"
-									data-testid="shared-projects-filter-add-creator"
-								>
-									<div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground">
-										<UserPlus className="size-3.5 text-muted-foreground" />
-									</div>
-									<span className="flex-1 text-left text-[16px] leading-5 text-muted-foreground">
-										{selectedCreators.length > 0
-											? t("sharedProjects.filter.addMoreCreators")
-											: t("sharedProjects.filter.addCreator")}
-									</span>
-									<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-								</button>
-							</MenuGroup>
-						</div>
-					) : null}
-				</>
-			)}
+									<button
+										type="button"
+										onClick={() => setView("creatorPicker")}
+										className="flex h-12 w-full items-center gap-3 bg-transparent px-[14px] transition-opacity active:opacity-60"
+										data-testid="shared-projects-filter-add-creator"
+									>
+										<div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground">
+											<UserPlus className="size-3.5 text-muted-foreground" />
+										</div>
+										<span className="flex-1 text-left text-[16px] leading-5 text-muted-foreground">
+											{selectedCreators.length > 0
+												? t("sharedProjects.filter.addMoreCreators")
+												: t("sharedProjects.filter.addCreator")}
+										</span>
+										<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+									</button>
+								</MenuGroup>
+							</div>
+						) : null}
+					</>
+				)}
+			</ScrollEdgeFadeContainer>
 		</MagicPopup>
 	)
 }

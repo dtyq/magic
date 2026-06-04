@@ -9,6 +9,7 @@ import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
 import ProjectTopicsEmptyState from "./components/ProjectTopicsEmptyState"
 import TopicItemSkeleton from "./components/TopicItemSkeleton"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import SuperMagicService from "@/pages/superMagic/services"
 import { formatRelativeTime } from "@/utils/string"
 import { cn } from "@/lib/utils"
@@ -192,6 +193,7 @@ const ProjectPageMain = observer(function ProjectPageMain({
 	})
 
 	const isTopicsEmpty = !loading && processedTopics.length === 0
+	const shouldStretchPullToRefresh = isTopicsEmpty
 
 	/*
 	 * antd-mobile PullToRefresh content height follows children only; stretch PTR + content
@@ -201,45 +203,52 @@ const ProjectPageMain = observer(function ProjectPageMain({
 		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
 
 	return (
-		<MagicPullToRefresh
-			onRefresh={handleRefreshTopics}
-			showSuccessMessage={false}
-			containerClassName={cn(
-				"h-full min-h-0 w-full",
-				isTopicsEmpty ? cn("!overflow-hidden", pullToRefreshStretchClassName) : "flex-1",
-				className,
-			)}
+		<ScrollEdgeFadeContainer
+			fadeColor="mobile-background"
+			className={cn("min-h-0 flex-1", className)}
+			contentDeps={[processedTopics.length, loading, isTopicsEmpty, selectedProject?.id]}
 		>
-			{loading ? (
-				<div className="flex w-full flex-col gap-1 pt-0">
-					<TopicItemSkeleton />
-					<TopicItemSkeleton />
-					<TopicItemSkeleton />
-					<TopicItemSkeleton />
-				</div>
-			) : isTopicsEmpty ? (
-				<div className="flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center px-3 text-center">
-					<ProjectTopicsEmptyState />
-				</div>
-			) : (
-				<div className="flex w-full flex-col gap-1 pt-0">
-					{processedTopics.map((item) => (
-						<TopicItemComponent
-							key={item.id}
-							item={item}
-							setSelectedTopic={onSwitchSuperMagicChat}
-							timeLabel={formatTopicTimeLabel(item)}
-							isSwipeOpen={openItemId === item.id}
-							onSwipeOpen={() => setOpenItemId(item.id)}
-							onSwipeClose={() => setOpenItemId(null)}
-							onMore={handleTopicMore}
-							onPin={handleTopicPin}
-							onDelete={handleTopicDelete}
-						/>
-					))}
-				</div>
-			)}
-		</MagicPullToRefresh>
+			<MagicPullToRefresh
+				embedInParentScroll
+				onRefresh={handleRefreshTopics}
+				showSuccessMessage={false}
+				containerClassName={cn(
+					"relative min-h-0 w-full flex-1",
+					shouldStretchPullToRefresh &&
+						cn("!overflow-hidden", pullToRefreshStretchClassName),
+				)}
+			>
+				{loading ? (
+					<div className="flex w-full flex-col gap-1 pt-0">
+						<TopicItemSkeleton />
+						<TopicItemSkeleton />
+						<TopicItemSkeleton />
+						<TopicItemSkeleton />
+					</div>
+				) : isTopicsEmpty ? (
+					<div className="flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center px-3 text-center">
+						<ProjectTopicsEmptyState />
+					</div>
+				) : (
+					<div className="flex w-full flex-col gap-1 pt-0">
+						{processedTopics.map((item) => (
+							<TopicItemComponent
+								key={item.id}
+								item={item}
+								setSelectedTopic={onSwitchSuperMagicChat}
+								timeLabel={formatTopicTimeLabel(item)}
+								isSwipeOpen={openItemId === item.id}
+								onSwipeOpen={() => setOpenItemId(item.id)}
+								onSwipeClose={() => setOpenItemId(null)}
+								onMore={handleTopicMore}
+								onPin={handleTopicPin}
+								onDelete={handleTopicDelete}
+							/>
+						))}
+					</div>
+				)}
+			</MagicPullToRefresh>
+		</ScrollEdgeFadeContainer>
 	)
 })
 

@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/shadcn-ui/button"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
+import type { ScrollEdgeFadeColor } from "@/components/base-mobile/ScrollEdgeFade"
 import { cn } from "@/lib/utils"
 import type { OverlayZIndexScope } from "@/utils/overlayZIndex/overlayStackManager"
 
@@ -10,6 +12,12 @@ import {
 	MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
 	MOBILE_SETTINGS_SHEET_Z_INDEX,
 } from "../constants"
+
+/** Scroll-edge fade options for settings sheet content (long lists inside MagicPopup). */
+export interface MobileSettingsSheetScrollEdgeFadeConfig {
+	fadeColor?: ScrollEdgeFadeColor
+	contentDeps?: readonly unknown[]
+}
 
 /** 统一设置浮层头部的圆形图标按钮，避免关闭与确认入口重复维护定位、尺寸和阴影。 */
 function MobileSettingsHeaderIconButton(props: {
@@ -62,6 +70,8 @@ export function MobileSettingsSheetContainer(props: {
 	zIndexScope?: OverlayZIndexScope
 	zIndexManaged?: boolean
 	contentClassName?: string
+	/** When set, wraps children in ScrollEdgeFadeContainer (prototype sheet list fades). */
+	scrollEdgeFade?: false | MobileSettingsSheetScrollEdgeFadeConfig
 	/**
 	 * 兼容保留：vaul Drawer 的遮罩点击已基于 z-index 分层处理，
 	 * 高层级 Portal（如付费弹窗）不会触发底层 Drawer 的关闭，
@@ -87,10 +97,38 @@ export function MobileSettingsSheetContainer(props: {
 		zIndexScope,
 		zIndexManaged = true,
 		contentClassName,
+		scrollEdgeFade = false,
 		children,
 		dataTestId,
 	} = props
 	const { t } = useTranslation("interface")
+
+	const resolvedContentClassName =
+		contentClassName ?? "gap-3 px-4 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-1"
+
+	const scrollBody =
+		scrollEdgeFade === false ? (
+			<div
+				className={cn(
+					"no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto",
+					resolvedContentClassName,
+				)}
+			>
+				{children}
+			</div>
+		) : (
+			<ScrollEdgeFadeContainer
+				fadeColor={scrollEdgeFade.fadeColor ?? "muted"}
+				className="min-h-0 flex-1"
+				scrollClassName={cn(
+					"no-scrollbar flex min-h-0 flex-1 flex-col",
+					resolvedContentClassName,
+				)}
+				contentDeps={scrollEdgeFade.contentDeps}
+			>
+				{children}
+			</ScrollEdgeFadeContainer>
+		)
 
 	return (
 		<MagicPopup
@@ -98,7 +136,7 @@ export function MobileSettingsSheetContainer(props: {
 			onClose={() => onOpenChange(false)}
 			/* 不传 title 给 MagicPopup，避免 sr-only DrawerTitle 与下方可见标题文字重复。 */
 			/* 覆盖 MagicPopup 默认的圆角和背景色，保持设置浮层原有的视觉风格。 */
-			className={cn("bg-muted rounded-t-2xl shadow-2xl shadow-black/10", sheetClassName)}
+			className={cn("rounded-t-2xl bg-muted shadow-2xl shadow-black/10", sheetClassName)}
 			overlayClassName={cn("bg-black/20 backdrop-blur-sm", overlayClassName)}
 			/* 关闭 body 区域自身的滚动，改由内部 content 区域独立控制滚动行为。 */
 			bodyClassName="flex max-h-none min-h-0 flex-1 flex-col overflow-hidden p-0"
@@ -110,7 +148,7 @@ export function MobileSettingsSheetContainer(props: {
 			withSafeBottom={false}
 		>
 			<div className="flex min-h-0 flex-1 flex-col" data-testid={dataTestId}>
-				<div className="mobile-popup-action-header relative flex h-14 w-full shrink-0 items-center justify-center px-16 mb-1">
+				<div className="mobile-popup-action-header relative mb-1 flex h-14 w-full shrink-0 items-center justify-center px-16">
 					{hideCloseButton ? null : (
 						<MobileSettingsHeaderIconButton
 							side="left"
@@ -121,7 +159,7 @@ export function MobileSettingsSheetContainer(props: {
 						</MobileSettingsHeaderIconButton>
 					)}
 
-					<span className="text-foreground max-w-56 truncate text-center text-lg font-semibold leading-6">
+					<span className="max-w-56 truncate text-center text-lg font-semibold leading-6 text-foreground">
 						{title}
 					</span>
 
@@ -140,14 +178,7 @@ export function MobileSettingsSheetContainer(props: {
 					) : null}
 				</div>
 
-				<div
-					className={`no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto ${
-						contentClassName ??
-						"gap-3 px-4 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-1"
-					}`}
-				>
-					{children}
-				</div>
+				{scrollBody}
 			</div>
 		</MagicPopup>
 	)

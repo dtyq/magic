@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react"
 
 const SCROLL_EDGE_THRESHOLD_PX = 4
 
@@ -8,7 +8,8 @@ interface UseScrollEdgeFadeMaskOptions {
 }
 
 interface UseScrollEdgeFadeMaskResult {
-	scrollRef: React.RefObject<HTMLDivElement | null>
+	/** Writable ref for callback-ref merge; useRef(null) is typed as RefObject (readonly current). */
+	scrollRef: MutableRefObject<HTMLDivElement | null>
 	showTopMask: boolean
 	showBottomMask: boolean
 	/** Attach to the scroll container's onScroll when not using ScrollEdgeFadeContainer. */
@@ -29,7 +30,8 @@ export function useScrollEdgeFadeMask(
 	options: UseScrollEdgeFadeMaskOptions = {},
 ): UseScrollEdgeFadeMaskResult {
 	const { contentDeps = [] } = options
-	const scrollRef = useRef<HTMLDivElement | null>(null)
+	// Assert mutable: hook assigns .current from ScrollEdgeFadeContainer's merged callback ref.
+	const scrollRef = useRef<HTMLDivElement | null>(null) as MutableRefObject<HTMLDivElement | null>
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(true)
 	const showTopMaskRef = useRef(false)

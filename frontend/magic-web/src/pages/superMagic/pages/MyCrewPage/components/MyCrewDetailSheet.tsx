@@ -2,14 +2,14 @@ import {
 	Building2,
 	CalendarDays,
 	MessageCircle,
-	MessageCircleOff,
 	RefreshCw,
 	TriangleAlert,
 	User,
 	X,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import { useTimezone } from "@/providers/TimezoneProvider/hooks"
 import { normalizeLocale } from "@/utils/locale"
@@ -272,9 +272,7 @@ export default function MyCrewDetailSheet({
 }: MyCrewDetailSheetProps) {
 	const { t, i18n } = useTranslation("crew/market")
 	const { timezone } = useTimezone()
-	const scrollRef = useRef<HTMLDivElement | null>(null)
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(false)
+	const scrollPortRef = useRef<HTMLDivElement | null>(null)
 	const lastEmployeeRef = useRef<CrewDetailSheetEmployee | null>(null)
 	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 	const displayEmployee = employee ?? lastEmployeeRef.current!
@@ -302,23 +300,13 @@ export default function MyCrewDetailSheet({
 	}, [displayEmployee, presentationSource, t])
 	const isUnpublished = displayEmployee ? isUnpublishedCreatedCrew(displayEmployee) : false
 
-	// 滚动渐变遮罩用于维持原型里详情抽屉的层次反馈，但不改变内容布局。
-	const updateMasks = useCallback(() => {
-		const element = scrollRef.current
-		if (!element) return
-		setShowTopMask(element.scrollTop > 4)
-		setShowBottomMask(element.scrollTop + element.clientHeight < element.scrollHeight - 4)
-	}, [])
-
 	// 每次打开详情都重置滚动位置，避免上一个员工的滚动状态泄漏到当前抽屉。
 	useEffect(() => {
 		if (!open) return
-		if (scrollRef.current) {
-			scrollRef.current.scrollTop = 0
+		if (scrollPortRef.current) {
+			scrollPortRef.current.scrollTop = 0
 		}
-		const frame = requestAnimationFrame(updateMasks)
-		return () => cancelAnimationFrame(frame)
-	}, [open, updateMasks, displayEmployee?.agentCode])
+	}, [open, displayEmployee?.agentCode])
 
 	// 详情主 CTA 继续承接既有聊天跳转能力，保持视觉更新但不改业务链路。
 	function handleChat() {
@@ -370,122 +358,101 @@ export default function MyCrewDetailSheet({
 					</div>
 				) : null}
 
-				<div className="relative min-h-0 flex-1">
-					<div
-						ref={scrollRef}
-						className="no-scrollbar absolute inset-0 flex flex-col gap-2.5 overflow-y-auto px-[10px] pb-4 pt-2"
-						onScroll={updateMasks}
-					>
-						{displayEmployee ? (
-							<>
-								<div className="relative flex flex-col items-center gap-3 px-4 py-6">
-									<div className="absolute right-3 top-3">
-										<SourceBadge
-											source={presentationSource}
-											label={sourceLabel}
-										/>
-									</div>
+				<ScrollEdgeFadeContainer
+					fadeColor="muted"
+					className="min-h-0 flex-1"
+					scrollClassName="no-scrollbar flex flex-col gap-2.5 px-[10px] pb-4 pt-2"
+					scrollPortRef={scrollPortRef}
+					contentDeps={[displayEmployee?.agentCode, displayEmployee?.playbooks.length]}
+				>
+					{displayEmployee ? (
+						<>
+							<div className="relative flex flex-col items-center gap-3 px-4 py-6">
+								<div className="absolute right-3 top-3">
+									<SourceBadge source={presentationSource} label={sourceLabel} />
+								</div>
 
-									<MyCrewAvatar
-										employee={displayEmployee}
-										sizeClassName="h-20 w-20"
-										fallbackTextClassName="text-[26px] font-semibold text-white"
-										className="h-20 w-20 overflow-hidden rounded-full border-[3px] border-background"
-										style={{ boxShadow: "0px 8px 24px 0px rgba(0,0,0,0.20)" }}
-										testId="my-crew-detail-sheet-avatar"
-									/>
+								<MyCrewAvatar
+									employee={displayEmployee}
+									sizeClassName="h-20 w-20"
+									fallbackTextClassName="text-[26px] font-semibold text-white"
+									className="h-20 w-20 overflow-hidden rounded-full border-[3px] border-background"
+									style={{ boxShadow: "0px 8px 24px 0px rgba(0,0,0,0.20)" }}
+									testId="my-crew-detail-sheet-avatar"
+								/>
 
-									<div className="flex flex-col items-center gap-2">
-										<p
-											className="line-clamp-2 text-center text-[20px] font-bold leading-tight text-foreground"
-											data-testid="my-crew-detail-sheet-title"
-										>
-											{displayEmployee.name?.trim() ||
-												t("detailDialog.emptyName")}
-										</p>
-										{displayEmployee.role?.trim() ? (
-											<span className="inline-flex h-5 max-w-[80%] items-center overflow-hidden rounded-full bg-primary/10 px-2 text-[11px] font-medium leading-none text-primary">
-												<span className="truncate">
-													{displayEmployee.role.trim()}
-												</span>
+								<div className="flex flex-col items-center gap-2">
+									<p
+										className="line-clamp-2 text-center text-[20px] font-bold leading-tight text-foreground"
+										data-testid="my-crew-detail-sheet-title"
+									>
+										{displayEmployee.name?.trim() ||
+											t("detailDialog.emptyName")}
+									</p>
+									{displayEmployee.role?.trim() ? (
+										<span className="inline-flex h-5 max-w-[80%] items-center overflow-hidden rounded-full bg-primary/10 px-2 text-[11px] font-medium leading-none text-primary">
+											<span className="truncate">
+												{displayEmployee.role.trim()}
 											</span>
-										) : null}
-									</div>
+										</span>
+									) : null}
 								</div>
+							</div>
 
-								<div className="flex flex-col gap-2">
-									<SectionLabel>{t("myCrewPage.detailSheet.about")}</SectionLabel>
-									<div className="rounded-lg bg-card px-[14px] py-3">
-										<p className="text-[15px] leading-[1.6] text-foreground">
-											{displayEmployee.description?.trim() ||
-												t("interface:appList.noDescription")}
-										</p>
-									</div>
+							<div className="flex flex-col gap-2">
+								<SectionLabel>{t("myCrewPage.detailSheet.about")}</SectionLabel>
+								<div className="rounded-lg bg-card px-[14px] py-3">
+									<p className="text-[15px] leading-[1.6] text-foreground">
+										{displayEmployee.description?.trim() ||
+											t("interface:appList.noDescription")}
+									</p>
 								</div>
+							</div>
 
-								{displayEmployee.playbooks.length > 0 ? (
-									<div className="flex flex-col gap-2">
-										<SectionLabel>
-											{t("myCrewPage.detailSheet.capabilities")}
-										</SectionLabel>
-										<div className="rounded-lg bg-card px-[14px] py-3">
-											<div className="flex flex-wrap gap-2">
-												{displayEmployee.playbooks.map((playbook, i) => {
-													// 优先使用服务端下发的主题色，降级至 indigo (#6366f1)，与 EmployeeCardMobile CapChip 保持一致
-													const chipColor =
-														playbook.themeColor ?? "#6366f1"
-													return (
-														<span
-															key={`${playbook.name}-${i}`}
-															className="inline-flex items-center rounded-full px-3 py-1 text-[13px] font-medium leading-none"
-															style={{
-																color: chipColor,
-																backgroundColor: `${chipColor}1a`,
-															}}
-														>
-															{playbook.name}
-														</span>
-													)
-												})}
-											</div>
-										</div>
-									</div>
-								) : null}
-
+							{displayEmployee.playbooks.length > 0 ? (
 								<div className="flex flex-col gap-2">
 									<SectionLabel>
-										{t("myCrewPage.detailSheet.info.label")}
+										{t("myCrewPage.detailSheet.capabilities")}
 									</SectionLabel>
-									<div className="overflow-hidden rounded-lg bg-card">
-										<MyCrewInfoSection
-											employee={displayEmployee}
-											source={presentationSource}
-											language={i18n.language}
-											timezone={timezone}
-										/>
+									<div className="rounded-lg bg-card px-[14px] py-3">
+										<div className="flex flex-wrap gap-2">
+											{displayEmployee.playbooks.map((playbook, i) => {
+												// 优先使用服务端下发的主题色，降级至 indigo (#6366f1)，与 EmployeeCardMobile CapChip 保持一致
+												const chipColor = playbook.themeColor ?? "#6366f1"
+												return (
+													<span
+														key={`${playbook.name}-${i}`}
+														className="inline-flex items-center rounded-full px-3 py-1 text-[13px] font-medium leading-none"
+														style={{
+															color: chipColor,
+															backgroundColor: `${chipColor}1a`,
+														}}
+													>
+														{playbook.name}
+													</span>
+												)
+											})}
+										</div>
 									</div>
 								</div>
-							</>
-						) : null}
-					</div>
+							) : null}
 
-					<div
-						className="pointer-events-none absolute inset-x-0 top-0 h-8 transition-opacity duration-200"
-						style={{
-							background:
-								"linear-gradient(to bottom, var(--color-muted) 0%, transparent 100%)",
-							opacity: showTopMask ? 1 : 0,
-						}}
-					/>
-					<div
-						className="pointer-events-none absolute inset-x-0 bottom-0 h-12 transition-opacity duration-200"
-						style={{
-							background:
-								"linear-gradient(to top, var(--color-muted) 0%, transparent 100%)",
-							opacity: showBottomMask ? 1 : 0,
-						}}
-					/>
-				</div>
+							<div className="flex flex-col gap-2">
+								<SectionLabel>
+									{t("myCrewPage.detailSheet.info.label")}
+								</SectionLabel>
+								<div className="overflow-hidden rounded-lg bg-card">
+									<MyCrewInfoSection
+										employee={displayEmployee}
+										source={presentationSource}
+										language={i18n.language}
+										timezone={timezone}
+									/>
+								</div>
+							</div>
+						</>
+					) : null}
+				</ScrollEdgeFadeContainer>
 
 				<div
 					className="shrink-0 px-[10px] pt-2"

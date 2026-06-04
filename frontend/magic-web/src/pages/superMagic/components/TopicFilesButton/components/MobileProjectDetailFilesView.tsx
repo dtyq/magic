@@ -1,5 +1,6 @@
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import MagicFileIcon from "@/components/base/MagicFileIcon"
 import magicToast from "@/components/base/MagicToaster/utils"
 import MobilePathBreadcrumb from "@/pages/superMagic/components/MobilePathBreadcrumb"
@@ -926,18 +927,48 @@ function MobileProjectDetailFilesView({
 				/>
 			)}
 
-			<div className="relative min-h-0 flex-1">
-				<MagicPullToRefresh
-					onRefresh={async () => {
-						await onRefresh?.()
-					}}
-					showSuccessMessage={false}
-					disabled={!onRefresh}
-					containerClassName="relative min-h-0 flex-1"
+			{/* flex-col shell so ScrollEdgeFade flex-1 gets a bounded height (same as MobileFilesMoveSheet). */}
+			<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+				<ScrollEdgeFadeContainer
+					fadeColor="mobile-background"
+					className="min-h-0 flex-1"
+					scrollClassName="no-scrollbar"
+					contentDeps={[
+						attachments.length,
+						folders.length,
+						files.length,
+						searchResults.length,
+						searchValue,
+						refreshLoading,
+						hasSelection,
+					]}
 				>
-					<div className="flex min-h-full flex-col pb-24">
-						{isSearching ? (
-							searchResults.length === 0 ? (
+					<MagicPullToRefresh
+						embedInParentScroll
+						onRefresh={async () => {
+							await onRefresh?.()
+						}}
+						showSuccessMessage={false}
+						disabled={!onRefresh}
+						containerClassName="relative min-h-0 flex-1"
+					>
+						<div className="flex min-h-full flex-col pb-24">
+							{isSearching ? (
+								searchResults.length === 0 ? (
+									renderEmptyState()
+								) : (
+									<div
+										className={cn(
+											"flex flex-col gap-2",
+											isChatSheetVariant ? "px-[10px] py-2.5" : "py-2",
+										)}
+									>
+										{searchResults.map((result) =>
+											renderFileRow(result.item, result.pathLabel || "/"),
+										)}
+									</div>
+								)
+							) : folders.length === 0 && files.length === 0 ? (
 								renderEmptyState()
 							) : (
 								<div
@@ -946,42 +977,29 @@ function MobileProjectDetailFilesView({
 										isChatSheetVariant ? "px-[10px] py-2.5" : "py-2",
 									)}
 								>
-									{searchResults.map((result) =>
-										renderFileRow(result.item, result.pathLabel || "/"),
-									)}
+									{folders.map((item) => renderFolderRow(item))}
+									{files.map((item) => renderFileRow(item))}
 								</div>
-							)
-						) : folders.length === 0 && files.length === 0 ? (
-							renderEmptyState()
-						) : (
-							<div
-								className={cn(
-									"flex flex-col gap-2",
-									isChatSheetVariant ? "px-[10px] py-2.5" : "py-2",
-								)}
-							>
-								{folders.map((item) => renderFolderRow(item))}
-								{files.map((item) => renderFileRow(item))}
-							</div>
-						)}
-					</div>
-				</MagicPullToRefresh>
+							)}
+						</div>
+					</MagicPullToRefresh>
 
-				{/* 添加按钮占据与原型一致的底栏上方位置；进入多选后隐藏，让底部操作区成为唯一主操作。 */}
-				{allowEdit && !hasSelection && (
-					<Button
-						type="button"
-						size="icon"
-						className={cn(
-							"absolute bottom-2 right-2 h-12 w-12 rounded-full bg-foreground text-background shadow-lg hover:bg-foreground/90",
-						)}
-						onClick={() => setAddSheetOpen(true)}
-						aria-label={t("projectDetail.fabFilesAria")}
-						data-testid="project-detail-files-add-button"
-					>
-						<Plus className="size-[22px]" strokeWidth={2} />
-					</Button>
-				)}
+					{/* 添加按钮占据与原型一致的底栏上方位置；进入多选后隐藏，让底部操作区成为唯一主操作。 */}
+					{allowEdit && !hasSelection && (
+						<Button
+							type="button"
+							size="icon"
+							className={cn(
+								"absolute bottom-1 right-2 z-20 h-12 w-12 rounded-full bg-foreground text-background hover:bg-foreground/90",
+							)}
+							onClick={() => setAddSheetOpen(true)}
+							aria-label={t("projectDetail.fabFilesAria")}
+							data-testid="project-detail-files-add-button"
+						>
+							<Plus className="size-[22px]" strokeWidth={2} />
+						</Button>
+					)}
+				</ScrollEdgeFadeContainer>
 			</div>
 
 			<div className="relative shrink-0 bg-mobile-background">
@@ -1004,7 +1022,7 @@ function MobileProjectDetailFilesView({
 						testIdPrefix="project-detail-files-search"
 						className={
 							isChatSheetVariant
-								? "px-[10px] pb-[max(var(--safe-area-inset-bottom),24px)] pt-2.5"
+								? "pb-[max(var(--safe-area-inset-bottom),24px)] pt-2.5"
 								: undefined
 						}
 					/>

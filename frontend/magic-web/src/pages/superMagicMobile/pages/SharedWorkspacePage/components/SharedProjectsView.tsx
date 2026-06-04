@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { ChevronLeft, ChevronRight, ListFilter, Users } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { cn } from "@/lib/utils"
 import { getAvatarUrl } from "@/utils/avatar"
@@ -214,32 +215,10 @@ export function SharedProjectsView({
 	loadMore,
 }: SharedProjectsViewProps) {
 	const { t, i18n } = useTranslation("super")
-	const scrollRef = useRef<HTMLDivElement>(null)
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(false)
 	const shouldStretchPullToRefresh = !isLoading && (isEmpty || isSearchEmpty)
-	/*
-	 * 共享项目页复用对话页的空态策略：只在空态时拉满 PullToRefresh 高度链。
-	 * 正常列表保留默认滚动结构，避免影响分页滚动和下拉刷新时机。
-	 */
+
 	const pullToRefreshStretchClassName =
 		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
-
-	/**
-	 * 根据滚动位置更新上下渐变遮罩，让长列表边界反馈与原型一致。
-	 */
-	const updateMasks = useCallback(() => {
-		const el = scrollRef.current
-		if (!el) return
-
-		setShowTopMask(el.scrollTop > 4)
-		setShowBottomMask(el.scrollTop + el.clientHeight < el.scrollHeight - 4)
-	}, [])
-
-	useEffect(() => {
-		const frame = requestAnimationFrame(updateMasks)
-		return () => cancelAnimationFrame(frame)
-	}, [projects.length, isLoading, isEmpty, isSearchEmpty, updateMasks])
 
 	return (
 		<div
@@ -284,7 +263,7 @@ export function SharedProjectsView({
 				)}
 			</div>
 
-			<div className="shrink-0 px-3 pb-2 pt-3">
+			<div className="relative z-10 shrink-0 px-3 pb-2 pt-3">
 				<div className="relative flex h-9 rounded-full bg-muted p-[3px]">
 					<div
 						className={cn(
@@ -314,14 +293,14 @@ export function SharedProjectsView({
 				</div>
 			</div>
 
-			<div
-				id="shared-projects-scroll-container"
-				ref={scrollRef}
-				onScroll={updateMasks}
-				className="relative min-h-0 flex-1 overflow-y-auto"
+			<ScrollEdgeFadeContainer
+				fadeColor="mobile-background"
+				className="min-h-0 flex-1"
+				contentDeps={[projects.length, isLoading, isEmpty, isSearchEmpty, tab]}
 			>
 				{/* 对齐对话页的单层滚动结构，让下拉提示稳定落在标题与 Tab 之后。 */}
 				<MagicPullToRefresh
+					embedInParentScroll
 					onRefresh={onRefresh}
 					showSuccessMessage={false}
 					containerClassName={cn(
@@ -390,24 +369,7 @@ export function SharedProjectsView({
 						)}
 					</div>
 				</MagicPullToRefresh>
-
-				<div
-					className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to bottom, var(--mobile-background) 0%, transparent 100%)",
-						opacity: showTopMask ? 1 : 0,
-					}}
-				/>
-				<div
-					className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to top, var(--mobile-background) 0%, transparent 100%)",
-						opacity: showBottomMask ? 1 : 0,
-					}}
-				/>
-			</div>
+			</ScrollEdgeFadeContainer>
 
 			<MobileBottomSearchBar
 				value={searchValue}

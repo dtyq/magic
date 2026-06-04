@@ -45,6 +45,12 @@ vi.mock("@/components/base-mobile/MagicPullToRefresh", () => ({
 	default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+vi.mock("@/components/base-mobile/ScrollEdgeFade", () => ({
+	ScrollEdgeFadeContainer: ({ children }: { children: React.ReactNode }) => (
+		<div data-testid="scroll-edge-fade-container">{children}</div>
+	),
+}))
+
 vi.mock("@/components/base-mobile/SwipeActionRow", () => ({
 	SwipeActionRow: ({
 		actions,

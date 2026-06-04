@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useId, useState } from "react"
+import { useState } from "react"
 import { Loader2, MessageCirclePlus } from "lucide-react"
 import { MobileResourceListSkeletonList } from "@/pages/superMagicMobile/components/skeletons"
 import { MobileShellSidebarToggleButton } from "@/pages/superMagicMobile/components/MobileShell"
 import { InfiniteScroll } from "antd-mobile"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { cn } from "@/lib/utils"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
@@ -67,9 +68,6 @@ export function ChatConversationListView({
 	 * 当用户开始滑动另一行时，当前行自动收起（通过 isOpen 变为 false 实现）。
 	 */
 	const [openItemId, setOpenItemId] = useState<string | null>(null)
-	const scrollContainerId = useId()
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(true)
 	/** 仅首屏无数据时展示全屏 loading，操作后静默刷新不遮挡已有列表 */
 	const showInitialLoading = isLoading && items.length === 0
 	const shouldStretchPullToRefresh = !showInitialLoading && (isEmpty || isSearchEmpty)
@@ -79,31 +77,6 @@ export function ChatConversationListView({
 	 */
 	const pullToRefreshStretchClassName =
 		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
-
-	/**
-	 * 顶底遮罩直接跟随真实滚动容器，保留原型里列表“还能继续滚”的视觉提示。
-	 */
-	const updateMasks = useCallback(() => {
-		const scrollElement = document.getElementById(scrollContainerId)
-		if (!scrollElement) return
-
-		setShowTopMask(scrollElement.scrollTop > 4)
-		setShowBottomMask(
-			scrollElement.scrollTop + scrollElement.clientHeight < scrollElement.scrollHeight - 4,
-		)
-	}, [scrollContainerId])
-
-	useEffect(() => {
-		const scrollElement = document.getElementById(scrollContainerId)
-		if (!scrollElement) return
-
-		updateMasks()
-		scrollElement.addEventListener("scroll", updateMasks, { passive: true })
-
-		return () => {
-			scrollElement.removeEventListener("scroll", updateMasks)
-		}
-	}, [items.length, isLoading, isEmpty, isSearchEmpty, scrollContainerId, updateMasks])
 
 	return (
 		<div
@@ -139,12 +112,13 @@ export function ChatConversationListView({
 				</div>
 			</div>
 
-			{/*
-			 * 真实滚动容器挂 id 供顶底遮罩监听 scroll 事件。
-			 * MagicPullToRefresh 放在内部，antd-mobile PullToRefresh 会在滚到顶时拦截下拉手势。
-			 */}
-			<div id={scrollContainerId} className="relative min-h-0 flex-1 overflow-y-auto">
+			<ScrollEdgeFadeContainer
+				fadeColor="mobile-background"
+				className="min-h-0 flex-1"
+				contentDeps={[items.length, isLoading, isEmpty, isSearchEmpty]}
+			>
 				<MagicPullToRefresh
+					embedInParentScroll
 					onRefresh={onRefresh}
 					containerClassName={cn(
 						"relative min-h-0 flex-1",
@@ -197,24 +171,7 @@ export function ChatConversationListView({
 						) : null}
 					</div>
 				</MagicPullToRefresh>
-
-				<div
-					className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to bottom, var(--mobile-background) 0%, transparent 100%)",
-						opacity: showTopMask ? 1 : 0,
-					}}
-				/>
-				<div
-					className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to top, var(--mobile-background) 0%, transparent 100%)",
-						opacity: showBottomMask ? 1 : 0,
-					}}
-				/>
-			</div>
+			</ScrollEdgeFadeContainer>
 
 			{/* 搜索条走后端 keyword 模糊查询，这里只负责输入与展示。 */}
 			<MobileBottomSearchBar

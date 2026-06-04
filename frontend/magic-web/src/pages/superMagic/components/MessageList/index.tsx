@@ -1,5 +1,19 @@
 import { useMemoizedFn } from "ahooks"
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import {
+	type MutableRefObject,
+	type ReactNode,
+	type Ref,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react"
+import {
+	ScrollEdgeFadeOverlays,
+	useScrollEdgeFadeMask,
+	type ScrollEdgeFadeColor,
+} from "@/components/base-mobile/ScrollEdgeFade"
 import LoadingMessage from "../LoadingMessage"
 import Empty from "./components/Empty"
 import BackToLatestButton from "./components/BackToLatestButton"
@@ -56,6 +70,31 @@ interface MessageListProps {
 	backToLatestButtonClassName?: string
 	enableRevokedUserMessageReedit?: boolean
 	topicModelStore?: ReturnType<typeof createSuperMagicTopicModelStore>
+	/** Optional ref to the ScrollArea viewport (mobile TopicPage scroll coordination). */
+	viewportRef?: Ref<HTMLDivElement | null>
+	/**
+	 * Top/bottom scroll edge fade on mobile (prototype ChatScreen).
+	 * Pass `false` to disable; default enables on mobile when not share.
+	 */
+	scrollEdgeFade?: boolean | { fadeColor?: ScrollEdgeFadeColor }
+}
+
+/**
+ * Writes the same scroll viewport element into every provided ref callback/object.
+ */
+function assignScrollViewportRef(
+	element: HTMLDivElement | null,
+	...refs: Array<Ref<HTMLDivElement | null> | undefined>
+) {
+	for (const ref of refs) {
+		if (!ref) continue
+		if (typeof ref === "function") {
+			ref(element)
+			continue
+		}
+		// RefObject.current is readonly in types; callers pass useRef() which is mutable at runtime.
+		;(ref as MutableRefObject<HTMLDivElement | null>).current = element
+	}
 }
 
 // Shared base classes for the revoked-messages action buttons
@@ -87,11 +126,50 @@ const MessageList = observer(
 		backToLatestButtonClassName,
 		enableRevokedUserMessageReedit = false,
 		topicModelStore,
+		viewportRef,
+		scrollEdgeFade,
+		isMessagesLoading,
 	}: MessageListProps) => {
 		const { t } = useTranslation("super")
 		const isMobile = useIsMobile()
 
 		const nodesPanelRef = useRef<HTMLDivElement | null>(null)
+		/** Scroll edge fade is mobile-only; desktop TopicMessagePanel / share pages stay unchanged. */
+		const scrollEdgeFadeConfig = useMemo(() => {
+			if (!isMobile || isShare) return null
+			if (scrollEdgeFade === false) return null
+			if (typeof scrollEdgeFade === "object") {
+				return {
+					fadeColor:
+						scrollEdgeFade.fadeColor ?? ("mobile-background" as ScrollEdgeFadeColor),
+				}
+			}
+			return { fadeColor: "mobile-background" as ScrollEdgeFadeColor }
+		}, [scrollEdgeFade, isMobile, isShare])
+
+		const {
+			scrollRef: fadeScrollRef,
+			showTopMask,
+			showBottomMask,
+		} = useScrollEdgeFadeMask({
+			contentDeps: [
+				data.length,
+				showLoading,
+				isMessagesLoading,
+				isEmptyStatus,
+				selectedTopic?.id,
+			],
+		})
+
+		/** Keeps auto-scroll, edge-fade hook, and optional parent ref on one viewport node. */
+		const setScrollViewportRef = useCallback(
+			(element: HTMLDivElement | null) => {
+				nodesPanelRef.current = element
+				if (scrollEdgeFadeConfig) fadeScrollRef.current = element
+				assignScrollViewportRef(element, viewportRef)
+			},
+			[viewportRef, scrollEdgeFadeConfig, fadeScrollRef],
+		)
 		const renderedMessageKeysRef = useRef<Set<string>>(new Set())
 		const canAnimateNewMessagesRef = useRef(false)
 		const currentTopicKeyRef = useRef<string>("")
@@ -339,7 +417,7 @@ const MessageList = observer(
 							? "[&>[data-slot='scroll-area-viewport']>div:first-child]:mt-[10px]"
 							: "[&>[data-slot='scroll-area-viewport']>div:first-child]:mt-[50px]",
 					)}
-					viewportRef={nodesPanelRef}
+					viewportRef={setScrollViewportRef}
 				>
 					{data.length > 0 || !isEmptyStatus ? (
 						<>
@@ -559,6 +637,13 @@ const MessageList = observer(
 						</div>
 					)}
 				</ScrollArea>
+				{scrollEdgeFadeConfig ? (
+					<ScrollEdgeFadeOverlays
+						fadeColor={scrollEdgeFadeConfig.fadeColor}
+						showTopMask={showTopMask}
+						showBottomMask={showBottomMask}
+					/>
+				) : null}
 				<BackToLatestButton
 					visible={showBackToLatest}
 					className={backToLatestButtonClassName}

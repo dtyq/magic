@@ -1,10 +1,11 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { memo, useCallback, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Check, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { cn } from "@/lib/utils"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { useRecycleBinTabSearchParamsSync } from "@/pages/recycleBin/hooks/useRecycleBinTabSearchParamsSync"
@@ -37,9 +38,6 @@ function MobileRecycleBinPanel() {
 	// 每次下拉刷新时自增，传入 RecycleBinContent 触发重新加载第 1 页
 	const [refreshSignal, setRefreshSignal] = useState(0)
 
-	const scrollRef = useRef<HTMLDivElement>(null)
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(true)
 	/*
 	 * 回收站页参考对话页，仅在空态时补齐 PullToRefresh 高度链。
 	 * 正常列表保持默认滚动结构，避免影响分页滚动与下拉刷新手势。
@@ -50,17 +48,6 @@ function MobileRecycleBinPanel() {
 	const handleRefresh = useCallback(async () => {
 		setRefreshSignal((prev) => prev + 1)
 	}, [])
-
-	const updateMasks = useCallback(() => {
-		const el = scrollRef.current
-		if (!el) return
-		setShowTopMask(el.scrollTop > 4)
-		setShowBottomMask(el.scrollTop + el.clientHeight < el.scrollHeight - 4)
-	}, [])
-
-	useEffect(() => {
-		updateMasks()
-	}, [updateMasks, tabCounts, searchValue, hasSelection])
 
 	const handleTabCountChange = useCallback((tabId: string, count: number) => {
 		setTabCounts((prev) => ({ ...prev, [tabId]: count }))
@@ -83,19 +70,28 @@ function MobileRecycleBinPanel() {
 			<RecycleBinHeader onFilterClick={() => setFilterSheetOpen(true)} />
 
 			{/* 与原型 TrashScreen 一致：列表区无顶部大圆角「卡片」，整页统一 background */}
-			<div
-				id="mobile-recycle-bin-scroll-container"
-				ref={scrollRef}
-				onScroll={updateMasks}
-				className="relative min-h-0 flex-1 overflow-y-auto"
+			<ScrollEdgeFadeContainer
+				fadeColor="mobile-background"
+				className="min-h-0 flex-1"
+				contentDeps={[
+					tabCounts,
+					searchValue,
+					activeTab,
+					order,
+					hasSelection,
+					refreshSignal,
+					shouldStretchPullToRefresh,
+				]}
 			>
 				{/* 对齐对话页的单层滚动结构，让下拉提示与顶部壳层保持稳定间距。 */}
 				<MagicPullToRefresh
+					embedInParentScroll
 					onRefresh={handleRefresh}
 					showSuccessMessage={false}
 					containerClassName={cn(
 						"relative min-h-0 flex-1",
-						shouldStretchPullToRefresh && cn("!overflow-hidden", pullToRefreshStretchClassName),
+						shouldStretchPullToRefresh &&
+							cn("!overflow-hidden", pullToRefreshStretchClassName),
 					)}
 				>
 					<div className="min-h-full px-3 pb-4 pt-2">
@@ -110,24 +106,7 @@ function MobileRecycleBinPanel() {
 						/>
 					</div>
 				</MagicPullToRefresh>
-
-				<div
-					className="pointer-events-none absolute left-0 right-0 top-0 h-8 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to bottom, var(--mobile-background) 0%, transparent 100%)",
-						opacity: showTopMask ? 1 : 0,
-					}}
-				/>
-				<div
-					className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to top, var(--mobile-background) 0%, transparent 100%)",
-						opacity: showBottomMask ? 1 : 0,
-					}}
-				/>
-			</div>
+			</ScrollEdgeFadeContainer>
 
 			{/* 多选底栏通过 Portal 挂载到流式底部，避免 fixed 压到 Home Indicator 区域 */}
 			<div

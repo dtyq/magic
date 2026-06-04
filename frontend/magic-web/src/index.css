@@ -127,7 +127,7 @@
 	/* Container: transparent bg floats over page content, h-56px, bottom radius.
 	 * Header lucide icons use stroke-width: 2px via src/styles/lucide.css (.mobile-page-header .lucide). */
 	.mobile-page-header {
-		@apply relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-2.5;
+		@apply relative z-20 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-2.5;
 	}
 
 	/* Round header action button (48×48, bg-card) — layered shadow tuned for light/dark surfaces. */

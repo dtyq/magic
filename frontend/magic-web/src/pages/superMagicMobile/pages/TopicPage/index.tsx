@@ -615,13 +615,14 @@ function TopicPage({
 					onShareClick={onShareClick}
 				/>
 			)}
-			<div className={cn(styles.body, bodyClassName)} ref={nodesPanelRef}>
+			<div className={cn(styles.body, bodyClassName)}>
 				<MessageListProvider value={value}>
 					<MessageList
 						data={messages as any}
 						setSelectedDetail={setUserSelectDetail}
 						selectedTopic={selectedTopic}
 						className={cx(messageListClassName)}
+						viewportRef={nodesPanelRef}
 						handlePullMoreMessage={handlePullMoreMessage}
 						showLoading={showLoading}
 						onFileClick={onFileClick}

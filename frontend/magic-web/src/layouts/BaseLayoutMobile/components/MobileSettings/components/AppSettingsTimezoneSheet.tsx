@@ -6,6 +6,8 @@ import type { Timezone } from "@dtyq/timezone"
 import { useTranslation } from "react-i18next"
 
 import { Input } from "@/components/shadcn-ui/input"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
+import { cn } from "@/lib/utils"
 import { useTimezone, useTimezoneList } from "@/providers/TimezoneProvider/hooks"
 
 import {
@@ -77,10 +79,10 @@ export function MobileSettingsAppSettingsTimezoneSheet(props: {
 			}}
 			// 把固定高度落到 Sheet 本体上，避免结果变少时由内容高度反向把整张浮层压矮。
 			sheetClassName={MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME}
-			contentClassName="h-full gap-2.5 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
+			contentClassName="flex h-full min-h-0 flex-col gap-2.5 overflow-hidden px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 			dataTestId="mobile-settings-app-timezone-sheet"
 		>
-			<div className="relative">
+			<div className="relative shrink-0">
 				<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 				<Input
 					value={searchQuery}
@@ -90,8 +92,14 @@ export function MobileSettingsAppSettingsTimezoneSheet(props: {
 				/>
 			</div>
 
-			<div
-				className={`${MOBILE_SETTINGS_SECTION_CLASSNAME} no-scrollbar min-h-0 flex-1 overflow-y-auto`}
+			<ScrollEdgeFadeContainer
+				fadeColor="muted"
+				className="min-h-0 flex-1"
+				scrollClassName={cn(
+					MOBILE_SETTINGS_SECTION_CLASSNAME,
+					"no-scrollbar flex min-h-0 flex-1 flex-col",
+				)}
+				contentDeps={[filteredTimezoneList.length, searchQuery]}
 			>
 				{filteredTimezoneList.length === 0 ? (
 					<div className="flex h-full items-center justify-center px-4 py-8 text-center text-sm text-muted-foreground">
@@ -129,7 +137,7 @@ export function MobileSettingsAppSettingsTimezoneSheet(props: {
 						)
 					})
 				)}
-			</div>
+			</ScrollEdgeFadeContainer>
 		</MobileSettingsSheetContainer>
 	)
 }

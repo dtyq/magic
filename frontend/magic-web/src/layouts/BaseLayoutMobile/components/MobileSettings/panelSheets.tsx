@@ -224,6 +224,10 @@ export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose:
 				}}
 				// Filter entry hidden until API-backed filtering is available.
 				sheetClassName={MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME}
+				scrollEdgeFade={{
+					fadeColor: "muted",
+					contentDeps: [records.length, loading, groupedRecords.length],
+				}}
 				dataTestId="mobile-settings-points-detail-sheet"
 			>
 				<div className="flex flex-col gap-2.5 pb-[calc(var(--safe-area-inset-bottom)+16px)] pt-2">

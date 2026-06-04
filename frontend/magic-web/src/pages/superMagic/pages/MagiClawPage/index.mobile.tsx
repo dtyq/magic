@@ -10,6 +10,7 @@ import { MagiClawMobileContextMenu } from "./MagiClawMobileContextMenu"
 import { MagiClawMobileFeatureList } from "./MagiClawMobileFeatureList"
 import { MagiClawMobileHeader } from "./MagiClawMobileHeader"
 import { MagiClawMobileList } from "./MagiClawMobileList"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { useMagiClawMobilePage } from "./useMagiClawMobilePage"
 
 /** 页面面板只负责把移动端壳层、列表视图和页面级浮层状态接起来。 */
@@ -42,14 +43,10 @@ function MagiClawMobilePanel() {
 		isUpdating,
 		openContextMenu,
 		refreshClawListAsync,
-		scrollViewportRef,
 		setDeletingClaw,
 		setEditingClaw,
 		setIsCreateDialogOpen,
-		showBottomMask,
-		showTopMask,
 		t: tSidebar,
-		updateScrollMasks,
 		visibleListError,
 		visibleListLoading,
 		closeContextMenu,
@@ -71,60 +68,41 @@ function MagiClawMobilePanel() {
 					onOpenCreate={handleOpenCreate}
 				/>
 
-				<div className="relative min-h-0 flex-1">
+				<ScrollEdgeFadeContainer
+					fadeColor="mobile-background"
+					className="min-h-0 flex-1"
+					scrollClassName="px-4 pb-4 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					contentDeps={[claws.length, visibleListLoading, visibleListError]}
+					onScroll={closeContextMenu}
+				>
 					<div
-						ref={scrollViewportRef}
-						className="absolute inset-0 overflow-y-auto px-4 pb-4 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+						className="flex flex-col gap-12"
 						data-testid="magi-claw-mobile-scroll-content"
-						onScroll={() => {
-							closeContextMenu()
-							updateScrollMasks()
-						}}
 					>
-						<div className="flex flex-col gap-12">
-							<MagiClawMobileList
-								claws={claws}
-								clawBrandValues={clawBrandValues}
-								t={tSidebar}
-								visibleListLoading={visibleListLoading}
-								visibleListError={visibleListError}
-								activeActionClawCode={activeActionClawCode}
-								dismissedUpgradeBadgeByClawKey={dismissedUpgradeBadgeByClawKey}
-								getDisplayedClawStatus={getDisplayedClawStatus}
-								canCreateMagicClaw={canCreateMagicClaw}
-								createButtonLabel={createButtonLabel}
-								onOpenCreate={handleOpenCreate}
-								onRetry={() => {
-									void refreshClawListAsync()
-								}}
-								onOpenMenu={openContextMenu}
-								onOpenChat={(claw) => {
-									void handleOpenClawPlaygroundWithPreWarm(claw)
-								}}
-								onUpgradeClaw={handleConfirmUpgradeClaw}
-							/>
-							<MagiClawMobileFeatureList />
-						</div>
+						<MagiClawMobileList
+							claws={claws}
+							clawBrandValues={clawBrandValues}
+							t={tSidebar}
+							visibleListLoading={visibleListLoading}
+							visibleListError={visibleListError}
+							activeActionClawCode={activeActionClawCode}
+							dismissedUpgradeBadgeByClawKey={dismissedUpgradeBadgeByClawKey}
+							getDisplayedClawStatus={getDisplayedClawStatus}
+							canCreateMagicClaw={canCreateMagicClaw}
+							createButtonLabel={createButtonLabel}
+							onOpenCreate={handleOpenCreate}
+							onRetry={() => {
+								void refreshClawListAsync()
+							}}
+							onOpenMenu={openContextMenu}
+							onOpenChat={(claw) => {
+								void handleOpenClawPlaygroundWithPreWarm(claw)
+							}}
+							onUpgradeClaw={handleConfirmUpgradeClaw}
+						/>
+						<MagiClawMobileFeatureList />
 					</div>
-
-					{/* 渐隐遮罩让页面维持原型里的壳层滚动感，而不是普通 H5 长页。 */}
-					<div
-						className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
-						style={{
-							background:
-								"linear-gradient(to bottom, rgb(var(--mobile-background-rgb)) 0%, transparent 100%)",
-							opacity: showTopMask ? 1 : 0,
-						}}
-					/>
-					<div
-						className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
-						style={{
-							background:
-								"linear-gradient(to top, rgb(var(--mobile-background-rgb)) 0%, transparent 100%)",
-							opacity: showBottomMask ? 1 : 0,
-						}}
-					/>
-				</div>
+				</ScrollEdgeFadeContainer>
 			</div>
 
 			{contextMenuClaw && contextMenuState ? (

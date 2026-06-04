@@ -276,6 +276,7 @@ export function MobileSettingsAppSettingsSheet(props: {
 				if (!nextOpen) onClose()
 			}}
 			contentClassName="gap-2.5 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
+			scrollEdgeFade={{ fadeColor: "muted" }}
 			dataTestId="mobile-settings-app-settings-sheet"
 		>
 			{/* Mobile theme picker stays hidden until dark mode is enabled product-wide. */}

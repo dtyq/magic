@@ -53,7 +53,7 @@ function TrashSelectionBar(props: TrashSelectionBarProps) {
 				<button
 					type="button"
 					onClick={onToggleAll}
-					className="flex h-full shrink-0 items-center gap-2 rounded-full bg-card px-4 shadow-mobile-dock-surface active:opacity-70"
+					className="flex h-full shrink-0 items-center gap-2 rounded-full bg-card px-4 shadow-magic-floating-action active:opacity-70"
 					data-testid="mobile-recycle-bin-select-all-toggle"
 				>
 					<div
@@ -70,7 +70,7 @@ function TrashSelectionBar(props: TrashSelectionBarProps) {
 					</span>
 				</button>
 
-				<div className="flex h-full flex-1 items-center overflow-hidden rounded-full bg-card shadow-mobile-dock-surface">
+				<div className="flex h-full flex-1 items-center overflow-hidden rounded-full bg-card shadow-magic-floating-action">
 					<ActionIconBtn
 						icon={RotateCcw}
 						label={t("mobile.recycleBin.selection.restore")}

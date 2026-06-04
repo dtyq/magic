@@ -7,6 +7,7 @@ import { ChevronLeft, MessageCircle, Trash2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { userStore } from "@/models/user"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
@@ -246,14 +247,21 @@ function CrewMarketMobilePanelBase() {
 					</div>
 				) : null}
 
-				{/*
-				 * 真实滚动容器：MagicPullToRefresh 放在内部，PullToRefresh 会在
-				 * 滚到顶时拦截下拉手势触发刷新；no-scrollbar 隐藏原生滚动条。
-				 */}
-				<div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+				<ScrollEdgeFadeContainer
+					fadeColor="mobile-background"
+					className="min-h-0 flex-1"
+					contentDeps={[
+						store.list.length,
+						store.showInitialSkeleton,
+						store.isEmpty,
+						activeCategoryId,
+					]}
+				>
 					<MagicPullToRefresh
+						embedInParentScroll
 						onRefresh={() => store.fetchAgents({ page: 1 })}
 						showSuccessMessage={false}
+						containerClassName="relative min-h-0 flex-1"
 					>
 						<div className="flex w-full min-w-0 flex-col gap-4 px-3 pb-6 pt-3">
 							{store.showInitialSkeleton ? <CrewMarketMobileSkeleton /> : null}
@@ -295,7 +303,7 @@ function CrewMarketMobilePanelBase() {
 							) : null}
 						</div>
 					</MagicPullToRefresh>
-				</div>
+				</ScrollEdgeFadeContainer>
 
 				{/* Bottom search bar */}
 				<MobileBottomSearchBar

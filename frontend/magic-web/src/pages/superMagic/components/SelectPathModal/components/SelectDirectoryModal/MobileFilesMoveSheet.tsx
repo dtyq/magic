@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { SuperMagicApi } from "@/apis"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import { cn } from "@/lib/utils"
 import { SHARE_WORKSPACE_DATA, SHARE_WORKSPACE_ID } from "@/pages/superMagic/constants"
@@ -185,62 +186,6 @@ function searchProjectItems(
 		getProjectDisplayName(item, t, workspaceEntryType)
 			.toLowerCase()
 			.includes(normalizedKeyword),
-	)
-}
-
-/**
- * 渐隐遮罩复用原型的滚动反馈，让顶部导航和底部搜索在长列表下更容易分层阅读。
- */
-function ScrollArea({ children }: { children: React.ReactNode }) {
-	const scrollRef = useRef<HTMLDivElement>(null)
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(false)
-
-	/**
-	 * 每次滚动后同步顶部和底部遮罩状态，保留原型里的可滚动提示。
-	 */
-	const updateMaskVisibility = useCallback(() => {
-		const element = scrollRef.current
-		if (!element) return
-
-		setShowTopMask(element.scrollTop > 4)
-		setShowBottomMask(element.scrollTop + element.clientHeight < element.scrollHeight - 4)
-	}, [])
-
-	useEffect(() => {
-		const animationFrameId = requestAnimationFrame(updateMaskVisibility)
-		return () => cancelAnimationFrame(animationFrameId)
-	}, [children, updateMaskVisibility])
-
-	return (
-		<div
-			className="relative min-h-0 flex-1 overflow-hidden"
-			data-testid="select-directory-mobile-scroll-area"
-		>
-			<div
-				ref={scrollRef}
-				onScroll={updateMaskVisibility}
-				className="no-scrollbar h-full overflow-y-auto"
-			>
-				{children}
-			</div>
-			<div
-				className="pointer-events-none absolute inset-x-0 top-0 h-8 transition-opacity duration-150"
-				style={{
-					background:
-						"linear-gradient(to bottom, rgb(var(--muted-rgb) / 1), rgb(var(--muted-rgb) / 0))",
-					opacity: showTopMask ? 1 : 0,
-				}}
-			/>
-			<div
-				className="pointer-events-none absolute inset-x-0 bottom-0 h-10 transition-opacity duration-150"
-				style={{
-					background:
-						"linear-gradient(to top, rgb(var(--muted-rgb) / 1), rgb(var(--muted-rgb) / 0))",
-					opacity: showBottomMask ? 1 : 0,
-				}}
-			/>
-		</div>
 	)
 }
 
@@ -1010,8 +955,24 @@ function MobileFilesMoveSheet({
 					</div>
 				) : null}
 
-				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-					<ScrollArea>
+				<div
+					className="flex min-h-0 flex-1 flex-col overflow-hidden"
+					data-testid="select-directory-mobile-scroll-area"
+				>
+					<ScrollEdgeFadeContainer
+						fadeColor="muted"
+						className="min-h-0 flex-1"
+						scrollClassName="no-scrollbar h-full"
+						contentDeps={[
+							viewMode,
+							query,
+							isLoading,
+							filteredWorkspaces.length,
+							filteredProjects.length,
+							currentDirectories.length,
+							searchResults.length,
+						]}
+					>
 						{isLoading ? (
 							<LoadingCards />
 						) : (
@@ -1173,7 +1134,7 @@ function MobileFilesMoveSheet({
 								)}
 							</div>
 						)}
-					</ScrollArea>
+					</ScrollEdgeFadeContainer>
 
 					<div
 						className="relative z-10 shrink-0 bg-muted"

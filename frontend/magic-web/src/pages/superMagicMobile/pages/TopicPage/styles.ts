@@ -9,8 +9,9 @@ export const useStyles = createStyles(() => {
 		},
 		body: {
 			flex: 1,
-			overflowY: "auto",
-			overflowX: "hidden",
+			minHeight: 0,
+			// Scroll lives on MessageList ScrollArea viewport; avoid nested scroll with edge-fade masks.
+			overflow: "hidden",
 			display: "flex",
 			flexDirection: "column",
 		},

@@ -26,10 +26,10 @@ describe("TrashSelectionBar", () => {
 		expect(root.className).toContain("safe-area-inset-bottom")
 
 		expect(screen.getByTestId("mobile-recycle-bin-select-all-toggle").className).toContain(
-			"shadow-mobile-dock-surface",
+			"shadow-magic-floating-action",
 		)
 
 		const actionGroup = screen.getByTestId("mobile-recycle-bin-bulk-restore").parentElement
-		expect(actionGroup?.className).toContain("shadow-mobile-dock-surface")
+		expect(actionGroup?.className).toContain("shadow-magic-floating-action")
 	})
 })

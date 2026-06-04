@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ListFilter, MessageCircle, MessageCircleOff, Plus, Trash2 } from "lucide-react"
 import { MobileCrewCardSkeletonGrid } from "@/pages/superMagicMobile/components/skeletons"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { InfiniteScroll } from "antd-mobile"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { userStore } from "@/models/user"
 import {
 	UserWorkspaceMapCache,
@@ -43,14 +44,11 @@ function MyCrewPageMobilePanelBase() {
 	const navigate = useNavigate()
 	const storeRef = useRef(new MyCrewMobileStore())
 	const store = storeRef.current
-	const scrollContainerId = useId()
 	const [selectedAgent, setSelectedAgent] = useState<MyCrewView | null>(null)
 	const [dismissConfirmAgent, setDismissConfirmAgent] = useState<MyCrewView | null>(null)
 	const [addSheetOpen, setAddSheetOpen] = useState(false)
 	const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 	const [filter, setFilter] = useState<MyCrewMobileFilterState>(MY_CREW_MOBILE_FILTER_DEFAULT)
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(true)
 
 	const visibleList = store.list
 	const showInitialSkeleton = store.showInitialSkeleton
@@ -62,25 +60,6 @@ function MyCrewPageMobilePanelBase() {
 		void store.fetchAgents()
 		return () => store.reset()
 	}, [store])
-
-	// Scroll mask update for visual depth cues
-	const updateMasks = useCallback(() => {
-		const scrollElement = document.getElementById(scrollContainerId)
-		if (!scrollElement) return
-		setShowTopMask(scrollElement.scrollTop > 4)
-		setShowBottomMask(
-			scrollElement.scrollTop + scrollElement.clientHeight < scrollElement.scrollHeight - 4,
-		)
-	}, [scrollContainerId])
-
-	useEffect(() => {
-		const scrollElement = document.getElementById(scrollContainerId)
-		if (!scrollElement) return
-
-		updateMasks()
-		scrollElement.addEventListener("scroll", updateMasks, { passive: true })
-		return () => scrollElement.removeEventListener("scroll", updateMasks)
-	}, [visibleList.length, showInitialSkeleton, scrollContainerId, updateMasks])
 
 	/** Resolve fallback workspace ID for chat navigation. */
 	function resolveFallbackWorkspaceId() {
@@ -282,73 +261,54 @@ function MyCrewPageMobilePanelBase() {
 				</div>
 
 				{/* Scrollable content area with pull-to-refresh + infinite scroll */}
-				<div className="relative min-h-0 flex-1">
-					<div
-						id={scrollContainerId}
-						className="no-scrollbar absolute inset-0 overflow-y-auto"
-						data-testid="my-crew-scroll-container"
+				<ScrollEdgeFadeContainer
+					fadeColor="mobile-background"
+					className="min-h-0 flex-1"
+					contentDeps={[visibleList.length, showInitialSkeleton, filter]}
+				>
+					<MagicPullToRefresh
+						embedInParentScroll
+						onRefresh={handleRefresh}
+						containerClassName="relative min-h-0 flex-1"
+						showSuccessMessage={false}
 					>
-						<MagicPullToRefresh
-							onRefresh={handleRefresh}
-							containerClassName="relative min-h-0 flex-1"
-							showSuccessMessage={false}
-						>
-							<div className="flex min-h-full flex-col px-3 pb-4 pt-4">
-								{showInitialSkeleton ? (
-									<MobileCrewCardSkeletonGrid testId="my-crew-loading" />
-								) : null}
+						<div className="flex min-h-full flex-col px-3 pb-4 pt-4">
+							{showInitialSkeleton ? (
+								<MobileCrewCardSkeletonGrid testId="my-crew-loading" />
+							) : null}
 
-								{/* Empty state: crew variant by default, search variant when filters are active */}
-								{!showInitialSkeleton && visibleList.length === 0 ? (
-									<DataEmptyState
-										variant={isDefaultFilter ? "crew" : "search"}
-										className="min-h-0 flex-1 py-12"
-										testId="my-crew-empty"
-									/>
-								) : null}
+							{/* Empty state: crew variant by default, search variant when filters are active */}
+							{!showInitialSkeleton && visibleList.length === 0 ? (
+								<DataEmptyState
+									variant={isDefaultFilter ? "crew" : "search"}
+									className="min-h-0 flex-1 py-12"
+									testId="my-crew-empty"
+								/>
+							) : null}
 
-								{!showInitialSkeleton && visibleList.length > 0 ? (
-									<div
-										className="grid grid-cols-2 items-stretch gap-3"
-										data-testid="my-crew-card-grid"
-									>
-										{visibleList.map((employee) => (
-											<MyCrewCardMobile
-												key={employee.id}
-												employee={employee}
-												onCardClick={handleOpenDetails}
-												onChat={handleOpenConversation}
-											/>
-										))}
-									</div>
-								) : null}
+							{!showInitialSkeleton && visibleList.length > 0 ? (
+								<div
+									className="grid grid-cols-2 items-stretch gap-3"
+									data-testid="my-crew-card-grid"
+								>
+									{visibleList.map((employee) => (
+										<MyCrewCardMobile
+											key={employee.id}
+											employee={employee}
+											onCardClick={handleOpenDetails}
+											onChat={handleOpenConversation}
+										/>
+									))}
+								</div>
+							) : null}
 
-								{/* InfiniteScroll at the bottom of the list */}
-								{!showInitialSkeleton && visibleList.length > 0 ? (
-									<InfiniteScroll hasMore={hasMore} loadMore={handleLoadMore} />
-								) : null}
-							</div>
-						</MagicPullToRefresh>
-					</div>
-
-					{/* Top/bottom scroll masks for visual depth */}
-					<div
-						className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
-						style={{
-							background:
-								"linear-gradient(to bottom, var(--background) 0%, transparent 100%)",
-							opacity: showTopMask ? 1 : 0,
-						}}
-					/>
-					<div
-						className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
-						style={{
-							background:
-								"linear-gradient(to top, var(--background) 0%, transparent 100%)",
-							opacity: showBottomMask ? 1 : 0,
-						}}
-					/>
-				</div>
+							{/* InfiniteScroll at the bottom of the list */}
+							{!showInitialSkeleton && visibleList.length > 0 ? (
+								<InfiniteScroll hasMore={hasMore} loadMore={handleLoadMore} />
+							) : null}
+						</div>
+					</MagicPullToRefresh>
+				</ScrollEdgeFadeContainer>
 			</div>
 		</>
 	)

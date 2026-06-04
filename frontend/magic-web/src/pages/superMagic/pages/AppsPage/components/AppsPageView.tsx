@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { type ReactNode } from "react"
 import { ChevronRight, RefreshCw } from "lucide-react"
 import { MobileShellSidebarToggleButton } from "@/pages/superMagicMobile/components/MobileShell"
 import { Button } from "@/components/shadcn-ui/button"
 import { AppMenuIconType } from "@/apis/types"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { cn } from "@/lib/utils"
 import type { AppsPageEntry } from "../hooks/useAppsPage"
 
@@ -137,23 +138,6 @@ export function AppsPageView(props: AppsPageViewProps) {
 		onRetry,
 		onOpenEntry,
 	} = props
-	const scrollRef = useRef<HTMLDivElement | null>(null)
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(true)
-
-	/** 滚动遮罩只表达内容是否还有上下余量，避免列表和壳层边界粘连。 */
-	const updateMasks = useCallback(() => {
-		const element = scrollRef.current
-		if (!element) return
-
-		setShowTopMask(element.scrollTop > 4)
-		setShowBottomMask(element.scrollTop + element.clientHeight < element.scrollHeight - 4)
-	}, [])
-
-	useEffect(() => {
-		const frameId = window.requestAnimationFrame(updateMasks)
-		return () => window.cancelAnimationFrame(frameId)
-	}, [entries.length, hasError, loading, updateMasks])
 
 	return (
 		<div
@@ -172,13 +156,13 @@ export function AppsPageView(props: AppsPageViewProps) {
 				<div className="mobile-page-header-btn pointer-events-none opacity-0" aria-hidden />
 			</header>
 
-			<div className="relative min-h-0 flex-1">
-				<div
-					ref={scrollRef}
-					onScroll={updateMasks}
-					className="no-scrollbar absolute inset-0 flex flex-col gap-1 overflow-y-auto px-3 pb-4 pt-2"
-					data-testid="super-apps-scroll-container"
-				>
+			<ScrollEdgeFadeContainer
+				fadeColor="mobile-background"
+				className="min-h-0 flex-1"
+				scrollClassName="no-scrollbar flex flex-col gap-1 px-3 pb-4 pt-2"
+				contentDeps={[entries.length, loading, hasError]}
+			>
+				<div className="flex flex-col gap-1" data-testid="super-apps-scroll-container">
 					{loading ? (
 						<div className="flex flex-col gap-1" data-testid="super-apps-loading">
 							{[1, 2, 3, 4].map((item) => (
@@ -240,24 +224,7 @@ export function AppsPageView(props: AppsPageViewProps) {
 						</div>
 					) : null}
 				</div>
-
-				<div
-					className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to bottom, rgb(var(--mobile-background-rgb)) 0%, transparent 100%)",
-						opacity: showTopMask ? 1 : 0,
-					}}
-				/>
-				<div
-					className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to top, rgb(var(--mobile-background-rgb)) 0%, transparent 100%)",
-						opacity: showBottomMask ? 1 : 0,
-					}}
-				/>
-			</div>
+			</ScrollEdgeFadeContainer>
 		</div>
 	)
 }

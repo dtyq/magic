@@ -86,6 +86,15 @@ export function MobileSettingsLoginDevicesSheet({
 				}}
 				sheetClassName={MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME}
 				contentClassName="gap-3 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
+				scrollEdgeFade={{
+					fadeColor: "muted",
+					contentDeps: [
+						devices?.length,
+						isLoading,
+						currentDevices.length,
+						otherDevices.length,
+					],
+				}}
 				dataTestId="mobile-settings-login-devices-sheet"
 			>
 				<MagicSpin className="min-h-[240px]" spinning={isLoading}>
