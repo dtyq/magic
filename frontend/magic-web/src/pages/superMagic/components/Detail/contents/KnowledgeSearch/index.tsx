@@ -184,7 +184,7 @@ function KnowledgeSearchDocumentItem({ document }: { document: KnowledgeSearchDo
 							</span>
 						)}
 						{document.file_key && (
-							<span>
+							<span className="min-w-0 max-w-full break-all">
 								{t("knowledgeSearch.fileKeyLabel", {
 									fileKey: document.file_key,
 									defaultValue: "file_key: {{fileKey}}",

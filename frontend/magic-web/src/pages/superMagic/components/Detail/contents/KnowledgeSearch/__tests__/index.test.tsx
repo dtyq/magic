@@ -152,4 +152,32 @@ describe("KnowledgeSearch detail content", () => {
 			fileExtension: "md",
 		})
 	})
+
+	it("allows long file_key metadata to wrap instead of forcing horizontal overflow", () => {
+		const longFileKey =
+			"DT001/knowledge-base/documents/very-long-folder-name-without-natural-breakpoints/source-document-with-a-very-long-name.md"
+
+		render(
+			<KnowledgeSearch
+				data={{
+					status: "success",
+					query: "es",
+					documents: [
+						{
+							rank: 1,
+							knowledge_base_name: "技术知识库",
+							document_code: "doc-1",
+							document_name: "ES搜索技术方案 - 后端.md",
+							file_key: longFileKey,
+							snippets: [],
+						},
+					],
+				}}
+			/>,
+		)
+
+		const fileKeyMeta = screen.getByText(`file_key: ${longFileKey}`)
+		expect(fileKeyMeta).toHaveClass("break-all")
+		expect(fileKeyMeta).toHaveClass("max-w-full")
+	})
 })
