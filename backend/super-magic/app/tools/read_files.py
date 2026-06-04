@@ -1,22 +1,20 @@
-from app.i18n import i18n
 import json
-import json_repair
-import math
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+import json_repair
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
-from app.core.entity.message.server_message import (DisplayType, FileContent,
-                                                    ToolDetail)
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo, _compute_max_tokens, _get_context_remaining
+from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo, _get_context_remaining
 from app.tools.utils.display_content_utils import truncate_content_for_display
 from app.tools.workspace_tool import WorkspaceTool
 
@@ -68,6 +66,54 @@ def _compute_batch_max_tokens(tool_context) -> int:
     return max(BATCH_MIN_MAX_TOKENS, min(DEFAULT_BATCH_MAX_TOKENS, dynamic))
 
 
+def _coerce_read_file_operation(value: Any, default_offset: int = 0, default_limit: int = 200) -> Any:
+    """将兼容形态归一为 FileReadOperation 可接受的 dict。"""
+    if isinstance(value, str):
+        return {"file_path": value, "offset": default_offset, "limit": default_limit}
+
+    if isinstance(value, dict):
+        operation = dict(value)
+        operation.setdefault("offset", default_offset)
+        operation.setdefault("limit", default_limit)
+        return operation
+
+    return value
+
+
+def _normalize_read_file_operations(data: Dict[str, Any]) -> Dict[str, Any]:
+    """兼容旧式 read_files 参数，统一生成 operations。"""
+    if "operations" in data:
+        return data
+
+    default_offset = data.get("offset", 0)
+    default_limit = data.get("limit", 200)
+
+    if "file_path" in data:
+        data["operations"] = [
+            {
+                "file_path": data["file_path"],
+                "offset": default_offset,
+                "limit": default_limit,
+            }
+        ]
+        return data
+
+    files = data.get("files", data.get("file_paths"))
+    if files is None:
+        return data
+
+    if isinstance(files, str):
+        data["operations"] = [_coerce_read_file_operation(files, default_offset, default_limit)]
+        return data
+
+    if isinstance(files, (list, tuple)):
+        data["operations"] = [
+            _coerce_read_file_operation(item, default_offset, default_limit)
+            for item in files
+        ]
+
+    return data
+
 class FileReadOperation(BaseModel):
     """<!--zh: 单个文件的读取操作-->
 Single file read operation"""
@@ -104,6 +150,14 @@ File read operations list""",
         if not v:
             raise ValueError("operations 不能为空，至少需要一个文件读取操作")
         return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_arguments(cls, data: Any) -> Any:
+        """兼容模型使用旧式单文件或 files 参数调用 read_files。"""
+        if isinstance(data, dict):
+            return _normalize_read_file_operations(dict(data))
+        return data
 
 class FileReadingResult(BaseModel):
     """单个文件的读取结果"""
@@ -240,7 +294,7 @@ Strongly recommended to use this tool for batch reading multiple reference files
                     ))
                     read_failure_count += 1
             except Exception as e:
-                logger.exception(f"读取文件失败: {str(e)}")
+                logger.exception(f"读取文件失败: {e!s}")
                 results.append(FileReadingResult(
                     file_path=operation.file_path,
                     content="",
@@ -301,6 +355,10 @@ Strongly recommended to use this tool for batch reading multiple reference files
                 ],
                 "success_count": success_count,
                 "failure_count": read_failure_count,
+                "normalized_operations": [
+                    operation.model_dump()
+                    for operation in params.operations
+                ],
             }
         )
 
@@ -590,11 +648,7 @@ Strongly recommended to use this tool for batch reading multiple reference files
         Returns:
             Optional[ToolDetail]: 工具详情对象，可能为None
         """
-        if not arguments or "operations" not in arguments:
-            logger.warning("没有提供operations参数")
-            return None
-
-        operations = self._normalize_operations_for_display(arguments.get("operations"))
+        operations = self._get_display_operations(arguments, result)
         if not operations:
             logger.warning("operations参数无法用于展示")
             return None
@@ -684,10 +738,7 @@ Strongly recommended to use this tool for batch reading multiple reference files
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
-        if not arguments or "operations" not in arguments:
-            return i18n.translate("read_file.failed", category="tool.messages")
-
-        operations = self._normalize_operations_for_display(arguments.get("operations"))
+        operations = self._get_display_operations(arguments, result)
         if not operations:
             return i18n.translate("read_file.failed", category="tool.messages")
 
@@ -809,6 +860,21 @@ Strongly recommended to use this tool for batch reading multiple reference files
 
         return []
 
+    def _get_display_operations(self, arguments: Dict[str, Any] = None, result: ToolResult = None) -> List[Any]:
+        """获取用于前端展示和 remark 的读取操作。"""
+        if arguments:
+            normalized_arguments = _normalize_read_file_operations(dict(arguments))
+            operations = self._normalize_operations_for_display(normalized_arguments.get("operations"))
+            if operations:
+                return operations
+
+        if result and result.extra_info:
+            operations = self._normalize_operations_for_display(result.extra_info.get("normalized_operations"))
+            if operations:
+                return operations
+
+        return []
+
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """
         获取工具调用后的友好动作和备注
@@ -822,14 +888,13 @@ Strongly recommended to use this tool for batch reading multiple reference files
 
             # 获取文件名（对于批量读取，显示第一个文件名）
             file_name = ""
-            if arguments and "operations" in arguments:
-                operations = self._normalize_operations_for_display(arguments.get("operations"))
-                if operations and len(operations) > 0:
-                    first_file_path = self._get_operation_file_path(operations[0])
-                    if first_file_path:
-                        file_name = os.path.basename(first_file_path)
-                        if len(operations) > 1:
-                            file_name = f"{file_name}等{len(operations)}个文件"
+            operations = self._get_display_operations(arguments, result)
+            if operations:
+                first_file_path = self._get_operation_file_path(operations[0])
+                if first_file_path:
+                    file_name = os.path.basename(first_file_path)
+                    if len(operations) > 1:
+                        file_name = f"{file_name}等{len(operations)}个文件"
 
             # 根据错误类型返回归类后的通用错误消息
             if error_type:

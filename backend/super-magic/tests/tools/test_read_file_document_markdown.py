@@ -145,6 +145,52 @@ async def test_read_files_after_remark_includes_paged_line_ranges(tmp_path):
     assert "6" in after["remark"]
 
 
+@pytest.mark.asyncio
+async def test_read_files_accepts_legacy_single_file_arguments(tmp_path):
+    (tmp_path / "notes.md").write_text("\n".join([f"line {i}" for i in range(1, 11)]), encoding="utf-8")
+
+    tool = ReadFiles(base_dir=tmp_path)
+    arguments = {"file_path": "notes.md", "limit": 3}
+    params = ReadFilesParams(**arguments)
+
+    result = await tool.execute(None, params)
+    after = await tool.get_after_tool_call_friendly_action_and_remark(
+        "read_files",
+        ToolContext(tool_name="read_files", arguments=arguments),
+        result,
+        0.1,
+        arguments,
+    )
+
+    assert result.ok
+    assert result.extra_info["normalized_operations"] == [
+        {"file_path": "notes.md", "offset": 0, "limit": 3}
+    ]
+    assert "line 1" in result.content
+    assert "notes.md" in after["remark"]
+    assert "1" in after["remark"]
+    assert "3" in after["remark"]
+
+
+@pytest.mark.asyncio
+async def test_read_files_accepts_files_list_arguments(tmp_path):
+    (tmp_path / "a.py").write_text("alpha\n", encoding="utf-8")
+    (tmp_path / "b.py").write_text("beta\n", encoding="utf-8")
+
+    tool = ReadFiles(base_dir=tmp_path)
+    params = ReadFilesParams(files=["a.py", "b.py"], limit=50)
+
+    result = await tool.execute(None, params)
+
+    assert result.ok
+    assert result.extra_info["normalized_operations"] == [
+        {"file_path": "a.py", "offset": 0, "limit": 50},
+        {"file_path": "b.py", "offset": 0, "limit": 50},
+    ]
+    assert "alpha" in result.content
+    assert "beta" in result.content
+
+
 def test_read_files_prompt_no_longer_claims_complex_document_support():
     prompt = ReadFiles().get_prompt_hint()
 
