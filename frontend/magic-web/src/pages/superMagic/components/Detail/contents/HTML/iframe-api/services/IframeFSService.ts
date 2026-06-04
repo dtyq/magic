@@ -365,7 +365,9 @@ export class IframeFSService {
 			} else {
 				// 文件不存在：直接用 Blob 构建 File 并上传
 				const name = explicitName || resolved.split("/").pop() || "file"
-				const file = new File([blob], name, { type: blob.type || "application/octet-stream" })
+				const file = new File([blob], name, {
+					type: blob.type || "application/octet-stream",
+				})
 				const parentId = await this.ensureParentDirs(resolved)
 
 				await this.cfg.uploadFn({
@@ -492,7 +494,7 @@ export class IframeFSService {
 		try {
 			// 收集目录本身 + 目录下所有文件的 file_id
 			const dirPath = resolvedDir.endsWith("/") ? resolvedDir.slice(0, -1) : resolvedDir
-			const fileIds: string[] = []
+			const fileIds = new Set<string>()
 
 			// 先找目录本身的 file_id
 			const dirItem = this.findFile(dirPath)
@@ -507,16 +509,19 @@ export class IframeFSService {
 
 			// 收集目录下所有子文件/子目录
 			for (const f of this.cfg.fileList) {
-				const fp = f.relative_file_path.replace(/^\/+/, "")
-				if (fp.startsWith(resolvedDir)) {
-					fileIds.push(f.file_id)
+				const fp = this.normalizeWorkspacePath(f.relative_file_path)
+				if (fp === dirPath || fp.startsWith(`${dirPath}/`)) {
+					fileIds.add(f.file_id)
 				}
 			}
 
 			// 加入目录本身
-			fileIds.push(dirItem.file_id)
+			fileIds.add(dirItem.file_id)
 
-			await this.cfg.deleteFilesFn({ file_ids: fileIds, project_id: this.cfg.projectId || "" })
+			await this.cfg.deleteFilesFn({
+				file_ids: Array.from(fileIds),
+				project_id: this.cfg.projectId || "",
+			})
 
 			// 清理 dirCache 中相关条目
 			for (const key of Array.from(this.dirCache.keys())) {
@@ -598,6 +603,8 @@ export class IframeFSService {
 				target_parent_id: targetDirItem.file_id,
 				project_id: this.cfg.projectId || "",
 			})
+			const fileName = resolved.split("/").pop() || resolved
+			this.updateLocalPaths(resolved, `${resolvedTargetDir}${fileName}`)
 			this.send({ type: FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE, requestId, success: true })
 		} catch (err) {
 			this.send({
@@ -643,6 +650,9 @@ export class IframeFSService {
 			}
 
 			await this.cfg.renameFileFn({ file_id: item.file_id, target_name: newName })
+			const lastSlash = resolved.lastIndexOf("/")
+			const parentDir = lastSlash >= 0 ? resolved.slice(0, lastSlash + 1) : ""
+			this.updateLocalPaths(resolved, `${parentDir}${newName}`)
 			this.send({ type: FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE, requestId, success: true })
 		} catch (err) {
 			this.send({
@@ -735,7 +745,7 @@ export class IframeFSService {
 	 */
 	private resolvePath(path: string): string | null {
 		const aliasResolved = this.aliasMap[path] ?? path
-		const clean = aliasResolved.replace(/^\/+/, "")
+		const clean = aliasResolved.replace(/^\/+/, "").replace(/^(\.\/)+/, "")
 		if (clean.includes("..")) return null
 		const full = this.appRootDir ? `${this.appRootDir}${clean}` : clean
 		if (this.appRootDir && !full.startsWith(this.appRootDir)) return null
@@ -752,9 +762,43 @@ export class IframeFSService {
 	}
 
 	private findFile(resolvedPath: string): FSFileItem | undefined {
+		const normalizedPath = this.normalizeWorkspacePath(resolvedPath)
 		return this.cfg.fileList.find(
-			(f) => f.relative_file_path.replace(/^\/+/, "") === resolvedPath,
+			(f) => this.normalizeWorkspacePath(f.relative_file_path) === normalizedPath,
 		)
+	}
+
+	private normalizeWorkspacePath(path: string): string {
+		return path.replace(/^\/+/, "").replace(/\/+$/, "")
+	}
+
+	private updateLocalPaths(oldPath: string, newPath: string) {
+		const oldBase = this.normalizeWorkspacePath(oldPath)
+		const newBase = this.normalizeWorkspacePath(newPath)
+		const oldPrefix = `${oldBase}/`
+		const newName = newBase.split("/").pop()
+
+		for (const item of this.cfg.fileList) {
+			const currentPath = this.normalizeWorkspacePath(item.relative_file_path)
+			if (currentPath === oldBase) {
+				item.relative_file_path = newBase
+				if (newName) item.file_name = newName
+			} else if (currentPath.startsWith(oldPrefix)) {
+				item.relative_file_path = `${newBase}/${currentPath.slice(oldPrefix.length)}`
+			}
+		}
+
+		this.clearDirCacheForPath(oldBase)
+		this.clearDirCacheForPath(newBase)
+	}
+
+	private clearDirCacheForPath(path: string) {
+		const normalizedPath = this.normalizeWorkspacePath(path)
+		for (const key of Array.from(this.dirCache.keys())) {
+			if (key === normalizedPath || key.startsWith(`${normalizedPath}/`)) {
+				this.dirCache.delete(key)
+			}
+		}
 	}
 
 	/**
