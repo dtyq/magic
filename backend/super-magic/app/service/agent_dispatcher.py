@@ -171,7 +171,7 @@ class AgentDispatcher(Base):
         """初始化工作区"""
         logger.info("开始工作区初始化流程")
 
-        HomePersistenceService.initialize_from_environment()
+        await HomePersistenceService.initialize_from_environment()
 
         # ========== 配置更新阶段 - 每次都执行 ==========
         # 保存初始化消息到文件

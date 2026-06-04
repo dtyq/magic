@@ -217,7 +217,7 @@ async def async_unlink(path: Union[str, Path]) -> None:
     try:
         logger.debug(f"开始异步删除文件: {path_str}")
 
-        if await async_exists(path_str):
+        if await async_exists(path_str) or await async_is_symlink(path_str):
             await aiofiles.os.remove(path_str)
             logger.debug(f"异步删除文件完成: {path_str}")
         else:
@@ -367,6 +367,31 @@ async def async_rmdir(path: Union[str, Path]) -> None:
         logger.warning(f"删除空目录时目录已不存在（竞争条件），跳过: {path_str}")
     except Exception as e:
         logger.error(f"异步删除空目录失败 {path_str}: {e}")
+        raise
+
+
+async def async_symlink(src: Union[str, Path], dst: Union[str, Path]) -> None:
+    """
+    异步创建软链
+
+    Args:
+        src: 软链目标路径
+        dst: 软链路径
+
+    Raises:
+        FileExistsError: 软链路径已存在
+        PermissionError: 权限不足
+        OSError: 创建失败
+    """
+    src_path = Path(src)
+    dst_path = Path(dst)
+
+    try:
+        logger.debug(f"开始异步创建软链: {dst_path} -> {src_path}")
+        await asyncio.to_thread(os.symlink, str(src_path), str(dst_path))
+        logger.debug(f"异步创建软链完成: {dst_path} -> {src_path}")
+    except Exception as e:
+        logger.error(f"异步创建软链失败 {dst_path} -> {src_path}: {e}")
         raise
 
 
@@ -841,6 +866,26 @@ async def async_is_file(path: Union[str, Path]) -> bool:
         return await aiofiles.os.path.isfile(str(path))
     except Exception as e:
         logger.error(f"检查路径是否为文件失败 {path}: {e}")
+        raise
+
+
+async def async_is_symlink(path: Union[str, Path]) -> bool:
+    """
+    异步检查路径是否为软链
+
+    Args:
+        path: 路径
+
+    Returns:
+        bool: 路径是否为软链
+
+    Raises:
+        OSError: 系统错误
+    """
+    try:
+        return await aiofiles.os.path.islink(str(path))
+    except Exception as e:
+        logger.error(f"检查路径是否为软链失败 {path}: {e}")
         raise
 
 

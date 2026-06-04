@@ -1,7 +1,10 @@
+import pytest
+
 from app.service.home_persistence_service import HomePersistenceService
 
 
-def test_initialize_creates_home_symlinks_after_user_home_is_available(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_initialize_creates_home_symlinks_after_user_home_is_available(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     home_dir.mkdir()
@@ -9,9 +12,9 @@ def test_initialize_creates_home_symlinks_after_user_home_is_available(tmp_path,
     monkeypatch.setenv("HOME", str(home_dir))
     monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
 
-    HomePersistenceService.initialize_from_environment()
+    await HomePersistenceService.initialize_from_environment()
 
-    expected_dirs = (".local/share", ".magic")
+    expected_dirs = (".magic",)
     for relative_path in expected_dirs:
         link = home_dir / relative_path
         target = user_home_dir / relative_path
@@ -20,24 +23,41 @@ def test_initialize_creates_home_symlinks_after_user_home_is_available(tmp_path,
         assert target.is_dir()
 
     dws_dir = home_dir / ".dws"
+    dws_app = dws_dir / "app.json"
     dws_config = dws_dir / "config.json"
     dws_identity = dws_dir / "identity.json"
     assert dws_dir.is_dir()
     assert not dws_dir.is_symlink()
+    assert dws_app.is_symlink()
     assert dws_config.is_symlink()
     assert dws_identity.is_symlink()
+    assert dws_app.resolve(strict=False) == (user_home_dir / ".dws" / "app.json").resolve(strict=False)
     assert dws_config.resolve(strict=False) == (user_home_dir / ".dws" / "config.json").resolve(strict=False)
     assert dws_identity.resolve(strict=False) == (user_home_dir / ".dws" / "identity.json").resolve(strict=False)
 
     lark_dir = home_dir / ".lark-cli"
     lark_config = lark_dir / "config.json"
+    lark_update_state = lark_dir / "update-state.json"
     assert lark_dir.is_dir()
     assert not lark_dir.is_symlink()
     assert lark_config.is_symlink()
+    assert lark_update_state.is_symlink()
     assert lark_config.resolve(strict=False) == (user_home_dir / ".lark-cli" / "config.json").resolve(strict=False)
+    assert lark_update_state.resolve(strict=False) == (user_home_dir / ".lark-cli" / "update-state.json").resolve(strict=False)
+
+    local_share_dir = home_dir / ".local" / "share"
+    dws_cli_dir = local_share_dir / "dws-cli"
+    lark_cli_dir = local_share_dir / "lark-cli"
+    assert local_share_dir.is_dir()
+    assert not local_share_dir.is_symlink()
+    assert dws_cli_dir.is_symlink()
+    assert lark_cli_dir.is_symlink()
+    assert dws_cli_dir.resolve(strict=False) == (user_home_dir / ".local" / "share" / "dws-cli").resolve(strict=False)
+    assert lark_cli_dir.resolve(strict=False) == (user_home_dir / ".local" / "share" / "lark-cli").resolve(strict=False)
 
 
-def test_initialize_moves_existing_local_magic_aside_before_symlink(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_initialize_moves_existing_local_magic_aside_before_symlink(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     existing_magic_dir = home_dir / ".magic"
@@ -48,7 +68,7 @@ def test_initialize_moves_existing_local_magic_aside_before_symlink(tmp_path, mo
     monkeypatch.setenv("HOME", str(home_dir))
     monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
 
-    HomePersistenceService.initialize_from_environment()
+    await HomePersistenceService.initialize_from_environment()
 
     magic_link = home_dir / ".magic"
     magic_target = user_home_dir / ".magic"
@@ -60,7 +80,8 @@ def test_initialize_moves_existing_local_magic_aside_before_symlink(tmp_path, mo
     assert (backups[0] / "mock-config.json").read_text(encoding="utf-8") == "{}"
 
 
-def test_initialize_preserves_ignored_dws_local_directories(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_initialize_preserves_ignored_dws_local_directories(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     source_logs_dir = home_dir / ".dws" / "logs"
@@ -72,7 +93,7 @@ def test_initialize_preserves_ignored_dws_local_directories(tmp_path, monkeypatc
     monkeypatch.setenv("HOME", str(home_dir))
     monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
 
-    HomePersistenceService.initialize_from_environment()
+    await HomePersistenceService.initialize_from_environment()
 
     dws_dir = home_dir / ".dws"
     dws_target = user_home_dir / ".dws"
@@ -84,7 +105,8 @@ def test_initialize_preserves_ignored_dws_local_directories(tmp_path, monkeypatc
     assert not list(home_dir.glob(".dws.before-home-persistence*"))
 
 
-def test_initialize_prefers_user_home_file_for_partial_dir(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_initialize_prefers_user_home_file_for_partial_dir(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     user_home_dir = tmp_path / "user-home"
     source_config = home_dir / ".dws" / "config.json"
@@ -96,7 +118,7 @@ def test_initialize_prefers_user_home_file_for_partial_dir(tmp_path, monkeypatch
     monkeypatch.setenv("HOME", str(home_dir))
     monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
 
-    HomePersistenceService.initialize_from_environment()
+    await HomePersistenceService.initialize_from_environment()
 
     dws_dir = home_dir / ".dws"
     dws_target = user_home_dir / ".dws"
@@ -110,12 +132,84 @@ def test_initialize_prefers_user_home_file_for_partial_dir(tmp_path, monkeypatch
     assert not list(home_dir.glob(".dws.before-home-persistence*"))
 
 
-def test_initialize_skips_without_user_home_dir(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_initialize_only_persists_selected_local_share_dirs(tmp_path, monkeypatch):
+    home_dir = tmp_path / "home"
+    user_home_dir = tmp_path / "user-home"
+    local_share = home_dir / ".local" / "share"
+    local_dws_cli = local_share / "dws-cli"
+    local_other = local_share / "opencode"
+    target_dws_cli = user_home_dir / ".local" / "share" / "dws-cli"
+    local_dws_cli.mkdir(parents=True)
+    local_other.mkdir(parents=True)
+    target_dws_cli.mkdir(parents=True)
+    (local_dws_cli / "local-token").write_text("local", encoding="utf-8")
+    (local_other / "state.json").write_text("local-only", encoding="utf-8")
+    (target_dws_cli / "auth-token.enc").write_text("persisted", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
+
+    await HomePersistenceService.initialize_from_environment()
+
+    dws_cli_link = local_share / "dws-cli"
+    assert local_share.is_dir()
+    assert not local_share.is_symlink()
+    assert dws_cli_link.is_symlink()
+    assert dws_cli_link.resolve(strict=False) == target_dws_cli.resolve(strict=False)
+    assert not (target_dws_cli / "local-token").exists()
+    assert (target_dws_cli / "auth-token.enc").read_text(encoding="utf-8") == "persisted"
+    assert (local_other / "state.json").read_text(encoding="utf-8") == "local-only"
+
+
+@pytest.mark.asyncio
+async def test_initialize_skips_without_user_home_dir(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     monkeypatch.setenv("HOME", str(home_dir))
     monkeypatch.delenv("USER_HOME_DIR", raising=False)
 
-    HomePersistenceService.initialize_from_environment()
+    await HomePersistenceService.initialize_from_environment()
 
+    assert not (home_dir / ".magic").exists()
+
+
+@pytest.mark.asyncio
+async def test_initialize_continues_when_partial_dir_fails(tmp_path, monkeypatch):
+    home_dir = tmp_path / "home"
+    user_home_dir = tmp_path / "user-home"
+    home_dir.mkdir()
+    user_home_dir.mkdir()
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
+
+    async def fail_partial_dir(cls, **kwargs):
+        raise RuntimeError("mock partial init failure")
+
+    monkeypatch.setattr(HomePersistenceService, "_ensure_partial_dir", fail_partial_dir)
+
+    await HomePersistenceService.initialize_from_environment()
+
+    magic_link = home_dir / ".magic"
+    magic_target = user_home_dir / ".magic"
+    assert magic_link.is_symlink()
+    assert magic_link.resolve(strict=False) == magic_target.resolve(strict=False)
+
+
+@pytest.mark.asyncio
+async def test_initialize_does_not_raise_when_full_link_fails(tmp_path, monkeypatch):
+    home_dir = tmp_path / "home"
+    user_home_dir = tmp_path / "user-home"
+    home_dir.mkdir()
+    user_home_dir.mkdir()
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
+
+    async def fail_full_link(cls, **kwargs):
+        raise RuntimeError("mock full link failure")
+
+    monkeypatch.setattr(HomePersistenceService, "_ensure_symlink", fail_full_link)
+
+    await HomePersistenceService.initialize_from_environment()
+
+    assert (home_dir / ".dws").is_dir()
     assert not (home_dir / ".magic").exists()
