@@ -62,9 +62,14 @@ class HomePersistenceService:
 
     @classmethod
     def _merge_existing_path(cls, source: Path, target: Path) -> bool:
-        """Move existing source content into target, preserving conflicts."""
+        """Move existing source content into target, preferring target conflicts."""
         if source.is_dir():
-            if not cls._merge_directory_contents(source=source, target=target):
+            if not cls._merge_directory_contents(
+                source=source,
+                target=target,
+                source_root=source,
+                backup_root=target / ".home-persistence-backup",
+            ):
                 return False
             source.rmdir()
             logger.info(f"[HomePersistence] 已迁移已有目录内容: {source} -> {target}")
@@ -72,17 +77,24 @@ class HomePersistenceService:
 
         destination = target / source.name
         if destination.exists() or destination.is_symlink():
-            logger.warning(
-                f"[HomePersistence] 目标已存在，保留原始文件，跳过软链替换: {destination}"
+            cls._backup_conflicting_source(
+                source=source,
+                backup_path=target / ".home-persistence-backup" / source.name,
             )
-            return False
+            return True
 
         shutil.move(str(source), str(destination))
         logger.info(f"[HomePersistence] 已迁移已有文件: {source} -> {destination}")
         return True
 
     @classmethod
-    def _merge_directory_contents(cls, source: Path, target: Path) -> bool:
+    def _merge_directory_contents(
+        cls,
+        source: Path,
+        target: Path,
+        source_root: Path,
+        backup_root: Path,
+    ) -> bool:
         """Recursively merge source directory contents into target."""
         for child in source.iterdir():
             destination = target / child.name
@@ -91,14 +103,41 @@ class HomePersistenceService:
                 continue
 
             if child.is_dir() and destination.is_dir() and not destination.is_symlink():
-                if not cls._merge_directory_contents(source=child, target=destination):
+                if not cls._merge_directory_contents(
+                    source=child,
+                    target=destination,
+                    source_root=source_root,
+                    backup_root=backup_root,
+                ):
                     return False
                 child.rmdir()
                 continue
 
-            logger.warning(
-                f"[HomePersistence] 目标文件冲突，保留原始路径，跳过软链替换: {destination}"
+            cls._backup_conflicting_source(
+                source=child,
+                backup_path=backup_root / child.relative_to(source_root),
             )
-            return False
 
         return True
+
+    @classmethod
+    def _backup_conflicting_source(cls, source: Path, backup_path: Path) -> None:
+        """Move a source-side conflict aside so USER_HOME_DIR data wins."""
+        backup_path = cls._unique_backup_path(backup_path)
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(backup_path))
+        logger.warning(
+            f"[HomePersistence] 目标已存在，优先使用持久化目录，已备份本地冲突路径: {source} -> {backup_path}"
+        )
+
+    @staticmethod
+    def _unique_backup_path(path: Path) -> Path:
+        if not path.exists() and not path.is_symlink():
+            return path
+
+        for index in range(1, 1000):
+            candidate = path.with_name(f"{path.name}.{index}")
+            if not candidate.exists() and not candidate.is_symlink():
+                return candidate
+
+        raise RuntimeError(f"无法为冲突路径生成备份文件名: {path}")

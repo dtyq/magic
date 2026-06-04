@@ -62,6 +62,29 @@ def test_initialize_recursively_merges_existing_directories(tmp_path, monkeypatc
     assert (target_logs_dir / "persisted.log").read_text(encoding="utf-8") == "persisted"
 
 
+def test_initialize_prefers_user_home_file_conflicts_and_still_symlinks(tmp_path, monkeypatch):
+    home_dir = tmp_path / "home"
+    user_home_dir = tmp_path / "user-home"
+    source_config = home_dir / ".dws" / "config.json"
+    target_config = user_home_dir / ".dws" / "config.json"
+    source_config.parent.mkdir(parents=True)
+    target_config.parent.mkdir(parents=True)
+    source_config.write_text("local", encoding="utf-8")
+    target_config.write_text("persisted", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USER_HOME_DIR", str(user_home_dir))
+
+    HomePersistenceService.initialize_from_environment()
+
+    dws_link = home_dir / ".dws"
+    dws_target = user_home_dir / ".dws"
+    backup_config = dws_target / ".home-persistence-backup" / "config.json"
+    assert dws_link.is_symlink()
+    assert dws_link.resolve(strict=False) == dws_target.resolve(strict=False)
+    assert target_config.read_text(encoding="utf-8") == "persisted"
+    assert backup_config.read_text(encoding="utf-8") == "local"
+
+
 def test_initialize_skips_without_user_home_dir(tmp_path, monkeypatch):
     home_dir = tmp_path / "home"
     home_dir.mkdir()
