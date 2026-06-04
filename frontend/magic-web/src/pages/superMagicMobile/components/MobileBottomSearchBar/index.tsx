@@ -80,8 +80,9 @@ const MobileBottomSearchBar = memo(function MobileBottomSearchBar({
 			data-testid={`${testIdPrefix}-root`}
 		>
 			<div className="flex items-center gap-2">
+				{/* Downward floating shadow matches prototype; dock upward shadow would darken ScrollEdgeFade above. */}
 				<div
-					className="flex h-[44px] min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-card px-3 shadow-mobile-dock-surface"
+					className="flex h-[44px] min-w-0 flex-1 items-center gap-1 rounded-full border border-border bg-card px-3 shadow-magic-floating-action"
 					data-testid={`${testIdPrefix}-field`}
 				>
 					<Search className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
@@ -103,7 +104,7 @@ const MobileBottomSearchBar = memo(function MobileBottomSearchBar({
 					<button
 						type="button"
 						onMouseDown={handleClearMouseDown}
-						className="flex size-[44px] shrink-0 items-center justify-center rounded-full border border-border bg-card shadow-mobile-dock-surface"
+						className="flex size-[44px] shrink-0 items-center justify-center rounded-full border border-border bg-card shadow-magic-floating-action"
 						aria-label={clearAriaLabel}
 						data-testid={`${testIdPrefix}-clear`}
 					>

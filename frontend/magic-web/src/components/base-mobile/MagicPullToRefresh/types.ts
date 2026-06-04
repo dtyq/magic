@@ -37,6 +37,12 @@ export interface MagicPullToRefreshProps extends Omit<AntdPullToRefreshProps, "c
 	containerId?: string
 
 	/**
+	 * When true, the outer wrapper does not scroll; the parent must own overflow scrolling
+	 * (e.g. ScrollEdgeFadeContainer). Avoids nested scroll containers that break scroll listeners.
+	 */
+	embedInParentScroll?: boolean
+
+	/**
 	 * 刷新成功提示文案
 	 */
 	successText?: string

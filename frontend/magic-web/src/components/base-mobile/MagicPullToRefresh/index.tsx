@@ -31,6 +31,7 @@ function MagicPullToRefresh(props: MagicPullToRefreshProps) {
 		containerId,
 		containerStyle,
 		containerClassName,
+		embedInParentScroll = false,
 		successText,
 		showSuccessMessage = true,
 		onRefreshSuccess,
@@ -39,7 +40,7 @@ function MagicPullToRefresh(props: MagicPullToRefreshProps) {
 	} = props
 
 	const { t } = useTranslation("super")
-	const { styles, cx } = useStyles({ height })
+	const { styles, cx } = useStyles({ height, embedInParentScroll })
 
 	const handleRefresh = useCallback(async () => {
 		try {

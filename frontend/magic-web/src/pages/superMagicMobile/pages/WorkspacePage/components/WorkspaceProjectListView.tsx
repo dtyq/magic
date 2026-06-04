@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useId, useState } from "react"
 import { ChevronLeft, Ellipsis, Plus } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import { ScrollEdgeFadeContainer } from "@/components/base-mobile/ScrollEdgeFade"
 import { cn } from "@/lib/utils"
 import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { DataEmptyState } from "@/pages/superMagicMobile/components/DataEmptyState"
@@ -56,9 +56,6 @@ export function WorkspaceProjectListView({
 	loadMore,
 }: WorkspaceProjectListViewProps) {
 	const { t } = useTranslation("super")
-	const scrollContainerId = useId()
-	const [showTopMask, setShowTopMask] = useState(false)
-	const [showBottomMask, setShowBottomMask] = useState(true)
 	const shouldStretchPullToRefresh = isProjectEmpty || isSearchEmpty
 	/*
 	 * 仅在空态时补齐 PullToRefresh 的高度链，让空内容可以保持垂直居中。
@@ -66,34 +63,6 @@ export function WorkspaceProjectListView({
 	 */
 	const pullToRefreshStretchClassName =
 		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
-
-	/**
-	 * 渐变遮罩直接监听真实滚动容器，保证列表上下边缘的视觉反馈与原型一致。
-	 */
-	const updateMasks = useCallback(() => {
-		const scrollElement = document.getElementById(scrollContainerId)
-		if (!scrollElement) return
-
-		setShowTopMask(scrollElement.scrollTop > 4)
-		setShowBottomMask(
-			scrollElement.scrollTop + scrollElement.clientHeight < scrollElement.scrollHeight - 4,
-		)
-	}, [scrollContainerId])
-
-	/**
-	 * 原型使用滚动蒙层提示列表上下还有内容，这里在挂载后同步一次并订阅滚动事件。
-	 */
-	useEffect(() => {
-		const scrollElement = document.getElementById(scrollContainerId)
-		if (!scrollElement) return
-
-		updateMasks()
-		scrollElement.addEventListener("scroll", updateMasks, { passive: true })
-
-		return () => {
-			scrollElement.removeEventListener("scroll", updateMasks)
-		}
-	}, [projects.length, isLoading, isProjectEmpty, isSearchEmpty, scrollContainerId, updateMasks])
 
 	return (
 		<div
@@ -145,9 +114,14 @@ export function WorkspaceProjectListView({
 				</div>
 			</div>
 
-			{/* 列表区使用与对话页一致的单层滚动容器，让下拉提示落点稳定。 */}
-			<div id={scrollContainerId} className="relative min-h-0 flex-1 overflow-y-auto">
+			{/* 列表区：ScrollEdgeFade 双层结构，遮罩与滚动口为兄弟节点（对齐原型 ProjectListScreen）。 */}
+			<ScrollEdgeFadeContainer
+				fadeColor="mobile-background"
+				className="min-h-0 flex-1"
+				contentDeps={[projects.length, isLoading, isProjectEmpty, isSearchEmpty]}
+			>
 				<MagicPullToRefresh
+					embedInParentScroll
 					onRefresh={onRefresh}
 					showSuccessMessage={false}
 					containerClassName={cn(
@@ -193,26 +167,7 @@ export function WorkspaceProjectListView({
 						) : null}
 					</div>
 				</MagicPullToRefresh>
-
-				{/* 顶部渐变遮罩用于提示列表上方仍有内容，符合原型的滚动反馈。 */}
-				<div
-					className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to bottom, var(--color-background) 0%, transparent 100%)",
-						opacity: showTopMask ? 1 : 0,
-					}}
-				/>
-				{/* 底部渐变遮罩用于提示列表下方仍可继续滚动。 */}
-				<div
-					className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
-					style={{
-						background:
-							"linear-gradient(to top, var(--color-background) 0%, transparent 100%)",
-						opacity: showBottomMask ? 1 : 0,
-					}}
-				/>
-			</div>
+			</ScrollEdgeFadeContainer>
 
 			{/* 通用底部搜索条统一承接浮动样式，项目页只指定占位文案和清除按钮策略。 */}
 			<MobileBottomSearchBar
