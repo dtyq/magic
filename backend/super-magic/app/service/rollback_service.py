@@ -78,31 +78,6 @@ class RollbackService:
                     exc_info=True,
                 )
 
-    async def _upload_archives_after_rollback(self) -> None:
-        """回滚终态完成后，同步把 checkpoints 与聊天历史归档上传到对象存储。
-
-        checkpoints 归档原本只在“用户发消息 → 主 agent 跑完”的链路里上传
-        （agent_service 的 finally 里 fire-and-forget）。回滚走独立的 HTTP 路由，
-        不经过那条链路，于是 commit/undo 改写的 checkpoint_manifest.json
-        （current_checkpoint_id 变更、后续 checkpoint 被删）以及被覆盖的聊天历史
-        都只停在本地。一旦沙箱过期被清理、未再发新消息触发上传，下次恢复
-        拉回的仍是回滚前的旧归档，回滚效果丢失。因此在回滚终态后补一次上传。
-
-        这里同步 await 上传，杜绝“上传未完成沙箱就被清理”的窗口。上传本身已被
-        _archive_and_upload_project 内部 try/except 包裹，不会抛错，不会影响回滚成功语义。
-        """
-        # 局部 import 避免与 agent_dispatcher / file_storage_listener_service 的模块级循环依赖
-        from app.service.agent_dispatcher import AgentDispatcher
-        from app.service.agent_event.file_storage_listener_service import FileStorageListenerService
-
-        agent_context = getattr(AgentDispatcher.get_instance(), "agent_context", None)
-        if agent_context is None:
-            logger.warning("主 agent_context 尚未创建，跳过回滚后的 checkpoints 上传")
-            return
-
-        await FileStorageListenerService._archive_and_upload_project(agent_context)
-        logger.info("回滚后 checkpoints 与聊天历史归档已同步上传到对象存储")
-
     async def _get_previous_checkpoint(self, checkpoint_id: str) -> Optional[str]:
         """获取指定checkpoint的前一个checkpoint（支持虚拟checkpoint）
 
@@ -204,10 +179,6 @@ class RollbackService:
             # 因此只需要在 commit 这一个点 reload。
             await self._reload_main_agent_chat_history()
 
-            # 回滚已改写本地 checkpoint_manifest.json 并覆盖了聊天历史，
-            # 同步上传到对象存储，避免沙箱过期被清理后恢复出回滚前的旧状态。
-            await self._upload_archives_after_rollback()
-
         except RollbackException:
             raise
         except Exception as e:
@@ -273,10 +244,6 @@ class RollbackService:
             except Exception as version_error:
                 # 版本创建失败不应该影响回滚操作
                 logger.error(f"文件版本创建失败，但撤回回滚操作已成功: {version_error}")
-
-            # 6. 回滚已改写本地 checkpoint_manifest.json 并覆盖了聊天历史，
-            # 同步上传到对象存储，避免沙箱过期被清理后恢复出回滚前的旧状态。
-            await self._upload_archives_after_rollback()
 
             logger.info(f"撤回回滚成功完成，当前checkpoint: {latest_checkpoint_id}")
 
