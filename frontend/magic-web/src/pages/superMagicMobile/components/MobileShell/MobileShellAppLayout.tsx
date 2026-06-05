@@ -9,6 +9,7 @@ export interface MobileShellAppLayoutProps {
 	testIdPrefix?: string
 	closeSidebarAriaLabel: string
 	isSidebarOpen: boolean
+	onOpenSidebar: () => void
 	onCloseSidebar: () => void
 	menuValue: MobileShellMenuContextValue
 	sidebar: ReactNode
@@ -24,6 +25,7 @@ export function MobileShellAppLayout({
 	testIdPrefix = "mobile-shell",
 	closeSidebarAriaLabel,
 	isSidebarOpen,
+	onOpenSidebar,
 	onCloseSidebar,
 	menuValue,
 	sidebar,
@@ -35,6 +37,7 @@ export function MobileShellAppLayout({
 				isSidebarOpen={isSidebarOpen}
 				sidebar={sidebar}
 				panel={panel}
+				onOpenSidebar={onOpenSidebar}
 				onCloseSidebar={onCloseSidebar}
 				closeSidebarAriaLabel={closeSidebarAriaLabel}
 				testIdPrefix={testIdPrefix}

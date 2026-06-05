@@ -282,6 +282,7 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 					testIdPrefix={testIdPrefix}
 					closeSidebarAriaLabel={closeSidebarAriaLabel}
 					isSidebarOpen={isSidebarOpen}
+					onOpenSidebar={() => setIsSidebarOpen(true)}
 					onCloseSidebar={() => setIsSidebarOpen(false)}
 					menuValue={menuValue}
 					sidebar={resolvedSidebar}

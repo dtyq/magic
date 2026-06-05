@@ -87,6 +87,8 @@ export function SwipeActionRow({
 
 	const touchStartX = useRef(0)
 	const touchStartY = useRef(0)
+	/** 当前手势是否由行内侧滑接管（接管后才阻止冒泡，避免影响全局右滑开菜单） */
+	const hasGestureOwnership = useRef(false)
 	/** 触摸开始时内容层的当前 translateX 基线（已展开时为 -totalActionW，否则为 0） */
 	const dragBaseX = useRef(0)
 	/** 是否发生过有效横向拖动（|dx| > 4px） */
@@ -114,6 +116,7 @@ export function SwipeActionRow({
 	function handleTouchStart(e: React.TouchEvent) {
 		touchStartX.current = e.touches[0].clientX
 		touchStartY.current = e.touches[0].clientY
+		hasGestureOwnership.current = false
 		// 已展开时，基线为 -totalActionW；否则为 0
 		dragBaseX.current = isOpen ? -totalActionW : 0
 		hasDragged.current = false
@@ -134,6 +137,15 @@ export function SwipeActionRow({
 		if (!isDragging && Math.abs(dy) > Math.abs(dx)) return
 
 		if (Math.abs(dx) > DRAG_THRESHOLD) hasDragged.current = true
+
+		/**
+		 * 关闭态下仅左滑接管；打开态下左右滑都由行内接管（用于收起）。
+		 * 这样未触发行内侧滑时，右滑仍可冒泡给外层菜单手势。
+		 */
+		const shouldCaptureGesture = isOpen ? Math.abs(dx) > DRAG_THRESHOLD : dx < -DRAG_THRESHOLD
+		if (!shouldCaptureGesture) return
+		hasGestureOwnership.current = true
+		e.stopPropagation()
 		setIsDragging(true)
 
 		// clamp：内容层不超过 [-totalActionW, 0] 范围
@@ -141,7 +153,10 @@ export function SwipeActionRow({
 		setTranslateX(newX)
 	}
 
-	function handleTouchEnd() {
+	function handleTouchEnd(e: React.TouchEvent) {
+		if (hasGestureOwnership.current) {
+			e.stopPropagation()
+		}
 		setIsDragging(false)
 
 		if (isOpen) {

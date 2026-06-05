@@ -24,6 +24,10 @@ import { crewService, type StoreAgentView } from "@/services/crew/CrewService"
 import CrewMarketMobileSkeleton from "./components/CrewMarketMobileSkeleton"
 import DismissCrewConfirmSheet from "@/pages/superMagic/pages/MyCrewPage/components/DismissCrewConfirmSheet"
 import MyCrewDetailSheet from "@/pages/superMagic/pages/MyCrewPage/components/MyCrewDetailSheet"
+import {
+	SuperMobileShellRouteLayout,
+	useOptionalSuperMobileShellOutlet,
+} from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
 
 const HEADER_SHADOW = "0px 8px 25px 0px rgba(0,0,0,0.10)"
 
@@ -321,5 +325,22 @@ function CrewMarketMobilePanelBase() {
 const CrewMarketMobilePanel = observer(CrewMarketMobilePanelBase)
 
 export default function CrewMarketMobilePage() {
-	return <CrewMarketMobilePanel />
+	const shellOutlet = useOptionalSuperMobileShellOutlet()
+	const { t } = useTranslation("super")
+	const content = <CrewMarketMobilePanel />
+
+	// Crew market can render under standalone routes; wrap with mobile shell there so swipe gestures stay available.
+	if (!shellOutlet) {
+		return (
+			<SuperMobileShellRouteLayout
+				activeView="myCrew"
+				testIdPrefix="my-crew-shell"
+				closeSidebarAriaLabel={t("mobile.shell.closeSidebar")}
+			>
+				{content}
+			</SuperMobileShellRouteLayout>
+		)
+	}
+
+	return content
 }

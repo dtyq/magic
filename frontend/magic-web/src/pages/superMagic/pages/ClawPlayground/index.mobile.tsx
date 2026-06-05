@@ -74,6 +74,10 @@ import { useClawFeedbackSheet } from "@/pages/superMagic/hooks/useClawFeedbackSh
 import { ClawMobileMoreSheet } from "./components/ClawMobileMoreSheet"
 import { MagiClawEditDialog } from "../MagiClawPage/MagiClawEditDialog"
 import type { MagiClawEditPayload } from "../MagiClawPage/useMagiClawMobilePage"
+import {
+	SuperMobileShellRouteLayout,
+	useOptionalSuperMobileShellOutlet,
+} from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
 
 interface ClawMobileConversationPanelRef {
 	sendSkillInstallPrompt: (content: JSONContent) => void
@@ -452,6 +456,7 @@ const ClawMobileConversationPanel = observer(
 function ClawPlaygroundMobile() {
 	const { t } = useTranslation("sidebar")
 	const { t: tSuper } = useTranslation("super")
+	const shellOutlet = useOptionalSuperMobileShellOutlet()
 	const clawBrandValues = getClawBrandTranslationValues()
 	const navigate = useNavigate()
 	const { code, store, selectedProject, attachments, attachmentList } = useClawPlaygroundCore()
@@ -753,7 +758,7 @@ function ClawPlaygroundMobile() {
 		)
 	}
 
-	return (
+	const content = (
 		<div
 			className={`flex h-full min-h-0 w-full flex-col bg-mobile-background ${CLAW_MOBILE_VIEWPORT_MIN_HEIGHT_CLASS}`}
 			data-testid="claw-playground-mobile-root"
@@ -851,6 +856,21 @@ function ClawPlaygroundMobile() {
 			/>
 		</div>
 	)
+
+	// ClawPlayground can render under standalone routes; wrap with mobile shell there so swipe gestures stay available.
+	if (!shellOutlet) {
+		return (
+			<SuperMobileShellRouteLayout
+				activeView="magiClaw"
+				testIdPrefix="magi-claw-shell"
+				closeSidebarAriaLabel={tSuper("mobile.shell.closeSidebar")}
+			>
+				{content}
+			</SuperMobileShellRouteLayout>
+		)
+	}
+
+	return content
 }
 
 export default observer(ClawPlaygroundMobile)
