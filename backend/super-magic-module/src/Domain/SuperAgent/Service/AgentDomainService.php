@@ -221,13 +221,23 @@ class AgentDomainService
         //      cold-create or warm-pool mount)
         //   3) topic_id stringified — legacy fallback kept so callers that
         //      pre-date the explicit binding still work
+        //
+        // 注意：buildInitAgentContext 在调用方未显式指定 sandbox_id 时，会把
+        // AgentContext 的 sandboxId 默认填充为 topic_id。因此「context id 恰好
+        // 等于 topic_id」并不代表调用方真的 pin 了某个沙箱，而是默认值。这种
+        // 情况下必须把话题持久化的真实 sandbox_id（温池 / 冷启动写入）排在前面，
+        // 否则对温池话题（sandbox_id != topic_id）会用 topic_id 探测 workspace
+        // 失败、误判沙箱不存在，进而重复新建一个沙箱。
+        $topicIdString = (string) $topicEntity->getId();
         $contextSandboxId = $agentContext->getSandboxId();
         $persistedSandboxId = (string) $topicEntity->getSandboxId();
-        $sandboxId = ! empty($contextSandboxId)
+        // 仅当 context id 非空且不等于默认填充的 topic_id 时，才视为显式 pin。
+        $isExplicitContextId = ! empty($contextSandboxId) && $contextSandboxId !== $topicIdString;
+        $sandboxId = $isExplicitContextId
             ? $contextSandboxId
             : (! empty($persistedSandboxId)
                 ? $persistedSandboxId
-                : (string) $topicEntity->getId());
+                : $topicIdString);
 
         $this->logger->info('[Sandbox][Domain] Ensuring sandbox is initialized', [
             'topic_id' => $topicEntity->getId(),
