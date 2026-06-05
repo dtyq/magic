@@ -252,7 +252,17 @@ readonly class AgentAppService
         // init task
         $taskEntity = $this->taskDomainService->initDefaultTask($dataIsolation, $topicEntity);
 
-        $agentContext = $this->agentDomainService->buildInitAgentContext($dataIsolation, $projectEntity, $topicEntity, $taskEntity, skipInitMessage: $skipInitMessages);
+        // 传话题已绑定的 sandbox_id（未绑定则为空），让 Domain 在没有绑定时能走 warm pool。
+        // 不要漏传让其默认回退成 topic_id，否则温池话题会用 topic_id 探测 workspace 失败、
+        // 误判沙箱不存在，进而重复新建一个沙箱。
+        $agentContext = $this->agentDomainService->buildInitAgentContext(
+            dataIsolation: $dataIsolation,
+            projectEntity: $projectEntity,
+            topicEntity: $topicEntity,
+            taskEntity: $taskEntity,
+            sandboxId: (string) $topicEntity->getSandboxId(),
+            skipInitMessage: $skipInitMessages
+        );
 
         // Delegate to domain service
         return $this->agentDomainService->ensureSandboxInitialized(

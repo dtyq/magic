@@ -221,23 +221,13 @@ class AgentDomainService
         //      cold-create or warm-pool mount)
         //   3) topic_id stringified — legacy fallback kept so callers that
         //      pre-date the explicit binding still work
-        //
-        // 注意：buildInitAgentContext 在调用方未显式指定 sandbox_id 时，会把
-        // AgentContext 的 sandboxId 默认填充为 topic_id。因此「context id 恰好
-        // 等于 topic_id」并不代表调用方真的 pin 了某个沙箱，而是默认值。这种
-        // 情况下必须把话题持久化的真实 sandbox_id（温池 / 冷启动写入）排在前面，
-        // 否则对温池话题（sandbox_id != topic_id）会用 topic_id 探测 workspace
-        // 失败、误判沙箱不存在，进而重复新建一个沙箱。
-        $topicIdString = (string) $topicEntity->getId();
         $contextSandboxId = $agentContext->getSandboxId();
         $persistedSandboxId = (string) $topicEntity->getSandboxId();
-        // 仅当 context id 非空且不等于默认填充的 topic_id 时，才视为显式 pin。
-        $isExplicitContextId = ! empty($contextSandboxId) && $contextSandboxId !== $topicIdString;
-        $sandboxId = $isExplicitContextId
+        $sandboxId = ! empty($contextSandboxId)
             ? $contextSandboxId
             : (! empty($persistedSandboxId)
                 ? $persistedSandboxId
-                : $topicIdString);
+                : (string) $topicEntity->getId());
 
         $this->logger->info('[Sandbox][Domain] Ensuring sandbox is initialized', [
             'topic_id' => $topicEntity->getId(),
@@ -674,7 +664,7 @@ class AgentDomainService
         $language = $dataIsolation->getLanguage() ?? 'zh_CN';
         $agentProfile = $this->buildAgentProfile($dataIsolation, $agentMode, $taskContext->getAgentCode(), $language);
 
-        $this->logger->debug('[Sandbox][App] Sending chat message to agent', [
+        $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
             'prompt' => $taskContext->getTask()->getPrompt(),
@@ -914,6 +904,36 @@ class AgentDomainService
         $this->logger->debug('[Sandbox][App] Workspace status retrieved', [
             'sandbox_id' => $sandboxId,
             'status' => $result->getDataValue('status'),
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * 重置沙箱保活状态.
+     */
+    public function resetSandboxKeepAlive(string $sandboxId, string $source = 'special-project-crontab'): AgentResponse
+    {
+        $this->logger->debug('[Sandbox][App] Resetting sandbox keepalive', [
+            'sandbox_id' => $sandboxId,
+            'source' => $source,
+        ]);
+
+        $result = $this->agent->resetKeepAlive($sandboxId, $source);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][App] Failed to reset sandbox keepalive', [
+                'sandbox_id' => $sandboxId,
+                'source' => $source,
+                'error' => $result->getMessage(),
+                'code' => $result->getCode(),
+            ]);
+            throw new SandboxOperationException('Reset sandbox keepalive', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->info('[Sandbox][App] Sandbox keepalive reset successfully', [
+            'sandbox_id' => $sandboxId,
+            'source' => $source,
         ]);
 
         return $result;
