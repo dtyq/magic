@@ -302,16 +302,16 @@ class AgentService(Base):
             agent_context: Agent context
         """
         try:
-            # Get sandbox_id from agent_context. If not present, skip download.
-            sandbox_id = agent_context.get_sandbox_id()
-            if not sandbox_id:
-                logger.warning("agent_context 中没有 sandbox_id，跳过下载聊天历史")
+            # Get topic_id from agent_context. If not present, skip download.
+            topic_id = agent_context.get_metadata().get("topic_id")
+            if not topic_id:
+                logger.warning("agent_context 中没有 topic_id，跳过下载聊天历史")
                 return
 
-            # Construct the object name using the sandbox_id
-            chat_history_object_name = f"chat_history_{sandbox_id}.zip"
+            # Construct the object name using the topic_id
+            chat_history_object_name = f"chat_history_{topic_id}.zip"
             logger.info(
-                f"使用来自 agent_context 的 sandbox_id: {sandbox_id}，构造聊天历史归档名称: {chat_history_object_name}"
+                f"使用来自 agent_context 的 topic_id: {topic_id}，构造聊天历史归档名称: {chat_history_object_name}"
             )
 
             logger.info(f"下载聊天历史归档: {chat_history_object_name}")
@@ -391,14 +391,14 @@ class AgentService(Base):
             agent_context: Agent context
         """
         try:
-            # Get sandbox_id from agent_context. If not present, skip download.
-            sandbox_id = agent_context.get_sandbox_id()
-            if not sandbox_id:
-                logger.info("No sandbox_id in agent_context, skipping checkpoints download")
+            # Get topic_id from agent_context. If not present, skip download.
+            topic_id = agent_context.get_metadata().get("topic_id")
+            if not topic_id:
+                logger.info("No topic_id in agent_context, skipping checkpoints download")
                 return
 
-            # Construct the object key using the sandbox_id
-            checkpoints_object_name = f"checkpoints_{sandbox_id}.zip"
+            # Construct the object key using the topic_id
+            checkpoints_object_name = f"checkpoints_{topic_id}.zip"
             base_path = get_storage_dir(storage_service.credentials)
             checkpoints_dir_name = InitClientMessageUtil.get_checkpoints_dir()
             dir_path = BaseFileProcessor.combine_path(base_path, checkpoints_dir_name)
