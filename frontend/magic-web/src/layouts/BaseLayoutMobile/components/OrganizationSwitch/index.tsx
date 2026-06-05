@@ -42,7 +42,7 @@ const OrganizationSwitchPanelComponent = () => {
 			// 组织切换面板可能被临时提升层级（如从付费弹窗内打开），添加账号弹窗需要继续在其上方。
 			zIndex: Math.max(1300, GlobalSidebarStore.organizationSwitchZIndex + 100),
 		})
-		// TODO: TODO 移除zIndex 配置，使用自动推测的值
+		// TODO: remove hardcoded zIndex once overlay stack auto-inference is stable
 	})
 
 	const handleClose = useMemoizedFn(() => {

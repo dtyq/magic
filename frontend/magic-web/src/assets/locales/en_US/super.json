@@ -3191,10 +3191,7 @@
 		],
 		"actionTitle": "If you want to actively intervene",
 		"mainText": "Task execution is taking too long, which may be due to the following reasons:",
-		"reasonList": [
-			"AI is processing complex tasks",
-			"Network connection is unstable"
-		],
+		"reasonList": ["AI is processing complex tasks", "Network connection is unstable"],
 		"statusText": "If you don't take any action, AI will continue trying"
 	},
 	"tool": {
