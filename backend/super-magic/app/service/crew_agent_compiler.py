@@ -180,7 +180,11 @@ def _merge_preload(base: Any, additions: Any) -> list:
 class CrewAgentCompiler:
     """Compiles crew definition files into a .agent file."""
 
-    async def compile(self, agent_code: str, crew_dir: Path) -> Dict[str, Any]:
+    async def compile(
+        self,
+        agent_code: str,
+        crew_dir: Path,
+    ) -> Dict[str, Any]:
         """Compile crew directory files into a .agent file.
 
         Args:

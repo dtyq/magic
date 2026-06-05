@@ -379,6 +379,7 @@ const agentCodeInput = document.getElementById('agentCodeInput');
 const agentCodeGroup = document.getElementById('agentCodeGroup');
 const customAgentCodeInput = document.getElementById('customAgentCodeInput');
 const customAgentCodeGroup = document.getElementById('customAgentCodeGroup');
+const localCrewAgentOptions = document.getElementById('localCrewAgentOptions');
 const modelIdInput = document.getElementById('modelIdInput');
 const modelIdSelect = document.getElementById('modelIdSelect');
 const imageModelSelect = document.getElementById('imageModelSelect');
@@ -431,6 +432,37 @@ function initCompactPanelToggle(toggle, body, arrow, storageKey, defaultOpen) {
 const configPanelToggle = document.getElementById('configPanelToggle');
 const configPanelBody = document.getElementById('configPanelBody');
 const configPanelArrow = document.getElementById('configPanelArrow');
+
+function renderLocalCrewOptions(crews) {
+    if (!localCrewAgentOptions) return;
+    localCrewAgentOptions.innerHTML = '';
+    (Array.isArray(crews) ? crews : []).forEach((crew) => {
+        if (!crew || !crew.agent_code) return;
+        const option = document.createElement('option');
+        option.value = crew.agent_code;
+        option.label = crew.domain && crew.crew
+            ? `${crew.domain}/${crew.crew}`
+            : (crew.crew_dir || crew.agent_code);
+        localCrewAgentOptions.appendChild(option);
+    });
+}
+
+async function loadLocalCrewOptions() {
+    if (!localCrewAgentOptions) return;
+    const serverUrl = (serverUrlInput.value.trim() || 'http://127.0.0.1:8002').replace(/\/+$/, '');
+    try {
+        const response = await fetch(`${serverUrl}/api/v1/debug/local-crew/list`);
+        const json = await response.json().catch(() => null);
+        if (!response.ok || json?.code !== 1000) {
+            renderLocalCrewOptions([]);
+            return;
+        }
+        renderLocalCrewOptions(json.data?.crews || []);
+    } catch (error) {
+        renderLocalCrewOptions([]);
+    }
+}
+
 initCompactPanelToggle(configPanelToggle, configPanelBody, configPanelArrow, INIT_CONFIG_PANEL_OPEN_KEY, false);
 
 function refreshClientContextDebugState() {
@@ -1188,6 +1220,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始化 MCP 配置面板
     initMcpPanel();
+    loadLocalCrewOptions();
 
     // 初始化快捷键提示
     initSendHint();
