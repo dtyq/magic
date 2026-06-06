@@ -191,7 +191,8 @@
                         <!-- Agent Code 文本输入（仅 custom_agent 模式显示） -->
                         <div class="model-config" id="customAgentCodeGroup" style="display:none">
                             <input type="text" id="customAgentCodeInput" class="model-id-input"
-                                placeholder="agent_code（必填，如 SMA-xxx）">
+                                placeholder="agent_code（必填，如 SMA-xxx）" list="localCrewAgentOptions">
+                            <datalist id="localCrewAgentOptions"></datalist>
                         </div>
 
                         <!-- Model ID 配置（IM 模式下隐藏） -->
