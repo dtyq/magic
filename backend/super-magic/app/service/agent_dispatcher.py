@@ -537,9 +537,9 @@ class AgentDispatcher(Base):
     async def _save_last_dispatch_message(self, message: ChatClientMessage) -> None:
         """保存本次 dispatch 的完整消息快照到文件（.chat_history/last_dispatch_message.json）。"""
         from app.utils.async_file_utils import async_write_json
-        new_data = message.model_dump(mode="json")
+        new_data = self._remove_model_selection_fields(message.model_dump(mode="json"))
         # 合并策略：以上次快照为基础，新值非 None 才覆盖，防止空值抹掉已存的有效配置
-        existing = await self.get_last_dispatch_message() or {}
+        existing = self._remove_model_selection_fields(await self.get_last_dispatch_message() or {})
         merged = {**existing, **{k: v for k, v in new_data.items() if v is not None}}
         # dynamic_config 做深合并：第三方 IM 消息只携带 agent_code 等部分字段，
         # 避免整个 key 覆盖导致 message_version / agent_code 等配置丢失。
@@ -552,6 +552,24 @@ class AgentDispatcher(Base):
             await async_write_json(self._last_dispatch_message_file(), merged, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"[AgentDispatcher] 保存 dispatch 消息快照失败，忽略: {e}")
+
+    @staticmethod
+    def _remove_model_selection_fields(snapshot: Dict) -> Dict:
+        """移除 dispatch 快照中的模型选择字段，模型续传统一由 session_config 负责。"""
+        cleaned = dict(snapshot)
+        cleaned.pop("model_id", None)
+
+        dynamic_config = cleaned.get("dynamic_config")
+        if isinstance(dynamic_config, dict):
+            cleaned_dynamic_config = dict(dynamic_config)
+            cleaned_dynamic_config.pop("image_model", None)
+            cleaned_dynamic_config.pop("video_model", None)
+            if cleaned_dynamic_config:
+                cleaned["dynamic_config"] = cleaned_dynamic_config
+            else:
+                cleaned.pop("dynamic_config", None)
+
+        return cleaned
 
     async def submit_message(self, message: ChatClientMessage) -> None:
         """
