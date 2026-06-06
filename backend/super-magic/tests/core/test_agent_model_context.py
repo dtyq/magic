@@ -99,6 +99,33 @@ def test_agent_model_context_defers_config_lookup_until_runtime_resolve(monkeypa
     assert calls == ["mock-runtime-text"]
 
 
+def test_agent_model_context_uses_effective_fallback_model_id(monkeypatch):
+    def fake_get_model_config(model_id, *args, **kwargs):
+        assert model_id == "missing-runtime-text"
+        return LLMClientConfig(
+            model_id="mock-auto-text",
+            api_key="mock-key",
+            name="Mock Auto Text",
+            provider="mock-provider",
+            max_output_tokens=2048,
+            max_context_tokens=8192,
+        )
+
+    monkeypatch.setattr("app.core.models.agent_model_context.LLMFactory.get_model_config", fake_get_model_config)
+
+    context = AgentModelContext()
+    context.set_configured_text_model("mock-default-text")
+    context.apply_selection(ModelSelectionPolicy.resolve(ModelSelectionInput(
+        configured_text_model_id="mock-default-text",
+        request_text_model_id="missing-runtime-text",
+    )))
+
+    state = context.resolve_text_model()
+
+    assert state.model_id == "mock-auto-text"
+    assert context.current_text_model_id == "mock-auto-text"
+
+
 def test_agent_model_context_restores_pre_compact_text_model(monkeypatch):
     monkeypatch.setattr(
         "app.core.models.agent_model_context.LLMFactory.get_model_config",

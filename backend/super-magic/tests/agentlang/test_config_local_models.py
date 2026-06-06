@@ -8,6 +8,7 @@ from agentlang.config.models.model_config import ModelConfig
 from agentlang.config.models.model_config_manager import model_config_manager
 from agentlang.config.models.providers.config_yaml_provider import ConfigYamlProvider
 from app.api.routes.models import _append_local_text_models
+from app.core.model_providers.model_filter import should_skip_model
 
 
 def _write_yaml(path, data):
@@ -210,3 +211,25 @@ def test_models_route_appends_local_text_models_without_credentials():
     assert by_id["local-model"]["info"]["options"]["function_call"] is True
     assert "api_key" not in str(by_id["local-model"])
     assert "api_base_url" not in str(by_id["local-model"])
+
+
+def test_model_filter_skips_local_models_without_runtime_credentials():
+    missing_api_key = ModelConfig.from_dict(
+        "missing-api-key",
+        _model_config("missing-api-key", api_key=None),
+        provider_source="config.yaml",
+    )
+    missing_api_base_url = ModelConfig.from_dict(
+        "missing-api-base-url",
+        _model_config("missing-api-base-url", api_base_url=""),
+        provider_source="config.yaml",
+    )
+    valid_model = ModelConfig.from_dict(
+        "valid-model",
+        _model_config("valid-model", api_key="mock-key", api_base_url="https://mock.example.com/v1"),
+        provider_source="config.yaml",
+    )
+
+    assert should_skip_model(missing_api_key) is True
+    assert should_skip_model(missing_api_base_url) is True
+    assert should_skip_model(valid_model) is False

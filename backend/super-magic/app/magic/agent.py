@@ -35,6 +35,7 @@ from agentlang.config.config import config
 from agentlang.llms.error_classifier import LLMErrorClassifier, LLMErrorSnapshot
 from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
+from agentlang.llms.retry_policy import is_non_retryable_model_config_error
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage, TokenUsageCollection
 from agentlang.llms.token_usage.report import TokenUsageReport
@@ -726,11 +727,21 @@ class Agent(BaseAgent):
                 status_code=snapshot.status_code,
             )
 
+        if is_non_retryable_model_config_error(exception):
+            return build_final_task_state(
+                FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                vendor_message=str(exception),
+                custom_message=self._build_user_friendly_custom_message(exception, is_llm_path=True),
+            )
+
         return None
 
     def _classify_llm_exception_for_user(self, exception: Exception) -> str | None:
         """根据 LLM 异常类型返回用户友好的 i18n key，返回 None 则使用默认文案。"""
         from openai import APITimeoutError, APIConnectionError, APIStatusError
+
+        if is_non_retryable_model_config_error(exception):
+            return "messages.llm_provider_config_error"
 
         if isinstance(exception, (StreamChunkTimeoutError, StreamInterruptedError, asyncio.TimeoutError, APITimeoutError)):
             return "messages.llm_provider_timeout"
@@ -835,9 +846,9 @@ class Agent(BaseAgent):
         # 若历史末尾存在未完成的 tool call 序列，跳过注入避免破坏序列完整性
         try:
             if self.chat_history._is_tool_call_sequence_complete():
-                self._sync_horizon_llm_model_info()
-                ctx_update = await self.agent_context.horizon.build_context_update(
-                    injection_point="before_first_llm"
+                ctx_update = await self._build_horizon_context_update_safely(
+                    injection_point="before_first_llm",
+                    log_context="注入点1",
                 )
                 if ctx_update:
                     await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
@@ -1146,9 +1157,9 @@ class Agent(BaseAgent):
                 # 无论是否 should_exit 都注入，因为 hidden message 会留在 chat history 供后续 LLM call 读取
                 try:
                     if tool_result.inject_horizon_after_tools:
-                        self._sync_horizon_llm_model_info()
-                        ctx_update = await self.agent_context.horizon.build_context_update(
-                            injection_point="after_tool_result"
+                        ctx_update = await self._build_horizon_context_update_safely(
+                            injection_point="after_tool_result",
+                            log_context="tool result 后",
                         )
                         if ctx_update:
                             await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
@@ -1627,6 +1638,15 @@ class Agent(BaseAgent):
                     return snapshot
         return None
 
+    def _log_agent_loop_exception(self, exception: Exception) -> None:
+        """记录 agent loop 异常，已分类的模型配置错误不打印完整堆栈。"""
+        if is_non_retryable_model_config_error(exception):
+            logger.warning(f"Agent循环遇到模型配置错误，进入终态处理: {exception}")
+            return
+
+        logger.error(f"Agent循环执行过程中发生错误: {exception!r}")
+        logger.error(f"错误堆栈: {traceback.format_exc()}")
+
     async def _interruptible_sleep(self, seconds: float) -> None:
         """可中断的等待，监听 interruption_event 以快速响应用户取消"""
         interrupt_event = self.agent_context.get_interruption_event()
@@ -1672,6 +1692,9 @@ class Agent(BaseAgent):
             except Exception as e:
                 if self._find_context_window_error(e):
                     raise  # 上下文超长走 compact 路径
+                if is_non_retryable_model_config_error(e):
+                    logger.warning(f"流式请求遇到模型配置错误，不降级不重试，直接抛出: {e}")
+                    raise
                 # 确定性错误：不降级非流式，也不重试。
                 # 这类错误换成非流式请求同样会失败（模型不存在、API Key 无效、消息序列损坏等），
                 # 必须先检查此条件再走降级分支，否则会白白浪费一轮非流式请求。
@@ -1728,6 +1751,9 @@ class Agent(BaseAgent):
                 # 确定性错误：重试必然失败，直接抛出由上层走终态逻辑。
                 # 400 消息序列损坏时，每次重试还会额外注入 recovery user 消息，
                 # 反而让序列更乱，形成死亡螺旋，必须在退避重试逻辑之前先拦截。
+                if is_non_retryable_model_config_error(e):
+                    logger.warning(f"非流式请求遇到模型配置错误，不重试，直接抛出: {e}")
+                    raise
                 if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
                     raise
 
@@ -1901,6 +1927,24 @@ class Agent(BaseAgent):
             model_name=display_model_name,
             description=description,
         )
+
+    async def _build_horizon_context_update_safely(
+        self,
+        injection_point: str,
+        log_context: str,
+    ) -> Optional[str]:
+        """构建 Horizon 注入内容，模型配置错误时静默跳过。"""
+        try:
+            self._sync_horizon_llm_model_info()
+            return await self.agent_context.horizon.build_context_update(
+                injection_point=injection_point
+            )
+        except Exception as horizon_err:
+            if is_non_retryable_model_config_error(horizon_err):
+                logger.debug(f"[AgentHorizon] {log_context} 跳过：模型配置错误: {horizon_err}")
+                return None
+            logger.warning(f"[AgentHorizon] {log_context} 注入失败: {horizon_err}")
+            return None
 
     def _sync_horizon_llm_model_info(self) -> None:
         """在注入 system_injected_context 前预同步模型信息，确保首包可见。"""
@@ -2359,8 +2403,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         """
         from openai import APIError as _openai_APIError
 
-        logger.error(f"Agent循环执行过程中发生错误: {exception!r}")
-        logger.error(f"错误堆栈: {traceback.format_exc()}")
+        self._log_agent_loop_exception(exception)
 
         # 处理中断的工具调用
         await self._handle_interrupted_tool_calls(exception)

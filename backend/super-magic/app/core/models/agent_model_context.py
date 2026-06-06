@@ -135,21 +135,26 @@ class AgentModelContext:
             return self._resolved_text_state
 
         model_config = LLMFactory.get_model_config(model_id)
-        model_name = model_config.name or model_id
+        effective_model_id = normalize_model_id(model_config.model_id) or model_id
+        model_name = model_config.name or effective_model_id
         state = TextModelState(
-            model_id=model_id,
+            model_id=effective_model_id,
             model_name=model_name,
             resolved_model_id=model_config.resolved_model_id or None,
             max_output_tokens=model_config.max_output_tokens,
             max_context_tokens=model_config.max_context_tokens,
             config=model_config,
         )
-        self._resolved_text_model_id = model_id
+        if effective_model_id != model_id:
+            logger.warning(f"文本模型 {model_id} 不可用，已回退到 {effective_model_id}")
+            self.text_model_id = effective_model_id
+
+        self._resolved_text_model_id = effective_model_id
         self._resolved_text_state = state
 
-        if self._last_logged_text_model_id != model_id:
+        if self._last_logged_text_model_id != effective_model_id:
             logger.info(f"切换到运行时文本模型: {state.display_model_id} ({state.model_name})")
-            self._last_logged_text_model_id = model_id
+            self._last_logged_text_model_id = effective_model_id
         else:
             logger.debug(f"继续使用运行时文本模型: {state.display_model_id} ({state.model_name})")
         return state

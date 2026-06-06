@@ -35,6 +35,8 @@ logger = get_logger(__name__)
 DEFAULT_TIMEOUT = int(config.get("llm.api_timeout", 300))
 # 禁用 openai SDK 内部重试，项目自身已有重试机制，SDK 的静默重试会导致调用方长时间阻塞无感知
 MAX_RETRIES = 0
+ENABLE_MODEL_FALLBACK_ENV = "ENABLE_LLM_MODEL_FALLBACK"
+_DISABLED_BOOL_VALUES = {"0", "false", "no", "off"}
 
 class LLMClientConfig(BaseModel):
     """Configuration for LLM clients."""
@@ -173,7 +175,7 @@ class LLMFactory:
 
         # 获取模型配置
         llm_config = cls.get_model_config(model_id)
-        display_model_id = llm_config.resolved_model_id or model_id
+        display_model_id = llm_config.resolved_model_id or llm_config.model_id
 
         # Get current token count from chat history
         current_tokens = await get_current_tokens(agent_context, request_id)
@@ -351,7 +353,8 @@ class LLMFactory:
         Args:
             model_id: The model ID to get the config for.
             expected_type: Expected model type (e.g., "llm", "embedding"). If None, no type validation.
-            allow_fallback: Whether to allow fallback to "auto" or first available model when model_id is not found.
+            allow_fallback: Whether to allow fallback to an auto model or first runnable LLM when model_id is not found.
+                           Effective only when ENABLE_LLM_MODEL_FALLBACK is not disabled.
                            Defaults to True. Fallback is never applied for embedding type.
 
         Returns:
@@ -367,22 +370,16 @@ class LLMFactory:
         mc = model_config_manager.get(model_id)
 
         # 当找不到配置时，尝试 fallback（仅非 embedding 场景）
-        if mc is None and allow_fallback and expected_type != "embedding":
-            # 优先尝试 "auto" 模型
-            mc = model_config_manager.get("auto")
-            if mc is not None:
-                logger.warning(f"模型 '{model_id}' 未找到配置，fallback 到 'auto' 模型")
-            else:
-                # 从所有已注册模型中取第一个 LLM 类型的模型
-                all_models = model_config_manager.list_all()
-                for candidate in all_models:
-                    if candidate.type == "llm":
-                        mc = candidate
-                        logger.warning(
-                            f"模型 '{model_id}' 未找到配置且 'auto' 不可用，"
-                            f"fallback 到第一个可用 LLM 模型 '{mc.model_id}'"
-                        )
-                        break
+        if mc is None and allow_fallback and expected_type != "embedding" and cls._is_model_fallback_enabled():
+            mc = cls._resolve_fallback_model_config(
+                model_config_manager=model_config_manager,
+                requested_model_id=model_id,
+                model_type=expected_type or "llm",
+            )
+        elif mc is None and allow_fallback and expected_type != "embedding":
+            logger.warning(
+                f"模型 '{model_id}' 未找到配置，环境变量 {ENABLE_MODEL_FALLBACK_ENV} 已关闭，不执行 fallback"
+            )
 
         if mc is None:
             raise ValueError(f"找不到模型 ID 为 {model_id} 的配置")
@@ -393,7 +390,7 @@ class LLMFactory:
 
         try:
             return LLMClientConfig(
-                model_id=model_id,
+                model_id=mc.model_id,
                 api_key=mc.api_key,
                 api_base_url=mc.api_base_url,
                 name=mc.name,
@@ -422,6 +419,119 @@ class LLMFactory:
         """
         llm_config = cls.get_model_config(model_id)
         return llm_config.supports_tool_use
+
+    @classmethod
+    def _resolve_fallback_model_config(
+        cls,
+        model_config_manager: Any,
+        requested_model_id: str,
+        model_type: str,
+    ) -> Optional[Any]:
+        """解析模型不存在时的兜底模型，优先使用 magic-service 的自动模型。"""
+        auto_model = cls._find_auto_model_config(model_config_manager, model_type)
+        if auto_model is not None:
+            logger.warning(
+                f"模型 '{requested_model_id}' 未找到配置，"
+                f"fallback 到自动模型 '{auto_model.model_id}' (provider={auto_model.provider_source})"
+            )
+            return auto_model
+
+        first_runnable_model = cls._find_first_runnable_model_config(model_config_manager, model_type)
+        if first_runnable_model is not None:
+            logger.warning(
+                f"模型 '{requested_model_id}' 未找到配置且自动模型不可用，"
+                f"fallback 到可运行模型 '{first_runnable_model.model_id}' "
+                f"(provider={first_runnable_model.provider_source})"
+            )
+            return first_runnable_model
+
+        return None
+
+    @staticmethod
+    def _is_model_fallback_enabled() -> bool:
+        value = os.getenv(ENABLE_MODEL_FALLBACK_ENV)
+        if value is None:
+            return True
+        return value.strip().lower() not in _DISABLED_BOOL_VALUES
+
+    @classmethod
+    def _find_auto_model_config(cls, model_config_manager: Any, model_type: str) -> Optional[Any]:
+        magic_service_auto_model = cls._find_model_by_auto_label(
+            model_config_manager,
+            model_type,
+            provider_source="magic-service",
+        )
+        if magic_service_auto_model is not None:
+            return magic_service_auto_model
+
+        exact_auto_model = model_config_manager.get("auto")
+        if cls._is_fallback_candidate(exact_auto_model, model_type, provider_source="magic-service"):
+            return exact_auto_model
+
+        auto_label_model = cls._find_model_by_auto_label(model_config_manager, model_type)
+        if auto_label_model is not None:
+            return auto_label_model
+
+        if cls._is_fallback_candidate(exact_auto_model, model_type):
+            return exact_auto_model
+
+        return None
+
+    @classmethod
+    def _find_model_by_auto_label(
+        cls,
+        model_config_manager: Any,
+        model_type: str,
+        provider_source: Optional[str] = None,
+    ) -> Optional[Any]:
+        for candidate in model_config_manager.list_all():
+            if cls._is_fallback_candidate(candidate, model_type, provider_source=provider_source) and cls._has_auto_name(candidate):
+                return candidate
+        return None
+
+    @classmethod
+    def _find_first_runnable_model_config(cls, model_config_manager: Any, model_type: str) -> Optional[Any]:
+        for candidate in model_config_manager.list_all():
+            if cls._is_fallback_candidate(candidate, model_type, provider_source="magic-service"):
+                return candidate
+
+        for candidate in model_config_manager.list_all():
+            if cls._is_fallback_candidate(candidate, model_type):
+                return candidate
+
+        return None
+
+    @staticmethod
+    def _is_fallback_candidate(
+        model_config: Optional[Any],
+        model_type: str,
+        provider_source: Optional[str] = None,
+    ) -> bool:
+        if model_config is None:
+            return False
+        if model_config.type != model_type:
+            return False
+        if provider_source is not None and model_config.provider_source != provider_source:
+            return False
+        return LLMFactory._has_runtime_credentials(model_config)
+
+    @staticmethod
+    def _has_runtime_credentials(model_config: Any) -> bool:
+        return LLMFactory._has_text_value(model_config.api_key) and LLMFactory._has_text_value(model_config.api_base_url)
+
+    @staticmethod
+    def _has_auto_name(model_config: Any) -> bool:
+        metadata = model_config.metadata if isinstance(model_config.metadata, dict) else {}
+        label = metadata.get("label")
+        return LLMFactory._is_auto_value(label) or LLMFactory._is_auto_value(model_config.name)
+
+    @staticmethod
+    def _is_auto_value(value: Any) -> bool:
+        return isinstance(value, str) and value.strip().lower() == "auto"
+
+    @staticmethod
+    def _has_text_value(value: Any) -> bool:
+        return isinstance(value, str) and bool(value.strip())
 
     @classmethod
     def _create_openai_client(cls, llm_config: LLMClientConfig) -> Any:
