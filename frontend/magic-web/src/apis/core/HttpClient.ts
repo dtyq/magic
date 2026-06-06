@@ -21,6 +21,8 @@ interface RequestContext {
 	skipAppInitWait?: boolean
 	/** Service Worker API 缓存配置选项 */
 	swCacheOption?: "cache" | "no-cache" | "default"
+	/** Quote 16+ digit JSON integers as strings before parse (snowflake IDs) */
+	parseJsonLargeIntAsString?: boolean
 }
 
 /** Response body */
@@ -147,7 +149,11 @@ export class HttpClient {
 		const responseForStatus = response.clone()
 
 		// Parse JSON data (only needs to be executed once)
-		const jsonData = (await UrlUtils.responseParse(responseForStatus)).data
+		const jsonData = (
+			await UrlUtils.responseParse(responseForStatus, {
+				parseJsonLargeIntAsString: request.parseJsonLargeIntAsString,
+			})
+		).data
 
 		// Pass the original response state and parsed data together to the interceptor
 		const initialValue: InterceptorContext = {
@@ -255,6 +261,7 @@ export class HttpClient {
 				"enableErrorMessagePrompt",
 				"enableAuthorizationVerification",
 				"skipAppInitWait",
+				"parseJsonLargeIntAsString",
 			]),
 		}
 	}

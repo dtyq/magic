@@ -128,6 +128,12 @@ const WorkspaceProjectsPage = lazy(() => import("@/pages/superMagicMobile/pages/
 const SuperMagicShare = lazy(() => import("@/pages/share"))
 
 const SuperAssistant = lazy(() => import("@/pages/superMagic/pages/Assistant"))
+/** PC 录音与纪要 - 列表 */
+const AudioRecordingsPage = lazy(() => import("@/pages/superMagic/pages/AudioRecordings"))
+/** PC 录音与纪要 - 详情（HTML 预览，无文件树） */
+const AudioRecordingDetailPage = lazy(
+	() => import("@/pages/superMagic/pages/AudioRecordings/AudioRecordingDetailPage"),
+)
 
 /** 授权回调页面 */
 const AuthLayout = lazy(() => import("@/pages/auth/layouts/AuthLayout"))
@@ -234,7 +240,26 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 		},
 	]
 	const { mobileShellRoutes, standaloneRoutes: standaloneSuperMagicRoutes } =
-		splitPersistentMobileShellRoutes([...superMagicCrewRoutes, ...magiClawRoutes])
+		splitPersistentMobileShellRoutes([
+			...superMagicCrewRoutes,
+			{
+				name: RouteName.AudioRecordings,
+				path: `/:clusterCode${RoutePath.AudioRecordings}`,
+				element: <AudioRecordingsPage />,
+				meta: {
+					title: "routes.audioRecordings",
+				},
+			},
+			{
+				name: RouteName.AudioRecordingDetail,
+				path: `/:clusterCode${RoutePath.AudioRecordingDetail}`,
+				element: <AudioRecordingDetailPage />,
+				meta: {
+					title: "routes.audioRecordingDetail",
+				},
+			},
+			...magiClawRoutes,
+		])
 	const clusterRoutes = {
 		path: "/:clusterCode",
 		element: <BaseLayout />,

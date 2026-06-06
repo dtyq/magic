@@ -1,3 +1,10 @@
+import { parseJsonLargeIntAsString } from "@/utils/parse-json-large-int"
+
+export interface ResponseParseOptions {
+	/** When true, quote 16+ digit JSON integers before parse to avoid precision loss */
+	parseJsonLargeIntAsString?: boolean
+}
+
 export class UrlUtils {
 	/**
 	 * 判断 URL 是否包含 host
@@ -104,10 +111,14 @@ export class UrlUtils {
 	 * @description request body parsing
 	 * @param response
 	 */
-	static async responseParse(response: Response) {
+	static async responseParse(response: Response, options?: ResponseParseOptions) {
 		const contentType = (response.headers.get("Content-Type") || "").toLowerCase()
 
 		if (contentType.includes("application/json")) {
+			if (options?.parseJsonLargeIntAsString) {
+				const text = await response.text()
+				return { data: parseJsonLargeIntAsString(text), type: "json" }
+			}
 			return { data: await response.json(), type: "json" }
 		}
 		if (contentType.includes("text/")) {

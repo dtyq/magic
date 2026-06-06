@@ -28,6 +28,42 @@ export type GetRecordingSummaryResultResponse = {
 	workspace_name: string
 }
 
+/** Progress payload returned by single/batch ASR task progress endpoints */
+export interface RecordTaskProgress {
+	exists: boolean
+	task_key: string
+	project_id?: string
+	topic_id?: string | number
+	audio_file_id?: string | number
+	current_phase?: string
+	phase_status?: string
+	phase_percent?: number
+	phase_error?: string | null
+	auto_summary?: boolean
+	can_summarize?: boolean
+	can_finish_recording?: boolean
+	recording_status?: string
+	task_status?: string
+	duration_seconds?: number
+	file_size_bytes?: number
+	model_id?: string
+}
+
+export interface BatchTaskProgressResponse {
+	tasks: RecordTaskProgress[]
+}
+
+export interface SummarizeRecordedTaskResponse {
+	success: boolean
+	message?: string
+	task_key: string
+	summary?: {
+		topic_id?: string
+		model_id?: string
+		status?: string
+	}
+}
+
 export const generateRecordingSummaryApi = (fetch: HttpClient) => ({
 	/**
 	 * @description 获取录音总结上传token
@@ -170,5 +206,34 @@ export const generateRecordingSummaryApi = (fetch: HttpClient) => ({
 				organization_code: string
 			}
 		}>(genRequestUrl(`/api/v1/asr/download-url`, {}, { task_key }))
+	},
+
+	/**
+	 * TODO: 与后端确认这个api 与 getRecordingSummaryResult 的区别，决定是否需要保留
+	 * @description Trigger AI summary for a live-recorded task (APP recorded audio)
+	 */
+	summarizeRecordedTask({
+		task_key,
+		topic_id,
+		model_id,
+	}: {
+		task_key: string
+		topic_id: string
+		model_id: string
+	}) {
+		return fetch.post<SummarizeRecordedTaskResponse>(
+			genRequestUrl(`/api/v1/asr/tasks/${encodeURIComponent(task_key)}/summarize`),
+			{ topic_id, model_id },
+		)
+	},
+
+	/**
+	 * @description Batch query progress for in-flight ASR summary tasks
+	 */
+	batchTaskProgress({ task_keys }: { task_keys: string[] }) {
+		return fetch.post<BatchTaskProgressResponse>(
+			genRequestUrl("/api/v1/asr/tasks/progress/batch"),
+			{ task_keys },
+		)
 	},
 })

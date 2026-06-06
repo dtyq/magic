@@ -1,0 +1,76 @@
+{
+	"title": "录音与纪要",
+	"pageTitle": "录音与纪要",
+	"subtitle": "查看与管理 APP 端录制的音频与智能纪要。",
+	"listCount": "录音 · {{count}}",
+	"defaultName": "{{datetime}} 的录音",
+	"searchPlaceholder": "搜索录音",
+	"searchClear": "清除搜索",
+	"refresh": "刷新列表",
+	"filters": {
+		"summaryStatus": "总结状态",
+		"summaryAll": "全部",
+		"summaryNotDone": "未总结",
+		"summaryDone": "已总结",
+		"dateRange": "创建时间",
+		"dateAll": "全部时间",
+		"dateLast7Days": "近 7 天",
+		"dateLast30Days": "近 30 天",
+		"dateLast90Days": "近 90 天",
+		"sort": "排序",
+		"sortByUpdatedDesc": "按更新时间",
+		"sortByUpdatedAsc": "按更新时间（旧到新）",
+		"sortByCreatedDesc": "按创建时间",
+		"sortByCreatedAsc": "按创建时间（旧到新）"
+	},
+	"card": {
+		"sourceRecorded": "手机麦克风",
+		"sourceImported": "导入音频",
+		"sourceDevice": "设备录音",
+		"summarized": "已总结",
+		"summarizing": "正在总结",
+		"collapseTags": "收起",
+		"notSummarized": "未总结",
+		"summarize": "总结",
+		"generateSummary": "生成总结",
+		"retrySummary": "重新总结",
+		"moreTags": "+{{count}}",
+		"moreActions": "更多操作",
+		"rename": "重命名",
+		"delete": "删除"
+	},
+	"actions": {
+		"renameTitle": "重命名",
+		"renamePlaceholder": "请输入录音标题",
+		"renameSuccess": "重命名成功",
+		"renameFailed": "重命名失败，请稍后重试",
+		"deleteTitle": "删除",
+		"deleteConfirmSingle": "确定要删除这条录音吗？删除后无法恢复。",
+		"deleteConfirmBatch": "确定要删除选中的 {{count}} 条录音吗？删除后无法恢复。",
+		"deleteSuccess": "删除成功",
+		"deleteFailed": "删除失败，请稍后重试",
+		"cancel": "取消",
+		"confirm": "确定",
+		"submitting": "提交中..."
+	},
+	"summary": {
+		"submitFailed": "提交总结失败，请稍后重试",
+		"missingParams": "缺少总结所需参数，请刷新列表后重试",
+		"missingModel": "无法获取总结模型，请稍后重试"
+	},
+	"empty": {
+		"title": "暂无录音",
+		"description": "APP 端录制的项目会出现在这里",
+		"search": "没有匹配的录音"
+	},
+	"loading": "加载中...",
+	"loadingMore": "加载更多...",
+	"end": "没有更多数据。",
+	"detail": {
+		"back": "返回",
+		"loading": "正在加载录音详情...",
+		"loadFailed": "加载失败，请稍后重试",
+		"entryNotFound": "未找到录音入口文件",
+		"untitled": "未命名录音"
+	}
+}

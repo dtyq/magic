@@ -17,6 +17,8 @@ interface TabCacheProps {
 	isFullscreen?: boolean
 	openFileTab?: (fileId: string, autoEdit?: boolean) => void
 	playbackProps?: PlaybackTabContentProps
+	/** When true, content fills the viewer without reserving tab bar height */
+	hideTabBar?: boolean
 }
 
 /**
@@ -32,6 +34,7 @@ const TabCache = memo(
 		isFullscreen,
 		openFileTab,
 		playbackProps,
+		hideTabBar = false,
 	}: TabCacheProps) => {
 		const isPlaybackTab = tab.id === PLAYBACK_TAB_ID
 		const tabContentRef = useRef<HTMLDivElement>(null)
@@ -72,6 +75,7 @@ const TabCache = memo(
 		const effectiveIsFullscreen = isPlaybackTab
 			? playbackProps?.isFullscreen === true
 			: isFullscreenMode || isFullscreen
+		const fillsViewerWithoutTabBar = hideTabBar && !effectiveIsFullscreen
 
 		return (
 			<div
@@ -80,7 +84,9 @@ const TabCache = memo(
 					"left-0 w-full transition-[opacity,visibility] duration-200",
 					effectiveIsFullscreen
 						? "fixed top-0 h-full"
-						: "absolute top-11 h-[calc(100%-44px)]",
+						: fillsViewerWithoutTabBar
+							? "absolute top-0 h-full"
+							: "absolute top-11 h-[calc(100%-44px)]",
 					isPlaybackTab ? "z-[9]" : isActive ? "z-10" : "z-0",
 					isActive
 						? "pointer-events-auto visible opacity-100"

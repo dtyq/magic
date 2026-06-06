@@ -125,6 +125,10 @@ export interface FilesViewerProps extends BaseComponentProps {
 	openFileTab?: (fileItem: any, autoEdit?: boolean) => void
 	activeFileId?: string | null
 	showFileFooter?: boolean
+	/** When false, hides CommonHeaderV2 inside file preview (URL param still works as fallback) */
+	showFileHeader?: boolean
+	/** When true, hides the file tab bar for single-file immersive read-only views */
+	hideTabBar?: boolean
 
 	// Playback tab related props
 	currentTopicStatus?: TaskStatus

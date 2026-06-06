@@ -286,6 +286,7 @@ export function useFilesViewer(props: FilesViewerProps) {
 		onActiveFileChange,
 		activeFileId,
 		showFileFooter,
+		showFileHeader: showFileHeaderProp,
 		currentTopicStatus,
 		messages,
 		autoDetail,
@@ -307,6 +308,12 @@ export function useFilesViewer(props: FilesViewerProps) {
 
 	const { shareParams, isShareRoute } = useShareRoute()
 	const [searchParams] = useSearchParams()
+
+	// Prop takes precedence; URL ?showFileHeader=false remains as legacy fallback.
+	const resolvedShowFileHeader = useMemo(() => {
+		if (showFileHeaderProp !== undefined) return showFileHeaderProp
+		return searchParams.get("showFileHeader") !== "false"
+	}, [showFileHeaderProp, searchParams])
 
 	// Store checkBeforeClose functions for each file
 	const checkBeforeCloseMapRef = useRef<Map<string, () => Promise<boolean>>>(new Map())
@@ -1528,8 +1535,6 @@ export function useFilesViewer(props: FilesViewerProps) {
 			// 类型已经在 getFileDetail 中处理，直接使用
 			const type = fileDetail.type
 
-			const showFileHeader = searchParams.get("showFileHeader") !== "false"
-
 			return {
 				type,
 				data: fileDetail.data,
@@ -1587,7 +1592,7 @@ export function useFilesViewer(props: FilesViewerProps) {
 				projectId,
 				detailMode: "files",
 				displayConfig: tab.display_config,
-				showFileHeader,
+				showFileHeader: resolvedShowFileHeader,
 				onRefreshFile: handleRefresh,
 				activeFileId,
 				showFooter: showFileFooter,

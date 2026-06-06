@@ -35,6 +35,7 @@ import type {
 import type { PlaybookItem } from "./crew"
 import { genRequestUrl } from "@/utils/http"
 import { generateRecordingSummaryApi } from "./superMagic/recordSummary"
+import { generateAudioProjectsApi } from "./superMagic/audioProjects"
 import { generateCollaborationApi } from "./superMagic/collaboration"
 import { buildImageProcessQuery } from "@/utils/image-processing"
 import type {
@@ -1773,6 +1774,14 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 	},
 
 	/**
+	 * @description 批量删除项目（单条删除也可走此接口，project_ids 传 1 个元素）
+	 * @param data.project_ids 待删除的项目 ID 列表
+	 */
+	batchDeleteProjects(data: { project_ids: string[] }) {
+		return fetch.post(`/api/v1/super-agent/projects/batch-delete`, data)
+	},
+
+	/**
 	 * @description 保存用户上传的文件到项目文件
 	 * @param data
 	 */
@@ -2426,6 +2435,9 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 
 	// Recording Summary APIs
 	...generateRecordingSummaryApi(fetch),
+
+	// Audio project list (PC recordings page)
+	...generateAudioProjectsApi(fetch),
 
 	// Collaboration APIs
 	...generateCollaborationApi(fetch),

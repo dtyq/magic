@@ -90,6 +90,10 @@ export enum RouteName {
 	MyCrew = "MyCrew",
 	/** MagiClaw - 超级龙虾 */
 	MagiClaw = "MagiClaw",
+	/** Audio Recordings - 录音与纪要列表 */
+	AudioRecordings = "AudioRecordings",
+	/** Audio Recording Detail - 录音与纪要详情 */
+	AudioRecordingDetail = "AudioRecordingDetail",
 	/** 超级麦吉 - 首页(旧版本) */
 	SuperMagic = "SuperMagic",
 	/**

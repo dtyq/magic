@@ -97,7 +97,11 @@ export function generateUnauthorizedResInterceptor(service: Container) {
 					})
 
 					// Parse JSON data (only needs to be executed once)
-					const jsonData = (await UrlUtils.responseParse(res.clone())).data
+					const jsonData = (
+						await UrlUtils.responseParse(res.clone(), {
+							parseJsonLargeIntAsString: request.parseJsonLargeIntAsString,
+						})
+					).data
 
 					if (
 						(enableAuthorizationVerification &&

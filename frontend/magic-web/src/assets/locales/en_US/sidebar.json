@@ -12,7 +12,10 @@
 	"crewMarket": {
 		"title": "Digital Crew"
 	},
-	"docAssistant": {
+	"audioRecordings": {
+		"title": "Recordings & summaries"
+	},
+	"officialDocumentWriting": {
 		"title": "Document Writing Assistant"
 	},
 	"footer": {

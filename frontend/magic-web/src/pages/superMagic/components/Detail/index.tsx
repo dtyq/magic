@@ -45,6 +45,12 @@ interface DetailProps {
 	showFallbackWhenEmpty?: boolean
 	/** 当前项目文件 tabs 缓存一轮加载结束 */
 	onFileTabsCacheLoaded?: (projectId: string) => void
+	/** When false, hides file preview toolbar (CommonHeaderV2) */
+	showFileHeader?: boolean
+	/** When true, hides FilesViewer tab bar for immersive read-only preview */
+	hideTabBar?: boolean
+	/** Overrides default footer visibility (mobile non-share shows footer by default) */
+	showFileFooter?: boolean
 }
 
 // Forward ref type for Detail component
@@ -83,6 +89,9 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 		allowDownload,
 		showFallbackWhenEmpty,
 		onFileTabsCacheLoaded,
+		showFileHeader,
+		hideTabBar,
+		showFileFooter: showFileFooterProp,
 	} = props
 
 	const filesViewerRef = useRef<FilesViewerRef>(null)
@@ -162,7 +171,9 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 				onFullscreenChange={onFullscreenChange}
 				openFileTab={openNewTab}
 				activeFileId={activeFileId}
-				showFileFooter={!isShareRoute && isMobile}
+				showFileFooter={showFileFooterProp ?? (!isShareRoute && isMobile)}
+				showFileHeader={showFileHeader}
+				hideTabBar={hideTabBar}
 				currentTopicStatus={currentTopicStatus}
 				messages={messages}
 				autoDetail={autoDetail}

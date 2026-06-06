@@ -1,0 +1,76 @@
+{
+	"title": "Recordings & summaries",
+	"pageTitle": "Recordings & summaries",
+	"subtitle": "View and manage recordings and AI summaries from the app.",
+	"listCount": "Recordings · {{count}}",
+	"defaultName": "Recording on {{datetime}}",
+	"searchPlaceholder": "Search recordings",
+	"searchClear": "Clear search",
+	"refresh": "Refresh list",
+	"filters": {
+		"summaryStatus": "Summary status",
+		"summaryAll": "All",
+		"summaryNotDone": "Not summarized",
+		"summaryDone": "Summarized",
+		"dateRange": "Created",
+		"dateAll": "All time",
+		"dateLast7Days": "Last 7 days",
+		"dateLast30Days": "Last 30 days",
+		"dateLast90Days": "Last 90 days",
+		"sort": "Sort",
+		"sortByUpdatedDesc": "By last updated",
+		"sortByUpdatedAsc": "By last updated (oldest)",
+		"sortByCreatedDesc": "By created time",
+		"sortByCreatedAsc": "By created time (oldest)"
+	},
+	"card": {
+		"sourceRecorded": "Phone mic",
+		"sourceImported": "Imported audio",
+		"sourceDevice": "Device recording",
+		"summarized": "Summarized",
+		"summarizing": "Summarizing now",
+		"collapseTags": "Collapse",
+		"notSummarized": "Not summarized",
+		"summarize": "Summarize",
+		"generateSummary": "Generate summary",
+		"retrySummary": "Retry summary",
+		"moreTags": "+{{count}}",
+		"moreActions": "More actions",
+		"rename": "Rename",
+		"delete": "Delete"
+	},
+	"actions": {
+		"renameTitle": "Rename",
+		"renamePlaceholder": "Enter recording title",
+		"renameSuccess": "Renamed successfully",
+		"renameFailed": "Failed to rename. Please try again later.",
+		"deleteTitle": "Delete",
+		"deleteConfirmSingle": "Are you sure you want to delete this recording? This cannot be undone.",
+		"deleteConfirmBatch": "Are you sure you want to delete {{count}} selected recordings? This cannot be undone.",
+		"deleteSuccess": "Deleted successfully",
+		"deleteFailed": "Failed to delete. Please try again later.",
+		"cancel": "Cancel",
+		"confirm": "Confirm",
+		"submitting": "Submitting..."
+	},
+	"summary": {
+		"submitFailed": "Failed to submit summary. Please try again later.",
+		"missingParams": "Missing parameters required for summary. Please refresh the list.",
+		"missingModel": "Unable to load summary model. Please try again later."
+	},
+	"empty": {
+		"title": "No recordings yet",
+		"description": "Recordings from the app will appear here",
+		"search": "No matching recordings"
+	},
+	"loading": "Loading...",
+	"loadingMore": "Loading more...",
+	"end": "No more data.",
+	"detail": {
+		"back": "Back",
+		"loading": "Loading recording detail...",
+		"loadFailed": "Failed to load. Please try again.",
+		"entryNotFound": "Recording entry file not found",
+		"untitled": "Untitled recording"
+	}
+}

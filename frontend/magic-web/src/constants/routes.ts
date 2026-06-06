@@ -108,6 +108,8 @@ export const enum RoutePath {
 	MySkills = "/my-skills",
 	MyCrew = "/my-crew",
 	MagiClaw = "/claw",
+	AudioRecordings = "/recordings",
+	AudioRecordingDetail = "/recordings/:projectId",
 	SuperMagicFileShare = "/share/:topicId/file/:fileId",
 	SuperMagicTopicShare = "/share/:topicId",
 	SuperMagicFilesShare = "/share/files/:resourceId",

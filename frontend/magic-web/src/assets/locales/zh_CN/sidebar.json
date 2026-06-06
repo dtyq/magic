@@ -12,7 +12,10 @@
 	"crewMarket": {
 		"title": "数字员工"
 	},
-	"docAssistant": {
+	"audioRecordings": {
+		"title": "录音与纪要"
+	},
+	"officialDocumentWriting": {
 		"title": "公文写作"
 	},
 	"footer": {
