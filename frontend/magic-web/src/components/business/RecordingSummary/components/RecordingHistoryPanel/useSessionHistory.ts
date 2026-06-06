@@ -52,7 +52,7 @@ export function useSessionHistory(enabled: boolean): UseSessionHistoryResult {
 
 	const cleanupExpired = useCallback(async () => {
 		const expiredIds = await db.cleanupExpired()
-		// 清理过期会话关联的音频分片
+		// Remove audio chunks associated with expired sessions.
 		for (const sessionId of expiredIds) {
 			await audioChunkDB.deleteAllSessionChunks(sessionId)
 		}

@@ -5,7 +5,12 @@ import { reaction, toJS } from "mobx"
 import { MediaRecorderService } from "./MediaRecorderService"
 import { RecordingPersistence } from "./RecordingPersistence"
 import { RecordingSessionManager } from "./RecordingSessionManager"
-import { ChunkUploader } from "./ChunkUploader"
+import {
+	ChunkUploader,
+	PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+	type PlaceholderUploadProgress,
+	type SessionUploadProgress,
+} from "./ChunkUploader"
 import {
 	TabCoordinator,
 	type RecordingDataSyncData,
@@ -37,6 +42,7 @@ import RecordStatusChecker from "./RecordStatusChecker"
 import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { userStore } from "@/models/user"
 import { StoredAudioChunk, AudioChunkDB } from "./MediaRecorderService/AudioChunkDB"
+import { RECORDING_HISTORY_RETENTION_DAYS } from "./RecordingSessionHistoryDB"
 import { formatDuration } from "./utils/format"
 import { createRecordingLogger } from "./utils/RecordingLogger"
 import { DEFAULT_RECORDING_CONFIG } from "./utils/config"
@@ -52,7 +58,7 @@ import SilenceDetector from "./SilenceDetector"
 import { DurationTracker } from "./DurationTracker"
 import { getSummaryMessageService, SummaryStage } from "./SummaryMessageService"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { getDisplayText } from "@/components/base/FileTypeIcon/utils/fileTypeHelpers"
+import { Button } from "@/components/shadcn-ui/button"
 
 const logger = createRecordingLogger("Main")
 
@@ -60,6 +66,14 @@ const PERSIST_INTERVAL_MS = 5000
 // 最大录制时长 12小时
 const MAX_RECORDING_DURATION_MS = 12 * 60 * 60 * 1000
 // const MAX_RECORDING_DURATION_MS = 10 * 1000
+
+type UploadFailureDecision = "retry" | "ignore"
+
+interface EnsureUploadOptions {
+	topicId?: string
+	projectId?: string
+	allowUserDecision?: boolean
+}
 
 class RecordSummaryService {
 	// Duration tracking (using reliable AudioContext-based tracker)
@@ -156,7 +170,7 @@ class RecordSummaryService {
 		this.recordingPersistence = new RecordingPersistence(DEFAULT_RECORDING_CONFIG.persistence)
 		this.sessionManager = new RecordingSessionManager(DEFAULT_RECORDING_CONFIG.sessionRestore)
 
-		// Fire-and-forget cleanup of expired session history (30 days retention)
+		// Fire-and-forget cleanup of expired session history.
 		// 过期会话清理后，同步清理对应的音频分片
 		void this.sessionManager
 			.getHistoryDB()
@@ -169,6 +183,7 @@ class RecordSummaryService {
 				}
 				logger.log("已清理过期会话关联的音频分片", {
 					sessionCount: expiredSessionIds.length,
+					retentionDays: RECORDING_HISTORY_RETENTION_DAYS,
 				})
 			})
 			.catch((error) => {
@@ -1564,6 +1579,38 @@ class RecordSummaryService {
 		await this.stopRecordingServices()
 
 		const sessionId = this.sessionManager.getCurrentSession()?.id || ""
+		const sessionForProjectLogic = {
+			workspace: workspace,
+			project: project,
+			topic: topic,
+			id: sessionId,
+		} as RecordingSession
+
+		let finalProject: ProjectListItem | null = null
+		let finalTopic: Topic | null = null
+
+		try {
+			this.summaryMessageService.showStageMessage(SummaryStage.ProcessingProject)
+			const ensured = await this.ensureProjectAndTopic(sessionForProjectLogic)
+			finalProject = ensured.project
+			finalTopic = ensured.topic
+		} catch (err) {
+			logger.error("处理项目和话题失败", err)
+			this.summaryMessageService.showError(
+				i18n.t("recordingSummary.message.missingRequiredParams", { ns: "super" }),
+			)
+			handleError(err as Error)
+			return
+		}
+
+		if (!finalProject || !finalTopic) {
+			const error = new Error("projectId, topic_id is required")
+			this.summaryMessageService.showError(
+				i18n.t("recordingSummary.message.missingRequiredParams", { ns: "super" }),
+			)
+			handleError(error)
+			return
+		}
 
 		try {
 			if (sessionId) {
@@ -1571,15 +1618,22 @@ class RecordSummaryService {
 				this.summaryMessageService.showStageMessage(SummaryStage.UploadingChunks)
 
 				// 触发上传会话分片
-				this.chunkUploader.uploadSession(sessionId, topic?.id || "", project?.id || "")
+				await this.chunkUploader.uploadSession(sessionId, finalTopic.id, finalProject.id)
 
-				await this.ensureSessionUploadComplete({ id: sessionId } as RecordingSession)
+				await this.ensureSessionUploadComplete(
+					{ id: sessionId, topic: finalTopic, project: finalProject } as RecordingSession,
+					{
+						topicId: finalTopic.id,
+						projectId: finalProject.id,
+						allowUserDecision: true,
+					},
+				)
 				logger.report("所有分片上传完成")
 			}
 		} catch (err) {
 			logger.error(`${sessionId} 等待所有分片上传完成失败`, err)
 			this.summaryMessageService.showError(
-				i18n.t("recordingSummary.message.uploadChunksFailed", { ns: "super" }),
+				i18n.t("recordingSummary.message.uploadChunksPreparingError", { ns: "super" }),
 			)
 			handleError(err as Error)
 			return
@@ -1600,20 +1654,6 @@ class RecordSummaryService {
 			// 停止定期上报
 			this.statusReporter.stopPeriodicReport()
 		}
-
-		/**
-		 * 项目相关业务逻辑处理
-		 */
-		this.summaryMessageService.showStageMessage(SummaryStage.ProcessingProject)
-		const sessionForProjectLogic = {
-			workspace: workspace,
-			project: project,
-			topic: topic,
-			id: sessionId,
-		} as RecordingSession
-
-		const { project: finalProject, topic: finalTopic } =
-			await this.ensureProjectAndTopic(sessionForProjectLogic)
 
 		const modelId = model_id
 		const taskKey = sessionId
@@ -1887,12 +1927,17 @@ class RecordSummaryService {
 				await this.stopRecordingServices()
 			}
 
-			// 2. 等待分片上传完成和一致性检查
-			await this.ensureSessionUploadComplete(session)
-
-			// 3. 处理项目和话题创建逻辑
+			// 2. 处理项目和话题创建逻辑，先确保上传分片能 batch-save 到后端
 			const { project: finalProject, topic: finalTopic } =
 				await this.ensureProjectAndTopic(session)
+
+			// 3. 等待分片上传完成和一致性检查
+			await this.chunkUploader.uploadSession(session.id, finalTopic.id, finalProject.id)
+			await this.ensureSessionUploadComplete(session, {
+				topicId: finalTopic.id,
+				projectId: finalProject.id,
+				allowUserDecision: true,
+			})
 
 			// 4. 调用总结API
 			const result = await this.processSummaryForSession(
@@ -3410,7 +3455,10 @@ class RecordSummaryService {
 	/**
 	 * 确保会话的分片上传完成
 	 */
-	private async ensureSessionUploadComplete(session: RecordingSession): Promise<void> {
+	private async ensureSessionUploadComplete(
+		session: RecordingSession,
+		options: EnsureUploadOptions = {},
+	): Promise<void> {
 		try {
 			// 验证分片索引一致性并修复
 			const consistencyResult = await this.validateChunkIndexConsistency(session.id)
@@ -3424,17 +3472,125 @@ class RecordSummaryService {
 
 			// 等待所有分片上传完成
 			if (session.id) {
-				logger.log(`${session.id} 等待分片上传完成...`)
-				// Calculate dynamic timeout based on pending chunks
-				// Base timeout: 30s, +10s per pending chunk (max 120s)
-				const queueStatus = await this.chunkUploader.getQueueStatus(session.id)
-				const pendingCount = queueStatus.pending || 0
-				const dynamicTimeout = Math.min(30000 + pendingCount * 10000, 120000) // 30s base + 10s/chunk, max 120s
-				logger.log(
-					`${session.id} 剩余分片数: ${pendingCount}, 超时时间: ${dynamicTimeout}ms`,
-				)
-				await this.chunkUploader.waitForAllUploadsCompleted(session.id, dynamicTimeout)
-				logger.log(`${session.id} 所有分片上传成功`)
+				const topicId = options.topicId ?? session.topic?.id ?? ""
+				const projectId = options.projectId ?? session.project?.id ?? ""
+				let shouldWaitForUploads = true
+
+				while (shouldWaitForUploads) {
+					logger.log(`${session.id} 等待分片上传结束...`)
+					// Calculate dynamic timeout based on IndexedDB pending chunks.
+					// Base timeout: 30s, +10s per pending chunk (max 120s)
+					const queueStatus = await this.chunkUploader.getQueueStatus(session.id)
+					const pendingCount = queueStatus.pending || 0
+					const dynamicTimeout = Math.min(30000 + pendingCount * 10000, 120000)
+					logger.log(
+						`${session.id} 剩余分片数: ${pendingCount}, 超时时间: ${dynamicTimeout}ms`,
+					)
+
+					const progress = await this.chunkUploader.waitForSessionUploadsSettled(
+						session.id,
+						dynamicTimeout,
+						(uploadProgress) => {
+							this.summaryMessageService.updateProgress(
+								this.formatUploadProgress(uploadProgress),
+							)
+						},
+					)
+
+					this.summaryMessageService.updateProgress(this.formatUploadProgress(progress))
+
+					if (progress.failed === 0) {
+						logger.log(`${session.id} 所有分片上传成功`)
+						return
+					}
+
+					logger.warn(`${session.id} 存在上传失败分片`, progress)
+
+					if (!options.allowUserDecision) {
+						throw new Error(
+							i18n.t("recordingSummary.message.uploadChunksPreparingError", {
+								ns: "super",
+							}),
+						)
+					}
+
+					const decision = await this.showUploadFailureDecisionModal(progress)
+
+					if (decision === "retry") {
+						this.summaryMessageService.showStageMessage(SummaryStage.UploadingChunks)
+						this.summaryMessageService.updateProgress(
+							i18n.t("recordingSummary.message.retryingAudioChunks", {
+								ns: "super",
+							}),
+						)
+						await this.chunkUploader.retryFailedChunks(session.id, topicId, projectId)
+						continue
+					}
+
+					this.summaryMessageService.showStageMessage(SummaryStage.UploadingChunks)
+					this.summaryMessageService.updateProgress(
+						i18n.t("recordingSummary.message.continuingSummaryAfterAudioCheck", {
+							ns: "super",
+						}),
+					)
+					if (progress.failed > PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS) {
+						throw new Error(
+							i18n.t("recordingSummary.message.placeholderUploadTooManyFailed", {
+								ns: "super",
+								count: progress.failed,
+								limit: PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+							}),
+						)
+					}
+
+					const placeholderAbortController = new AbortController()
+					const placeholderProgressModal = this.showPlaceholderUploadProgressModal(
+						progress.failed,
+						placeholderAbortController,
+					)
+					try {
+						await this.chunkUploader.uploadEmptyPlaceholdersForFailedChunks(
+							session.id,
+							topicId,
+							projectId,
+							{
+								signal: placeholderAbortController.signal,
+								onProgress: (placeholderProgress) => {
+									this.summaryMessageService.updateProgress(
+										this.formatPlaceholderUploadProgress(placeholderProgress),
+									)
+									placeholderProgressModal.update(placeholderProgress)
+								},
+							},
+						)
+					} catch (error) {
+						throw new Error(
+							this.getPlaceholderUploadErrorMessage(error, progress.failed),
+						)
+					} finally {
+						placeholderProgressModal.destroy()
+					}
+
+					const finalProgress = await this.chunkUploader.getSessionUploadProgress(
+						session.id,
+					)
+					this.summaryMessageService.updateProgress(
+						this.formatUploadProgress(finalProgress),
+					)
+
+					if (!finalProgress.completed) {
+						throw new Error(
+							i18n.t("recordingSummary.message.uploadChunksCompletingError", {
+								ns: "super",
+							}),
+						)
+					}
+
+					logger.warn(`${session.id} 用户选择忽略失败分片并上传空占位分片`, {
+						placeholderCount: progress.failed,
+					})
+					shouldWaitForUploads = false
+				}
 			}
 		} catch (error) {
 			logger.error(`${session.id} 等待分片上传完成失败`, error)
@@ -3442,6 +3598,157 @@ class RecordSummaryService {
 				`等待分片上传完成失败: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
+	}
+
+	private formatUploadProgress(progress: SessionUploadProgress): string {
+		const percent =
+			progress.total > 0 ? Math.round((progress.uploaded / progress.total) * 100) : 100
+
+		if (progress.failed > 0) {
+			return i18n.t("recordingSummary.message.uploadProgressNeedsDecision", {
+				ns: "super",
+				percent,
+			})
+		}
+
+		return i18n.t("recordingSummary.message.uploadProgress", {
+			ns: "super",
+			percent,
+			pending: progress.pending,
+		})
+	}
+
+	private formatPlaceholderUploadProgress(progress: PlaceholderUploadProgress): string {
+		const percent =
+			progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 100
+		const remaining = Math.max(progress.total - progress.completed, 0)
+		return i18n.t("recordingSummary.message.placeholderUploadProgress", {
+			ns: "super",
+			percent,
+			remaining,
+		})
+	}
+
+	private getPlaceholderUploadErrorMessage(error: unknown, failedCount: number): string {
+		const message = error instanceof Error ? error.message : String(error)
+		if (message.includes("Too many failed placeholder chunks")) {
+			return i18n.t("recordingSummary.message.placeholderUploadTooManyFailed", {
+				ns: "super",
+				count: failedCount,
+				limit: PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+			})
+		}
+		if (message.includes("cancelled")) {
+			return i18n.t("recordingSummary.message.placeholderUploadCancelled", {
+				ns: "super",
+			})
+		}
+		if (message.includes("timed out")) {
+			return i18n.t("recordingSummary.message.placeholderUploadTimeout", {
+				ns: "super",
+			})
+		}
+		return message
+	}
+
+	private showPlaceholderUploadProgressModal(
+		total: number,
+		abortController: AbortController,
+	): {
+		update: (progress: PlaceholderUploadProgress) => void
+		destroy: () => void
+	} {
+		const modalRef: { current?: ReturnType<typeof MagicModal.confirm> } = {}
+		let destroyed = false
+		const buildConfig = (progress: PlaceholderUploadProgress) => ({
+			title: i18n.t("recordingSummary.message.placeholderUploadProgressTitle", {
+				ns: "super",
+			}),
+			content: (
+				<div className="space-y-2 text-sm text-muted-foreground">
+					<div>{this.formatPlaceholderUploadProgress(progress)}</div>
+				</div>
+			),
+			closable: false,
+			maskClosable: false,
+			footer: (
+				<div className="flex items-center justify-end gap-2 border-t border-border bg-muted/50 p-2">
+					<Button
+						variant="outline"
+						onClick={() => {
+							abortController.abort()
+							destroyed = true
+							modalRef.current?.destroy()
+						}}
+					>
+						{i18n.t("recordingSummary.message.placeholderUploadCancel", {
+							ns: "super",
+						})}
+					</Button>
+				</div>
+			),
+		})
+		modalRef.current = MagicModal.confirm(
+			buildConfig({
+				total,
+				completed: 0,
+				failed: 0,
+				active: 0,
+			}),
+		)
+
+		return {
+			update: (progress) => {
+				if (destroyed) return
+				modalRef.current?.update(buildConfig(progress))
+			},
+			destroy: () => {
+				destroyed = true
+				modalRef.current?.destroy()
+			},
+		}
+	}
+
+	private showUploadFailureDecisionModal(
+		progress: SessionUploadProgress,
+	): Promise<UploadFailureDecision> {
+		this.summaryMessageService.destroy()
+
+		return new Promise((resolve) => {
+			const modalRef: { current?: ReturnType<typeof MagicModal.confirm> } = {}
+			const closeWith = (decision: UploadFailureDecision) => {
+				resolve(decision)
+				modalRef.current?.destroy()
+			}
+
+			modalRef.current = MagicModal.confirm({
+				title: i18n.t("recordingSummary.message.uploadFailureDecisionTitle", {
+					ns: "super",
+				}),
+				content: i18n.t("recordingSummary.message.uploadFailureDecisionContent", {
+					ns: "super",
+					failed: progress.failed,
+					total: progress.total,
+				}),
+				footer: (
+					<div className="flex items-center justify-end gap-2 border-t border-border bg-muted/50 p-2">
+						<Button variant="outline" onClick={() => closeWith("retry")}>
+							{i18n.t("recordingSummary.message.retryUploadChunks", {
+								ns: "super",
+							})}
+						</Button>
+						<Button variant="destructive" onClick={() => closeWith("ignore")}>
+							{i18n.t("recordingSummary.message.continueSummary", {
+								ns: "super",
+							})}
+						</Button>
+					</div>
+				),
+				closable: false,
+				maskClosable: false,
+				onCancel: () => closeWith("retry"),
+			})
+		})
 	}
 
 	/**
