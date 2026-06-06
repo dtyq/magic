@@ -35,7 +35,6 @@ from agentlang.config.config import config
 from agentlang.llms.error_classifier import LLMErrorClassifier, LLMErrorSnapshot
 from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
-from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage, TokenUsageCollection
 from agentlang.llms.token_usage.report import TokenUsageReport
@@ -54,6 +53,7 @@ from app.core.entity.final_task_state import (
     FinalTaskStateCode,
     build_final_task_state,
 )
+from app.core.models.agent_model_context import TextModelState
 from app.core.entity.message.server_message import TaskStatus
 from app.core.entity.message.client_message import MemoryItem
 
@@ -234,9 +234,6 @@ class Agent(BaseAgent):
         logger.info(f"初始化 agent: {self.agent_name}")
         self._initialize_agent()
 
-        # 初始化完成后，更新context中的llm
-        self.agent_context.llm = self.llm_name
-
         # agent id 处理
         if self.agent_context.is_main_agent:
             if agent_id:
@@ -389,30 +386,9 @@ class Agent(BaseAgent):
         if not self.llm_id:
             raise ValueError("LLM model is not set")
 
-        # 延迟获取 LLM client 和 model config：
-        # 如果有动态模型配置，初始化时的模型可能尚未注册（由更高优先级 provider 管理），
-        # 此时不应阻塞 agent 创建，真正调用时由 _resolve_effective_model_info() 动态选择模型。
-        try:
-            self.llm_client = LLMFactory.get(self.llm_id)
-            model_config = LLMFactory.get_model_config(self.llm_id)
-            self.llm_name = model_config.name
-            self.model_config = model_config
-            # 去掉 self.model_config 中的 api_key 和 api_base_url 等敏感信息
-            self.model_config.api_key = None
-            self.model_config.api_base_url = None
-        except (ValueError, Exception) as e:
-            # 如果有动态模型可用，初始化时的默认模型配置获取失败不阻塞启动
-            if self.agent_context and self.agent_context.has_dynamic_model_id():
-                dynamic_model_id = self.agent_context.get_dynamic_model_id()
-                logger.info(
-                    f"默认模型 '{self.llm_id}' 配置获取失败: {e}，"
-                    f"将在对话时使用动态模型 '{dynamic_model_id}'"
-                )
-                self.llm_client = None
-                self.llm_name = self.llm_id  # 暂用 model_id 作为 name
-                self.model_config = None
-            else:
-                raise
+        # Agent 初始化阶段只绑定配置模型 ID，不读取模型配置。
+        # 请求模型 / 会话模型 / Agent 默认模型的最终选择由 Dispatcher 统一写入 model_context。
+        self.agent_context.model_context.set_configured_text_model(self.llm_id)
 
         # 准备静态变量并应用到 system_prompt
         static_vars = self._prepare_prompt_static_variables()
@@ -455,16 +431,6 @@ class Agent(BaseAgent):
         Returns:
             Dict[str, str]: 包含静态变量名和对应值的字典
         """
-        # 计算推荐的最大输出token数，基于当前模型配置的80%
-        # 如果 model_config 尚未设置，使用默认值
-        if hasattr(self, 'model_config') and self.model_config:
-            recommended_max_output_tokens = int(self.model_config.max_output_tokens * 0.8)
-            logger.debug(f"model_config 已设置，使用 recommended_max_output_tokens: {recommended_max_output_tokens}")
-        else:
-            # 使用一个合理的默认值 4096
-            recommended_max_output_tokens = 4096
-            logger.debug("model_config 尚未设置，使用默认 recommended_max_output_tokens: 4096")
-
         # 读取幻灯片模板文件内容
         slide_template_html = ""
         try:
@@ -500,7 +466,6 @@ class Agent(BaseAgent):
             "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
             "project_root": str(PathManager.get_project_root()),
             "cwd": self.agent_context._workspace_dir,
-            "recommended_max_output_tokens": recommended_max_output_tokens,
             "python_version": sys.version,
             "nodejs_version": subprocess.check_output(["node", "--version"]).decode("utf-8").strip(),
             "typescript_version": subprocess.check_output(["tsc", "--version"]).decode("utf-8").strip(),
@@ -863,7 +828,7 @@ class Agent(BaseAgent):
 
         # 在首次 build_context_update 前设置输出预算，确保 output_size_limit 能写入 initial_context
         # set_output_token_budget 只在首次设置时生效，_handle_agent_loop 里的调用会成为幂等 no-op
-        budget = self.model_config.max_output_tokens if hasattr(self, "model_config") and self.model_config else 4096
+        budget = self.agent_context.model_context.get_output_token_budget(default=4096)
         self.agent_context.horizon.set_output_token_budget(budget)
 
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
@@ -989,11 +954,7 @@ class Agent(BaseAgent):
         """处理 agent 循环 - 使用Context对象简化参数传递和状态管理"""
         loop_state = AgentLoopState()
 
-        # 初始输出预算：直接使用模型配置的 max_output_tokens，只设置一次
-        if hasattr(self, "model_config") and self.model_config:
-            initial_budget = self.model_config.max_output_tokens
-        else:
-            initial_budget = 4096
+        initial_budget = self.agent_context.model_context.get_output_token_budget(default=4096)
         self.agent_context.horizon.set_output_token_budget(initial_budget)
 
         while loop_state.should_continue:
@@ -1001,7 +962,7 @@ class Agent(BaseAgent):
             self.agent_context.update_activity_time()
 
             # 若上一轮 LLM 未调用 compact_chat_history 工具（调用了其他工具），
-            # _pre_compact_model_id 仍存在，在新一轮 LLM 调用前还原模型
+            # compact 临时模型仍存在，在新一轮 LLM 调用前还原模型
             self._restore_pre_compact_model(reason="LLM 未调用压缩工具，新一轮调用前还原")
 
             try:
@@ -1509,8 +1470,8 @@ class Agent(BaseAgent):
         token_count = await self.chat_history.tokens_count()
         message_count = len(self.chat_history.messages)
 
-        # Get compact thresholds from config
-        token_threshold = self.compaction_config.token_threshold
+        runtime_model_id = self.agent_context.model_context.current_text_model_id or self.llm_id
+        token_threshold = self.compaction_config.resolve_token_threshold(runtime_model_id)
         message_threshold = self.compaction_config.max_conversation_rounds
 
         # Check if compact is needed
@@ -1567,45 +1528,39 @@ class Agent(BaseAgent):
     def _activate_compact_model(self) -> None:
         """切换到 compact 专属模型（如果配置了的话），并保存压缩前的模型状态
 
-        若 _pre_compact_model_id 已存在，说明上次压缩请求 LLM 未响应工具调用，
+        若已存在临时 compact 模型，说明上次压缩请求 LLM 未响应工具调用，
         模型已处于 compact 状态，跳过重复切换以避免覆盖原始模型记录。
         还原操作由 _restore_pre_compact_model 负责。
         """
         compact_model = get_compact_model_id()
+        model_context = self.agent_context.model_context
         if compact_model:
-            if hasattr(self, '_pre_compact_model_id'):
+            if model_context.has_active_compact_text_model():
                 # 上次压缩请求尚未完成（LLM 未调用 compact_chat_history 工具），不重复切换
                 logger.info(f"执行压缩，compact 专属模型已处于激活状态: {compact_model}")
             else:
-                # 保存压缩前的 dynamic_model_id 状态
-                if self.agent_context.has_dynamic_model_id():
-                    self._pre_compact_model_id = self.agent_context.get_dynamic_model_id()
-                else:
-                    self._pre_compact_model_id = None
-                self.agent_context.set_dynamic_model_id(compact_model)
+                model_context.activate_compact_text_model(compact_model)
                 logger.info(f"执行压缩，使用 compact 专属模型: {compact_model}")
         else:
-            effective_model_id, _ = self._resolve_effective_model_info()
-            logger.info(f"执行压缩，使用主 Agent 当前模型: {effective_model_id}")
+            logger.info(f"执行压缩，使用主 Agent 当前模型: {model_context.current_text_model_id or self.llm_id}")
 
     def _restore_pre_compact_model(self, reason: str = "压缩完成") -> None:
         """还原 compact 前保存的模型状态
 
-        若 _pre_compact_model_id 不存在，说明未切换过模型，直接跳过。
+        若不存在临时 compact 模型，说明未切换过模型，直接跳过。
 
         Args:
             reason: 还原原因，用于日志说明
         """
-        if not hasattr(self, '_pre_compact_model_id'):
+        model_context = self.agent_context.model_context
+        if not model_context.has_active_compact_text_model():
             return
-        original_model = self._pre_compact_model_id
-        del self._pre_compact_model_id
-        if original_model is not None:
-            self.agent_context.set_dynamic_model_id(original_model)
-            logger.info(f"{reason}，已恢复原 dynamic_model_id: {original_model}")
+        restored = model_context.restore_pre_compact_text_model()
+        current_model_id = model_context.current_text_model_id or self.llm_id
+        if restored:
+            logger.info(f"{reason}，已恢复压缩前文本模型: {current_model_id}")
         else:
-            self.agent_context.clear_dynamic_model_id()
-            logger.info(f"{reason}，已清除 compact 专属模型，恢复主 Agent 默认模型")
+            logger.info(f"{reason}，未检测到需要恢复的 compact 文本模型")
 
     def _build_compact_request(self) -> str:
         """构建压缩请求内容，同时切换到 compact 专属模型（如果配置了的话）
@@ -1845,8 +1800,7 @@ class Agent(BaseAgent):
             self.set_agent_state(AgentState.ERROR)
             raise ValueError("无法准备与LLM的对话。")
 
-        # 🔥 检测并更新动态模型信息（确保记录的模型信息与实际使用的一致）
-        effective_model_id, effective_model_name = self._resolve_effective_model_info()
+        text_model_state = self._resolve_current_text_model()
 
         # _call_llm 的异常全部透传给 _call_llm_with_retry 做分类处理
         llm_start_time = time.time()
@@ -1862,25 +1816,14 @@ class Agent(BaseAgent):
         # 响应解析阶段：异常包装为 LLMCallRequestException 以区分 provider 异常
         try:
             token_usage = LLMFactory.token_tracker.extract_chat_history_usage_data(chat_response)
-            token_usage.model_id = effective_model_id
-            token_usage.model_name = effective_model_name
-            try:
-                model_config = LLMFactory.get_model_config(effective_model_id)
-                token_usage.resolved_model_id = model_config.resolved_model_id or None
-            except Exception:
-                pass
+            token_usage.model_id = text_model_state.model_id
+            token_usage.model_name = text_model_state.model_name
+            token_usage.resolved_model_id = text_model_state.resolved_model_id
 
             # 更新 horizon：实际生效的 LM 模型 + 当前上下文窗口使用量
             try:
-                horizon_model_info = self._build_horizon_llm_model_info(
-                    effective_model_id=effective_model_id,
-                    effective_model_name=effective_model_name,
-                )
-                context_window_total = (
-                    self.model_config.max_context_tokens
-                    if hasattr(self, "model_config") and self.model_config
-                    else 0
-                )
+                horizon_model_info = self._build_horizon_llm_model_info(text_model_state)
+                context_window_total = text_model_state.max_context_tokens
                 self.agent_context.horizon.update_llm_model(
                     horizon_model_info.model_id,
                     horizon_model_info.model_name,
@@ -1932,72 +1875,27 @@ class Agent(BaseAgent):
         except Exception as e:
             raise LLMCallRequestException(e) from e
 
-    def _resolve_effective_model_info(self) -> tuple[str, str]:
-        """
-        解析实际生效的模型信息（考虑动态模型选择）
-
-        Returns:
-            tuple[str, str]: (实际使用的model_id, 实际使用的model_name)
-        """
-        # 检查是否有动态模型ID设置
-        if self.agent_context.has_dynamic_model_id():
-            dynamic_model_id = self.agent_context.get_dynamic_model_id()
-            if dynamic_model_id and dynamic_model_id.strip():
-                try:
-                    LLMFactory.get(dynamic_model_id)
-                    model_config = LLMFactory.get_model_config(dynamic_model_id)
-                    dynamic_model_name = model_config.name
-                    resolved_model_id = model_config.resolved_model_id
-
-                    # 只在首次使用动态模型或模型发生变化时记录INFO日志
-                    previous_model = getattr(self, '_last_effective_model_id', None)
-                    if previous_model != dynamic_model_id:
-                        logger.info(f"切换到动态模型: {resolved_model_id} ({dynamic_model_name})")
-                        self._last_effective_model_id = dynamic_model_id
-                    else:
-                        logger.debug(f"继续使用动态模型: {resolved_model_id} ({dynamic_model_name})")
-
-                    return dynamic_model_id, dynamic_model_name
-                except Exception as e:
-                    logger.warning(f"获取动态模型 {dynamic_model_id} 配置失败: {e}，使用Agent默认模型")
-
-        # 兜底：使用Agent初始化时的模型信息
-        previous_model = getattr(self, '_last_effective_model_id', None)
-        if previous_model != self.llm_id:
-            logger.info(f"📋 切换到Agent默认模型: {self.llm_id} ({self.llm_name})")
-            self._last_effective_model_id = self.llm_id
-        else:
-            logger.debug(f"继续使用Agent默认模型: {self.llm_id} ({self.llm_name})")
-
-        return self.llm_id, self.llm_name
+    def _resolve_current_text_model(self) -> TextModelState:
+        """解析当前运行时文本模型。"""
+        return self.agent_context.model_context.resolve_text_model()
 
     def _build_horizon_llm_model_info(
         self,
-        *,
-        effective_model_id: Optional[str] = None,
-        effective_model_name: Optional[str] = None,
+        text_model_state: Optional[TextModelState] = None,
     ) -> HorizonLlmModelInfo:
         """把当前生效模型标准化为注入给 horizon 的展示态信息。"""
-        if not effective_model_id or not effective_model_name:
-            effective_model_id, effective_model_name = self._resolve_effective_model_info()
+        if text_model_state is None:
+            text_model_state = self._resolve_current_text_model()
 
-        # 对 LLM 展示时优先使用 resolved_model_id，避免暴露不友好的选择态占位值。
-        display_model_id = effective_model_id
-        display_model_name = effective_model_name
-        try:
-            model_config = LLMFactory.get_model_config(effective_model_id)
-            if model_config:
-                display_model_id = model_config.resolved_model_id or effective_model_id
-                display_model_name = model_config.name or effective_model_name
-        except Exception:
-            pass
+        display_model_id = text_model_state.display_model_id
+        display_model_name = text_model_state.model_name
 
         # 聚合模型要额外保留选择语义，否则只看到落地模型，看不出背后调度策略。
         special_model_descriptions = {
             "auto": "automatically selects the most efficient AI model for the current task",
             "max": "automatically selects the most capable AI model for the current scenario",
         }
-        description = special_model_descriptions.get(effective_model_id.lower(), "")
+        description = special_model_descriptions.get(text_model_state.model_id.lower(), "")
         return HorizonLlmModelInfo(
             model_id=display_model_id,
             model_name=display_model_name,
@@ -2335,7 +2233,7 @@ Since your subsequent output will be merged with pre-interruption content and di
             # Don't raise - allow agent to continue even if compaction fails
 
         finally:
-            # 压缩完成后还原 dynamic_model_id（无论成功或失败都执行）
+            # 压缩完成后还原 compact 临时模型（无论成功或失败都执行）
             self._restore_pre_compact_model(reason="压缩完成")
 
     async def _reset_for_new_session(self) -> None:
@@ -2652,7 +2550,7 @@ Since your subsequent output will be merged with pre-interruption content and di
             self.agent_context.set_final_response(None)
 
         # 兜底还原 compact 模型（防止 LLM 未调用 compact_chat_history 工具导致模型卡住）
-        if hasattr(self, '_pre_compact_model_id'):
+        if self.agent_context.model_context.has_active_compact_text_model():
             logger.warning("Agent 结束时检测到 compact 模型未还原，执行兜底恢复")
             self._restore_pre_compact_model(reason="Agent 结束兜底")
 
@@ -2736,8 +2634,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 将 AgentContext 作为扩展注册
         tool_context.register_extension("agent_context", self.agent_context)
 
-        # 🔥 动态获取实际生效的模型信息（每次对话都重新检查）
-        effective_model_id, effective_model_name = self._resolve_effective_model_info()
+        text_model_state = self._resolve_current_text_model()
 
         # ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ 调用 LLM ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ #
         start_time = time.time()
@@ -2769,13 +2666,12 @@ Since your subsequent output will be merged with pre-interruption content and di
         if non_stream_timeout is not None:
             processor_config.non_stream_timeout_seconds = non_stream_timeout
 
-        # 将实际生效的模型信息写入 processor_config
-        processor_config.model_id = effective_model_id
-        processor_config.model_name = effective_model_name
+        processor_config.model_id = text_model_state.model_id
+        processor_config.model_name = text_model_state.model_name
 
         try:
             llm_response: ChatCompletion = await LLMFactory.call_with_tool_support(
-                effective_model_id,
+                text_model_state.model_id,
                 messages,
                 tools=tools_list if tools_list else None,
                 stop=self.agent_context.stop_sequences if hasattr(self.agent_context, 'stop_sequences') else None,

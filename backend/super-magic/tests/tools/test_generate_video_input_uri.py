@@ -1,8 +1,12 @@
 import pytest
 from pydantic import ValidationError
 
+from agentlang.context.tool_context import ToolContext
 from app.service.file_service import WorkspaceFileURLError
 from app.core.entity.tool.tool_result import VideoToolResult
+from app.core.models.agent_model_context import AgentModelContext
+from app.core.models.agent_model_selection import AgentModelSelection
+from app.core.models.media_model import VideoModelSpec
 from app.tools.design.tools.generate_canvas_videos import GenerateCanvasVideos, GenerateCanvasVideosParams, VideoTaskSpec
 from app.tools.design.tools.base_generate_canvas_elements import ElementDetail
 from app.tools.generate_video import GenerateVideo, GenerateVideoParams, MagicServiceVideoError
@@ -165,7 +169,7 @@ async def test_execute_purely_exposes_4018_error_as_raw_error(monkeypatch, tmp_p
 
     result = await tool.execute_purely(
         None,
-        GenerateVideoParams(prompt="生成测试视频", output_path="videos"),
+        GenerateVideoParams(prompt="生成测试视频", model_id="mock-video-model", output_path="videos"),
     )
 
     assert not result.ok
@@ -188,6 +192,34 @@ def test_magic_service_error_uses_structured_response_code():
     assert str(error) == "输入图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。 (code=4018)"
     assert GenerateVideo._is_llm_visible_magic_service_error(error)
     assert not GenerateVideo._is_llm_visible_magic_service_error(str(error))
+
+
+def test_generate_video_reads_runtime_video_model_context():
+    model_context = AgentModelContext()
+    model_context.apply_selection(AgentModelSelection(
+        configured_text_model_id="mock-text-model",
+        text_model_id="mock-text-model",
+        video_model=VideoModelSpec.from_values(
+            model_id="mock-video-model",
+            video_generation_config={"sizes": [{"value": "mock-video-size"}]},
+        ),
+    ))
+    tool_context = ToolContext()
+    tool_context.register_extension("agent_context", type("MockAgentContext", (), {"model_context": model_context})())
+
+    assert GenerateVideo._resolve_model("", tool_context) == "mock-video-model"
+    assert GenerateVideo._resolve_video_generation_config("mock-video-model", tool_context) == {
+        "sizes": [{"value": "mock-video-size"}],
+    }
+
+
+def test_generate_video_requires_video_model_when_context_has_none():
+    model_context = AgentModelContext()
+    tool_context = ToolContext()
+    tool_context.register_extension("agent_context", type("MockAgentContext", (), {"model_context": model_context})())
+
+    with pytest.raises(ValueError, match="未指定视频模型"):
+        GenerateVideo._resolve_model("", tool_context)
 
 
 def test_extract_magic_service_error_message_keeps_compatibility():

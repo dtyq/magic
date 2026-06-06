@@ -92,6 +92,7 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
             parent_context=None,
             model_id=job.payload.model_id,
             image_model_id=job.payload.image_model_id,
+            video_model_id=job.payload.video_model_id,
         )
         if timeout:
             raw = await asyncio.wait_for(coro, timeout=timeout)

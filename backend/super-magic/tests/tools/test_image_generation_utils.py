@@ -1,7 +1,12 @@
 from PIL import Image
 
+from agentlang.context.tool_context import ToolContext
+from app.core.models.agent_model_context import AgentModelContext
+from app.core.models.agent_model_selection import AgentModelSelection
+from app.core.models.media_model import ImageModelSpec
 from app.tools.image_utils.image_generation_utils import (
     detect_image_file_extension,
+    resolve_image_model,
     resolve_safe_save_path,
 )
 
@@ -23,3 +28,16 @@ async def test_resolve_safe_save_path_uses_given_extension_and_avoids_conflicts(
     path = await resolve_safe_save_path(save_dir, "pink-dot-pattern", ".png")
 
     assert path == save_dir / "pink-dot-pattern_1.png"
+
+
+async def test_resolve_image_model_reads_agent_model_context():
+    model_context = AgentModelContext()
+    model_context.apply_selection(AgentModelSelection(
+        configured_text_model_id="mock-text-model",
+        text_model_id="mock-text-model",
+        image_model=ImageModelSpec.from_values(model_id="mock-image-model"),
+    ))
+    tool_context = ToolContext()
+    tool_context.register_extension("agent_context", type("MockAgentContext", (), {"model_context": model_context})())
+
+    assert await resolve_image_model(tool_context) == "mock-image-model"

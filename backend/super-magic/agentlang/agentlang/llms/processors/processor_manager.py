@@ -58,7 +58,11 @@ class ProcessorManager:
         correlation_id = request_id
         from agentlang.event import get_correlation_manager, EventPairType
         correlation_manager = get_correlation_manager()
-        active_correlation_id = correlation_manager.get_active_correlation_id(EventPairType.AGENT_REPLY)
+        correlation_scope_id = getattr(agent_context, "context_id", None)
+        active_correlation_id = correlation_manager.get_active_correlation_id(
+            EventPairType.AGENT_REPLY,
+            correlation_scope_id,
+        )
         if active_correlation_id:
             correlation_id = active_correlation_id
             logger.info(f"[{request_id}] LLM调用使用 correlation_id={correlation_id}")

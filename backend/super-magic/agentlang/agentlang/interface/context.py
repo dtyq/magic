@@ -144,39 +144,6 @@ class AgentContextInterface(ABC):
         """
         pass
 
-    # 🔥 新增：动态模型ID管理接口
-    @abstractmethod
-    def set_dynamic_model_id(self, model_id: str) -> None:
-        """设置动态模型ID
-
-        Args:
-            model_id: 动态指定的模型ID
-        """
-        pass
-
-    @abstractmethod
-    def get_dynamic_model_id(self) -> Optional[str]:
-        """获取动态模型ID
-
-        Returns:
-            Optional[str]: 动态模型ID，如果未设置则返回None
-        """
-        pass
-
-    @abstractmethod
-    def has_dynamic_model_id(self) -> bool:
-        """检查是否设置了动态模型ID
-
-        Returns:
-            bool: 是否设置了动态模型ID
-        """
-        pass
-
-    @abstractmethod
-    def clear_dynamic_model_id(self) -> None:
-        """清除动态模型ID设置"""
-        pass
-
     # 非人类限流配置管理接口
     @abstractmethod
     def set_non_human_options(self, options: Any) -> None:

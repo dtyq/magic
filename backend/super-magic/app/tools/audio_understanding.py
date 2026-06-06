@@ -1122,7 +1122,15 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
 
             # 获取当前活跃的 tool_call correlation_id，确保 before/pending/after 事件使用同一个 ID
             correlation_manager = get_correlation_manager()
-            correlation_id = correlation_manager.get_active_correlation_id(EventPairType.TOOL_CALL)
+            scope_id = None
+            try:
+                from app.core.context.agent_context import AgentContext
+
+                agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
+                scope_id = agent_context.context_id
+            except Exception:
+                scope_id = None
+            correlation_id = correlation_manager.get_active_correlation_id(EventPairType.TOOL_CALL, scope_id)
 
             self.logger.info(f"[_transcribe] 从 correlation_manager 获取的 correlation_id: {correlation_id}")
 

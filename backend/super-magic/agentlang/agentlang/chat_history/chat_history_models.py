@@ -103,17 +103,15 @@ class CompactionConfig:
             ),
         ]
     )
+    _auto_token_threshold: bool = field(default=False, init=False, repr=False)
+    _resolved_token_threshold_model_id: Optional[str] = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
         """压缩配置的简化验证"""
-        # Set default token threshold if needed (auto-calculate when 0)
-        if self.token_threshold == 0:
-            self.token_threshold = self._calculate_model_based_threshold()
-            logger.info(f"Set token_threshold to {self.token_threshold} based on model {self.agent_model_id}")
+        self._auto_token_threshold = self.token_threshold == 0
 
-        # Basic validation after auto-calculation
-        if self.token_threshold <= 0:
-            raise ValueError("Token threshold must be positive")
+        if self.token_threshold < 0:
+            raise ValueError("Token threshold cannot be negative")
         if self.max_conversation_rounds <= 0:
             raise ValueError("Max conversation rounds must be positive")
         if not 0.01 <= self.context_usage_ratio <= 1.0:
@@ -123,6 +121,21 @@ class CompactionConfig:
                 raise ValueError("Pricing tier rule model_keywords cannot be empty")
             if rule.token_threshold <= 0:
                 raise ValueError("Pricing tier rule token_threshold must be positive")
+
+    def resolve_token_threshold(self, agent_model_id: Optional[str] = None) -> int:
+        """Resolve token threshold lazily, after the runtime model is selected."""
+        if agent_model_id and agent_model_id != self.agent_model_id:
+            self.agent_model_id = agent_model_id
+            if self._auto_token_threshold:
+                self._resolved_token_threshold_model_id = None
+
+        if self._auto_token_threshold:
+            if self._resolved_token_threshold_model_id != self.agent_model_id or self.token_threshold <= 0:
+                self.token_threshold = self._calculate_model_based_threshold()
+                self._resolved_token_threshold_model_id = self.agent_model_id
+                logger.info(f"Set token_threshold to {self.token_threshold} based on model {self.agent_model_id}")
+
+        return self.token_threshold or self.default_token_threshold
 
     def _get_model_match_texts(self) -> List[str]:
         """收集用于匹配策略规则的模型文本"""

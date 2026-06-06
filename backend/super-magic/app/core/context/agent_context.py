@@ -31,6 +31,7 @@ from agentlang.logger import get_logger
 from app.path_manager import PathManager
 from app.core.context.run_interruption import RunCancelState, RunCleanupRegistry, RunCancellationHandle
 from app.core.entity.final_task_state import FinalTaskState
+from app.core.models.agent_model_context import AgentModelContext
 from loguru import logger
 from app.infrastructure.storage.types import PlatformType
 from agentlang.llms.token_usage.models import TokenUsageCollection
@@ -43,13 +44,18 @@ logger = get_logger(__name__)
 _CANCEL_BLOCKER_WAIT_TIMEOUT_S: float = 10.0
 
 
-async def _auto_manage_correlation_id(event_type: EventType, data: BaseEventData) -> None:
+async def _auto_manage_correlation_id(
+    event_type: EventType,
+    data: BaseEventData,
+    context_id: Optional[str] = None,
+) -> None:
     """
     自动管理事件关联数据
 
     Args:
         event_type: 事件类型
         data: 事件数据
+        context_id: AgentContext 唯一标识，用于隔离不同 Agent 的事件配对状态
     """
     from agentlang.event import (
         get_correlation_manager,
@@ -80,14 +86,14 @@ async def _auto_manage_correlation_id(event_type: EventType, data: BaseEventData
     if is_before_event(event_type.value):
         # before 事件：生成 correlation_id
         if not data.correlation_id:  # 只有在没有手动设置时才自动生成
-            correlation_id = correlation_manager.generate_for_before_event(event_pair_type)
+            correlation_id = correlation_manager.generate_for_before_event(event_pair_type, context_id)
             data.correlation_id = correlation_id
             logger.info(f"自动生成 correlation_id: {correlation_id} for {event_type}")
 
     elif is_after_event(event_type.value):
         # after 事件：消耗 correlation_id
         if not data.correlation_id:  # 只有在没有手动设置时才自动消耗
-            consumed_correlation_id = correlation_manager.consume_for_after_event(event_pair_type)
+            consumed_correlation_id = correlation_manager.consume_for_after_event(event_pair_type, context_id)
             if consumed_correlation_id:
                 data.correlation_id = consumed_correlation_id
                 logger.info(f"自动消耗 correlation_id: {consumed_correlation_id} for {event_type}")
@@ -116,6 +122,7 @@ class AgentContext(BaseAgentContext):
 
         # 普通路径与隔离路径都走同一初始化逻辑；共享实例由 is_initialized 保护避免重复注册。
         self._init_shared_fields()
+        self.model_context = AgentModelContext()
 
         # 初始化中断事件通知
         self._interruption_event = asyncio.Event()
@@ -643,7 +650,7 @@ class AgentContext(BaseAgentContext):
             Event: 处理后的事件对象
         """
         # 自动处理 correlation_id
-        await _auto_manage_correlation_id(event_type, data)
+        await _auto_manage_correlation_id(event_type, data, self.context_id)
 
         event = Event(event_type, data)
         return await self.get_event_dispatcher().dispatch(event)
@@ -660,7 +667,7 @@ class AgentContext(BaseAgentContext):
             StoppableEvent: 处理后的事件对象
         """
         # 自动处理 correlation_id
-        await _auto_manage_correlation_id(event_type, data)
+        await _auto_manage_correlation_id(event_type, data, self.context_id)
 
         event = StoppableEvent(event_type, data)
         return await self.get_event_dispatcher().dispatch(event)

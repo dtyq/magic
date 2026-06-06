@@ -152,7 +152,8 @@ class RegularCallProcessor:
             from agentlang.event import get_correlation_manager, EventPairType
             cm = get_correlation_manager()
             stream_fallback_cid: Optional[str] = None
-            if not cm.get_active_correlation_id(EventPairType.AGENT_REPLY):
+            correlation_scope_id = getattr(agent_context, "context_id", None)
+            if not cm.get_active_correlation_id(EventPairType.AGENT_REPLY, correlation_scope_id):
                 stream_fallback_cid = cm.pop_stream_fallback_cid()
                 if stream_fallback_cid:
                     logger.info(

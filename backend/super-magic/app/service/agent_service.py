@@ -542,7 +542,7 @@ class AgentService(Base):
         chat_client_message = agent_context.get_chat_client_message()
         query = chat_client_message.prompt
 
-        # 🔥 ASR 录音纪要聊天模式：注入上下文 Diff
+        # ASR 录音纪要聊天模式：注入上下文 Diff
         try:
             asr_task_key = None
             if chat_client_message.dynamic_config:
@@ -580,14 +580,16 @@ class AgentService(Base):
             agent.agent_context.horizon,
         )
 
+        media_model_config = agent.agent_context.model_context.media_model_payload()
+
         # 将图片/视频模型信息同步到 horizon（配置变化时 horizon 会在下次 system_injected_context 中注入，
         # 首次和上下文压缩后也会通过 initial_context 全量注入）
         await ImageModelSizesService.sync_to_horizon(
-            chat_client_message.dynamic_config,
+            media_model_config,
             agent.agent_context.horizon,
         )
         await VideoModelConfigService.sync_to_horizon(
-            chat_client_message.dynamic_config,
+            media_model_config,
             agent.agent_context.horizon,
         )
 
@@ -607,7 +609,6 @@ class AgentService(Base):
         self,
         stream_mode: bool,
         streams: Optional[List[Stream]] = [],
-        llm: Optional[str] = None,
         task_id: Optional[str] = "",
         is_main_agent: bool = False,
         interrupt_queue: Optional[asyncio.Queue] = None,
@@ -619,7 +620,6 @@ class AgentService(Base):
         Args:
             stream_mode: 是否启用流式输出
             streams: 可选的通信流实例
-            llm: 大语言模型名称
             task_id: 任务ID，若为None则自动生成
             is_main_agent: 标记当前agent是否是主agent，默认为False
 
@@ -628,7 +628,6 @@ class AgentService(Base):
         """
         agent_context = AgentContext()
         agent_context.set_task_id(task_id)
-        agent_context.set_llm(llm)
         agent_context.stream_mode = stream_mode
         agent_context.ensure_workspace_dir()
         agent_context.is_main_agent = is_main_agent
