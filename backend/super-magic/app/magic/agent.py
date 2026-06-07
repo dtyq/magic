@@ -260,6 +260,7 @@ class Agent(BaseAgent):
             agent_id=self.id,
             agent_model_id=self.llm_id,
         )
+        self._compact_request_pending_llm_call = False
 
         # 初始化 ChatHistory 实例
         self.chat_history = ChatHistory(
@@ -974,7 +975,7 @@ class Agent(BaseAgent):
 
             # 若上一轮 LLM 未调用 compact_chat_history 工具（调用了其他工具），
             # compact 临时模型仍存在，在新一轮 LLM 调用前还原模型
-            self._restore_pre_compact_model(reason="LLM 未调用压缩工具，新一轮调用前还原")
+            self._restore_stale_compact_model_before_loop()
 
             try:
                 # 如果预检测到pending工具调用，直接使用它
@@ -1487,13 +1488,9 @@ class Agent(BaseAgent):
 
         # Check if compact is needed
         if token_count > token_threshold or message_count > message_threshold:
-            # 若末尾消息已是压缩请求（reactive compact 刚注入），跳过重复注入
-            if self.chat_history.messages:
-                last_msg = self.chat_history.messages[-1]
-                last_content = getattr(last_msg, "content", "") or ""
-                if "compact_chat_history" in last_content:
-                    logger.info("已存在待处理的 compact 请求，跳过重复注入")
-                    return False
+            if self._has_pending_compact_request():
+                logger.info("已存在待处理的 compact 请求，跳过重复注入")
+                return False
 
             logger.info(f"Triggering compact: tokens={token_count}/{token_threshold}, messages={message_count}/{message_threshold}")
 
@@ -1513,6 +1510,18 @@ class Agent(BaseAgent):
 
         return False
 
+    def _has_pending_compact_request(self) -> bool:
+        """判断是否存在待执行的 compact 请求。"""
+        return self._compact_request_pending_llm_call
+
+    def _mark_compact_request_pending_llm_call(self) -> None:
+        """标记已注入 compact 请求，下一次 LLM 调用前不要还原 compact 模型。"""
+        self._compact_request_pending_llm_call = True
+
+    def _clear_compact_request_pending_llm_call(self) -> None:
+        """清理 compact 请求待执行标记。"""
+        self._compact_request_pending_llm_call = False
+
     async def _try_compact_chat_history_force(self) -> bool:
         """强制触发上下文压缩（不检查阈值），用于 reactive compact 场景。
 
@@ -1525,6 +1534,9 @@ class Agent(BaseAgent):
         message_count = len(self.chat_history.messages)
         if message_count < 4:
             logger.warning(f"消息数过少 ({message_count})，无法执行 reactive compact")
+            return False
+        if self._has_pending_compact_request():
+            logger.info("已存在待处理的 compact 请求，跳过 reactive compact 重复注入")
             return False
 
         logger.info(f"强制触发 reactive compact: messages={message_count}")
@@ -1573,6 +1585,16 @@ class Agent(BaseAgent):
         else:
             logger.info(f"{reason}，未检测到需要恢复的 compact 文本模型")
 
+    def _restore_stale_compact_model_before_loop(self) -> None:
+        """新一轮 LLM 调用前，恢复未被 compact 请求占用的临时 compact 模型。"""
+        model_context = self.agent_context.model_context
+        if not model_context.has_active_compact_text_model():
+            return
+        if self._has_pending_compact_request():
+            logger.debug("检测到待处理的 compact 请求，保留 compact 临时模型")
+            return
+        self._restore_pre_compact_model(reason="LLM 未调用压缩工具，新一轮调用前还原")
+
     def _build_compact_request(self) -> str:
         """构建压缩请求内容，同时切换到 compact 专属模型（如果配置了的话）
 
@@ -1580,6 +1602,7 @@ class Agent(BaseAgent):
         无论压缩成功还是失败都能正确恢复。
         """
         self._activate_compact_model()
+        self._mark_compact_request_pending_llm_call()
 
         # 被动触发：直接注入 SKILL.md 内容，无需 Agent 额外调用 read_skills
         return f"The conversation is too long and must be compacted now. You must call the `compact_chat_history` tool immediately.\n\n{self._compact_skill_content}"
@@ -1638,6 +1661,31 @@ class Agent(BaseAgent):
                     return snapshot
         return None
 
+    async def _try_fallback_compact_model_once(
+        self,
+        exception: Exception,
+        *,
+        non_stream_timeout: Optional[int] = None,
+    ) -> Optional[LLMResponseContext]:
+        """compact 临时模型失败时，恢复压缩前模型并非流式重试一次。"""
+        model_context = self.agent_context.model_context
+        if not model_context.consume_compact_text_model_fallback():
+            return None
+
+        failed_model_id = model_context.current_text_model_id or self.llm_id
+        logger.warning(
+            f"compact 临时模型请求失败，回退压缩前模型重试一次: "
+            f"failed_model={failed_model_id}, error={exception!r}"
+        )
+        self._restore_pre_compact_model(reason="compact 临时模型请求失败，回退当前模型重试")
+
+        retry_model_id = model_context.current_text_model_id or self.llm_id
+        logger.info(f"compact fallback 使用文本模型重试: {retry_model_id}")
+        return await self._prepare_and_call_llm(
+            use_stream=False,
+            non_stream_timeout=non_stream_timeout or config.get("llm.non_stream_timeout_seconds", 600),
+        )
+
     def _log_agent_loop_exception(self, exception: Exception) -> None:
         """记录 agent loop 异常，已分类的模型配置错误不打印完整堆栈。"""
         if is_non_retryable_model_config_error(exception):
@@ -1690,6 +1738,9 @@ class Agent(BaseAgent):
             except ResourceLimitExceededException:
                 raise  # 平台业务限制（积分/并发），直接终止
             except Exception as e:
+                compact_fallback = await self._try_fallback_compact_model_once(e)
+                if compact_fallback is not None:
+                    return compact_fallback
                 if self._find_context_window_error(e):
                     raise  # 上下文超长走 compact 路径
                 if is_non_retryable_model_config_error(e):
@@ -1739,6 +1790,12 @@ class Agent(BaseAgent):
             except ResourceLimitExceededException:
                 raise  # 平台业务限制，直接终止
             except Exception as e:
+                compact_fallback = await self._try_fallback_compact_model_once(
+                    e,
+                    non_stream_timeout=timeout,
+                )
+                if compact_fallback is not None:
+                    return compact_fallback
                 if self._find_context_window_error(e):
                     if not loop_state.reactive_compact_attempted:
                         loop_state.reactive_compact_attempted = True
@@ -2277,6 +2334,7 @@ Since your subsequent output will be merged with pre-interruption content and di
             # Don't raise - allow agent to continue even if compaction fails
 
         finally:
+            self._clear_compact_request_pending_llm_call()
             # 压缩完成后还原 compact 临时模型（无论成功或失败都执行）
             self._restore_pre_compact_model(reason="压缩完成")
 
@@ -2595,6 +2653,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 兜底还原 compact 模型（防止 LLM 未调用 compact_chat_history 工具导致模型卡住）
         if self.agent_context.model_context.has_active_compact_text_model():
             logger.warning("Agent 结束时检测到 compact 模型未还原，执行兜底恢复")
+            self._clear_compact_request_pending_llm_call()
             self._restore_pre_compact_model(reason="Agent 结束兜底")
 
         # 更新Agent状态 - 使用is_agent_running替代直接比较

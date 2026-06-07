@@ -147,13 +147,20 @@ def test_agent_model_context_restores_pre_compact_text_model(monkeypatch):
     context.activate_compact_text_model("mock-compact-text")
     assert context.current_text_model_id == "mock-compact-text"
     assert context.has_active_compact_text_model()
+    assert context.consume_compact_text_model_fallback()
+    assert not context.consume_compact_text_model_fallback()
 
     context.activate_compact_text_model("mock-compact-text-alt")
     assert context.current_text_model_id == "mock-compact-text-alt"
+    assert not context.consume_compact_text_model_fallback()
 
     assert context.restore_pre_compact_text_model()
     assert context.current_text_model_id == "mock-runtime-text"
     assert not context.has_active_compact_text_model()
+    assert not context.consume_compact_text_model_fallback()
+
+    context.activate_compact_text_model("mock-compact-text")
+    assert context.consume_compact_text_model_fallback()
 
 
 def test_compaction_config_does_not_read_model_config_on_init(monkeypatch):

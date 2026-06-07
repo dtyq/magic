@@ -1343,6 +1343,26 @@
         "zh_CN": "当前对话内容过长，「{{agent_name}}」将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响「{{agent_name}}」的工作效率",
         "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency."
     },
+    "compact_chat_history.detail_title": {
+        "zh_CN": "对话内容已整理",
+        "en_US": "Conversation context compacted"
+    },
+    "compact_chat_history.detail_description": {
+        "zh_CN": "较长的历史对话已整理为上下文摘要，后续会基于压缩后的上下文继续处理任务；部分早期细节可能不会完整保留。",
+        "en_US": "Long conversation history has been compacted into a context summary. The task will continue with the compacted context, and some earlier details may not be fully retained."
+    },
+    "compact_chat_history.detail_summary_length": {
+        "zh_CN": "摘要长度",
+        "en_US": "Summary length"
+    },
+    "compact_chat_history.detail_summary_title": {
+        "zh_CN": "压缩摘要",
+        "en_US": "Compacted summary"
+    },
+    "compact_chat_history.detail_chars": {
+        "zh_CN": "{{count}} 字符",
+        "en_US": "{{count}} chars"
+    },
     "read_skills.success": {
         "zh_CN": "技能装备成功",
         "en_US": "Skill equipped"
