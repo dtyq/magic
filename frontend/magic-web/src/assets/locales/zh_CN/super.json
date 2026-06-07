@@ -1139,6 +1139,14 @@
 				"file": "文件"
 			},
 			"title": "确认{{operation}}项目文件"
+		},
+		"userInfoAuthorizationConfirm": {
+			"allow": "允许",
+			"content": "「{{appName}}」请求读取：{{fields}}。用途：{{reason}}",
+			"contentWithoutReason": "「{{appName}}」请求读取：{{fields}}。该应用未提供用途说明。",
+			"deny": "拒绝",
+			"fieldSeparator": "、",
+			"title": "授权用户信息访问"
 		}
 	},
 	"messageEditor": {

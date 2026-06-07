@@ -1138,6 +1138,14 @@
 				"file": "file"
 			},
 			"title": "Confirm Project File {{operation}}"
+		},
+		"userInfoAuthorizationConfirm": {
+			"allow": "Allow",
+			"content": "\"{{appName}}\" requests access to: {{fields}}. Purpose: {{reason}}",
+			"contentWithoutReason": "\"{{appName}}\" requests access to: {{fields}}. This app did not provide a purpose.",
+			"deny": "Deny",
+			"fieldSeparator": ", ",
+			"title": "Authorize User Info Access"
 		}
 	},
 	"messageEditor": {

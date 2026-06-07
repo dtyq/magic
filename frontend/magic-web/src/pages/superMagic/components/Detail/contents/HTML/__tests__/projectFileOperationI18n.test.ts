@@ -15,6 +15,15 @@ const requiredKeys = [
 	"projectRoot",
 ]
 
+const requiredUserInfoAuthorizationKeys = [
+	"title",
+	"content",
+	"contentWithoutReason",
+	"fieldSeparator",
+	"allow",
+	"deny",
+]
+
 function getPathValue(source: unknown, path: string): unknown {
 	return path.split(".").reduce<unknown>((current, segment) => {
 		if (!current || typeof current !== "object") return undefined
@@ -31,6 +40,19 @@ describe("project file operation confirmation i18n", () => {
 			expect(getPathValue(messages, `htmlEditor.projectFileOperationConfirm.${key}`)).toEqual(
 				expect.any(String),
 			)
+		}
+	})
+})
+
+describe("user info authorization confirmation i18n", () => {
+	it.each([
+		["zh_CN", zhCN],
+		["en_US", enUS],
+	])("defines all modal copy keys for %s", (_locale, messages) => {
+		for (const key of requiredUserInfoAuthorizationKeys) {
+			expect(
+				getPathValue(messages, `htmlEditor.userInfoAuthorizationConfirm.${key}`),
+			).toEqual(expect.any(String))
 		}
 	})
 })

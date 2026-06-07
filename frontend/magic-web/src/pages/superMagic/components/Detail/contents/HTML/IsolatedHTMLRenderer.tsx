@@ -742,11 +742,21 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			authorizeUserInfo: useMemoizedFn(
 				({ appName, fields, reason }) =>
 					new Promise<boolean>((resolve) => {
+						const fieldText = fields.join(
+							t("htmlEditor.userInfoAuthorizationConfirm.fieldSeparator"),
+						)
+						const contentKey = reason
+							? "htmlEditor.userInfoAuthorizationConfirm.content"
+							: "htmlEditor.userInfoAuthorizationConfirm.contentWithoutReason"
 						const modal = MagicModal.confirm({
-							title: "授权用户信息访问",
-							content: `「${appName}」请求读取：${fields.join("、")}。${reason ? `用途：${reason}` : "该应用未提供用途说明。"}`,
-							okText: "允许",
-							cancelText: "拒绝",
+							title: t("htmlEditor.userInfoAuthorizationConfirm.title"),
+							content: t(contentKey, {
+								appName,
+								fields: fieldText,
+								reason,
+							}),
+							okText: t("htmlEditor.userInfoAuthorizationConfirm.allow"),
+							cancelText: t("htmlEditor.userInfoAuthorizationConfirm.deny"),
 							closable: false,
 							maskClosable: false,
 							centered: true,
