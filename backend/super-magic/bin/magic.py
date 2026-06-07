@@ -40,6 +40,7 @@ sys.path.append(str(project_root))
 # 加载环境变量 - 在设置Python路径后导入
 from dotenv import load_dotenv
 load_dotenv(override=True)
+os.environ.setdefault("SUPER_MAGIC_PROJECT_ROOT", str(project_root))
 
 # 初始化步骤 - 所有项目内模块导入都放到sys.path设置后
 from app.path_manager import PathManager
