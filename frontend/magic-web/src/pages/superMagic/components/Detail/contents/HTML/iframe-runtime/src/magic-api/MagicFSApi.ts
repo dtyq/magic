@@ -13,6 +13,10 @@
 
 import { MagicBaseApi } from "./MagicBaseApi"
 
+function isSingleFileName(name: string): boolean {
+	return name.trim().length > 0 && !/[\/\\]/.test(name) && !name.includes("..") && !/[\x00-\x1F\x7F]/.test(name)
+}
+
 export class MagicFSApi extends MagicBaseApi {
 	install(): void {
 		if (!window.Magic) window.Magic = {}
@@ -110,6 +114,9 @@ export class MagicFSApi extends MagicBaseApi {
 				}
 				if (typeof newName !== "string") {
 					return Promise.reject(new Error("renameFile: newName must be a string"))
+				}
+				if (!isSingleFileName(newName)) {
+					return Promise.reject(new Error("renameFile: newName must be a single file name"))
 				}
 				return this.request<void>("MAGIC_FS_RENAME_FILE_REQUEST", { path, newName })
 			},

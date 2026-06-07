@@ -210,6 +210,30 @@ describe("IframeFSService", () => {
 		)
 	})
 
+
+	it.each(["", "   ", "../evil.txt", "subdir/file.txt", "subdir\\file.txt", "/tmp", "bad\u0000name.txt"])(
+		"rejects renameFile when newName is not a single file name: %s",
+		async (newName) => {
+			const renameFileFn = vi.fn().mockResolvedValue(undefined)
+			const { service, postToIframe } = createService({
+				fileList: [file("file-id", "app/draft.txt", "draft.txt")],
+				renameFileFn,
+			})
+
+			await service.handleMessage(FS_MESSAGE_TYPES.RENAME_FILE_REQUEST, {
+				type: FS_MESSAGE_TYPES.RENAME_FILE_REQUEST,
+				requestId: "req-rename-invalid-name",
+				path: "./draft.txt",
+				newName,
+			})
+
+			expect(renameFileFn).not.toHaveBeenCalled()
+			expect(postToIframe).toHaveBeenCalledWith(
+				expect.objectContaining({ requestId: "req-rename-invalid-name", success: false }),
+			)
+		},
+	)
+
 	it("rejects destructive operations when projectId is missing", async () => {
 		const deleteFn = vi.fn().mockResolvedValue(undefined)
 		const deleteFilesFn = vi.fn().mockResolvedValue(undefined)

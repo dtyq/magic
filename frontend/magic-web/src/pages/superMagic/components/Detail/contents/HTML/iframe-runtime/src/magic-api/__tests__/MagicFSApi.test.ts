@@ -212,6 +212,17 @@ describe("MagicFSApi", () => {
 		expect(postMessageSpy).not.toHaveBeenCalled()
 	})
 
+
+	it.each(["", "   ", "../evil.txt", "subdir/file.txt", "subdir\\file.txt", "/tmp", "bad\u0000name.txt"])(
+		"renameFile() 传入非法 newName %s 时立即 reject",
+		async (newName) => {
+			await expect((window as any).Magic.fs.renameFile("./file.txt", newName)).rejects.toThrow(
+				"renameFile: newName must be a single file name",
+			)
+			expect(postMessageSpy).not.toHaveBeenCalled()
+		},
+	)
+
 	// ─── watchFile（原有测试） ───────────────────────────────────────────────────
 
 	it("watchFile() 发送 MAGIC_FS_WATCH_REGISTER 并在文件变更时触发回调", () => {

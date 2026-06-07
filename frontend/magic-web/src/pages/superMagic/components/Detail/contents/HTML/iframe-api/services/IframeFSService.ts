@@ -654,6 +654,15 @@ export class IframeFSService {
 			})
 		}
 
+		if (!this.isSingleFileName(newName)) {
+			return this.send({
+				type: FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE,
+				requestId,
+				success: false,
+				error: "renameFile: newName must be a single file name",
+			})
+		}
+
 		try {
 			const item = this.findFile(resolved)
 			if (!item) {
@@ -819,6 +828,10 @@ export class IframeFSService {
 			throw new Error("Project id is required for destructive file operations")
 		}
 		return projectId
+	}
+
+	private isSingleFileName(name: string): boolean {
+		return name.trim().length > 0 && !/[\/\\]/.test(name) && !name.includes("..") && !/[\x00-\x1F\x7F]/.test(name)
 	}
 
 	private updateLocalPaths(oldPath: string, newPath: string) {
