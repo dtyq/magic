@@ -259,6 +259,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				return ""
 			}
 		}, [renderSiteUrl])
+		const iframeTargetOrigin = useMemo(
+			() => renderSiteOrigin || window.location.origin,
+			[renderSiteOrigin],
+		)
 		const postMessageTargetStrategy = useMemo(
 			() =>
 				renderSiteUrl
@@ -371,6 +375,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			iframeLoaded,
 			contentInjected,
 			renderSiteUrl,
+			targetOrigin: iframeTargetOrigin,
 			scaleRatio,
 			saveEditContent,
 			fileId,
@@ -548,7 +553,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			attachmentList,
 			filePathMapping,
 			uploadImageFileToProject,
-			targetOrigin: renderSiteOrigin || "*",
+			targetOrigin: iframeTargetOrigin,
 			onUploadSuccess: () => {
 				pubsub.publish(PubSubEvents.Update_Attachments)
 			},
@@ -631,6 +636,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 		const { handleFSMessage } = useIframeFS({
 			iframeRef,
+			targetOrigin: iframeTargetOrigin,
 			entryPath: relative_file_path || "",
 			fileList: flatFileList,
 			appConfig: htmlAppConfig,
@@ -705,6 +711,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 		const { handleLLMMessage } = useIframeLLM({
 			iframeRef,
+			targetOrigin: iframeTargetOrigin,
 			baseUrl: (env("MAGIC_SERVICE_BASE_URL") as string) || "",
 			getAuthorization: () => userStore.user.authorization?.trim() || "",
 			getOrganizationCode: () => userStore.user.organizationCode?.trim() || "",
@@ -714,6 +721,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 		const { handleAgentMessage } = useIframeAgent({
 			iframeRef,
+			targetOrigin: iframeTargetOrigin,
 			getAgentList,
 			createTopicAndSend,
 			sendMessage,
@@ -722,6 +730,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 		const { handleUserInfoMessage } = useIframeUserInfo({
 			iframeRef,
+			targetOrigin: iframeTargetOrigin,
 			getUserInfo: useMemoizedFn(() => {
 				const info = userStore.user.userInfo
 				if (!info) return null
@@ -785,6 +794,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		const { handleMagicUploadFiles, handleMagicAddFilesToMessage, handleMagicDownloadFiles } =
 			useMagicFiles({
 				iframeRef,
+				targetOrigin: iframeTargetOrigin,
 				selectedProject,
 				attachmentList,
 				relative_file_path,
@@ -866,7 +876,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							source,
 						},
 					},
-					"*",
+					iframeTargetOrigin,
 				)
 			},
 		)
@@ -899,7 +909,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							type: "setContent",
 							content: fullContent,
 						},
-						"*",
+						iframeTargetOrigin,
 					)
 					setProcessedSourceCode(fullContent)
 				} else {
@@ -1009,7 +1019,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 									type: "setContent",
 									content: fullContent,
 								},
-								"*",
+								iframeTargetOrigin,
 							)
 
 							// Re-enter selection mode after iframe content is replaced
@@ -1089,7 +1099,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 						type: "IMAGE_UPLOAD_RESULT",
 						data: payload,
 					},
-					"*",
+					iframeTargetOrigin,
 				)
 			}
 
@@ -1145,7 +1155,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 								dataSrc: uploadResult.storedRelativeFilePath,
 								targetSelector: data.targetSelector,
 							},
-							"*",
+							iframeTargetOrigin,
 						)
 					}
 
@@ -1174,7 +1184,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 								error: "图片转换失败",
 								targetSelector: data.targetSelector,
 							},
-							"*",
+							iframeTargetOrigin,
 						)
 					}
 					magicToast.destroy()
@@ -1603,7 +1613,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					type: "setAnimationState",
 					paused: !isVisible,
 				},
-				"*",
+				iframeTargetOrigin,
 			)
 		}, [contentInjected, isPptRender, isVisible, sandboxType])
 

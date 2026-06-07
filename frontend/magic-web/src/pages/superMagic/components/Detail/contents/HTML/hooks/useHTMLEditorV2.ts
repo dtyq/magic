@@ -26,6 +26,8 @@ interface UseHTMLEditorV2Options {
 	contentInjected: boolean
 	/** 渲染站地址 */
 	renderSiteUrl?: string
+	/** 回发 iframe 的严格目标源 */
+	targetOrigin: string
 	/** 缩放比例 */
 	scaleRatio?: number
 	/** 保存编辑内容的回调 */
@@ -60,6 +62,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 		iframeLoaded,
 		contentInjected,
 		renderSiteUrl,
+		targetOrigin,
 		scaleRatio,
 		saveEditContent,
 		fileId,
@@ -163,7 +166,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 		}
 
 		// 创建 MessageBridge 实例
-		const bridge = new MessageBridge(iframeRef.current)
+		const bridge = new MessageBridge(iframeRef.current, targetOrigin)
 		messageBridgeRef.current = bridge
 
 		// 监听 EDITOR_READY 事件
@@ -238,7 +241,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 			setIsRuntimeReady(false)
 			editLifecycleRef.current = "idle"
 		}
-	}, [sandboxType, iframeLoaded, iframeRef])
+	}, [sandboxType, iframeLoaded, iframeRef, targetOrigin])
 
 	// 创建编辑器 ref 接口（实现 HTMLEditorV2Ref）
 	useImperativeHandle(
@@ -687,7 +690,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 								runtimeUrl,
 								scaleRatio: scaleRatio || 1,
 							},
-							"*",
+							targetOrigin,
 						)
 					} else {
 						// iframe-runtime.js 已经通过 getFullContent 内联在 HTML 中，
@@ -697,7 +700,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 								type: "activateEditorRuntime",
 								scaleRatio: scaleRatio || 1,
 							},
-							"*",
+							targetOrigin,
 						)
 					}
 					hasInjectedScriptRef.current = true
@@ -716,6 +719,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 		iframeRef,
 		scaleRatio,
 		runExitEditFlow,
+		targetOrigin,
 	])
 
 	// 当 runtime 就绪且内容已注入后，再启用编辑模式和选择模式，避免「选择元素」在 iframe 未加载完时执行

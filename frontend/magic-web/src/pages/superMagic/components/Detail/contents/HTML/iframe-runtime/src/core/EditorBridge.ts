@@ -11,6 +11,7 @@ import {
 	type EventMessage,
 	type CommandMessage,
 } from "./types"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 type RequestHandler = (payload: unknown) => unknown | Promise<unknown>
 type CommandHandler = (payload: unknown) => unknown | Promise<unknown>
@@ -139,7 +140,7 @@ export class EditorBridge {
 		if (this.isDestroyed) return
 
 		try {
-			window.parent.postMessage(response, "*")
+			window.parent.postMessage(response, getParentOrigin())
 		} catch (error) {
 			console.error("[EditorBridge] Failed to send response:", error)
 		}
@@ -160,7 +161,7 @@ export class EditorBridge {
 				timestamp: Date.now(),
 				source: "iframe",
 			}
-			window.parent.postMessage(event, "*")
+			window.parent.postMessage(event, getParentOrigin())
 		} catch (error) {
 			console.error("[EditorBridge] Failed to send event:", {
 				type,

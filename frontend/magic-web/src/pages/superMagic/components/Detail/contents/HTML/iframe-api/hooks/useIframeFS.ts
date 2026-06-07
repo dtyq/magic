@@ -25,6 +25,8 @@ import type { HTMLAppConfig } from "../types"
 export interface UseIframeFSOptions {
 	/** iframe ref，用于构造 postToIframe */
 	iframeRef: React.RefObject<HTMLIFrameElement>
+	/** 回发 iframe 的严格目标源。 */
+	targetOrigin: string
 	/** HTML 入口文件的 workspace 相对路径 */
 	entryPath: string
 	/** workspace 文件列表（attachmentList 扁平化后） */
@@ -77,6 +79,7 @@ export interface UseIframeFSReturn {
 export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 	const {
 		iframeRef,
+		targetOrigin,
 		entryPath,
 		fileList,
 		appConfig,
@@ -96,7 +99,7 @@ export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 
 	// postToIframe 是稳定引用，内部每次通过 ref 取最新的 iframe window
 	const postToIframe = useMemoizedFn((message: object) => {
-		iframeRef.current?.contentWindow?.postMessage(message, "*")
+		iframeRef.current?.contentWindow?.postMessage(message, targetOrigin)
 	})
 
 	// 重建 service：entryPath / appConfig 变化时

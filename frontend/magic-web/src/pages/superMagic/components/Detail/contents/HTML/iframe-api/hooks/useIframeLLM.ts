@@ -12,6 +12,8 @@ import { IframeLLMService, type IframeLLMConfig } from "../services/IframeLLMSer
 export interface UseIframeLLMOptions {
 	/** iframe ref，用于构造 postToIframe */
 	iframeRef: React.RefObject<HTMLIFrameElement>
+	/** 回发 iframe 的严格目标源。 */
+	targetOrigin: string
 	/** Magic 主站 API 基地址 */
 	baseUrl: string
 	/** 获取当前用户 authorization 的函数 */
@@ -26,12 +28,12 @@ export interface UseIframeLLMReturn {
 }
 
 export function useIframeLLM(options: UseIframeLLMOptions): UseIframeLLMReturn {
-	const { iframeRef, baseUrl, getAuthorization, getOrganizationCode } = options
+	const { iframeRef, targetOrigin, baseUrl, getAuthorization, getOrganizationCode } = options
 
 	const serviceRef = useRef<IframeLLMService | null>(null)
 
 	const postToIframe = useMemoizedFn((message: object) => {
-		iframeRef.current?.contentWindow?.postMessage(message, "*")
+		iframeRef.current?.contentWindow?.postMessage(message, targetOrigin)
 	})
 
 	useEffect(() => {

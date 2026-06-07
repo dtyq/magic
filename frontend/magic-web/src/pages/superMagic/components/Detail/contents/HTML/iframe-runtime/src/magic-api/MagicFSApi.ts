@@ -12,9 +12,15 @@
  */
 
 import { MagicBaseApi } from "./MagicBaseApi"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 function isSingleFileName(name: string): boolean {
-	return name.trim().length > 0 && !/[\/\\]/.test(name) && !name.includes("..") && !/[\x00-\x1F\x7F]/.test(name)
+	return (
+		name.trim().length > 0 &&
+		!/[\/\\]/.test(name) &&
+		!name.includes("..") &&
+		!/[\x00-\x1F\x7F]/.test(name)
+	)
 }
 
 export class MagicFSApi extends MagicBaseApi {
@@ -54,10 +60,7 @@ export class MagicFSApi extends MagicBaseApi {
 
 				// For Blob / ArrayBuffer, use the blob write protocol (supports up to 100MB)
 				if (content instanceof Blob || content instanceof ArrayBuffer) {
-					const blob =
-						content instanceof ArrayBuffer
-							? new Blob([content])
-							: content
+					const blob = content instanceof ArrayBuffer ? new Blob([content]) : content
 					return this.request<void>(
 						"MAGIC_FS_WRITE_BLOB_REQUEST",
 						{ path, blob },
@@ -116,7 +119,9 @@ export class MagicFSApi extends MagicBaseApi {
 					return Promise.reject(new Error("renameFile: newName must be a string"))
 				}
 				if (!isSingleFileName(newName)) {
-					return Promise.reject(new Error("renameFile: newName must be a single file name"))
+					return Promise.reject(
+						new Error("renameFile: newName must be a single file name"),
+					)
 				}
 				return this.request<void>("MAGIC_FS_RENAME_FILE_REQUEST", { path, newName })
 			},
@@ -148,14 +153,14 @@ export class MagicFSApi extends MagicBaseApi {
 				window.addEventListener("message", handler)
 				window.parent.postMessage(
 					{ type: "MAGIC_FS_WATCH_REGISTER", requestId: watchId, path },
-					"*",
+					getParentOrigin(),
 				)
 
 				return () => {
 					window.removeEventListener("message", handler)
 					window.parent.postMessage(
 						{ type: "MAGIC_FS_WATCH_UNREGISTER", requestId: watchId, path },
-						"*",
+						getParentOrigin(),
 					)
 				}
 			},

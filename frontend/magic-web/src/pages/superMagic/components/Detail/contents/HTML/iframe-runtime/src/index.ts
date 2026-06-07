@@ -15,6 +15,7 @@ import { EditorLogger } from "./utils/EditorLogger"
 import { DevToolsCollector, DEVTOOLS_MSG } from "./features/DevToolsCollector"
 import { ElementInspectorHandler } from "./features/ElementInspectorHandler"
 import { installMagicAPIs } from "./magic-api"
+import { getParentOrigin } from "./utils/parentOrigin"
 
 // ─── Phase 1: Install APIs (always runs) ───────────────────────────────────
 
@@ -394,7 +395,7 @@ window.addEventListener("message", (event: MessageEvent) => {
 					structured,
 					timestamp: Date.now(),
 				},
-				"*",
+				getParentOrigin(),
 			)
 		} catch {
 			// ignore
@@ -418,7 +419,7 @@ window.addEventListener("message", (event: MessageEvent) => {
 					completions,
 					timestamp: Date.now(),
 				},
-				"*",
+				getParentOrigin(),
 			)
 		} catch {
 			// ignore
@@ -435,7 +436,10 @@ installMagicAPIs()
 // Notify parent that iframe-runtime is ready. This allows the parent to
 // re-enable DevTools after an iframe content refresh.
 try {
-	window.parent.postMessage({ type: "MAGIC_DEVTOOLS_RUNTIME_READY", timestamp: Date.now() }, "*")
+	window.parent.postMessage(
+		{ type: "MAGIC_DEVTOOLS_RUNTIME_READY", timestamp: Date.now() },
+		getParentOrigin(),
+	)
 } catch {
 	// ignore if parent is not available
 }

@@ -17,6 +17,8 @@ import type { HTMLAppConfig, UserInfo } from "../types"
 export interface UseIframeUserInfoOptions {
 	/** iframe ref，用于构造 postToIframe */
 	iframeRef: React.RefObject<HTMLIFrameElement>
+	/** 用户信息响应的严格目标源。 */
+	targetOrigin: string
 	/** 获取当前用户信息的函数 */
 	getUserInfo: () => UserInfo | null
 	/** app.json permissions declaration. */
@@ -33,12 +35,13 @@ export interface UseIframeUserInfoReturn {
 }
 
 export function useIframeUserInfo(options: UseIframeUserInfoOptions): UseIframeUserInfoReturn {
-	const { iframeRef, getUserInfo, appConfig, appInstanceKey, authorizeUserInfo } = options
+	const { iframeRef, targetOrigin, getUserInfo, appConfig, appInstanceKey, authorizeUserInfo } =
+		options
 
 	const serviceRef = useRef<IframeUserInfoService | null>(null)
 
 	const postToIframe = useMemoizedFn((message: object) => {
-		iframeRef.current?.contentWindow?.postMessage(message, "*")
+		iframeRef.current?.contentWindow?.postMessage(message, targetOrigin)
 	})
 
 	useEffect(() => {

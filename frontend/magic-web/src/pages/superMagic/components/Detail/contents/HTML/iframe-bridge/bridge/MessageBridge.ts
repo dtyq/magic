@@ -30,13 +30,15 @@ type EventHandler = (message: EventMessage) => void
  */
 export class MessageBridge {
 	private iframe: HTMLIFrameElement | null = null
+	private targetOrigin: string
 	private pendingRequests = new Map<string, PendingRequest>()
 	private eventHandlers = new Map<string, EventHandler[]>()
 	private defaultTimeout = 5000 // 默认超时 5 秒
 	private isDestroyed = false
 
-	constructor(iframe: HTMLIFrameElement | null) {
+	constructor(iframe: HTMLIFrameElement | null, targetOrigin: string) {
 		this.iframe = iframe
+		this.targetOrigin = targetOrigin
 		this.setupMessageListener()
 	}
 
@@ -179,7 +181,7 @@ export class MessageBridge {
 			this.pendingRequests.set(requestId, { resolve, reject, timeoutId })
 
 			try {
-				this.iframe!.contentWindow!.postMessage(message, "*")
+				this.iframe!.contentWindow!.postMessage(message, this.targetOrigin)
 			} catch (error) {
 				clearTimeout(timeoutId)
 				this.pendingRequests.delete(requestId)

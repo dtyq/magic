@@ -6,6 +6,7 @@
  */
 
 import { MagicApiLogger } from "./MagicApiLogger"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 export class MagicReloadApi {
 	install(): void {
@@ -20,7 +21,7 @@ export class MagicReloadApi {
 					type: "MAGIC_RELOAD_REQUEST",
 					timestamp: Date.now(),
 				},
-				"*",
+				getParentOrigin(),
 			)
 		}
 	}
