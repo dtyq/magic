@@ -1961,6 +1961,7 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 			`/api/v1/modes/default`,
 			{
 				enableRequestUnion: true,
+				swCacheOption: "no-cache",
 				headers: {
 					"X-Magic-Image-Process": buildImageProcessQuery({
 						resize: { h: 512, w: 512 },

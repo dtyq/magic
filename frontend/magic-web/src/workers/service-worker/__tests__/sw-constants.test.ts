@@ -33,6 +33,7 @@ describe("isCacheableApiRequest matching rules", () => {
 
 	it("should NOT match non-cacheable APIs", () => {
 		expect(isCacheableApiRequest("/api/v1/settings/other")).toBe(false)
+		expect(isCacheableApiRequest("/api/v1/modes/default")).toBe(false)
 		expect(isCacheableApiRequest("/api/v1/user/profile")).toBe(false)
 		expect(isCacheableApiRequest("/api/v1/super-agent/workspaces/queries")).toBe(false)
 		expect(isCacheableApiRequest("/api/v1/admin/subscription")).toBe(false)

@@ -82,7 +82,6 @@ export const CACHEABLE_API_RULES: ReadonlyArray<string | RegExp> = [
 	// 核心配置 (支持 RegExp 与 string 混用。写 RegExp 时务必带上 ^ 与 $ 锚点，防止误匹配包含此 URL 作为 query 参数的其它接口)
 	/^\/api\/v1\/settings\/(all|menu-modules)$/,
 	"/api/v1/auth/environment",
-	"/api/v1/modes/default",
 	// 多语言翻译包
 	"/v4/locales/settings",
 	// 功能权限与订阅
