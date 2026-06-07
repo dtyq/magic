@@ -5,10 +5,10 @@ skill 脚本公共引导模块。
 """
 from __future__ import annotations
 
+import importlib
 import io
 import sys
 from pathlib import Path
-
 
 _project_root: Path | None = None
 
@@ -36,8 +36,13 @@ def get_workspace_dir() -> Path:
     return get_project_root() / ".workspace"
 
 
-def get_magic_env_file() -> Path:
-    """Magic 全局环境变量文件路径：.workspace/.magic/.env。"""
+def get_personal_env_file() -> Path:
+    """个人级环境变量文件路径：~/.magic/super-magic.env。"""
+    return Path.home() / ".magic" / "super-magic.env"
+
+
+def get_workspace_env_file() -> Path:
+    """工作区级环境变量文件路径：.workspace/.magic/.env。"""
     return get_workspace_dir() / ".magic" / ".env"
 
 
@@ -62,8 +67,8 @@ def init_environment() -> Path:
         _old_stderr = sys.stderr
         sys.stderr = io.StringIO()
         try:
-            import agentlang.config.config  # noqa: F401
-            import agentlang.logger  # noqa: F401
+            importlib.import_module("agentlang.config.config")
+            importlib.import_module("agentlang.logger")
         finally:
             sys.stderr = _old_stderr
         from loguru import logger as _loguru_logger

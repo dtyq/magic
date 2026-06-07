@@ -1991,6 +1991,134 @@
         "zh_CN": "服务「{{server_name}}」已移除",
         "en_US": "Service \"{{server_name}}\" removed"
     },
+    "env_manager.scope.personal": {
+        "zh_CN": "个人 env",
+        "en_US": "personal env"
+    },
+    "env_manager.scope.workspace": {
+        "zh_CN": "工作区 env",
+        "en_US": "workspace env"
+    },
+    "env_manager.scope.all": {
+        "zh_CN": "最终生效 env",
+        "en_US": "effective env"
+    },
+    "env_manager.set.before": {
+        "zh_CN": "正在保存 {{key}} 到{{scope_label}}",
+        "en_US": "Saving {{key}} to {{scope_label}}"
+    },
+    "env_manager.set.after_success": {
+        "zh_CN": "已保存 {{key}} 到{{scope_label}}",
+        "en_US": "Saved {{key}} to {{scope_label}}"
+    },
+    "env_manager.set.after_failed": {
+        "zh_CN": "保存 {{key}} 失败：{{error}}",
+        "en_US": "Failed to save {{key}}: {{error}}"
+    },
+    "env_manager.unset.before": {
+        "zh_CN": "正在删除 {{key}}（{{scope_label}}）",
+        "en_US": "Deleting {{key}} from {{scope_label}}"
+    },
+    "env_manager.unset.after_success": {
+        "zh_CN": "已删除 {{key}}（{{scope_label}}）",
+        "en_US": "Deleted {{key}} from {{scope_label}}"
+    },
+    "env_manager.unset.after_failed": {
+        "zh_CN": "删除 {{key}} 失败：{{error}}",
+        "en_US": "Failed to delete {{key}}: {{error}}"
+    },
+    "env_manager.list.before": {
+        "zh_CN": "正在查看{{scope_label}}",
+        "en_US": "Listing {{scope_label}}"
+    },
+    "env_manager.list.after_success": {
+        "zh_CN": "读取到 {{count}} 个变量（{{scope_label}}）",
+        "en_US": "Found {{count}} variable(s) in {{scope_label}}"
+    },
+    "env_manager.list.after_failed": {
+        "zh_CN": "查看{{scope_label}}失败：{{error}}",
+        "en_US": "Failed to list {{scope_label}}: {{error}}"
+    },
+    "env_manager.error.key_required": {
+        "zh_CN": "环境变量名不能为空",
+        "en_US": "Environment variable name is required"
+    },
+    "env_manager.error.invalid_key": {
+        "zh_CN": "环境变量名格式不合法：{{key}}",
+        "en_US": "Invalid environment variable name: {{key}}"
+    },
+    "env_manager.error.value_required": {
+        "zh_CN": "环境变量值不能为空",
+        "en_US": "Environment variable value is required"
+    },
+    "env_manager.error.key_not_found": {
+        "zh_CN": "未找到环境变量：{{key}}",
+        "en_US": "Environment variable not found: {{key}}"
+    },
+    "env_manager.error.invalid_scope": {
+        "zh_CN": "env scope 不合法：{{scope}}。可用值：{{allowed}}",
+        "en_US": "Invalid env scope: {{scope}}. Allowed values: {{allowed}}"
+    },
+    "env_manager.error.unknown": {
+        "zh_CN": "环境变量操作失败",
+        "en_US": "Environment variable operation failed"
+    },
+    "env_manager.detail.set_success_title": {
+        "zh_CN": "环境变量已保存",
+        "en_US": "Environment Variable Saved"
+    },
+    "env_manager.detail.set_failed_title": {
+        "zh_CN": "环境变量保存失败",
+        "en_US": "Environment Variable Save Failed"
+    },
+    "env_manager.detail.unset_success_title": {
+        "zh_CN": "环境变量已删除",
+        "en_US": "Environment Variable Deleted"
+    },
+    "env_manager.detail.unset_failed_title": {
+        "zh_CN": "环境变量删除失败",
+        "en_US": "Environment Variable Delete Failed"
+    },
+    "env_manager.detail.list_success_title": {
+        "zh_CN": "环境变量列表",
+        "en_US": "Environment Variables"
+    },
+    "env_manager.detail.list_failed_title": {
+        "zh_CN": "环境变量读取失败",
+        "en_US": "Environment Variable List Failed"
+    },
+    "env_manager.detail.key": {
+        "zh_CN": "变量名",
+        "en_US": "Key"
+    },
+    "env_manager.detail.scope": {
+        "zh_CN": "范围",
+        "en_US": "Scope"
+    },
+    "env_manager.detail.target": {
+        "zh_CN": "目标",
+        "en_US": "Target"
+    },
+    "env_manager.detail.value": {
+        "zh_CN": "变量值",
+        "en_US": "Value"
+    },
+    "env_manager.detail.error": {
+        "zh_CN": "错误",
+        "en_US": "Error"
+    },
+    "env_manager.detail.count": {
+        "zh_CN": "变量数量",
+        "en_US": "Count"
+    },
+    "env_manager.detail.key_header": {
+        "zh_CN": "变量名",
+        "en_US": "Key"
+    },
+    "env_manager.detail.value_header": {
+        "zh_CN": "变量值",
+        "en_US": "Value"
+    },
     "call_simple_tool.calling": {
         "zh_CN": "正在调用工具流",
         "en_US": "Calling tool flow"

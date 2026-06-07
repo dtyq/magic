@@ -467,6 +467,18 @@
         "zh_CN": "调用工具",
         "en_US": "Use Tool"
     },
+    "set_env": {
+        "zh_CN": "保存环境变量",
+        "en_US": "Save environment variable"
+    },
+    "unset_env": {
+        "zh_CN": "删除环境变量",
+        "en_US": "Delete environment variable"
+    },
+    "list_env": {
+        "zh_CN": "查看环境变量",
+        "en_US": "List environment variables"
+    },
     "add_server": {
         "zh_CN": "添加新服务",
         "en_US": "Add New Service"

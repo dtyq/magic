@@ -4,9 +4,10 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, ClassVar
+from typing import ClassVar, Optional
 
 from agentlang.path_manager import PathManager as BasePathManager
+
 
 class PathManager(BasePathManager):
     """
@@ -462,10 +463,16 @@ class PathManager(BasePathManager):
         return cls._agents_skills_dir
 
     @classmethod
-    def get_magic_env_file(cls) -> Path:
-        """获取 Magic 全局环境变量文件路径（.workspace/.magic/.env）"""
+    def get_workspace_env_file(cls) -> Path:
+        """获取工作区级环境变量文件路径（.workspace/.magic/.env）"""
         cls._ensure_app_initialization()
         return cls._magic_dir / ".env"
+
+    @classmethod
+    def get_personal_env_file(cls) -> Path:
+        """获取个人级环境变量文件路径（~/.magic/super-magic.env）"""
+        cls._ensure_app_initialization()
+        return Path.home() / ".magic" / "super-magic.env"
 
     @classmethod
     def get_process_env_paths(cls) -> list[Path]:
@@ -473,14 +480,16 @@ class PathManager(BasePathManager):
 
         顺序（优先级从低到高，后者覆盖前者）：
           1. .workspace/.magic/skills/.env — skills 专属配置（最低优先级）
-          2. .workspace/.env             — workspace 顶层配置
-          3. .workspace/.magic/.env      — magic 全局配置（最高优先级）
+          2. .workspace/.env              — workspace 顶层配置
+          3. .workspace/.magic/.env       — workspace Magic 配置
+          4. ~/.magic/super-magic.env     — 个人配置（最高优先级）
         """
         cls._ensure_app_initialization()
         return [
             cls._magic_skills_dir / ".env",
             cls.get_workspace_dir() / ".env",
-            cls._magic_dir / ".env",
+            cls.get_workspace_env_file(),
+            cls.get_personal_env_file(),
         ]
 
     @classmethod
