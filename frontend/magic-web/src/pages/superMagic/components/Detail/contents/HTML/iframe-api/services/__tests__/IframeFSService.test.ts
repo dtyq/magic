@@ -163,4 +163,99 @@ describe("IframeFSService", () => {
 			project_id: "project-1",
 		})
 	})
+
+	it("rejects deleteDir when cached children escape the app root", async () => {
+		const deleteFilesFn = vi.fn().mockResolvedValue(undefined)
+		const { service, postToIframe } = createService({
+			fileList: [
+				file("dir-id", "app/data", "data"),
+				file("child-id", "app/data/a.txt", "a.txt"),
+				file("outside-child", "app/data/../../outside-app/leaked.txt", "leaked.txt"),
+			],
+			deleteFilesFn,
+		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_DIR_REQUEST, {
+			type: FS_MESSAGE_TYPES.DELETE_DIR_REQUEST,
+			requestId: "req-delete-dir-outside-child",
+			path: "./data",
+		})
+
+		expect(deleteFilesFn).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "req-delete-dir-outside-child", success: false }),
+		)
+	})
+
+	it("rejects deleteDir when cached children canonicalize outside the requested directory", async () => {
+		const deleteFilesFn = vi.fn().mockResolvedValue(undefined)
+		const { service, postToIframe } = createService({
+			fileList: [
+				file("dir-id", "app/data", "data"),
+				file("child-id", "app/data/a.txt", "a.txt"),
+				file("sibling-id", "app/data/../private.txt", "private.txt"),
+			],
+			deleteFilesFn,
+		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_DIR_REQUEST, {
+			type: FS_MESSAGE_TYPES.DELETE_DIR_REQUEST,
+			requestId: "req-delete-dir-sibling-child",
+			path: "./data",
+		})
+
+		expect(deleteFilesFn).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "req-delete-dir-sibling-child", success: false }),
+		)
+	})
+
+	it("rejects destructive operations when projectId is missing", async () => {
+		const deleteFn = vi.fn().mockResolvedValue(undefined)
+		const deleteFilesFn = vi.fn().mockResolvedValue(undefined)
+		const moveFileFn = vi.fn().mockResolvedValue(undefined)
+		const renameFileFn = vi.fn().mockResolvedValue(undefined)
+		const { service } = createService({
+			projectId: "",
+			fileList: [
+				file("file-id", "app/data.txt", "data.txt"),
+				file("dir-id", "app/data", "data"),
+				file("child-id", "app/data/a.txt", "a.txt"),
+				file("target-dir", "app/archive", "archive"),
+			],
+			deleteFn,
+			deleteFilesFn,
+			moveFileFn,
+			renameFileFn,
+		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
+			type: FS_MESSAGE_TYPES.DELETE_FILE_REQUEST,
+			requestId: "req-delete-no-project",
+			path: "./data.txt",
+		})
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_DIR_REQUEST, {
+			type: FS_MESSAGE_TYPES.DELETE_DIR_REQUEST,
+			requestId: "req-delete-dir-no-project",
+			path: "./data",
+		})
+		await service.handleMessage(FS_MESSAGE_TYPES.MOVE_FILE_REQUEST, {
+			type: FS_MESSAGE_TYPES.MOVE_FILE_REQUEST,
+			requestId: "req-move-no-project",
+			path: "./data.txt",
+			targetDir: "./archive",
+		})
+		await service.handleMessage(FS_MESSAGE_TYPES.RENAME_FILE_REQUEST, {
+			type: FS_MESSAGE_TYPES.RENAME_FILE_REQUEST,
+			requestId: "req-rename-no-project",
+			path: "./data.txt",
+			newName: "renamed.txt",
+		})
+
+		expect(deleteFn).not.toHaveBeenCalled()
+		expect(deleteFilesFn).not.toHaveBeenCalled()
+		expect(moveFileFn).not.toHaveBeenCalled()
+		expect(renameFileFn).not.toHaveBeenCalled()
+	})
+
 })

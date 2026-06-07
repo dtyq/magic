@@ -447,7 +447,9 @@ export class IframeFSService {
 				})
 			}
 
-			await this.cfg.deleteFn({ file_id: item.file_id, project_id: this.cfg.projectId || "" })
+			this.assertInAppRoot(item)
+			const projectId = this.requireProjectId()
+			await this.cfg.deleteFn({ file_id: item.file_id, project_id: projectId })
 			this.send({ type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE, requestId, success: true })
 		} catch (err) {
 			this.send({
@@ -493,7 +495,9 @@ export class IframeFSService {
 
 		try {
 			// 收集目录本身 + 目录下所有文件的 file_id
-			const dirPath = resolvedDir.endsWith("/") ? resolvedDir.slice(0, -1) : resolvedDir
+			const dirPath = this.normalizeWorkspacePath(
+				resolvedDir.endsWith("/") ? resolvedDir.slice(0, -1) : resolvedDir,
+			)
 			const fileIds = new Set<string>()
 
 			// 先找目录本身的 file_id
@@ -507,10 +511,18 @@ export class IframeFSService {
 				})
 			}
 
+			this.assertInAppRoot(dirItem)
+			const projectId = this.requireProjectId()
+
 			// 收集目录下所有子文件/子目录
 			for (const f of this.cfg.fileList) {
 				const fp = this.normalizeWorkspacePath(f.relative_file_path)
 				if (fp === dirPath || fp.startsWith(`${dirPath}/`)) {
+					this.assertInAppRoot(f)
+					const canonicalPath = this.canonicalWorkspacePath(f.relative_file_path)
+					if (canonicalPath !== dirPath && !canonicalPath?.startsWith(`${dirPath}/`)) {
+						throw new Error("Access denied: file is outside the requested directory")
+					}
 					fileIds.add(f.file_id)
 				}
 			}
@@ -520,7 +532,7 @@ export class IframeFSService {
 
 			await this.cfg.deleteFilesFn({
 				file_ids: Array.from(fileIds),
-				project_id: this.cfg.projectId || "",
+				project_id: projectId,
 			})
 
 			// 清理 dirCache 中相关条目
@@ -574,6 +586,9 @@ export class IframeFSService {
 				})
 			}
 
+			this.assertInAppRoot(item)
+			const projectId = this.requireProjectId()
+
 			// 解析目标父目录
 			const resolvedTargetDir = this.resolveDir(targetDir)
 			if (resolvedTargetDir === null) {
@@ -598,10 +613,11 @@ export class IframeFSService {
 				})
 			}
 
+			this.assertInAppRoot(targetDirItem)
 			await this.cfg.moveFileFn({
 				file_id: item.file_id,
 				target_parent_id: targetDirItem.file_id,
-				project_id: this.cfg.projectId || "",
+				project_id: projectId,
 			})
 			const fileName = resolved.split("/").pop() || resolved
 			this.updateLocalPaths(resolved, `${resolvedTargetDir}${fileName}`)
@@ -649,6 +665,8 @@ export class IframeFSService {
 				})
 			}
 
+			this.assertInAppRoot(item)
+			this.requireProjectId()
 			await this.cfg.renameFileFn({ file_id: item.file_id, target_name: newName })
 			const lastSlash = resolved.lastIndexOf("/")
 			const parentDir = lastSlash >= 0 ? resolved.slice(0, lastSlash + 1) : ""
@@ -770,6 +788,37 @@ export class IframeFSService {
 
 	private normalizeWorkspacePath(path: string): string {
 		return path.replace(/^\/+/, "").replace(/\/+$/, "")
+	}
+
+	private canonicalWorkspacePath(path: string): string | null {
+		const segments: string[] = []
+		for (const segment of path.replace(/^\/+/, "").split("/")) {
+			if (!segment || segment === ".") continue
+			if (segment === "..") {
+				if (segments.length === 0) return null
+				segments.pop()
+				continue
+			}
+			segments.push(segment)
+		}
+		return segments.join("/")
+	}
+
+	private assertInAppRoot(item: FSFileItem) {
+		const itemPath = this.canonicalWorkspacePath(item.relative_file_path)
+		const appRoot = this.normalizeWorkspacePath(this.appRootDir)
+
+		if (!itemPath || (appRoot && itemPath !== appRoot && !itemPath.startsWith(`${appRoot}/`))) {
+			throw new Error("Access denied: file is outside the app root")
+		}
+	}
+
+	private requireProjectId(): string {
+		const projectId = this.cfg.projectId?.trim()
+		if (!projectId) {
+			throw new Error("Project id is required for destructive file operations")
+		}
+		return projectId
 	}
 
 	private updateLocalPaths(oldPath: string, newPath: string) {
