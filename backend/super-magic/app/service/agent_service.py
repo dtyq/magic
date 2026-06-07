@@ -30,6 +30,7 @@ from app.service.channel_context_service import ChannelContextService
 from app.core.client_context import ClientContextService
 from app.service.image_model_sizes_service import ImageModelSizesService
 from app.service.video_model_config_service import VideoModelConfigService
+from app.service.cli_status import CliStatusFactory
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.core.base_service import Base
 from app.service.mention import MentionContextBuilder
@@ -598,6 +599,8 @@ class AgentService(Base):
             await agent.refresh_workspace_files()
         except Exception as _e:
             logger.warning(f"[AgentService] 刷新工作区文件树失败: {_e}")
+
+        await CliStatusFactory.wait_initial(agent_context)
 
         try:
             await agent.run_main_agent(query)

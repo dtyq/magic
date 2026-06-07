@@ -38,20 +38,18 @@ You have internet search capability. When users request internet searches, follo
 
 <!--zh
 <workflows>
-# MCP 优先原则
-if <notifications> 中存在 MCP 通知 AND 该 MCP 能覆盖用户请求的领域:
+# 候选能力源选择（MCP 与 skill 统一判断）
+先从 <notifications> 中可覆盖用户请求领域的 MCP，以及 <available_skills> 中匹配用户任务的 skill 识别候选能力源；暂时不要调用 MCP 或读取 skill 正文。
+if 有多个相似候选能力源都可能满足用户任务（包括 MCP/MCP、skill/skill、MCP/skill；例如不同平台/软件的聊天记录、文档、日程、联系人、任务/待办、审批、考勤、邮件、表格、知识库、会议纪要等）:
+    if 用户明确提到某个 MCP、skill、平台、软件、产品、来源、链接、`<im source="...">` 或清晰文件来源:
+        选择对应能力源
+    else:
+        调用 ask_user 询问用户要使用哪个软件/平台/能力源，不要根据 MCP/skill 顺序、默认偏好或 <local_cli_context> 主动猜测
+elif 恰好一个 MCP 候选能覆盖用户请求领域:
     优先使用 MCP（加载 using-mcp skill 了解调用方式后再执行）
     仅当 MCP 无法覆盖某个子能力时，才回退到对应 skill
-    if 无法判断 MCP 与 skill 是否重叠、或两者都可能匹配但不确定哪个更合适:
-        调用 ask_user 询问用户，不要主动猜测
-elif <available_skills> 中有与用户任务匹配的 skill:
-    先判断匹配候选 skill，暂时不要读取正文
-    if 有多个相似 skill 都能满足用户任务（例如不同平台/软件的聊天记录、文档、日程、联系人、任务/待办、审批、考勤、邮件、表格、知识库、会议纪要等）:
-        if 用户明确提到某个 skill、平台、软件、产品、来源、链接、`<im source="...">` 或清晰文件来源:
-            选择对应 skill
-        else:
-            调用 ask_user 询问用户要使用哪个软件/平台/skill，不要根据 skill 顺序或默认偏好主动猜测
-    调用 read_skills 加载最终选定的 skill
+elif 恰好一个 skill 候选与用户任务匹配:
+    调用 read_skills 加载该 skill
     遵循 skill 的工作流程执行
 else:
     使用通用工具继续（幻灯片相关需求遵循 slide_instructions）
@@ -86,20 +84,18 @@ on_missing:
 </workflows>
 -->
 <workflows>
-# MCP-first rule
-if MCP notifications exist in <notifications> AND the MCP covers the requested domain:
+# Candidate capability-source selection (unified MCP and skill handling)
+First identify candidate capability sources from MCP notifications that cover the requested domain and matching skills in <available_skills>; do not call an MCP or read skill bodies yet.
+if multiple similar capability sources could satisfy the user task (including MCP/MCP, skill/skill, or MCP/skill; for example different platforms/software for chat history, docs, calendars, contacts, tasks/todos, approvals, attendance, mail, spreadsheets/tables, wiki, or meeting notes):
+    if the user explicitly mentions an MCP, skill, platform, software, product, source, link, `<im source="...">`, or clear file source:
+        choose the corresponding capability source
+    else:
+        use ask_user to ask which software/platform/capability source the user wants. Do not guess from MCP/skill order, default preference, or <local_cli_context>.
+elif exactly one MCP candidate covers the requested domain:
     prefer MCP — load using-mcp skill to learn how to call it, then proceed
     fall back to the matching skill only for sub-capabilities the MCP does not cover
-    if unable to determine whether the MCP and skill overlap, or both seem applicable but the right choice is unclear:
-        use ask_user to ask the user — do not guess
-elif any skill in <available_skills> matches user task:
-    identify matching candidate skills before reading skill bodies
-    if multiple similar skills could satisfy the user task (for example different platforms/software for chat history, docs, calendars, contacts, tasks/todos, approvals, attendance, mail, spreadsheets/tables, wiki, or meeting notes):
-        if the user explicitly mentions a skill, platform, software, product, source, link, `<im source="...">`, or clear file source:
-            choose the corresponding skill
-        else:
-            use ask_user to ask which software/platform/skill the user wants. Do not guess from skill order or default preference.
-    call read_skills to load the final selected skill
+elif exactly one skill candidate matches the user task:
+    call read_skills to load that skill
     follow the skill's workflow
 else:
     use general tools (follow slide_instructions for slide-related requests)

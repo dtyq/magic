@@ -75,6 +75,7 @@ class HorizonState:
     workspace_entries: list = field(default_factory=list)  # 上次注入给 LLM 的结构化工作区条目
     memory: str = ""               # 上次注入给 LLM 的 memory
     client_context: str = ""          # 上次注入给 LLM 的客户端页面上下文
+    cli_status: str = ""              # 上次注入给 LLM 的本地已登录 CLI 状态片段
     context_usage_baseline_used: int = 0       # 上次注入给 LLM 的 used tokens
     context_usage_baseline_total: int = 0      # 上次注入给 LLM 的 context window total
     context_usage_baseline_used_pct: int = 0   # 上次注入给 LLM 的 used_pct 整数百分比

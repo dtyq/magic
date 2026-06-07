@@ -226,15 +226,19 @@ class AgentContext(BaseAgentContext):
                 agent_id=agent_id,
             )
             self._horizon = AgentHorizon(store=store, agent_id=agent_id, agent_context=self)
+            self._horizon_agent_id = agent_id
         return self._horizon
 
     def set_horizon_agent_id(self, agent_id: str) -> None:
         """在 agent.py 完成 ID 分配后调用，确保持久化文件名正确。
 
         若 horizon 还未初始化则直接设置待用 ID；
-        若已初始化则重建（agent_id 改变时需要换文件）。
+        若已初始化且 ID 没变则保留当前实例，避免丢失 init 阶段写入的运行时状态；
+        只有 agent_id 真正改变时才重建（文件名需要切换）。
         """
         if self._horizon is None:
+            self._horizon_agent_id = agent_id
+        elif (self._horizon_agent_id or "main") == agent_id:
             self._horizon_agent_id = agent_id
         else:
             from app.core.horizon import AgentHorizon

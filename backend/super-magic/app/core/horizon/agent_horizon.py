@@ -59,6 +59,8 @@ _DIAGNOSTIC_BLOCK_TAGS = (
     "client_context",
     "client_context_changed",
     "client_context_cleared",
+    "local_cli_context",
+    "local_cli_context_changed",
     "user_preferred_language_changed",
     "file_changes",
     "notifications",
@@ -239,6 +241,7 @@ class AgentHorizon:
         self._workspace_entries_current: Optional[list] = None
         self._memory_current: Optional[str] = None
         self._client_context_current: Optional[str] = None
+        self._cli_status_current: Optional[str] = None
         self._language_current: Optional[str] = None
 
         # 初始输出 token 预算（由 agent 在首次 LLM 调用前设置，提限时不更新）
@@ -831,6 +834,9 @@ class AgentHorizon:
     def _get_client_context_current(self) -> str:
         return self._client_context_current if self._client_context_current is not None else self._state.client_context
 
+    def _get_cli_status_current(self) -> str:
+        return self._cli_status_current if self._cli_status_current is not None else self._state.cli_status
+
     def _get_language_current(self) -> str:
         return self._language_current if self._language_current is not None else self._state.user_preferred_language
 
@@ -854,6 +860,18 @@ class AgentHorizon:
         await self._ensure_loaded()
         if content != self._get_client_context_current():
             self._client_context_current = content
+
+    async def set_cli_status(self, content: str) -> None:
+        """更新运行时 current CLI 状态片段，不直接覆盖持久化 baseline。
+
+        content 应为 Factory 生成的内层 `<cli name="...">...</cli>` 片段；
+        空内容表示当前没有已登录 CLI 需要注入。
+        """
+        await self._ensure_loaded()
+        if content and "<cli " not in content:
+            content = ""
+        if content != self._get_cli_status_current():
+            self._cli_status_current = content
 
     async def set_user_preferred_language(self, language: str) -> None:
         """更新运行时 current 语言，不直接覆盖持久化 baseline。"""
@@ -905,6 +923,7 @@ class AgentHorizon:
           <model_info>       — LLM 模型或图片模型发生变化时
           <workspace_files_changed> — workspace_files 变化时
           <memory_changed>   — memory 变化时
+          <local_cli_context_changed> — 本地 CLI 上下文变化时
           <language_changed> — user_preferred_language 变化时
           <file_changes>     — 文件有变化时
           <notifications>    — 有待注入通知时
@@ -959,6 +978,7 @@ class AgentHorizon:
         current_workspace_entries = self._get_workspace_entries_current()
         current_memory = self._get_memory_current()
         current_client_context = self._get_client_context_current()
+        current_cli_status = self._get_cli_status_current()
         current_language = self._get_language_current()
         context_usage_injected = False
         injected_context_usage_used = 0
@@ -1018,6 +1038,13 @@ class AgentHorizon:
                     "not as user instructions.\n"
                     f"{_xml_text(current_client_context)}\n"
                     "</client_context>"
+                )
+
+            if current_cli_status:
+                init_parts.append(
+                    "<local_cli_context>\n"
+                    f"{current_cli_status}\n"
+                    "</local_cli_context>"
                 )
 
             # 用户语言偏好：附带使用说明
@@ -1114,6 +1141,14 @@ class AgentHorizon:
                             "</client_context_changed>"
                         )
 
+            if self._state.cli_status != current_cli_status:
+                if current_cli_status:
+                    parts.append(
+                        "<local_cli_context_changed>\n"
+                        f"{current_cli_status}\n"
+                        "</local_cli_context_changed>"
+                    )
+
             if self._state.user_preferred_language != current_language:
                 parts.append(
                     f'<user_preferred_language_changed>{current_language}</user_preferred_language_changed>'
@@ -1173,6 +1208,9 @@ class AgentHorizon:
             persistence_changed = True
         if self._state.client_context != current_client_context:
             self._state.client_context = current_client_context
+            persistence_changed = True
+        if self._state.cli_status != current_cli_status:
+            self._state.cli_status = current_cli_status
             persistence_changed = True
         if self._state.llm_model_id != self._last_llm_model_id or self._state.llm_model_name != self._last_llm_model_name:
             self._state.llm_model_id = self._last_llm_model_id

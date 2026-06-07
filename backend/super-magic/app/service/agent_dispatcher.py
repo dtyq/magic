@@ -176,6 +176,12 @@ class AgentDispatcher(Base):
         logger.info("开始工作区初始化流程")
 
         await HomePersistenceService.initialize_from_environment()
+        try:
+            from app.service.cli_status import CliStatusFactory
+
+            CliStatusFactory.schedule_initial_detection(self.agent_context)
+        except Exception as e:
+            logger.warning(f"CLI 状态后台检测启动失败，继续初始化流程: {e}")
 
         # ========== 配置更新阶段 - 每次都执行 ==========
         # 保存初始化消息到文件
