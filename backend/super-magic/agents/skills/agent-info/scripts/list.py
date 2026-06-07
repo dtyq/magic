@@ -9,6 +9,7 @@
 输出格式：JSON
 """
 import json
+import os
 import sys
 import argparse
 from pathlib import Path
@@ -48,5 +49,8 @@ try:
     print(json.dumps(output, ensure_ascii=False, indent=2))
 
 except Exception as e:
-    print(json.dumps({"error": str(e)}, ensure_ascii=False))
+    output = {"error": "failed to list agents"}
+    if os.getenv("AGENT_INFO_DEBUG_ERRORS") == "1":
+        output["debug_error"] = str(e)
+    print(json.dumps(output, ensure_ascii=False))
     sys.exit(1)
