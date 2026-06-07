@@ -35,11 +35,11 @@ try:
     # 按名称过滤
     if args.name_filter:
         keyword = args.name_filter.lower()
-        agents = [a for a in agents if keyword in a.name.lower()]
+        agents = [a for a in agents if keyword in (getattr(a, "name", None) or "").lower()]
 
     # 按类型过滤
     if args.type_filter:
-        agents = [a for a in agents if a.type == args.type_filter]
+        agents = [a for a in agents if (getattr(a, "type", None) or "") == args.type_filter]
 
     output = {
         "total": len(agents),

@@ -57,17 +57,13 @@ export function useIframeAgentActions() {
             const project = projectStore.selectedProject
             if (!project?.id) throw new Error("No project selected")
 
-
-            // Default to General mode if no agentId provided
-            if (!params.agentId) {
-                params.agentId = TopicMode.General
-            }
+            const requestedAgentId = params.agentId
 
             // Look up the agent to determine if it's built-in or custom
             let isCustomAgent = false
-            if (params.agentId) {
+            if (requestedAgentId) {
                 const agentMode = superMagicModeService._modeList.find(
-                    (item) => item.mode.identifier === params.agentId,
+                    (item) => item.mode.identifier === requestedAgentId,
                 )
                 if (agentMode) {
                     isCustomAgent = agentMode.agent.type !== AgentType.Official
@@ -82,8 +78,8 @@ export function useIframeAgentActions() {
 
             // Set topic with agent_code for custom agents
             const topicWithAgent =
-                isCustomAgent && params.agentId
-                    ? { ...newTopic, agent_code: params.agentId }
+                isCustomAgent && requestedAgentId
+                    ? { ...newTopic, agent_code: requestedAgentId }
                     : newTopic
             topicStore.setSelectedTopic(topicWithAgent)
 
@@ -103,8 +99,8 @@ export function useIframeAgentActions() {
 
             // Build extra: agent_code for custom agents, model override via super_agent.model
             const extra: Record<string, unknown> = {}
-            if (isCustomAgent && params.agentId) {
-                extra.agent_code = params.agentId
+            if (isCustomAgent && requestedAgentId) {
+                extra.agent_code = requestedAgentId
             }
             if (params.model) {
                 extra.super_agent = { model: { model_id: params.model } }
@@ -112,11 +108,11 @@ export function useIframeAgentActions() {
 
             pubsub.publish(PubSubEvents.Send_Message_by_Content, {
                 jsonContent,
-                ...(params.agentId
+                ...(requestedAgentId
                     ? {
                         topicMode: isCustomAgent
                             ? TopicMode.CustomAgent
-                            : (params.agentId as TopicMode),
+                            : (requestedAgentId as TopicMode),
                     }
                     : {}),
                 ...(Object.keys(extra).length > 0 ? { extra } : {}),

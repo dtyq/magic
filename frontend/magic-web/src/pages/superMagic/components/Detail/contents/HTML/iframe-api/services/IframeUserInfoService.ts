@@ -35,7 +35,7 @@ export interface IframeUserInfoConfig {
 
 export class IframeUserInfoService {
 	private readonly cfg: IframeUserInfoConfig
-	private authorizedScopes = new Set<UserInfoScope>()
+	private authorizedScopesByApp = new Map<string, Set<UserInfoScope>>()
 
 	constructor(cfg: IframeUserInfoConfig) {
 		this.cfg = cfg
@@ -77,8 +77,9 @@ export class IframeUserInfoService {
 				return
 			}
 
+			const authorizedScopes = this.getAuthorizedScopesForCurrentApp()
 			const unauthorizedScopes = scopes.filter(
-				(scope) => scope !== USER_INFO_SCOPES.DISPLAY && !this.authorizedScopes.has(scope),
+				(scope) => scope !== USER_INFO_SCOPES.DISPLAY && !authorizedScopes.has(scope),
 			)
 			if (unauthorizedScopes.length > 0) {
 				const allowed = await this.requestAuthorization(unauthorizedScopes, req.reason)
@@ -92,7 +93,7 @@ export class IframeUserInfoService {
 					return
 				}
 				for (const scope of unauthorizedScopes) {
-					this.authorizedScopes.add(scope)
+					authorizedScopes.add(scope)
 				}
 			}
 
@@ -124,7 +125,29 @@ export class IframeUserInfoService {
 	}
 
 	destroy(): void {
-		this.authorizedScopes.clear()
+		this.authorizedScopesByApp.clear()
+	}
+
+	private getAuthorizedScopesForCurrentApp(): Set<UserInfoScope> {
+		const appKey = this.getCurrentAppKey()
+		let scopes = this.authorizedScopesByApp.get(appKey)
+		if (!scopes) {
+			scopes = new Set<UserInfoScope>()
+			this.authorizedScopesByApp.set(appKey, scopes)
+		}
+		return scopes
+	}
+
+	private getCurrentAppKey(): string {
+		const appConfig = this.cfg.appConfig
+		if (!appConfig) return "__html_micro_app__"
+
+		return JSON.stringify({
+			type: appConfig.type || "",
+			name: appConfig.name || "",
+			version: appConfig.version || "",
+			entry: appConfig.entry || "",
+		})
 	}
 
 	private normalizeScopes(rawScopes: unknown): UserInfoScope[] | null {
