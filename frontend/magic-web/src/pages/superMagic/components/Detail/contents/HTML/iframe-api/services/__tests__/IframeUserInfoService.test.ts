@@ -222,6 +222,89 @@ describe("IframeUserInfoService", () => {
 		expect(authorizeUserInfo).toHaveBeenCalledTimes(2)
 	})
 
+	it("does not reuse sensitive authorization after the current user changes", async () => {
+		const authorizeUserInfo = vi.fn().mockResolvedValue(true)
+		let currentUserInfo = fullUserInfo
+		const { service, postToIframe } = createService({
+			getUserInfo: () => currentUserInfo,
+			authorizeUserInfo,
+			appConfig: {
+				name: "Profile Card",
+				permissions: {
+					userInfo: {
+						scopes: [USER_INFO_SCOPES.IDENTITY],
+					},
+				},
+			},
+		})
+
+		await service.handleMessage(USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST, {
+			type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST,
+			requestId: "req-user-a",
+			scopes: [USER_INFO_SCOPES.IDENTITY],
+		})
+
+		currentUserInfo = {
+			...fullUserInfo,
+			user_id: "user-2",
+			magic_id: "magic-2",
+		}
+
+		await service.handleMessage(USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST, {
+			type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST,
+			requestId: "req-user-b",
+			scopes: [USER_INFO_SCOPES.IDENTITY],
+		})
+
+		expect(authorizeUserInfo).toHaveBeenCalledTimes(2)
+		expect(postToIframe).toHaveBeenNthCalledWith(2, {
+			type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE,
+			requestId: "req-user-b",
+			success: true,
+			userInfo: expect.objectContaining({
+				user_id: "user-2",
+				magic_id: "magic-2",
+			}),
+		})
+	})
+
+	it("rejects sensitive user info when the current user changes during authorization", async () => {
+		let currentUserInfo = fullUserInfo
+		const authorizeUserInfo = vi.fn().mockImplementation(async () => {
+			currentUserInfo = {
+				...fullUserInfo,
+				user_id: "user-2",
+				magic_id: "magic-2",
+			}
+			return true
+		})
+		const { service, postToIframe } = createService({
+			getUserInfo: () => currentUserInfo,
+			authorizeUserInfo,
+			appConfig: {
+				name: "Profile Card",
+				permissions: {
+					userInfo: {
+						scopes: [USER_INFO_SCOPES.IDENTITY],
+					},
+				},
+			},
+		})
+
+		await service.handleMessage(USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST, {
+			type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST,
+			requestId: "req-user-switch-during-auth",
+			scopes: [USER_INFO_SCOPES.IDENTITY],
+		})
+
+		expect(postToIframe).toHaveBeenCalledWith({
+			type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE,
+			requestId: "req-user-switch-during-auth",
+			success: false,
+			error: "User identity changed during authorization",
+		})
+	})
+
 	it("rejects when the user denies authorization", async () => {
 		const { service, postToIframe } = createService({
 			getUserInfo: () => fullUserInfo,

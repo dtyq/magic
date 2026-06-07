@@ -37,7 +37,7 @@ export interface IframeUserInfoConfig {
 
 export class IframeUserInfoService {
 	private readonly cfg: IframeUserInfoConfig
-	private authorizedScopesByApp = new Map<string, Set<UserInfoScope>>()
+	private authorizedScopesByAppAndUser = new Map<string, Set<UserInfoScope>>()
 
 	constructor(cfg: IframeUserInfoConfig) {
 		this.cfg = cfg
@@ -79,10 +79,33 @@ export class IframeUserInfoService {
 				return
 			}
 
-			const authorizedScopes = this.getAuthorizedScopesForCurrentApp()
-			const unauthorizedScopes = scopes.filter(
-				(scope) => scope !== USER_INFO_SCOPES.DISPLAY && !authorizedScopes.has(scope),
-			)
+			let userInfo = this.cfg.getUserInfo()
+			if (!userInfo) {
+				this.cfg.postToIframe({
+					type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE,
+					requestId: req.requestId,
+					success: false,
+					error: "User info is not available",
+				})
+				return
+			}
+
+			const sensitiveScopes = scopes.filter((scope) => scope !== USER_INFO_SCOPES.DISPLAY)
+			const authorizedScopes =
+				sensitiveScopes.length > 0 ? this.getAuthorizedScopesForCurrentApp(userInfo) : null
+			const userKeyBeforeAuthorization =
+				sensitiveScopes.length > 0 ? this.getCurrentUserKey(userInfo) : null
+			if (sensitiveScopes.length > 0 && !authorizedScopes) {
+				this.cfg.postToIframe({
+					type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE,
+					requestId: req.requestId,
+					success: false,
+					error: "User identity is not available",
+				})
+				return
+			}
+
+			const unauthorizedScopes = sensitiveScopes.filter((scope) => !authorizedScopes?.has(scope))
 			if (unauthorizedScopes.length > 0) {
 				const allowed = await this.requestAuthorization(unauthorizedScopes, req.reason)
 				if (!allowed) {
@@ -94,21 +117,31 @@ export class IframeUserInfoService {
 					})
 					return
 				}
+				const latestUserInfo = this.cfg.getUserInfo()
+				if (!latestUserInfo) {
+					this.cfg.postToIframe({
+						type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE,
+						requestId: req.requestId,
+						success: false,
+						error: "User info is not available",
+					})
+					return
+				}
+				if (this.getCurrentUserKey(latestUserInfo) !== userKeyBeforeAuthorization) {
+					this.cfg.postToIframe({
+						type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE,
+						requestId: req.requestId,
+						success: false,
+						error: "User identity changed during authorization",
+					})
+					return
+				}
+				userInfo = latestUserInfo
 				for (const scope of unauthorizedScopes) {
-					authorizedScopes.add(scope)
+					authorizedScopes?.add(scope)
 				}
 			}
 
-			const userInfo = this.cfg.getUserInfo()
-			if (!userInfo) {
-				this.cfg.postToIframe({
-					type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE,
-					requestId: req.requestId,
-					success: false,
-					error: "User info is not available",
-				})
-				return
-			}
 			const safeUserInfo = this.pickUserInfoFields(userInfo, scopes)
 			this.cfg.postToIframe({
 				type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE,
@@ -127,31 +160,51 @@ export class IframeUserInfoService {
 	}
 
 	destroy(): void {
-		this.authorizedScopesByApp.clear()
+		this.authorizedScopesByAppAndUser.clear()
 	}
 
-	private getAuthorizedScopesForCurrentApp(): Set<UserInfoScope> {
-		const appKey = this.getCurrentAppKey()
-		let scopes = this.authorizedScopesByApp.get(appKey)
+	private getAuthorizedScopesForCurrentApp(userInfo: UserInfo): Set<UserInfoScope> | null {
+		const appKey = this.getCurrentAppKey(userInfo)
+		if (!appKey) return null
+
+		let scopes = this.authorizedScopesByAppAndUser.get(appKey)
 		if (!scopes) {
 			scopes = new Set<UserInfoScope>()
-			this.authorizedScopesByApp.set(appKey, scopes)
+			this.authorizedScopesByAppAndUser.set(appKey, scopes)
 		}
 		return scopes
 	}
 
-	private getCurrentAppKey(): string {
+	private getCurrentAppKey(userInfo: UserInfo): string | null {
 		const appConfig = this.cfg.appConfig
 		const appInstanceKey = this.cfg.appInstanceKey || "__html_micro_app__"
-		if (!appConfig) return appInstanceKey
+		const userKey = this.getCurrentUserKey(userInfo)
+		if (!userKey) return null
+		if (!appConfig) {
+			return JSON.stringify({
+				instance: appInstanceKey,
+				user: userKey,
+			})
+		}
 
 		return JSON.stringify({
 			instance: appInstanceKey,
+			user: userKey,
 			type: appConfig.type || "",
 			name: appConfig.name || "",
 			version: appConfig.version || "",
 			entry: appConfig.entry || "",
 		})
+	}
+
+	private getCurrentUserKey(userInfo: UserInfo): string | null {
+		const magicId = userInfo.magic_id?.trim()
+		if (magicId) return `magic_id:${magicId}`
+
+		const userId = userInfo.user_id?.trim()
+		if (userId) return `user_id:${userId}`
+
+		return null
 	}
 
 	private normalizeScopes(rawScopes: unknown): UserInfoScope[] | null {
