@@ -33,7 +33,7 @@ class LLMMiniMaxProviderTest extends TestCase
         $provider = new LLMMiniMaxProvider();
         $config = new ProviderConfigItem([]);
 
-        $response = $provider->connectivityTestByModel($config, 'MiniMax-M2.7');
+        $response = $provider->connectivityTestByModel($config, 'MiniMax-M3');
 
         $this->assertFalse($response->getStatus());
     }
@@ -45,8 +45,9 @@ class LLMMiniMaxProviderTest extends TestCase
             new Response(200, [], json_encode([
                 'object' => 'list',
                 'data' => [
+                    ['id' => 'MiniMax-M3', 'object' => 'model'],
                     ['id' => 'MiniMax-M2.7', 'object' => 'model'],
-                    ['id' => 'MiniMax-M2.5', 'object' => 'model'],
+                    ['id' => 'MiniMax-M2.7-highspeed', 'object' => 'model'],
                 ],
             ])),
         ]);
@@ -78,7 +79,7 @@ class LLMMiniMaxProviderTest extends TestCase
 
         $config = new ProviderConfigItem(['api_key' => 'test-valid-key']);
 
-        $response = $provider->connectivityTestByModel($config, 'MiniMax-M2.7');
+        $response = $provider->connectivityTestByModel($config, 'MiniMax-M3');
 
         $this->assertTrue($response->getStatus());
     }
@@ -125,7 +126,7 @@ class LLMMiniMaxProviderTest extends TestCase
 
         $config = new ProviderConfigItem(['api_key' => 'invalid-key']);
 
-        $response = $provider->connectivityTestByModel($config, 'MiniMax-M2.7');
+        $response = $provider->connectivityTestByModel($config, 'MiniMax-M3');
 
         $this->assertFalse($response->getStatus());
     }
@@ -166,7 +167,7 @@ class LLMMiniMaxProviderTest extends TestCase
 
         $config = new ProviderConfigItem(['api_key' => 'test-key']);
 
-        $response = $provider->connectivityTestByModel($config, 'MiniMax-M2.7');
+        $response = $provider->connectivityTestByModel($config, 'MiniMax-M3');
 
         $this->assertFalse($response->getStatus());
         $this->assertNotEmpty($response->getMessage());

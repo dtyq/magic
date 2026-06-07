@@ -82,6 +82,7 @@ class ServiceProviderInitializerMiniMaxTest extends TestCase
 
         // Check description contains MiniMax model info
         $this->assertStringContainsString('MiniMax', $translate['description']['en_US']);
+        $this->assertStringContainsString('M3', $translate['description']['en_US']);
         $this->assertStringContainsString('M2.7', $translate['description']['en_US']);
         $this->assertStringContainsString('OpenAI-compatible', $translate['description']['en_US']);
     }
