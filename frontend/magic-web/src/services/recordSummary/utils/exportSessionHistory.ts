@@ -146,7 +146,7 @@ function triggerDownload(blob: Blob, filename: string): void {
 
 /**
  * Add audio chunks from IndexedDB to a zip folder
- * 从 IndexedDB 读取已上传的音频分片，合并后添加到 zip 目录
+ * 从 IndexedDB 读取音频分片，合并后添加到 zip 目录
  */
 async function addAudioChunksToZip(
 	folder: InstanceType<Awaited<ReturnType<typeof loadJSZip>>>,
@@ -357,7 +357,7 @@ export async function exportSessionAsZip(session: StoredSessionHistory): Promise
 	folder.file("transcript.md", buildTranscriptMarkdown(session))
 
 	const audioChunkDB = new AudioChunkDB()
-	const audioChunks = await audioChunkDB.getChunksByUploadStatus(session.id, "uploaded")
+	const audioChunks = await audioChunkDB.getSessionChunks(session.id)
 	if (audioChunks.length > 0) {
 		await addAudioChunksToZip(folder, audioChunks)
 	}
@@ -384,7 +384,7 @@ export async function exportAllSessionsAsZip(sessions: StoredSessionHistory[]): 
 		folder.file("note.md", buildNoteMarkdown(session))
 		folder.file("transcript.md", buildTranscriptMarkdown(session))
 
-		const audioChunks = await audioChunkDB.getChunksByUploadStatus(session.id, "uploaded")
+		const audioChunks = await audioChunkDB.getSessionChunks(session.id)
 		if (audioChunks.length > 0) {
 			await addAudioChunksToZip(folder, audioChunks)
 		}

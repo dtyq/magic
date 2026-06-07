@@ -21,8 +21,22 @@ export class RecordingBatchSaveReporter {
 	private inFlightReports = new Map<string, Promise<void>>()
 
 	async reportUploadedFile(file: RecordingBatchSaveFile): Promise<void> {
+		await this.reportUploadedFileInternal(file, false)
+	}
+
+	async reportUploadedFileStrict(file: RecordingBatchSaveFile): Promise<void> {
+		await this.reportUploadedFileInternal(file, true)
+	}
+
+	private async reportUploadedFileInternal(
+		file: RecordingBatchSaveFile,
+		throwOnError: boolean,
+	): Promise<void> {
 		if (!file.projectId || !file.topicId || !file.fileKey || !file.fileName) {
 			logger.warn("Skip batch save for incomplete file info", file)
+			if (throwOnError) {
+				throw new Error("Incomplete file info for batch save")
+			}
 			return
 		}
 
@@ -43,7 +57,7 @@ export class RecordingBatchSaveReporter {
 			await activeReport
 		}
 
-		const reportPromise = this.saveUploadedFile(file)
+		const reportPromise = this.saveUploadedFile(file, throwOnError)
 		this.inFlightReports.set(reportKey, reportPromise)
 
 		try {
@@ -63,7 +77,10 @@ export class RecordingBatchSaveReporter {
 		}
 	}
 
-	private async saveUploadedFile(file: RecordingBatchSaveFile): Promise<void> {
+	private async saveUploadedFile(
+		file: RecordingBatchSaveFile,
+		throwOnError: boolean,
+	): Promise<void> {
 		try {
 			await SuperMagicApi.batchSaveFiles({
 				project_id: file.projectId,
@@ -105,6 +122,9 @@ export class RecordingBatchSaveReporter {
 				parentId: file.parentId,
 				error: error instanceof Error ? error.message : String(error),
 			})
+			if (throwOnError) {
+				throw error
+			}
 		}
 	}
 

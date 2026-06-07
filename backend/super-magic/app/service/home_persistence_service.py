@@ -9,7 +9,6 @@ from app.utils.async_file_utils import (
     async_is_dir,
     async_is_symlink,
     async_mkdir,
-    async_rename,
     async_rmtree,
     async_symlink,
     async_unlink,
@@ -21,16 +20,12 @@ logger = get_logger(__name__)
 class HomePersistenceService:
     """Prepare HOME config symlinks for the current sandbox user."""
 
-    _FULL_LINK_DIRS: tuple[str, ...] = (
-        ".magic",
-    )
+    _FULL_LINK_DIRS: dict[str, tuple[str, ...]] = {
+        ".magic": (),
+        ".lark-cli": ("cache", "logs"),
+        ".dws": ("cache", "logs"),
+    }
     _PARTIAL_LINK_DIRS: dict[str, dict[str, tuple[str, ...]]] = {
-        ".lark-cli": {
-            "persistent_files": ("config.json", "update-state.json"),
-        },
-        ".dws": {
-            "persistent_files": ("app.json", "identity.json", "config.json"),
-        },
         ".local/share": {
             "persistent_dirs": ("dws-cli", "lark-cli"),
         },
@@ -56,9 +51,10 @@ class HomePersistenceService:
                     persistent_root=persistent_root,
                 )
 
-            for relative_path in cls._FULL_LINK_DIRS:
+            for relative_path, local_dirs in cls._FULL_LINK_DIRS.items():
                 await cls._initialize_full_link_safely(
                     relative_path=relative_path,
+                    local_dirs=local_dirs,
                     home_dir=home_dir,
                     persistent_root=persistent_root,
                 )
@@ -93,18 +89,57 @@ class HomePersistenceService:
     async def _initialize_full_link_safely(
         cls,
         relative_path: str,
+        local_dirs: tuple[str, ...],
         home_dir: Path,
         persistent_root: Path,
     ) -> None:
         try:
             target = persistent_root / relative_path
             link = home_dir / relative_path
-            await cls._ensure_symlink(link=link, target=target)
+            await cls._ensure_full_link_dir(
+                relative_path=relative_path,
+                link=link,
+                target=target,
+                home_dir=home_dir,
+                local_dirs=local_dirs,
+            )
         except Exception as e:
             logger.warning(
                 f"[HomePersistence] 持久化软链初始化失败，已跳过: {relative_path}, error={e}",
                 exc_info=True,
             )
+
+    @classmethod
+    async def _ensure_full_link_dir(
+        cls,
+        relative_path: str,
+        link: Path,
+        target: Path,
+        home_dir: Path,
+        local_dirs: tuple[str, ...],
+    ) -> None:
+        await async_mkdir(target, parents=True, exist_ok=True)
+        await cls._ensure_symlink(link=link, target=target)
+
+        for local_dir in local_dirs:
+            await cls._ensure_local_runtime_dir(
+                link=target / local_dir,
+                target=cls._get_local_runtime_dir(
+                    home_dir=home_dir,
+                    relative_path=relative_path,
+                    local_dir=local_dir,
+                ),
+            )
+
+    @classmethod
+    async def _ensure_local_runtime_dir(cls, link: Path, target: Path) -> None:
+        """Point a persisted CLI runtime directory back to sandbox-local storage."""
+        await cls._ensure_symlink(link=link, target=target)
+
+    @classmethod
+    def _get_local_runtime_dir(cls, home_dir: Path, relative_path: str, local_dir: str) -> Path:
+        runtime_root_name = relative_path.strip("/").lstrip(".").replace("/", "-")
+        return home_dir / ".cache" / runtime_root_name / local_dir
 
     @classmethod
     async def _ensure_symlink(cls, link: Path, target: Path) -> None:
@@ -125,27 +160,10 @@ class HomePersistenceService:
             return
 
         if await async_exists(link):
-            await cls._move_local_path_aside(link)
+            await cls._discard_local_path(link)
 
         await async_symlink(target, link)
         logger.info(f"[HomePersistence] 已创建软链: {link} -> {target}")
-
-    @classmethod
-    async def _move_local_path_aside(cls, path: Path) -> None:
-        """Rename the local HOME path aside without scanning its contents."""
-        backup_path = path.with_name(f"{path.name}.before-home-persistence")
-        index = 1
-        while await cls._path_exists_or_symlink(backup_path):
-            backup_path = path.with_name(f"{path.name}.before-home-persistence.{index}")
-            index += 1
-        try:
-            await async_rename(path, backup_path)
-        except OSError as e:
-            logger.warning(f"[HomePersistence] 挪开本地路径失败，跳过软链创建: {path}, error={e}")
-            raise
-        logger.info(
-            f"[HomePersistence] 优先使用持久化目录，已挪开本地路径: {path} -> {backup_path}"
-        )
 
     @classmethod
     async def _discard_local_file(cls, path: Path) -> None:
@@ -214,7 +232,3 @@ class HomePersistenceService:
 
             await async_symlink(target, link)
             logger.info(f"[HomePersistence] 已创建持久化目录软链: {link} -> {target}")
-
-    @classmethod
-    async def _path_exists_or_symlink(cls, path: Path) -> bool:
-        return await async_exists(path) or await async_is_symlink(path)

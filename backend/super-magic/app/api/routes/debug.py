@@ -39,3 +39,21 @@ async def clear_debug_chat_history() -> BaseResponse:
         message="历史对话记录和运行时状态已清理",
         data=result_data,
     )
+
+
+@router.get("/local-crew/list", response_model=BaseResponse)
+async def list_local_crews() -> BaseResponse:
+    """List compiled custom agents for the static debug client."""
+    if not is_local_debug_mode_enabled():
+        return create_error_response(message="本地员工调试接口未启用")
+
+    try:
+        from app.service.local_crew_registry import LocalCrewRegistry
+
+        return create_success_response(
+            message="本地员工列表已加载",
+            data={"crews": LocalCrewRegistry.list_crews()},
+        )
+    except Exception as e:
+        logger.error(f"加载本地员工列表失败: {e}")
+        return create_error_response(message="加载本地员工列表失败")
