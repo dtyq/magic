@@ -471,30 +471,38 @@ describe("IframeFSService", () => {
 			})
 		})
 
-		it("allows destructive operations when server verification omits relative path but confirms file name", async () => {
+		it("rejects project-scope destructive operations when server verification omits relative path", async () => {
 			const deleteFn = vi.fn().mockResolvedValue(undefined)
+			const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
 			const verifyFileFn = vi.fn(async () => ({
-				file_name: "data.txt",
+				file_name: "shared.txt",
 			}))
-			const { service } = createService({
-				fileList: [file("file-id", "app/data.txt", "data.txt")],
+			const { service, postToIframe } = createService({
+				appConfig: {
+					permissions: {
+						files: { scope: "project" },
+					},
+				},
+				fileList: [file("root-id", "shared.txt", "shared.txt")],
 				deleteFn,
+				confirmProjectDeleteFn,
 				verifyFileFn,
 			})
 
 			await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
 				type: FS_MESSAGE_TYPES.DELETE_FILE_REQUEST,
 				requestId: "req-delete-file-name-only",
-				path: "./data.txt",
+				path: "/shared.txt",
 			})
 
-			expect(deleteFn).toHaveBeenCalledWith({
-				file_id: "file-id",
-				project_id: "project-1",
-			})
+			expect(confirmProjectDeleteFn).not.toHaveBeenCalled()
+			expect(deleteFn).not.toHaveBeenCalled()
+			expect(postToIframe).toHaveBeenCalledWith(
+				expect.objectContaining({ requestId: "req-delete-file-name-only", success: false }),
+			)
 		})
 
-		it("rejects destructive operations when server verification omits relative path and file name differs", async () => {
+		it("rejects destructive operations when server verification returns no canonical path", async () => {
 			const deleteFn = vi.fn().mockResolvedValue(undefined)
 			const verifyFileFn = vi.fn(async () => ({
 				file_name: "other.txt",

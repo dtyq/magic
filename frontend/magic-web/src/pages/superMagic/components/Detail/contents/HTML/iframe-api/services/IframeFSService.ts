@@ -908,27 +908,13 @@ export class IframeFSService {
 		}
 		const info = await this.cfg.verifyFileFn({ file_id: item.file_id, project_id: projectId })
 		const serverPath = this.canonicalWorkspacePath(info.relative_file_path || "")
-		if (serverPath) {
-			if (!this.hasProjectFileScope() && !this.isPathInAppRoot(serverPath)) {
-				throw new Error("Access denied: server file path is outside the app root")
-			}
-			return serverPath
+		if (!serverPath) {
+			throw new Error("Access denied: server file path is required")
 		}
-
-		// Compatibility fallback for the current server response, which may only include file_name.
-		// This verifies the requested file_id still has the same basename, but it does not prove the
-		// file still lives at the requested directory path. A full safety check requires the server to
-		// return relative_file_path or enforce the requested path/scope on destructive operations.
-		const itemPath = this.canonicalWorkspacePath(item.relative_file_path)
-		const itemName = itemPath?.split("/").pop() || ""
-		const serverName = (info.file_name || "").trim()
-		if (!itemPath || !serverName || serverName !== itemName) {
-			throw new Error("Access denied: server file info does not match the requested file")
+		if (!this.hasProjectFileScope() && !this.isPathInAppRoot(serverPath)) {
+			throw new Error("Access denied: server file path is outside the app root")
 		}
-		if (!this.hasProjectFileScope() && !this.isPathInAppRoot(itemPath)) {
-			throw new Error("Access denied: file is outside the app root")
-		}
-		return itemPath
+		return serverPath
 	}
 
 	private async assertServerPath(
