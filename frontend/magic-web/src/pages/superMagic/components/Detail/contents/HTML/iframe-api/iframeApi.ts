@@ -64,6 +64,24 @@ export async function createIframeFile(data: {
 	return iframeClient.post("/api/v1/super-agent/file", data)
 }
 
+export interface IframeFileInfo {
+	file_id?: string
+	file_name?: string
+	relative_file_path?: string
+}
+
+/**
+ * 获取文件真实信息（iframe 专用）。
+ * 用于破坏性操作前按 file_id 反查服务端路径，避免只信前端 fileList。
+ */
+export async function getIframeFileInfo(
+	file_id: string,
+	project_id: string,
+): Promise<IframeFileInfo> {
+	const query = project_id ? `?project_id=${encodeURIComponent(project_id)}` : ""
+	return iframeClient.get<IframeFileInfo>(`/api/v1/super-agent/file/${file_id}${query}`)
+}
+
 // ─── 删除文件/目录 ───────────────────────────────────────────────────────────
 
 /**

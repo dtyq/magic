@@ -15,7 +15,7 @@ description: "Complete API reference for window.Magic.* in SuperMagic HTML micro
 ## Important Constraints
 
 1. All `window.Magic.*` APIs are **pre-injected** — no imports needed. External CDN allowed.
-2. File paths relative to **app root** (`index.html` dir). `../` forbidden.
+2. File paths are relative to **app root** (`index.html` dir) by default. `../` is forbidden. To access project-root files, declare `app.json.permissions.files.scope = "project"` and use leading-slash paths such as `"/shared/data.json"`.
 3. `window.Magic.llm` tokens hosted; no `api_key` in HTML.
 4. **No inline event handlers** — use `addEventListener`.
 5. **LLM calls must include model selector UI** unless user specifies model. Default `"auto"`.
@@ -30,7 +30,9 @@ description: "Complete API reference for window.Magic.* in SuperMagic HTML micro
      "entry": "index.html",
      "files": {},
      "watch": [],
-     "permissions": {}
+    "permissions": {
+      "files": {"scope": "app"}
+    }
    }
    ```
 
@@ -62,6 +64,32 @@ await window.Magic.fs.writeFile("data/large.bin", blob);
 
 > ⚠️ Paths relative to `index.html` dir, NOT workspace root.
 
+### File Scope (`app.json.permissions.files.scope`)
+
+Default scope is `"app"`: all `window.Magic.fs.*` paths resolve inside the app folder next to `index.html`.
+
+Use `"project"` only when the app genuinely needs project-root files outside its own folder:
+
+```json
+{
+  "name": "Project File Manager",
+  "entry": "index.html",
+  "permissions": {
+    "files": {
+      "scope": "project"
+    }
+  }
+}
+```
+
+Path rules:
+
+- `"data/config.json"` -> app root, e.g. `my-app/data/config.json`.
+- `"/shared/config.json"` -> project root, only when `scope` is `"project"`.
+- `"/"` lists project-root entries when project scope is declared.
+- `../` remains blocked in all scopes.
+- Deleting, moving, or renaming files outside the app root triggers host confirmation and may be rejected by the user.
+
 ### `listFiles(dir?)` → `Promise<string[]>`
 
 ```javascript
@@ -82,7 +110,7 @@ await window.Magic.fs.deleteFile("data/temp.json");
 await window.Magic.fs.deleteDir("temp/");
 ```
 
-- Recursively deletes all files and subdirectories. Cannot delete app root. Rejects if dir not found. `../` blocked.
+- Recursively deletes all files and subdirectories. Cannot delete app root or project root. Rejects if dir not found. `../` blocked.
 
 ### `moveFile(path, targetDir)` → `Promise<void>`
 
@@ -129,7 +157,7 @@ const basePath = await window.Magic.getAppBasePath();
 // "个人财务记账/" or "" (workspace root)
 ```
 
-- `fs.*` paths → relative to app root: `"data/file.json"`
+- `fs.*` paths → relative to app root by default: `"data/file.json"`; project-root paths require `permissions.files.scope = "project"` and a leading slash.
 - `@file` mention `file_path` → prefix: `basePath + "data/file.json"`
 - `.magic/` paths → use as-is (already workspace root)
 

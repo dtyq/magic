@@ -442,6 +442,10 @@ export interface HTMLAppConfig {
 	watch?: string[]
 	/** 微应用权限声明。敏感能力必须先声明，再由用户确认授权。 */
 	permissions?: {
+		files?: {
+			/** 文件系统 API 权限范围。默认仅允许应用根目录；project 允许以 / 开头访问项目根路径。 */
+			scope?: "app" | "project"
+		}
 		userInfo?: {
 			/** 允许请求的用户信息范围 */
 			scopes?: UserInfoScope[]

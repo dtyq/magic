@@ -17,6 +17,8 @@ import {
 	type DeleteFilesFn,
 	type MoveFileFn,
 	type RenameFileFn,
+	type VerifyFileFn,
+	type ConfirmProjectDeleteFn,
 } from "../services/IframeFSService"
 import type { HTMLAppConfig } from "../types"
 
@@ -57,6 +59,14 @@ export interface UseIframeFSOptions {
 	 * （可选）重命名文件/目录函数。不提供时 renameFile 请求将返回错误。
 	 */
 	renameFileFn?: RenameFileFn
+	/**
+	 * 破坏性操作前按 file_id 反查服务端真实路径。
+	 */
+	verifyFileFn?: VerifyFileFn
+	/**
+	 * 删除 appRoot 外 project-scope 文件/目录前的宿主确认。
+	 */
+	confirmProjectDeleteFn?: ConfirmProjectDeleteFn
 }
 
 export interface UseIframeFSReturn {
@@ -65,7 +75,22 @@ export interface UseIframeFSReturn {
 }
 
 export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
-	const { iframeRef, entryPath, fileList, appConfig, projectId, uploadFn, saveContentFn, mkdirFn, deleteFn, deleteFilesFn, moveFileFn, renameFileFn } = options
+	const {
+		iframeRef,
+		entryPath,
+		fileList,
+		appConfig,
+		projectId,
+		uploadFn,
+		saveContentFn,
+		mkdirFn,
+		deleteFn,
+		deleteFilesFn,
+		moveFileFn,
+		renameFileFn,
+		verifyFileFn,
+		confirmProjectDeleteFn,
+	} = options
 
 	const serviceRef = useRef<IframeFSService | null>(null)
 
@@ -90,13 +115,28 @@ export function useIframeFS(options: UseIframeFSOptions): UseIframeFSReturn {
 			deleteFilesFn,
 			moveFileFn,
 			renameFileFn,
+			verifyFileFn,
+			confirmProjectDeleteFn,
 		})
 
 		return () => {
 			serviceRef.current?.destroy()
 			serviceRef.current = null
 		}
-	}, [entryPath, appConfig])
+	}, [
+		entryPath,
+		appConfig,
+		projectId,
+		uploadFn,
+		saveContentFn,
+		mkdirFn,
+		deleteFn,
+		deleteFilesFn,
+		moveFileFn,
+		renameFileFn,
+		verifyFileFn,
+		confirmProjectDeleteFn,
+	])
 
 	// fileList 变化时仅更新内部引用，避免重建 service（会中断 watch 轮询）
 	useDeepCompareEffect(() => {

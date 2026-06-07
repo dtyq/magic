@@ -27,6 +27,7 @@ export interface FSFileItem {
 	file_id: string
 	relative_file_path: string
 	file_name?: string
+	is_directory?: boolean
 	updated_at?: string
 }
 
@@ -81,6 +82,21 @@ export type MoveFileFn = (params: {
  */
 export type RenameFileFn = (params: { file_id: string; target_name: string }) => Promise<unknown>
 
+/**
+ * 服务端文件信息校验函数。破坏性操作前必须按 file_id 反查真实路径。
+ */
+export type VerifyFileFn = (params: {
+	file_id: string
+	project_id: string
+}) => Promise<{ file_name?: string; relative_file_path?: string }>
+
+export type ConfirmProjectDeleteFn = (params: {
+	path: string
+	isDirectory: boolean
+	appRootDir: string
+	operation?: "move" | "rename"
+}) => Promise<boolean>
+
 export interface IframeFSConfig {
 	/** 向 iframe 发送消息的函数 */
 	postToIframe: (message: object) => void
@@ -122,6 +138,15 @@ export interface IframeFSConfig {
 	 * 不提供时 renameFile 请求将返回错误。
 	 */
 	renameFileFn?: RenameFileFn
+	/**
+	 * 破坏性操作前按 file_id 反查服务端真实路径。
+	 * 不提供时 delete/move/rename 请求将返回错误。
+	 */
+	verifyFileFn?: VerifyFileFn
+	/**
+	 * 删除 appRoot 外的 project-scope 文件/目录前，让宿主弹出二次确认。
+	 */
+	confirmProjectDeleteFn?: ConfirmProjectDeleteFn
 }
 
 /** 读取文件大小限制：5 MB */
@@ -447,8 +472,10 @@ export class IframeFSService {
 				})
 			}
 
-			this.assertInAppRoot(item)
+			this.assertInFileScope(item)
 			const projectId = this.requireProjectId()
+			const serverPath = await this.assertServerPath(item, projectId, resolved)
+			await this.confirmProjectDeleteIfNeeded(serverPath, false)
 			await this.cfg.deleteFn({ file_id: item.file_id, project_id: projectId })
 			this.send({ type: FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE, requestId, success: true })
 		} catch (err) {
@@ -493,6 +520,15 @@ export class IframeFSService {
 			})
 		}
 
+		if (this.hasProjectFileScope() && resolvedDir === "") {
+			return this.send({
+				type: FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE,
+				requestId,
+				success: false,
+				error: "Cannot delete the project root directory",
+			})
+		}
+
 		try {
 			// 收集目录本身 + 目录下所有文件的 file_id
 			const dirPath = this.normalizeWorkspacePath(
@@ -511,18 +547,20 @@ export class IframeFSService {
 				})
 			}
 
-			this.assertInAppRoot(dirItem)
+			this.assertInFileScope(dirItem)
 			const projectId = this.requireProjectId()
+			const serverPath = await this.assertServerPath(dirItem, projectId, dirPath)
 
 			// 收集目录下所有子文件/子目录
 			for (const f of this.cfg.fileList) {
 				const fp = this.normalizeWorkspacePath(f.relative_file_path)
 				if (fp === dirPath || fp.startsWith(`${dirPath}/`)) {
-					this.assertInAppRoot(f)
+					this.assertInFileScope(f)
 					const canonicalPath = this.canonicalWorkspacePath(f.relative_file_path)
 					if (canonicalPath !== dirPath && !canonicalPath?.startsWith(`${dirPath}/`)) {
 						throw new Error("Access denied: file is outside the requested directory")
 					}
+					await this.assertServerPathInDir(f, projectId, dirPath)
 					fileIds.add(f.file_id)
 				}
 			}
@@ -530,6 +568,7 @@ export class IframeFSService {
 			// 加入目录本身
 			fileIds.add(dirItem.file_id)
 
+			await this.confirmProjectDeleteIfNeeded(serverPath, true)
 			await this.cfg.deleteFilesFn({
 				file_ids: Array.from(fileIds),
 				project_id: projectId,
@@ -586,8 +625,9 @@ export class IframeFSService {
 				})
 			}
 
-			this.assertInAppRoot(item)
+			this.assertInFileScope(item)
 			const projectId = this.requireProjectId()
+			const serverPath = await this.assertServerPath(item, projectId, resolved)
 
 			// 解析目标父目录
 			const resolvedTargetDir = this.resolveDir(targetDir)
@@ -613,7 +653,14 @@ export class IframeFSService {
 				})
 			}
 
-			this.assertInAppRoot(targetDirItem)
+			this.assertInFileScope(targetDirItem)
+			const targetServerPath = await this.assertServerPath(targetDirItem, projectId, targetDirPath)
+			await this.confirmProjectOperationIfNeeded(
+				serverPath,
+				item.is_directory ?? false,
+				"move",
+				[targetServerPath],
+			)
 			await this.cfg.moveFileFn({
 				file_id: item.file_id,
 				target_parent_id: targetDirItem.file_id,
@@ -674,8 +721,10 @@ export class IframeFSService {
 				})
 			}
 
-			this.assertInAppRoot(item)
-			this.requireProjectId()
+			this.assertInFileScope(item)
+			const projectId = this.requireProjectId()
+			const serverPath = await this.assertServerPath(item, projectId, resolved)
+			await this.confirmProjectOperationIfNeeded(serverPath, item.is_directory ?? false, "rename")
 			await this.cfg.renameFileFn({ file_id: item.file_id, target_name: newName })
 			const lastSlash = resolved.lastIndexOf("/")
 			const parentDir = lastSlash >= 0 ? resolved.slice(0, lastSlash + 1) : ""
@@ -766,26 +815,46 @@ export class IframeFSService {
 
 	/**
 	 * 将 iframe 传入的路径解析为 workspace 相对路径。
-	 * - 应用别名替换（appConfig.files）
+	 * - 默认相对应用根目录
+	 * - appConfig.permissions.files.scope === "project" 时，允许以 / 开头访问项目根路径
 	 * - 禁止 `..` 穿越
-	 * - 必须在应用根目录（appRootDir）边界内
 	 */
 	private resolvePath(path: string): string | null {
 		const aliasResolved = this.aliasMap[path] ?? path
-		const clean = aliasResolved.replace(/^\/+/, "").replace(/^(\.\/)+/, "")
-		if (clean.includes("..")) return null
-		const full = this.appRootDir ? `${this.appRootDir}${clean}` : clean
-		if (this.appRootDir && !full.startsWith(this.appRootDir)) return null
-		return full
+		const resolved = this.resolveWorkspacePath(aliasResolved, false)
+		return resolved || null
 	}
 
 	private resolveDir(dir: string): string | null {
-		const clean = dir.replace(/^\/+/, "").replace(/^\.\//, "")
+		const resolved = this.resolveWorkspacePath(dir, true)
+		if (resolved === null) return null
+		if (!resolved) return ""
+		return resolved.endsWith("/") ? resolved : `${resolved}/`
+	}
+
+	private resolveWorkspacePath(path: string, allowRoot: boolean): string | null {
+		const isAbsolutePath = path.startsWith("/")
+		const isProjectRootPath = this.hasProjectFileScope() && isAbsolutePath
+		if (isAbsolutePath && !isProjectRootPath) return null
+
+		const clean = path.replace(/^\/+/, "").replace(/^(\.\/)+/, "")
 		if (clean.includes("..")) return null
-		if (clean === "" || clean === ".") return this.appRootDir
+
+		if (isProjectRootPath) {
+			const canonical = this.canonicalWorkspacePath(clean)
+			if (canonical === null || (!allowRoot && !canonical)) return null
+			return canonical
+		}
+
+		if ((clean === "" || clean === ".") && allowRoot) {
+			return this.normalizeWorkspacePath(this.appRootDir)
+		}
+
 		const full = this.appRootDir ? `${this.appRootDir}${clean}` : clean
-		if (this.appRootDir && !full.startsWith(this.appRootDir)) return null
-		return full.endsWith("/") ? full : `${full}/`
+		const canonical = this.canonicalWorkspacePath(full)
+		if (canonical === null || (!allowRoot && !canonical)) return null
+		if (!this.isPathInAppRoot(canonical)) return null
+		return canonical
 	}
 
 	private findFile(resolvedPath: string): FSFileItem | undefined {
@@ -813,13 +882,99 @@ export class IframeFSService {
 		return segments.join("/")
 	}
 
-	private assertInAppRoot(item: FSFileItem) {
-		const itemPath = this.canonicalWorkspacePath(item.relative_file_path)
-		const appRoot = this.normalizeWorkspacePath(this.appRootDir)
+	private hasProjectFileScope(): boolean {
+		return this.cfg.appConfig?.permissions?.files?.scope === "project"
+	}
 
-		if (!itemPath || (appRoot && itemPath !== appRoot && !itemPath.startsWith(`${appRoot}/`))) {
+	private isPathInAppRoot(path: string): boolean {
+		const itemPath = this.canonicalWorkspacePath(path)
+		const appRoot = this.normalizeWorkspacePath(this.appRootDir)
+		return !!itemPath && (!appRoot || itemPath === appRoot || itemPath.startsWith(`${appRoot}/`))
+	}
+
+	private assertInFileScope(item: FSFileItem) {
+		const itemPath = this.canonicalWorkspacePath(item.relative_file_path)
+		if (!itemPath) {
+			throw new Error("Access denied: file path is invalid")
+		}
+		if (!this.hasProjectFileScope() && !this.isPathInAppRoot(itemPath)) {
 			throw new Error("Access denied: file is outside the app root")
 		}
+	}
+
+	private async getServerCanonicalPath(item: FSFileItem, projectId: string): Promise<string> {
+		if (!this.cfg.verifyFileFn) {
+			throw new Error("File verification is required for destructive file operations")
+		}
+		const info = await this.cfg.verifyFileFn({ file_id: item.file_id, project_id: projectId })
+		const serverPath = this.canonicalWorkspacePath(info.relative_file_path || "")
+		if (serverPath) {
+			if (!this.hasProjectFileScope() && !this.isPathInAppRoot(serverPath)) {
+				throw new Error("Access denied: server file path is outside the app root")
+			}
+			return serverPath
+		}
+
+		// Compatibility fallback for the current server response, which may only include file_name.
+		// This verifies the requested file_id still has the same basename, but it does not prove the
+		// file still lives at the requested directory path. A full safety check requires the server to
+		// return relative_file_path or enforce the requested path/scope on destructive operations.
+		const itemPath = this.canonicalWorkspacePath(item.relative_file_path)
+		const itemName = itemPath?.split("/").pop() || ""
+		const serverName = (info.file_name || "").trim()
+		if (!itemPath || !serverName || serverName !== itemName) {
+			throw new Error("Access denied: server file info does not match the requested file")
+		}
+		if (!this.hasProjectFileScope() && !this.isPathInAppRoot(itemPath)) {
+			throw new Error("Access denied: file is outside the app root")
+		}
+		return itemPath
+	}
+
+	private async assertServerPath(
+		item: FSFileItem,
+		projectId: string,
+		expectedPath: string,
+	): Promise<string> {
+		const serverPath = await this.getServerCanonicalPath(item, projectId)
+		const expected = this.canonicalWorkspacePath(expectedPath)
+		if (!expected || serverPath !== expected) {
+			throw new Error("Access denied: server file path does not match the requested path")
+		}
+		return serverPath
+	}
+
+	private async assertServerPathInDir(item: FSFileItem, projectId: string, dirPath: string) {
+		const serverPath = await this.getServerCanonicalPath(item, projectId)
+		if (serverPath !== dirPath && !serverPath.startsWith(`${dirPath}/`)) {
+			throw new Error("Access denied: server file path is outside the requested directory")
+		}
+	}
+
+	private async confirmProjectDeleteIfNeeded(path: string, isDirectory: boolean) {
+		await this.confirmProjectOperationIfNeeded(path, isDirectory)
+	}
+
+	private async confirmProjectOperationIfNeeded(
+		path: string,
+		isDirectory: boolean,
+		operation?: "move" | "rename",
+		extraPaths: string[] = [],
+	) {
+		if (!this.hasProjectFileScope()) return
+		const affectedPaths = [path, ...extraPaths]
+		if (affectedPaths.every((affectedPath) => this.isPathInAppRoot(affectedPath))) return
+		if (!this.cfg.confirmProjectDeleteFn) {
+			throw new Error("Project file operation confirmation is required")
+		}
+		const request: Parameters<NonNullable<IframeFSConfig["confirmProjectDeleteFn"]>>[0] = {
+			path,
+			isDirectory,
+			appRootDir: this.appRootDir,
+		}
+		if (operation) request.operation = operation
+		const confirmed = await this.cfg.confirmProjectDeleteFn(request)
+		if (!confirmed) throw new Error("File operation cancelled")
 	}
 
 	private requireProjectId(): string {

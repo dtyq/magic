@@ -29,6 +29,8 @@ export interface IframeUserInfoConfig {
 	getUserInfo: () => UserInfo | null
 	/** Optional app.json permissions declaration. */
 	appConfig?: HTMLAppConfig | null
+	/** 当前 HTML 微应用实例标识，例如 projectId + appRootPath。 */
+	appInstanceKey?: string
 	/** 请求敏感用户信息前的宿主侧授权确认。 */
 	authorizeUserInfo?: (request: UserInfoAuthorizationRequest) => Promise<boolean>
 }
@@ -140,9 +142,11 @@ export class IframeUserInfoService {
 
 	private getCurrentAppKey(): string {
 		const appConfig = this.cfg.appConfig
-		if (!appConfig) return "__html_micro_app__"
+		const appInstanceKey = this.cfg.appInstanceKey || "__html_micro_app__"
+		if (!appConfig) return appInstanceKey
 
 		return JSON.stringify({
+			instance: appInstanceKey,
 			type: appConfig.type || "",
 			name: appConfig.name || "",
 			version: appConfig.version || "",

@@ -101,6 +101,7 @@ import {
 	moveIframeFile,
 	renameIframeFile,
 	getIframeDownloadUrl,
+	getIframeFileInfo,
 } from "./iframe-api/iframeApi"
 import type { HTMLAppConfig } from "./iframe-api/types"
 
@@ -578,6 +579,17 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 		const [htmlAppConfig, setHtmlAppConfig] = useState<HTMLAppConfig | null>(null)
 
+		const htmlAppInstanceKey = useMemo(() => {
+			const cleanedEntryPath = (relative_file_path || "").replace(/^\/+/, "")
+			const lastSlash = cleanedEntryPath.lastIndexOf("/")
+			const appRootDir = lastSlash >= 0 ? cleanedEntryPath.slice(0, lastSlash + 1) : ""
+			return JSON.stringify({
+				projectId: selectedProject?.id || "",
+				appRootDir,
+				entryPath: cleanedEntryPath,
+			})
+		}, [relative_file_path, selectedProject?.id])
+
 		useEffect(() => {
 			let cancelled = false
 			const cleanedEntryPath = (relative_file_path || "").replace(/^\/+/, "")
@@ -649,6 +661,33 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			renameFileFn: useMemoizedFn(async ({ file_id, target_name }) => {
 				await renameIframeFile({ file_id, target_name })
 			}),
+			verifyFileFn: useMemoizedFn(async ({ file_id, project_id }) =>
+				getIframeFileInfo(file_id, project_id),
+			),
+			confirmProjectDeleteFn: useMemoizedFn(
+				({ path, isDirectory, appRootDir, operation }) =>
+					new Promise<boolean>((resolve) => {
+						const operationText =
+							operation === "move" ? "移动" : operation === "rename" ? "重命名" : "删除"
+						const modal = MagicModal.confirm({
+							title: `确认${operationText}项目文件`,
+							content: `HTML 微应用请求${operationText}应用目录外的${isDirectory ? "目录" : "文件"}：${path}。应用目录：${appRootDir || "项目根目录"}。`,
+							okText: operationText,
+							cancelText: "取消",
+							closable: false,
+							maskClosable: false,
+							centered: true,
+							onOk: () => {
+								modal.destroy()
+								resolve(true)
+							},
+							onCancel: () => {
+								modal.destroy()
+								resolve(false)
+							},
+						})
+					}),
+			),
 		})
 
 		const { handleLLMMessage } = useIframeLLM({
@@ -686,6 +725,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				}
 			}),
 			appConfig: htmlAppConfig,
+			appInstanceKey: htmlAppInstanceKey,
 			authorizeUserInfo: useMemoizedFn(
 				({ appName, fields, reason }) =>
 					new Promise<boolean>((resolve) => {

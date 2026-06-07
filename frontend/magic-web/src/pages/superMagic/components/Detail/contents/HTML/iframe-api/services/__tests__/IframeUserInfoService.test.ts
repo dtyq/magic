@@ -183,6 +183,45 @@ describe("IframeUserInfoService", () => {
 		)
 	})
 
+
+	it("does not reuse sensitive authorization across app instances with the same manifest", async () => {
+		const authorizeUserInfo = vi.fn().mockResolvedValue(true)
+		const cfg: IframeUserInfoConfig = {
+			postToIframe: vi.fn(),
+			getUserInfo: () => fullUserInfo,
+			authorizeUserInfo,
+			appInstanceKey: "project-a:apps/profile/index.html",
+			appConfig: {
+				type: "html",
+				name: "Profile Card",
+				version: "1.0.0",
+				entry: "index.html",
+				permissions: {
+					userInfo: {
+						scopes: [USER_INFO_SCOPES.IDENTITY],
+					},
+				},
+			},
+		}
+		const service = new IframeUserInfoService(cfg)
+
+		await service.handleMessage(USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST, {
+			type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST,
+			requestId: "req-project-a",
+			scopes: [USER_INFO_SCOPES.IDENTITY],
+		})
+
+		cfg.appInstanceKey = "project-b:apps/profile/index.html"
+
+		await service.handleMessage(USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST, {
+			type: USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST,
+			requestId: "req-project-b",
+			scopes: [USER_INFO_SCOPES.IDENTITY],
+		})
+
+		expect(authorizeUserInfo).toHaveBeenCalledTimes(2)
+	})
+
 	it("rejects when the user denies authorization", async () => {
 		const { service, postToIframe } = createService({
 			getUserInfo: () => fullUserInfo,
