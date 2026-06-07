@@ -214,61 +214,112 @@ describe("IframeFSService", () => {
 		)
 	})
 
-
-	it.each(["", "   ", "../evil.txt", "subdir/file.txt", "subdir\\file.txt", "/tmp", "bad\u0000name.txt"])(
-		"rejects renameFile when newName is not a single file name: %s",
-		async (newName) => {
-			const renameFileFn = vi.fn().mockResolvedValue(undefined)
-			const { service, postToIframe } = createService({
-				fileList: [file("file-id", "app/draft.txt", "draft.txt")],
-				renameFileFn,
-			})
-
-			await service.handleMessage(FS_MESSAGE_TYPES.RENAME_FILE_REQUEST, {
-				type: FS_MESSAGE_TYPES.RENAME_FILE_REQUEST,
-				requestId: "req-rename-invalid-name",
-				path: "./draft.txt",
-				newName,
-			})
-
-			expect(renameFileFn).not.toHaveBeenCalled()
-			expect(postToIframe).toHaveBeenCalledWith(
-				expect.objectContaining({ requestId: "req-rename-invalid-name", success: false }),
-			)
-		},
-	)
-
-	it("rejects project-root style paths in the default app scope", async () => {
-		const deleteFn = vi.fn().mockResolvedValue(undefined)
+	it.each([
+		"",
+		"   ",
+		"../evil.txt",
+		"subdir/file.txt",
+		"subdir\\file.txt",
+		"/tmp",
+		"bad\u0000name.txt",
+	])("rejects renameFile when newName is not a single file name: %s", async (newName) => {
+		const renameFileFn = vi.fn().mockResolvedValue(undefined)
 		const { service, postToIframe } = createService({
-			fileList: [
-				file("app-id", "app/shared.txt", "shared.txt"),
-				file("root-id", "shared.txt", "shared.txt"),
-			],
-			deleteFn,
+			fileList: [file("file-id", "app/draft.txt", "draft.txt")],
+			renameFileFn,
 		})
 
-		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
-			type: FS_MESSAGE_TYPES.DELETE_FILE_REQUEST,
-			requestId: "req-default-project-path",
-			path: "/shared.txt",
+		await service.handleMessage(FS_MESSAGE_TYPES.RENAME_FILE_REQUEST, {
+			type: FS_MESSAGE_TYPES.RENAME_FILE_REQUEST,
+			requestId: "req-rename-invalid-name",
+			path: "./draft.txt",
+			newName,
 		})
 
-		expect(deleteFn).not.toHaveBeenCalled()
+		expect(renameFileFn).not.toHaveBeenCalled()
 		expect(postToIframe).toHaveBeenCalledWith(
-			expect.objectContaining({ requestId: "req-default-project-path", success: false }),
+			expect.objectContaining({ requestId: "req-rename-invalid-name", success: false }),
 		)
 	})
 
-	it("rejects deleting the project root directory when project file scope is declared", async () => {
+	it("lists project-root files by default without app manifest file scope", async () => {
+		const { service, postToIframe } = createService({
+			fileList: [
+				file("root-id", "shared.txt", "shared.txt"),
+				file("archive-id", "archive", "archive"),
+				file("nested-id", "archive/a.txt", "a.txt"),
+			],
+		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.LIST_REQUEST, {
+			type: FS_MESSAGE_TYPES.LIST_REQUEST,
+			requestId: "req-default-project-list-root",
+			dir: "/",
+		})
+
+		expect(postToIframe).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requestId: "req-default-project-list-root",
+				success: true,
+				files: ["shared.txt", "archive"],
+			}),
+		)
+	})
+
+	it("requires confirmation before writing a project-root file outside the app root", async () => {
+		const saveContentFn = vi.fn().mockResolvedValue(undefined)
+		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(false)
+		const { service, postToIframe } = createService({
+			fileList: [file("root-id", "shared.txt", "shared.txt")],
+			saveContentFn,
+			confirmProjectDeleteFn,
+		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.WRITE_REQUEST, {
+			type: FS_MESSAGE_TYPES.WRITE_REQUEST,
+			requestId: "req-confirm-project-write",
+			path: "/shared.txt",
+			content: "updated",
+		})
+
+		expect(confirmProjectDeleteFn).toHaveBeenCalledWith({
+			path: "shared.txt",
+			isDirectory: false,
+			appRootDir: "app/",
+			operation: "write",
+		})
+		expect(saveContentFn).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "req-confirm-project-write", success: false }),
+		)
+	})
+
+	it("writes a project-root file outside the app root after confirmation", async () => {
+		const saveContentFn = vi.fn().mockResolvedValue(undefined)
+		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
+		const { service } = createService({
+			fileList: [file("root-id", "shared.txt", "shared.txt")],
+			saveContentFn,
+			confirmProjectDeleteFn,
+		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.WRITE_REQUEST, {
+			type: FS_MESSAGE_TYPES.WRITE_REQUEST,
+			requestId: "req-confirmed-project-write",
+			path: "/shared.txt",
+			content: "updated",
+		})
+
+		expect(saveContentFn).toHaveBeenCalledWith({
+			file_id: "root-id",
+			content: "updated",
+		})
+	})
+
+	it("rejects deleting the project root directory", async () => {
 		const deleteFilesFn = vi.fn().mockResolvedValue(undefined)
 		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
 		const { service, postToIframe } = createService({
-			appConfig: {
-				permissions: {
-					files: { scope: "project" },
-				},
-			},
 			deleteFilesFn,
 			confirmProjectDeleteFn,
 		})
@@ -290,11 +341,6 @@ describe("IframeFSService", () => {
 		const deleteFn = vi.fn().mockResolvedValue(undefined)
 		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(false)
 		const { service, postToIframe } = createService({
-			appConfig: {
-				permissions: {
-					files: { scope: "project" },
-				},
-			},
 			fileList: [file("root-id", "shared.txt", "shared.txt")],
 			deleteFn,
 			confirmProjectDeleteFn,
@@ -321,11 +367,6 @@ describe("IframeFSService", () => {
 		const deleteFilesFn = vi.fn().mockResolvedValue(undefined)
 		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(false)
 		const { service, postToIframe } = createService({
-			appConfig: {
-				permissions: {
-					files: { scope: "project" },
-				},
-			},
 			fileList: [
 				file("dir-id", "archive", "archive"),
 				file("child-id", "archive/a.txt", "a.txt"),
@@ -347,7 +388,10 @@ describe("IframeFSService", () => {
 		})
 		expect(deleteFilesFn).not.toHaveBeenCalled()
 		expect(postToIframe).toHaveBeenCalledWith(
-			expect.objectContaining({ requestId: "req-confirm-project-delete-dir", success: false }),
+			expect.objectContaining({
+				requestId: "req-confirm-project-delete-dir",
+				success: false,
+			}),
 		)
 	})
 
@@ -358,11 +402,6 @@ describe("IframeFSService", () => {
 			relative_file_path: file_id === "child-id" ? "other/a.txt" : "archive",
 		}))
 		const { service, postToIframe } = createService({
-			appConfig: {
-				permissions: {
-					files: { scope: "project" },
-				},
-			},
 			fileList: [
 				file("dir-id", "archive", "archive"),
 				file("child-id", "archive/a.txt", "a.txt"),
@@ -385,15 +424,10 @@ describe("IframeFSService", () => {
 		)
 	})
 
-		it("deletes a project-scope file outside the app root after confirmation", async () => {
-			const deleteFn = vi.fn().mockResolvedValue(undefined)
-			const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
-			const { service } = createService({
-			appConfig: {
-				permissions: {
-					files: { scope: "project" },
-				},
-			},
+	it("deletes a project-scope file outside the app root after confirmation", async () => {
+		const deleteFn = vi.fn().mockResolvedValue(undefined)
+		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
+		const { service } = createService({
 			fileList: [file("root-id", "shared.txt", "shared.txt")],
 			deleteFn,
 			confirmProjectDeleteFn,
@@ -411,13 +445,8 @@ describe("IframeFSService", () => {
 		})
 	})
 
-	it("lists project-root files only when app manifest declares project file scope", async () => {
+	it("lists project-root files without app manifest file scope", async () => {
 		const { service, postToIframe } = createService({
-			appConfig: {
-				permissions: {
-					files: { scope: "project" },
-				},
-			},
 			fileList: [
 				file("root-id", "shared.txt", "shared.txt"),
 				file("archive-id", "archive", "archive"),
@@ -440,22 +469,17 @@ describe("IframeFSService", () => {
 		)
 	})
 
-		it("resolves project-root source and target directories for moveFile when project file scope is declared", async () => {
-			const moveFileFn = vi.fn().mockResolvedValue(undefined)
-			const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
-			const { service } = createService({
-				appConfig: {
-					permissions: {
-						files: { scope: "project" },
-				},
-			},
+	it("resolves project-root source and target directories for moveFile by default", async () => {
+		const moveFileFn = vi.fn().mockResolvedValue(undefined)
+		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
+		const { service } = createService({
 			fileList: [
 				file("root-id", "shared.txt", "shared.txt"),
-					file("archive-id", "archive", "archive"),
-				],
-				moveFileFn,
-				confirmProjectDeleteFn,
-			})
+				file("archive-id", "archive", "archive"),
+			],
+			moveFileFn,
+			confirmProjectDeleteFn,
+		})
 
 		await service.handleMessage(FS_MESSAGE_TYPES.MOVE_FILE_REQUEST, {
 			type: FS_MESSAGE_TYPES.MOVE_FILE_REQUEST,
@@ -464,144 +488,124 @@ describe("IframeFSService", () => {
 			targetDir: "/archive",
 		})
 
-			expect(moveFileFn).toHaveBeenCalledWith({
-				file_id: "root-id",
-				target_parent_id: "archive-id",
-				project_id: "project-1",
-			})
+		expect(moveFileFn).toHaveBeenCalledWith({
+			file_id: "root-id",
+			target_parent_id: "archive-id",
+			project_id: "project-1",
+		})
+	})
+
+	it("rejects project-scope destructive operations when server verification omits relative path", async () => {
+		const deleteFn = vi.fn().mockResolvedValue(undefined)
+		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
+		const verifyFileFn = vi.fn(async () => ({
+			file_name: "shared.txt",
+		}))
+		const { service, postToIframe } = createService({
+			fileList: [file("root-id", "shared.txt", "shared.txt")],
+			deleteFn,
+			confirmProjectDeleteFn,
+			verifyFileFn,
 		})
 
-		it("rejects project-scope destructive operations when server verification omits relative path", async () => {
-			const deleteFn = vi.fn().mockResolvedValue(undefined)
-			const confirmProjectDeleteFn = vi.fn().mockResolvedValue(true)
-			const verifyFileFn = vi.fn(async () => ({
-				file_name: "shared.txt",
-			}))
-			const { service, postToIframe } = createService({
-				appConfig: {
-					permissions: {
-						files: { scope: "project" },
-					},
-				},
-				fileList: [file("root-id", "shared.txt", "shared.txt")],
-				deleteFn,
-				confirmProjectDeleteFn,
-				verifyFileFn,
-			})
-
-			await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
-				type: FS_MESSAGE_TYPES.DELETE_FILE_REQUEST,
-				requestId: "req-delete-file-name-only",
-				path: "/shared.txt",
-			})
-
-			expect(confirmProjectDeleteFn).not.toHaveBeenCalled()
-			expect(deleteFn).not.toHaveBeenCalled()
-			expect(postToIframe).toHaveBeenCalledWith(
-				expect.objectContaining({ requestId: "req-delete-file-name-only", success: false }),
-			)
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
+			type: FS_MESSAGE_TYPES.DELETE_FILE_REQUEST,
+			requestId: "req-delete-file-name-only",
+			path: "/shared.txt",
 		})
 
-		it("rejects destructive operations when server verification returns no canonical path", async () => {
-			const deleteFn = vi.fn().mockResolvedValue(undefined)
-			const verifyFileFn = vi.fn(async () => ({
-				file_name: "other.txt",
-			}))
-			const { service, postToIframe } = createService({
-				fileList: [file("file-id", "app/data.txt", "data.txt")],
-				deleteFn,
-				verifyFileFn,
-			})
+		expect(confirmProjectDeleteFn).not.toHaveBeenCalled()
+		expect(deleteFn).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "req-delete-file-name-only", success: false }),
+		)
+	})
 
-			await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
-				type: FS_MESSAGE_TYPES.DELETE_FILE_REQUEST,
-				requestId: "req-delete-file-name-mismatch",
-				path: "./data.txt",
-			})
-
-			expect(deleteFn).not.toHaveBeenCalled()
-			expect(postToIframe).toHaveBeenCalledWith(
-				expect.objectContaining({ requestId: "req-delete-file-name-mismatch", success: false }),
-			)
+	it("rejects destructive operations when server verification returns no canonical path", async () => {
+		const deleteFn = vi.fn().mockResolvedValue(undefined)
+		const verifyFileFn = vi.fn(async () => ({
+			file_name: "other.txt",
+		}))
+		const { service, postToIframe } = createService({
+			fileList: [file("file-id", "app/data.txt", "data.txt")],
+			deleteFn,
+			verifyFileFn,
 		})
 
-		it("requires confirmation before moving a project-scope file outside the app root", async () => {
-			const moveFileFn = vi.fn().mockResolvedValue(undefined)
-			const confirmProjectDeleteFn = vi.fn().mockResolvedValue(false)
-			const { service, postToIframe } = createService({
-				appConfig: {
-					permissions: {
-						files: { scope: "project" },
-					},
-				},
-				fileList: [
-					file("root-id", "shared.txt", "shared.txt"),
-					file("archive-id", "archive", "archive"),
-				],
-				moveFileFn,
-				confirmProjectDeleteFn,
-			})
-
-			await service.handleMessage(FS_MESSAGE_TYPES.MOVE_FILE_REQUEST, {
-				type: FS_MESSAGE_TYPES.MOVE_FILE_REQUEST,
-				requestId: "req-confirm-project-move",
-				path: "/shared.txt",
-				targetDir: "/archive",
-			})
-
-			expect(confirmProjectDeleteFn).toHaveBeenCalledWith({
-				path: "shared.txt",
-				isDirectory: false,
-				appRootDir: "app/",
-				operation: "move",
-			})
-			expect(moveFileFn).not.toHaveBeenCalled()
-			expect(postToIframe).toHaveBeenCalledWith(
-				expect.objectContaining({ requestId: "req-confirm-project-move", success: false }),
-			)
+		await service.handleMessage(FS_MESSAGE_TYPES.DELETE_FILE_REQUEST, {
+			type: FS_MESSAGE_TYPES.DELETE_FILE_REQUEST,
+			requestId: "req-delete-file-name-mismatch",
+			path: "./data.txt",
 		})
 
-		it("requires confirmation before renaming a project-scope file outside the app root", async () => {
-			const renameFileFn = vi.fn().mockResolvedValue(undefined)
-			const confirmProjectDeleteFn = vi.fn().mockResolvedValue(false)
-			const { service, postToIframe } = createService({
-				appConfig: {
-					permissions: {
-						files: { scope: "project" },
-					},
-				},
-				fileList: [file("root-id", "shared.txt", "shared.txt")],
-				renameFileFn,
-				confirmProjectDeleteFn,
-			})
+		expect(deleteFn).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "req-delete-file-name-mismatch", success: false }),
+		)
+	})
 
-			await service.handleMessage(FS_MESSAGE_TYPES.RENAME_FILE_REQUEST, {
-				type: FS_MESSAGE_TYPES.RENAME_FILE_REQUEST,
-				requestId: "req-confirm-project-rename",
-				path: "/shared.txt",
-				newName: "renamed.txt",
-			})
-
-			expect(confirmProjectDeleteFn).toHaveBeenCalledWith({
-				path: "shared.txt",
-				isDirectory: false,
-				appRootDir: "app/",
-				operation: "rename",
-			})
-			expect(renameFileFn).not.toHaveBeenCalled()
-			expect(postToIframe).toHaveBeenCalledWith(
-				expect.objectContaining({ requestId: "req-confirm-project-rename", success: false }),
-			)
+	it("requires confirmation before moving a project-scope file outside the app root", async () => {
+		const moveFileFn = vi.fn().mockResolvedValue(undefined)
+		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(false)
+		const { service, postToIframe } = createService({
+			fileList: [
+				file("root-id", "shared.txt", "shared.txt"),
+				file("archive-id", "archive", "archive"),
+			],
+			moveFileFn,
+			confirmProjectDeleteFn,
 		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.MOVE_FILE_REQUEST, {
+			type: FS_MESSAGE_TYPES.MOVE_FILE_REQUEST,
+			requestId: "req-confirm-project-move",
+			path: "/shared.txt",
+			targetDir: "/archive",
+		})
+
+		expect(confirmProjectDeleteFn).toHaveBeenCalledWith({
+			path: "shared.txt",
+			isDirectory: false,
+			appRootDir: "app/",
+			operation: "move",
+		})
+		expect(moveFileFn).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "req-confirm-project-move", success: false }),
+		)
+	})
+
+	it("requires confirmation before renaming a project-scope file outside the app root", async () => {
+		const renameFileFn = vi.fn().mockResolvedValue(undefined)
+		const confirmProjectDeleteFn = vi.fn().mockResolvedValue(false)
+		const { service, postToIframe } = createService({
+			fileList: [file("root-id", "shared.txt", "shared.txt")],
+			renameFileFn,
+			confirmProjectDeleteFn,
+		})
+
+		await service.handleMessage(FS_MESSAGE_TYPES.RENAME_FILE_REQUEST, {
+			type: FS_MESSAGE_TYPES.RENAME_FILE_REQUEST,
+			requestId: "req-confirm-project-rename",
+			path: "/shared.txt",
+			newName: "renamed.txt",
+		})
+
+		expect(confirmProjectDeleteFn).toHaveBeenCalledWith({
+			path: "shared.txt",
+			isDirectory: false,
+			appRootDir: "app/",
+			operation: "rename",
+		})
+		expect(renameFileFn).not.toHaveBeenCalled()
+		expect(postToIframe).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "req-confirm-project-rename", success: false }),
+		)
+	})
 
 	it("rejects project-scope paths that try to escape the project root", async () => {
 		const deleteFn = vi.fn().mockResolvedValue(undefined)
 		const { service, postToIframe } = createService({
-			appConfig: {
-				permissions: {
-					files: { scope: "project" },
-				},
-			},
 			fileList: [file("root-id", "shared.txt", "shared.txt")],
 			deleteFn,
 		})
@@ -728,5 +732,4 @@ describe("IframeFSService", () => {
 		expect(moveFileFn).not.toHaveBeenCalled()
 		expect(renameFileFn).not.toHaveBeenCalled()
 	})
-
 })

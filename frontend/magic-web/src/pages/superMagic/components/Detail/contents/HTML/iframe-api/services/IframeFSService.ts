@@ -94,7 +94,7 @@ export type ConfirmProjectDeleteFn = (params: {
 	path: string
 	isDirectory: boolean
 	appRootDir: string
-	operation?: "move" | "rename"
+	operation?: "write" | "move" | "rename"
 }) => Promise<boolean>
 
 export interface IframeFSConfig {
@@ -317,6 +317,7 @@ export class IframeFSService {
 		}
 
 		try {
+			await this.confirmProjectOperationIfNeeded(resolved, false, "write")
 			const existingFile = this.findFile(resolved)
 
 			if (existingFile) {
@@ -331,7 +332,7 @@ export class IframeFSService {
 
 				await this.cfg.uploadFn({
 					file,
-					path: resolved,
+					path: this.toUploadPath(resolved),
 					fileSize: blob.size,
 					parentId,
 				})
@@ -381,6 +382,7 @@ export class IframeFSService {
 		}
 
 		try {
+			await this.confirmProjectOperationIfNeeded(resolved, false, "write")
 			const existingFile = this.findFile(resolved)
 
 			if (existingFile) {
@@ -397,7 +399,7 @@ export class IframeFSService {
 
 				await this.cfg.uploadFn({
 					file,
-					path: resolved,
+					path: this.toUploadPath(resolved),
 					fileSize: blob.size,
 					parentId,
 				})
@@ -654,7 +656,11 @@ export class IframeFSService {
 			}
 
 			this.assertInFileScope(targetDirItem)
-			const targetServerPath = await this.assertServerPath(targetDirItem, projectId, targetDirPath)
+			const targetServerPath = await this.assertServerPath(
+				targetDirItem,
+				projectId,
+				targetDirPath,
+			)
 			await this.confirmProjectOperationIfNeeded(
 				serverPath,
 				item.is_directory ?? false,
@@ -724,7 +730,11 @@ export class IframeFSService {
 			this.assertInFileScope(item)
 			const projectId = this.requireProjectId()
 			const serverPath = await this.assertServerPath(item, projectId, resolved)
-			await this.confirmProjectOperationIfNeeded(serverPath, item.is_directory ?? false, "rename")
+			await this.confirmProjectOperationIfNeeded(
+				serverPath,
+				item.is_directory ?? false,
+				"rename",
+			)
 			await this.cfg.renameFileFn({ file_id: item.file_id, target_name: newName })
 			const lastSlash = resolved.lastIndexOf("/")
 			const parentDir = lastSlash >= 0 ? resolved.slice(0, lastSlash + 1) : ""
@@ -816,7 +826,7 @@ export class IframeFSService {
 	/**
 	 * 将 iframe 传入的路径解析为 workspace 相对路径。
 	 * - 默认相对应用根目录
-	 * - appConfig.permissions.files.scope === "project" 时，允许以 / 开头访问项目根路径
+	 * - 以 / 开头时访问项目根路径
 	 * - 禁止 `..` 穿越
 	 */
 	private resolvePath(path: string): string | null {
@@ -883,13 +893,15 @@ export class IframeFSService {
 	}
 
 	private hasProjectFileScope(): boolean {
-		return this.cfg.appConfig?.permissions?.files?.scope === "project"
+		return true
 	}
 
 	private isPathInAppRoot(path: string): boolean {
 		const itemPath = this.canonicalWorkspacePath(path)
 		const appRoot = this.normalizeWorkspacePath(this.appRootDir)
-		return !!itemPath && (!appRoot || itemPath === appRoot || itemPath.startsWith(`${appRoot}/`))
+		return (
+			!!itemPath && (!appRoot || itemPath === appRoot || itemPath.startsWith(`${appRoot}/`))
+		)
 	}
 
 	private assertInFileScope(item: FSFileItem) {
@@ -944,7 +956,7 @@ export class IframeFSService {
 	private async confirmProjectOperationIfNeeded(
 		path: string,
 		isDirectory: boolean,
-		operation?: "move" | "rename",
+		operation?: "write" | "move" | "rename",
 		extraPaths: string[] = [],
 	) {
 		if (!this.hasProjectFileScope()) return
@@ -963,6 +975,10 @@ export class IframeFSService {
 		if (!confirmed) throw new Error("File operation cancelled")
 	}
 
+	private toUploadPath(resolvedPath: string): string {
+		return this.isPathInAppRoot(resolvedPath) ? resolvedPath : `/${resolvedPath}`
+	}
+
 	private requireProjectId(): string {
 		const projectId = this.cfg.projectId?.trim()
 		if (!projectId) {
@@ -972,7 +988,12 @@ export class IframeFSService {
 	}
 
 	private isSingleFileName(name: string): boolean {
-		return name.trim().length > 0 && !/[\/\\]/.test(name) && !name.includes("..") && !/[\x00-\x1F\x7F]/.test(name)
+		return (
+			name.trim().length > 0 &&
+			!/[\/\\]/.test(name) &&
+			!name.includes("..") &&
+			!/[\x00-\x1F\x7F]/.test(name)
+		)
 	}
 
 	private updateLocalPaths(oldPath: string, newPath: string) {

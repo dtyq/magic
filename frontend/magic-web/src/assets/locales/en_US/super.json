@@ -776,11 +776,6 @@
 		"uploadFailedPrefix": "Upload failed: ",
 		"uploadedAttachments": "Uploaded Attachments ({{count}})"
 	},
-	"htmlEditor": {
-		"dropOverlay": {
-			"hint": "Release to insert image"
-		}
-	},
 	"fileViewer": {
 		"addNewSlide": "New Slide",
 		"addNewSlideTooltip": "Insert new slide below current page",
@@ -1123,6 +1118,27 @@
 		"workspaceNameRequired": "Workspace name cannot be empty",
 		"workspaceProjects": "Workspace Projects",
 		"workspaceRename": "Rename Workspace"
+	},
+	"htmlEditor": {
+		"dropOverlay": {
+			"hint": "Release to insert image"
+		},
+		"projectFileOperationConfirm": {
+			"cancel": "Cancel",
+			"content": "The HTML micro-app wants to {{operation}} a {{targetType}} outside the app directory: {{path}}. App directory: {{appRootDir}}.",
+			"operations": {
+				"delete": "Delete",
+				"move": "Move",
+				"rename": "Rename",
+				"write": "Modify"
+			},
+			"projectRoot": "project root",
+			"targetTypes": {
+				"directory": "directory",
+				"file": "file"
+			},
+			"title": "Confirm Project File {{operation}}"
+		}
 	},
 	"messageEditor": {
 		"addAttachment": "Add Attachment",
@@ -1680,6 +1696,9 @@
 			"toSummarize": "to summarize",
 			"useModel": "Use"
 		},
+		"chunkProduction": {
+			"failed": "Recording error: No audio data detected"
+		},
 		"debugPanel": {
 			"apply": "Apply",
 			"applyHint": "Only affects upcoming chunks",
@@ -1843,9 +1862,6 @@
 				"takeNotes": "Take Notes"
 			},
 			"title": "Recording"
-		},
-		"chunkProduction": {
-			"failed": "Recording error: No audio data detected"
 		},
 		"network": {
 			"max_retries_reached": "Some audio chunks failed to upload. Please check your network connection and retry",
@@ -2891,10 +2907,10 @@
 	},
 	"topicFiles": {
 		"AIOptimization": "AI Edit",
-		"aiPick": "AI Pick",
-		"aiPickTooltip": "Click to select a page element and let AI modify it",
 		"addFile": "Add File",
 		"addFolder": "Add Folder",
+		"aiPick": "AI Pick",
+		"aiPickTooltip": "Click to select a page element and let AI modify it",
 		"batchExportingPdf": "Batch Exporting PDF...",
 		"batchExportingPpt": "Batch Exporting PPT...",
 		"batchOperation": "Batch Operation",
@@ -3231,9 +3247,6 @@
 		"consumptionPoints": "Used {{points}} points this round",
 		"consumptionPoints1": "This round used",
 		"consumptionPoints2": "points",
-		"usedModel": "Model：",
-		"usedImageModel": "Image Model: ",
-		"usedVideoModel": "Video Model: ",
 		"copyTopic": "Create a new topic from here",
 		"deleteProjectConfirm": "Are you sure to delete project: \"{{name}}\"?",
 		"deleteTopicConfirm": "Are you sure to delete topic: \"{{name}}\"?",
@@ -3301,7 +3314,10 @@
 			"contextUsageDescription": "Conversation memory usage. When the progress bar is full, AI may forget earlier content.",
 			"highContextWarning": "High context length may significantly increase the cost per response",
 			"tokenCount": "{{used}} / {{max}} Tokens"
-		}
+		},
+		"usedImageModel": "Image Model: ",
+		"usedModel": "Model：",
+		"usedVideoModel": "Video Model: "
 	},
 	"uploadModal": {
 		"addUploadFiles": "Add Files",

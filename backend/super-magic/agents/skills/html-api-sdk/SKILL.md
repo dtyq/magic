@@ -15,7 +15,7 @@ description: "Complete API reference for window.Magic.* in SuperMagic HTML micro
 ## Important Constraints
 
 1. All `window.Magic.*` APIs are **pre-injected** — no imports needed. External CDN allowed.
-2. File paths are relative to **app root** (`index.html` dir) by default. `../` is forbidden. To access project-root files, declare `app.json.permissions.files.scope = "project"` and use leading-slash paths such as `"/shared/data.json"`.
+2. File paths are relative to **app root** (`index.html` dir) by default. `../` is forbidden. Use leading-slash paths such as `"/shared/data.json"` to access project-root files. Writing, deleting, moving, or renaming files outside the app root triggers host confirmation.
 3. `window.Magic.llm` tokens hosted; no `api_key` in HTML.
 4. **No inline event handlers** — use `addEventListener`.
 5. **LLM calls must include model selector UI** unless user specifies model. Default `"auto"`.
@@ -30,9 +30,7 @@ description: "Complete API reference for window.Magic.* in SuperMagic HTML micro
      "entry": "index.html",
      "files": {},
      "watch": [],
-    "permissions": {
-      "files": {"scope": "app"}
-    }
+     "permissions": {}
    }
    ```
 
@@ -64,31 +62,18 @@ await window.Magic.fs.writeFile("data/large.bin", blob);
 
 > ⚠️ Paths relative to `index.html` dir, NOT workspace root.
 
-### File Scope (`app.json.permissions.files.scope`)
+### File Paths and Project-Root Access
 
-Default scope is `"app"`: all `window.Magic.fs.*` paths resolve inside the app folder next to `index.html`.
-
-Use `"project"` only when the app genuinely needs project-root files outside its own folder:
-
-```json
-{
-  "name": "Project File Manager",
-  "entry": "index.html",
-  "permissions": {
-    "files": {
-      "scope": "project"
-    }
-  }
-}
-```
+By default, relative `window.Magic.fs.*` paths resolve inside the app folder next to `index.html`. Use a leading slash for project-root paths. Do not add a file-scope permission block to `app.json`; file access scope is controlled by path syntax and host confirmation for writes outside the app root.
 
 Path rules:
 
 - `"data/config.json"` -> app root, e.g. `my-app/data/config.json`.
-- `"/shared/config.json"` -> project root, only when `scope` is `"project"`.
-- `"/"` lists project-root entries when project scope is declared.
+- `"/shared/config.json"` -> project root.
+- `"/"` lists project-root entries.
 - `../` remains blocked in all scopes.
-- Deleting, moving, or renaming files outside the app root triggers host confirmation and may be rejected by the user.
+- Writing, deleting, moving, or renaming files outside the app root triggers host confirmation and may be rejected by the user.
+- Reading and listing project-root files do not require an `app.json` file-scope declaration.
 
 ### `listFiles(dir?)` → `Promise<string[]>`
 
@@ -157,7 +142,7 @@ const basePath = await window.Magic.getAppBasePath();
 // "个人财务记账/" or "" (workspace root)
 ```
 
-- `fs.*` paths → relative to app root by default: `"data/file.json"`; project-root paths require `permissions.files.scope = "project"` and a leading slash.
+- `fs.*` paths → relative to app root by default: `"data/file.json"`; project-root paths use a leading slash such as `"/shared/file.json"`.
 - `@file` mention `file_path` → prefix: `basePath + "data/file.json"`
 - `.magic/` paths → use as-is (already workspace root)
 

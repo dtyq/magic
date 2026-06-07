@@ -667,13 +667,26 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			confirmProjectDeleteFn: useMemoizedFn(
 				({ path, isDirectory, appRootDir, operation }) =>
 					new Promise<boolean>((resolve) => {
-						const operationText =
-							operation === "move" ? "移动" : operation === "rename" ? "重命名" : "删除"
+						const operationText = t(
+							`htmlEditor.projectFileOperationConfirm.operations.${operation || "delete"}`,
+						)
+						const targetTypeText = t(
+							`htmlEditor.projectFileOperationConfirm.targetTypes.${isDirectory ? "directory" : "file"}`,
+						)
+						const displayAppRootDir =
+							appRootDir || t("htmlEditor.projectFileOperationConfirm.projectRoot")
 						const modal = MagicModal.confirm({
-							title: `确认${operationText}项目文件`,
-							content: `HTML 微应用请求${operationText}应用目录外的${isDirectory ? "目录" : "文件"}：${path}。应用目录：${appRootDir || "项目根目录"}。`,
+							title: t("htmlEditor.projectFileOperationConfirm.title", {
+								operation: operationText,
+							}),
+							content: t("htmlEditor.projectFileOperationConfirm.content", {
+								operation: operationText,
+								targetType: targetTypeText,
+								path,
+								appRootDir: displayAppRootDir,
+							}),
 							okText: operationText,
-							cancelText: "取消",
+							cancelText: t("htmlEditor.projectFileOperationConfirm.cancel"),
 							closable: false,
 							maskClosable: false,
 							centered: true,

@@ -777,11 +777,6 @@
 		"uploadFailedPrefix": "上传失败: ",
 		"uploadedAttachments": "已上传附件 ({{count}})"
 	},
-	"htmlEditor": {
-		"dropOverlay": {
-			"hint": "释放以插入图片"
-		}
-	},
 	"fileViewer": {
 		"addNewSlide": "新建幻灯片",
 		"addNewSlideTooltip": "在当前页面下方插入新幻灯片",
@@ -1124,6 +1119,27 @@
 		"workspaceNameRequired": "工作区名称不能为空",
 		"workspaceProjects": "工作区项目",
 		"workspaceRename": "工作区重命名"
+	},
+	"htmlEditor": {
+		"dropOverlay": {
+			"hint": "释放以插入图片"
+		},
+		"projectFileOperationConfirm": {
+			"cancel": "取消",
+			"content": "HTML 微应用请求{{operation}}应用目录外的{{targetType}}：{{path}}。应用目录：{{appRootDir}}。",
+			"operations": {
+				"delete": "删除",
+				"move": "移动",
+				"rename": "重命名",
+				"write": "修改"
+			},
+			"projectRoot": "项目根目录",
+			"targetTypes": {
+				"directory": "目录",
+				"file": "文件"
+			},
+			"title": "确认{{operation}}项目文件"
+		}
 	},
 	"messageEditor": {
 		"addAttachment": "添加附件",
@@ -1682,6 +1698,9 @@
 			"toSummarize": "进行总结",
 			"useModel": "使用"
 		},
+		"chunkProduction": {
+			"failed": "录音异常：未检测到音频数据，请停止并重新开始"
+		},
 		"debugPanel": {
 			"apply": "应用",
 			"applyHint": "仅影响后续录音分片",
@@ -1845,9 +1864,6 @@
 				"takeNotes": "写笔记"
 			},
 			"title": "录音总结"
-		},
-		"chunkProduction": {
-			"failed": "录音异常：未检测到音频数据，请停止并重新开始"
 		},
 		"network": {
 			"max_retries_reached": "部分音频分片上传失败，请检查网络连接",
@@ -2904,10 +2920,10 @@
 	},
 	"topicFiles": {
 		"AIOptimization": "AI 编辑",
-		"aiPick": "AI 选取",
-		"aiPickTooltip": "点击后选取页面元素，让 AI 对其进行修改",
 		"addFile": "添加文件",
 		"addFolder": "添加文件夹",
+		"aiPick": "AI 选取",
+		"aiPickTooltip": "点击后选取页面元素，让 AI 对其进行修改",
 		"batchExportingPdf": "批量导出 PDF 中",
 		"batchExportingPpt": "批量导出 PPT 中",
 		"batchOperation": "批量操作",
@@ -3243,9 +3259,6 @@
 		"consumptionPoints": "本轮使用 {{points}} 积分",
 		"consumptionPoints1": "本轮使用",
 		"consumptionPoints2": "积分",
-		"usedModel": "使用模型：",
-		"usedImageModel": "图像模型：",
-		"usedVideoModel": "视频模型：",
 		"copyTopic": "从此处创建新话题",
 		"deleteProjectConfirm": "确定要删除项目: \"{{name}}\" 吗？",
 		"deleteTopicConfirm": "确定要删除话题: \"{{name}}\" 吗？",
@@ -3313,7 +3326,10 @@
 			"contextUsageDescription": "对话记忆用量。进度条满时，AI 可能会遗忘较早的内容。",
 			"highContextWarning": "较高的上下文长度可能会大幅增加每次响应的成本",
 			"tokenCount": "{{used}} / {{max}} Tokens"
-		}
+		},
+		"usedImageModel": "图像模型：",
+		"usedModel": "使用模型：",
+		"usedVideoModel": "视频模型："
 	},
 	"uploadModal": {
 		"addUploadFiles": "添加上传文件",
