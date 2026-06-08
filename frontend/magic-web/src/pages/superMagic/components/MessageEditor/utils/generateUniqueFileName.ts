@@ -46,7 +46,7 @@ export const generateNextFileName = (fileName: string, existingNames: string[]) 
 	// Ensure the generated name is unique
 	while (existingNames.includes(newFileName)) {
 		counter++
-		newFileName = `${baseName} (${counter})${extension}`
+		newFileName = `${baseName}(${counter})${extension}`
 	}
 
 	return newFileName
