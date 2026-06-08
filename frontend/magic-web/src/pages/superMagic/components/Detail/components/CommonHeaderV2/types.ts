@@ -32,6 +32,7 @@ export interface CurrentFileInfo {
 	source?: AttachmentSource
 	projectId?: string
 	projectName?: string
+    relativeFilePath?: string
 }
 
 export interface ActionContext {

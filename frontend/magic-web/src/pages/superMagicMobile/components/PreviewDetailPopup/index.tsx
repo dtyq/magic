@@ -269,6 +269,8 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 		const meta = attachmentList.find(
 			(item) => item?.file_id === correctedPreviewDetail?.currentFileId,
 		)
+
+		const previewFilePath = meta?.relative_file_path || ""
 		return (
 			<Render
 				type={correctedPreviewDetail?.type}
@@ -309,6 +311,7 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 					type:
 						(previewDetail?.data as { file_extension?: string })?.file_extension || "",
 					url: (previewDetail?.data as { file_url?: string })?.file_url || "",
+					relativeFilePath: previewFilePath,
 				}}
 				topicId={previewDetail?.topicId || selectedTopic?.id || ""}
 				openFileTab={openFileTab}
