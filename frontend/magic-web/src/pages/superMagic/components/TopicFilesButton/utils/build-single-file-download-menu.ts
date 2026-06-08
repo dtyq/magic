@@ -93,8 +93,7 @@ export function buildSingleFileDownloadMenu({
 				onClick: () => {
 					const appEntryFile = getAppEntryFile(item.children || [], item.display_config)
 					if (appEntryFile) handleDownloadPpt(appEntryFile)
-					else if (item.display_config?.type === "custom")
-						message.error(t("topicFiles.customMainFileNotFound"))
+					else message.error(t("topicFiles.entryFileNotFound"))
 				},
 			},
 			{
@@ -104,8 +103,7 @@ export function buildSingleFileDownloadMenu({
 					const children = item.children || []
 					const appEntryFile = getAppEntryFile(children, item.display_config)
 					if (appEntryFile) handleDownloadPptx(appEntryFile, children)
-					else if (item.display_config?.type === "custom")
-						message.error(t("topicFiles.customMainFileNotFound"))
+					else message.error(t("topicFiles.entryFileNotFound"))
 				},
 			},
 		]

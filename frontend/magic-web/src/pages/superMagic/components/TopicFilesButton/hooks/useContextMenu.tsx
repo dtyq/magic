@@ -615,6 +615,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 							hideCreateNewTopic ? menuItem.key !== "addToNewChat" : true,
 						)),
 				{ type: "divider" as const },
+				// Folder download menu: single source via buildSingleFileDownloadMenu (avoids duplicate entries)
 				...(() => {
 					const downloadMenuItems: MenuItem[] = []
 					appendDownloadContextMenuItems(
