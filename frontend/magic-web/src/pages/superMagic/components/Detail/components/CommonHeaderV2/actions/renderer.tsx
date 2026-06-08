@@ -25,6 +25,19 @@ function renderAction(
 	return renderBuiltinAction(action)
 }
 
+function renderMobileShareFileName(fileName: string) {
+	return (
+		<div
+			key="mobile-share-file-name"
+			className="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground"
+			data-testid="detail-header-mobile-share-file-name"
+			title={fileName}
+		>
+			{fileName}
+		</div>
+	)
+}
+
 export default function ActionRenderer(props: ActionRendererProps) {
 	const { actions, context, renderBuiltinAction, rightContainerRef, gap } = props
 
@@ -37,6 +50,8 @@ export default function ActionRenderer(props: ActionRendererProps) {
 	const rightActions = [...secondary, ...overflow, ...trailing]
 
 	const gapStyle = gap ? { gap } : undefined
+	const mobileShareFileName =
+		context.isMobile && context.isShareRoute ? context.currentFile?.name?.trim() : undefined
 
 	return (
 		<div
@@ -44,7 +59,10 @@ export default function ActionRenderer(props: ActionRendererProps) {
 			data-testid="detail-header-action-renderer"
 		>
 			<div
-				className="flex shrink-0 items-center gap-1"
+				className={cn(
+					"flex items-center gap-1",
+					mobileShareFileName ? "min-w-0 flex-1" : "shrink-0",
+				)}
 				style={gapStyle}
 				data-testid="detail-header-left-actions"
 			>
@@ -57,10 +75,11 @@ export default function ActionRenderer(props: ActionRendererProps) {
 						{renderAction(action, context, renderBuiltinAction)}
 					</div>
 				))}
+				{mobileShareFileName ? renderMobileShareFileName(mobileShareFileName) : null}
 			</div>
 			<div
 				ref={rightContainerRef}
-				className="ml-auto min-w-0 flex-1"
+				className={cn("ml-auto min-w-0", mobileShareFileName ? "shrink-0" : "flex-1")}
 				data-testid="detail-header-right-actions"
 			>
 				<div className="ml-auto flex w-max items-center gap-1" style={gapStyle}>
