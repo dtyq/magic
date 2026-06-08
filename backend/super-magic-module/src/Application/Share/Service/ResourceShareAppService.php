@@ -1950,6 +1950,8 @@ class ResourceShareAppService extends AbstractShareAppService
             }
         }
 
+        $allEntities = RelativeFilePathUtil::filterByValidParentChain($allEntities);
+
         return [$allEntities, $fileIds];
     }
 
@@ -2021,9 +2023,9 @@ class ResourceShareAppService extends AbstractShareAppService
     {
         // File 类型：resource_id 是文件集ID，需要通过文件集获取文件ID
         $collectionId = (int) $shareEntity->getResourceId();
-        $fileCollectionItems = $this->fileCollectionDomainService->getFilesByCollectionId($collectionId);
+        [$allEntities, $originalFileIds] = $this->getAllFileEntitiesFromFileCollection($collectionId);
 
-        if (empty($fileCollectionItems)) {
+        if (empty($allEntities) || empty($originalFileIds)) {
             return [
                 'list' => [],
                 'tree' => [],
@@ -2032,10 +2034,14 @@ class ResourceShareAppService extends AbstractShareAppService
         }
 
         // 单文件应该只有一个文件项
-        $fileId = (int) $fileCollectionItems[0]->getFileId();
-
-        // 获取文件实体
-        $fileEntity = $this->taskFileDomainService->getById($fileId);
+        $fileId = (int) $originalFileIds[0];
+        $fileEntity = null;
+        foreach ($allEntities as $entity) {
+            if ($entity->getFileId() === $fileId) {
+                $fileEntity = $entity;
+                break;
+            }
+        }
 
         if (! $fileEntity) {
             return [
