@@ -9,7 +9,8 @@ vi.mock("react-i18next", () => ({
 			const map: Record<string, string> = {
 				"workspace.deleteWorkspace": "删除工作区",
 				"workspace.unnamedWorkspace": "未命名工作区",
-				"ui.deleteWorkspaceDescriptionWithoutName": "将被永久删除，包含其中所有项目、话题和文件，此操作无法撤销。",
+				"ui.deleteWorkspaceDescriptionWithoutName":
+					"将移入回收站，其中所有项目、话题和文件也会一并移入。你可以在回收站中恢复或彻底删除。",
 				"common.cancel": "取消",
 				"common.confirm": "确认",
 			}

@@ -48,7 +48,7 @@ describe("MobileDeleteConfirmPopup", () => {
 				onClose={vi.fn()}
 				title="删除项目"
 				entityName="Demo Project"
-				descriptionSuffix="将被永久删除，此操作无法撤销。"
+				descriptionSuffix="将移入回收站。你可以在回收站中恢复或彻底删除。"
 				onConfirm={vi.fn()}
 				cancelAriaLabel="取消"
 				confirmAriaLabel="确认"
@@ -57,7 +57,7 @@ describe("MobileDeleteConfirmPopup", () => {
 
 		const message = screen.getByTestId("mobile-delete-confirm-message")
 		expect(message).toHaveTextContent("Demo Project")
-		expect(message).toHaveTextContent("将被永久删除，此操作无法撤销。")
+		expect(message).toHaveTextContent("将移入回收站。你可以在回收站中恢复或彻底删除。")
 		expect(screen.getByText("删除项目")).toBeInTheDocument()
 	})
 
@@ -69,7 +69,7 @@ describe("MobileDeleteConfirmPopup", () => {
 				onClose={onClose}
 				title="删除工作区"
 				entityName="My Workspace"
-				descriptionSuffix="将被永久删除。"
+				descriptionSuffix="将移入回收站，其中所有项目、话题和文件也会一并移入。你可以在回收站中恢复或彻底删除。"
 				onConfirm={vi.fn()}
 				cancelAriaLabel="取消"
 				confirmAriaLabel="确认"
