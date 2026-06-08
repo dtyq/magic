@@ -319,6 +319,7 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 		})
 	}
 
+	const absolutePickerContainerRef = useRef<HTMLDivElement>(null)
 	const panelContent = (
 		<div className={styles.panel}>
 			<MagicTabs
@@ -499,11 +500,19 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 						label: locale.absolute,
 						children: (
 							<div className={styles.tabPane}>
-								<div className={styles.absoluteCard}>
+								<div
+									ref={absolutePickerContainerRef}
+									className={styles.absolutePickerEmbed}
+								>
 									<RangePicker
 										className={styles.absoluteRangePicker}
 										allowClear={false}
-										showTime
+										open={activeTab === TimeFilterTab.absolute}
+										getPopupContainer={() =>
+											absolutePickerContainerRef.current || document.body
+										}
+										needConfirm={false}
+										popupClassName={styles.absolutePickerDropdown}
 										value={absoluteRange}
 										format={DATE_TIME_FORMAT}
 										presets={absolutePresets}
@@ -516,17 +525,17 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 											)
 										}
 									/>
+								</div>
 
-									<div className={styles.footer}>
-										<MagicButton
-											className={styles.confirmButton}
-											type="primary"
-											disabled={!absoluteRange[0] || !absoluteRange[1]}
-											onClick={handleAbsoluteApply}
-										>
-											{locale.confirm}
-										</MagicButton>
-									</div>
+								<div className={styles.footer}>
+									<MagicButton
+										className={styles.confirmButton}
+										type="primary"
+										disabled={!absoluteRange[0] || !absoluteRange[1]}
+										onClick={handleAbsoluteApply}
+									>
+										{locale.confirm}
+									</MagicButton>
 								</div>
 							</div>
 						),

@@ -236,24 +236,44 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => ({
 	customSelect: css`
 		width: 100%;
 	`,
-	absoluteCard: css`
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		padding: 0;
-		border-radius: 0;
-		border: none;
-		background: transparent;
+	absolutePickerEmbed: css`
 		position: relative;
+		width: 100%;
+		min-height: 360px;
+		overflow-x: auto;
 	`,
 	absoluteRangePicker: css`
 		width: 100%;
 
 		.${prefixCls}-picker {
-			border-radius: 10px;
-			padding: 8px 10px;
-			background: #fafcff;
-			border-color: ${token.magicColorScales.grey[3]};
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			padding: 0;
+			margin: -1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+			white-space: nowrap;
+			border: 0;
+		}
+	`,
+	absolutePickerDropdown: css`
+		&& {
+			position: static !important;
+			inset: auto !important;
+			top: auto !important;
+			left: auto !important;
+			transform: none !important;
+			padding: 10px 0 0 0;
+			--${prefixCls}-date-picker-presets-width: 80px;
+		}
+
+		.${prefixCls}-picker-range-arrow {
+			display: none !important;
+		}
+
+		.${prefixCls}-picker-panel-container {
+			box-shadow: none;
 		}
 	`,
 	confirmButton: css`
