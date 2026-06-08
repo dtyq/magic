@@ -58,13 +58,13 @@ describe("mobileDocumentTheme", () => {
 		expect(document.querySelectorAll('meta[name="theme-color"]').length).toBe(2)
 	})
 
-	it("applyMobileDocumentTheme writes meta content and document backgrounds", () => {
+	it("applyMobileDocumentTheme writes meta content and literal hex document backgrounds", () => {
 		applyMobileDocumentTheme({ isSidebarOpen: true, colorScheme: "light" })
 
 		const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])')
 		expect(meta?.getAttribute("content")).toBe("#f5f5f5")
-		expect(document.documentElement.style.background).toBe("rgb(var(--mobile-shell-track-rgb))")
-		expect(document.body.style.background).toBe("rgb(var(--mobile-shell-track-rgb))")
+		expect(document.documentElement.style.backgroundColor).toBe("rgb(245, 245, 245)")
+		expect(document.body.style.backgroundColor).toBe("rgb(245, 245, 245)")
 	})
 
 	it("maps sidebar state to GlobalSafeArea shell track background", () => {

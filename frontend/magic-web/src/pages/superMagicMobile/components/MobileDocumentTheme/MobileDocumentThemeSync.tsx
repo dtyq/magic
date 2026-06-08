@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useLayoutEffect } from "react"
 import { useTheme } from "@/models/config/hooks"
 import { applyMobileDocumentTheme } from "@/pages/superMagicMobile/utils/mobileDocumentTheme"
 
@@ -11,7 +11,7 @@ export function MobileDocumentThemeSync() {
 	const { prefersColorScheme } = useTheme()
 	const { isSidebarOpen } = useMobileDocumentThemeState()
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		applyMobileDocumentTheme({
 			isSidebarOpen,
 			colorScheme: prefersColorScheme,

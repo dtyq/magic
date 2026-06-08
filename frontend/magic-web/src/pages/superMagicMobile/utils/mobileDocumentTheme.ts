@@ -66,15 +66,16 @@ export function ensureThemeColorMeta(): HTMLMetaElement {
 
 /**
  * Sync meta theme-color and html/body background for mobile chrome / viewport-fit gaps.
+ * html/body use the same hex as theme-color so iOS Safari can sample a literal color
+ * (CSS variables in inline styles are unreliable for status-bar / chrome tinting).
  */
 export function applyMobileDocumentTheme(options: MobileDocumentThemeOptions): void {
 	const themeMeta = ensureThemeColorMeta()
 	const hex = getMobileDocumentThemeHex(options)
-	const background = getMobileDocumentBackgroundCss(options.isSidebarOpen)
 
 	themeMeta.setAttribute("content", hex)
-	document.documentElement.style.background = background
-	document.body.style.background = background
+	document.documentElement.style.backgroundColor = hex
+	document.body.style.backgroundColor = hex
 }
 
 interface MobileGlobalSafeAreaStyle {

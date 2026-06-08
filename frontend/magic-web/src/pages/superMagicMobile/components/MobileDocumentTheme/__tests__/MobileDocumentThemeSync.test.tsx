@@ -50,7 +50,7 @@ describe("MobileDocumentThemeSync", () => {
 
 		let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])')
 		expect(meta?.getAttribute("content")).toBe("#fafafa")
-		expect(document.documentElement.style.background).toBe("rgb(var(--mobile-background-rgb))")
+		expect(document.documentElement.style.backgroundColor).toBe("rgb(250, 250, 250)")
 
 		rerender(
 			<MobileDocumentThemeProvider>
@@ -60,6 +60,6 @@ describe("MobileDocumentThemeSync", () => {
 
 		meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])')
 		expect(meta?.getAttribute("content")).toBe("#f5f5f5")
-		expect(document.documentElement.style.background).toBe("rgb(var(--mobile-shell-track-rgb))")
+		expect(document.documentElement.style.backgroundColor).toBe("rgb(245, 245, 245)")
 	})
 })
