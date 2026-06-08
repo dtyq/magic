@@ -101,9 +101,10 @@ function AudioRecordingDetailPage() {
 						})
 
 				if (!previewResult.target) {
+					const expectsRawAudio =
+						routeCardStatus === "not_summarized" || routeCardStatus === "summarizing"
 					setPreviewMissingKind(
-						previewResult.missingKind ??
-							(routeCardStatus === "not_summarized" ? "raw-audio" : "html-entry"),
+						previewResult.missingKind ?? (expectsRawAudio ? "raw-audio" : "html-entry"),
 					)
 					return
 				}
@@ -140,6 +141,7 @@ function AudioRecordingDetailPage() {
 	const isRawAudioPreviewMode =
 		previewKind === "raw-audio" ||
 		routeCardStatus === "not_summarized" ||
+		routeCardStatus === "summarizing" ||
 		previewMissingKind === "raw-audio"
 
 	function handleBack() {

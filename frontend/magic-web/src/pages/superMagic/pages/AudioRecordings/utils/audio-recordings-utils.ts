@@ -85,11 +85,17 @@ export function isAudioProjectDetailReady(item: AudioProjectListItem): boolean {
 	return item.card_status === "summarized"
 }
 
-/** Whether the card can open a preview: HTML summary or raw audio for not-yet-summarized items */
+/** Whether the card can open raw audio playback while summary is pending or in progress */
+export function canPreviewRawAudioRecording(item: AudioProjectListItem): boolean {
+	const hasAudioFileId = Boolean(item.audio_file_id?.trim())
+	if (!hasAudioFileId) return false
+	return item.card_status === "not_summarized" || item.card_status === "summarizing"
+}
+
+/** Whether the card can open a preview: HTML summary, or raw audio before summary completes */
 export function isAudioProjectPreviewReady(item: AudioProjectListItem): boolean {
 	if (item.card_status === "summarized") return true
-	if (item.card_status === "not_summarized" && item.audio_file_id?.trim()) return true
-	return false
+	return canPreviewRawAudioRecording(item)
 }
 
 /** Parses API created_at / create_timestamp (unix seconds) into a numeric timestamp */

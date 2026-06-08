@@ -63,7 +63,7 @@ describe("isAudioProjectPreviewReady", () => {
 		).toBe(false)
 	})
 
-	it("blocks summarizing items", () => {
+	it("blocks summarizing items without audio_file_id", () => {
 		expect(
 			isAudioProjectPreviewReady(
 				createItem({
@@ -72,6 +72,18 @@ describe("isAudioProjectPreviewReady", () => {
 				}),
 			),
 		).toBe(false)
+	})
+
+	it("allows summarizing items with audio_file_id for raw audio preview", () => {
+		expect(
+			isAudioProjectPreviewReady(
+				createItem({
+					card_status: "summarizing",
+					is_summarized: false,
+					audio_file_id: MOCK_AUDIO_FILE_ID,
+				}),
+			),
+		).toBe(true)
 	})
 })
 

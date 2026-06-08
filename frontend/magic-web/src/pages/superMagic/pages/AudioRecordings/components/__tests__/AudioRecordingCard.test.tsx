@@ -140,6 +140,26 @@ describe("AudioRecordingCard", () => {
 		).not.toBeInTheDocument()
 	})
 
+	it("opens raw audio preview for summarizing items with audio_file_id", () => {
+		const onOpen = vi.fn()
+		render(
+			<AudioRecordingCard
+				item={createItem({
+					card_status: "summarizing",
+					is_summarized: false,
+					audio_file_id: "mock-audio-file-001",
+					current_phase: "summarizing",
+					phase_status: "in_progress",
+					project_status: "",
+				})}
+				onOpen={onOpen}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("audio-recording-card-project-1"))
+		expect(onOpen).toHaveBeenCalledTimes(1)
+	})
+
 	it("shows retry summary button when summarizing failed", () => {
 		const onSummarize = vi.fn()
 		render(

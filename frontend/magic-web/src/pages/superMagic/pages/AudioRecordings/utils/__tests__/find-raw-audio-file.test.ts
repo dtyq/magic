@@ -17,7 +17,12 @@ describe("findRawAudioFile", () => {
 
 	it("falls back to the first visible audio extension when preferred id is missing", () => {
 		const list = [
-			{ file_id: "hidden-audio", file_name: "hidden.mp3", file_extension: "mp3", is_hidden: true },
+			{
+				file_id: "hidden-audio",
+				file_name: "hidden.mp3",
+				file_extension: "mp3",
+				is_hidden: true,
+			},
 			{ file_id: MOCK_AUDIO_FILE_ID, file_name: "recording.m4a", file_extension: "m4a" },
 		]
 
@@ -32,5 +37,43 @@ describe("findRawAudioFile", () => {
 		]
 
 		expect(findRawAudioFile(list)).toBeNull()
+	})
+
+	it("falls back when preferred id points to a hidden audio file", () => {
+		const list = [
+			{
+				file_id: MOCK_AUDIO_FILE_ID,
+				file_name: "hidden.mp3",
+				file_extension: "mp3",
+				is_hidden: 1,
+			},
+			{ file_id: MOCK_AUDIO_FILE_ID_ALT, file_name: "visible.m4a", file_extension: "m4a" },
+		]
+
+		const file = findRawAudioFile(list, MOCK_AUDIO_FILE_ID)
+		expect(file?.file_id).toBe(MOCK_AUDIO_FILE_ID_ALT)
+	})
+
+	it("falls back when preferred id points to a non-audio file", () => {
+		const list = [
+			{ file_id: MOCK_AUDIO_FILE_ID, file_name: "note.md", file_extension: "md" },
+			{ file_id: MOCK_AUDIO_FILE_ID_ALT, file_name: "recording.wav", file_extension: "wav" },
+		]
+
+		const file = findRawAudioFile(list, MOCK_AUDIO_FILE_ID)
+		expect(file?.file_id).toBe(MOCK_AUDIO_FILE_ID_ALT)
+	})
+
+	it("returns null when preferred id is only a hidden or non-audio match", () => {
+		const list = [
+			{
+				file_id: MOCK_AUDIO_FILE_ID,
+				file_name: "hidden.mp3",
+				file_extension: "mp3",
+				is_hidden: true,
+			},
+		]
+
+		expect(findRawAudioFile(list, MOCK_AUDIO_FILE_ID)).toBeNull()
 	})
 })

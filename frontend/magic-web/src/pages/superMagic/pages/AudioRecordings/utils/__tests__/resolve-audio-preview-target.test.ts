@@ -43,7 +43,23 @@ describe("resolveAudioPreviewTarget", () => {
 		expect(target?.file.file_id).toBe(MOCK_AUDIO_FILE_ID)
 	})
 
-	it("returns null for summarizing items", () => {
+	it("returns raw audio for summarizing items with audio_file_id", () => {
+		const list = [
+			{ file_id: MOCK_AUDIO_FILE_ID, file_name: "recording.mp3", file_extension: "mp3" },
+		]
+
+		const target = resolveAudioPreviewTarget({
+			cardStatus: "summarizing",
+			audioFileId: MOCK_AUDIO_FILE_ID,
+			tree: [],
+			list,
+		})
+
+		expect(target?.kind).toBe("raw-audio")
+		expect(target?.file.file_id).toBe(MOCK_AUDIO_FILE_ID)
+	})
+
+	it("returns null for summarizing items without audio_file_id", () => {
 		const target = resolveAudioPreviewTarget({
 			cardStatus: "summarizing",
 			tree: [],
@@ -78,5 +94,21 @@ describe("resolveAudioPreviewTargetWithFallback", () => {
 
 		expect(result.target).toBeNull()
 		expect(result.missingKind).toBe("raw-audio")
+	})
+
+	it("returns raw audio for summarizing without trying html entry first", () => {
+		const list = [
+			{ file_id: MOCK_AUDIO_FILE_ID, file_name: "recording.mp3", file_extension: "mp3" },
+		]
+
+		const result = resolveAudioPreviewTargetWithFallback({
+			cardStatus: "summarizing",
+			audioFileId: MOCK_AUDIO_FILE_ID,
+			tree: [],
+			list,
+		})
+
+		expect(result.target?.kind).toBe("raw-audio")
+		expect(result.missingKind).toBeNull()
 	})
 })

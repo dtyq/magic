@@ -6,9 +6,10 @@ const RAW_AUDIO_EXTENSIONS = new Set(["mp3", "wav", "ogg", "m4a", "aac", "flac"]
 /** Returns true when the attachment node is a visible, playable audio file */
 function isPlayableRawAudioFile(item: AudioAttachmentNode): boolean {
 	if (item.is_directory) return false
-	if (item.is_hidden === true || item.hidden === true) return false
+	// API may return is_hidden as boolean or 0|1; align with attachment tree filters elsewhere.
+	if (item.is_hidden || item.hidden) return false
 
-	const extension = (item.file_extension ?? "").toLowerCase().replace(/^\./, "")
+	const extension = (item.file_extension as string | undefined)?.toLowerCase().replace(/^\./, "")
 	if (!extension) return false
 
 	return RAW_AUDIO_EXTENSIONS.has(extension)
@@ -25,7 +26,7 @@ export function findRawAudioFile(
 	const trimmedId = preferredFileId?.trim()
 	if (trimmedId) {
 		const preferred = attachmentList.find(
-			(item) => item.file_id === trimmedId && !item.is_directory,
+			(item) => item.file_id === trimmedId && isPlayableRawAudioFile(item),
 		)
 		if (preferred) return preferred
 	}

@@ -11,7 +11,7 @@ export type AudioPreviewMissingKind = "html-entry" | "raw-audio"
 
 /**
  * Resolves which file to open in Detail based on list card status.
- * Summarized items use bundled HTML; not-summarized items use raw audio playback.
+ * Summarized items use bundled HTML; pending/in-progress summary items use raw audio only.
  */
 export function resolveAudioPreviewTarget(options: {
 	cardStatus: AudioRecordingCardStatus
@@ -26,7 +26,7 @@ export function resolveAudioPreviewTarget(options: {
 		return entry ? { kind: "html", file: entry } : null
 	}
 
-	if (cardStatus === "not_summarized") {
+	if (cardStatus === "not_summarized" || cardStatus === "summarizing") {
 		const file = findRawAudioFile(list, audioFileId)
 		return file ? { kind: "raw-audio", file } : null
 	}
@@ -46,7 +46,7 @@ export function resolveAudioPreviewTargetWithFallback(options: {
 }): { target: AudioPreviewTarget | null; missingKind: AudioPreviewMissingKind | null } {
 	const status = options.cardStatus ?? "summarized"
 
-	if (status === "not_summarized") {
+	if (status === "not_summarized" || status === "summarizing") {
 		const file = findRawAudioFile(options.list, options.audioFileId)
 		return file
 			? { target: { kind: "raw-audio", file }, missingKind: null }
