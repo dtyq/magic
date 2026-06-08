@@ -447,6 +447,8 @@ export default function useMobileComposerLogic({
 					setSelectedTopic: editorContext.setSelectedTopic,
 					setSelectedWorkspace: editorContext.setSelectedWorkspace,
 					topicStore: editorContext.topicStore ?? topicStore,
+					createTopic: editorContext.createTopic,
+					createProject: editorContext.createProject,
 				},
 				tabPattern: effectiveTopicMode,
 				editorRef: tiptapEditorRef.current,

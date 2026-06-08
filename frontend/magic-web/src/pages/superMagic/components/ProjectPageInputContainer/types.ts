@@ -1,4 +1,5 @@
 import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
+import type { SceneEditorContext } from "../MainInputContainer/components/editors/types"
 import { ProjectListItem, Topic, Workspace } from "../../pages/Workspace/types"
 import { MessageEditorLayoutConfig } from "../MessageEditor"
 import { MessageEditorSize } from "../MessageEditor/types"
@@ -67,4 +68,6 @@ export interface ProjectPageInputContainerProps {
 		currentProject: ProjectListItem | null
 		currentTopic: Topic | null
 	}) => void
+	/** Optional override for send-time topic creation (e.g. project entry with detail backfill). */
+	createTopic?: SceneEditorContext["createTopic"]
 }

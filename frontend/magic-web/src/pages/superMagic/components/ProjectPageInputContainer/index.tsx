@@ -60,6 +60,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	enableReEditMessageFromPubSub = false,
 	onSendSuccess,
 	onSendComplete,
+	createTopic,
 }) => {
 	const isMobile = useIsMobile()
 	const { taskData: taskDataFromStore } = useTaskData({ selectedTopic })
@@ -230,6 +231,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			},
 			showTopicExamplesPortal: showTopicModeExamplePortal,
 			onSendSuccess,
+			createTopic,
 		}
 	}, [
 		selectedTopic,
@@ -259,6 +261,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		messageQueue.finishEditQueueItem,
 		showTopicModeExamplePortal,
 		onSendSuccess,
+		createTopic,
 		onEditorFocus,
 		onEditorBlur,
 		onSendComplete,

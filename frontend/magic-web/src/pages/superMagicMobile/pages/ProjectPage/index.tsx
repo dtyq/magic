@@ -12,6 +12,7 @@ import {
 	useTopicListActions,
 	useProjectAttachments,
 } from "@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/hooks"
+import { useProjectPageComposerContext } from "@/pages/superMagicMobile/pages/ProjectPage/hooks"
 import TopicsPopup from "./ProjectPageMain/components/TopicsPopup"
 import { Ellipsis, Share2, UserPlus } from "lucide-react"
 import TopicFilesButton, {
@@ -29,8 +30,6 @@ import { SmoothTabs, type Tab } from "@/components/shadcn-ui/smooth-tabs"
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
 import projectFilesStore from "@/stores/projectFiles"
 import ProjectPageMain from "./ProjectPageMain"
-import useNavigate from "@/routes/hooks/useNavigate"
-import { RouteName } from "@/routes/constants"
 import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
 import useCollaboratorUpdatePanel from "@/pages/superMagic/components/WithCollaborators/hooks/useCollaboratorUpdatePanel"
 import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
@@ -46,7 +45,8 @@ function ProjectPage() {
  */
 function LegacyProjectPage() {
 	const { t } = useTranslation("super")
-	const navigate = useNavigate()
+	const { createTopicForProjectSend, handleSendComplete, handleSendSuccess } =
+		useProjectPageComposerContext()
 
 	// 首页只保留“话题 / 文件”两个 tab，先完成项目详情 UI 收敛。
 	const [activeSiderTab, setActiveSiderTab] = useState<ProjectDetailTab>("topics")
@@ -163,29 +163,6 @@ function LegacyProjectPage() {
 
 	// Listen for Create_New_Topic event and handle topic creation
 	useCreateTopicListener()
-
-	/**
-	 * 项目入口页发送成功后固定切到新话题子页，避免继续停留在入口页内混合承载会话。
-	 */
-	const handleProjectPageSendSuccess = useMemoizedFn(
-		({
-			currentProject,
-			currentTopic,
-		}: {
-			currentProject: typeof selectedProject
-			currentTopic: typeof selectedTopic
-		}) => {
-			if (!currentProject?.id || !currentTopic?.id) return
-
-			navigate({
-				name: RouteName.SuperWorkspaceProjectTopicState,
-				params: {
-					projectId: currentProject.id,
-					topicId: currentTopic.id,
-				},
-			})
-		},
-	)
 
 	// 当前活跃的文件ID，用于同步文件列表和文件查看器的选中状态
 	const [activeFileId, setActiveFileId] = useState<string | null>(null)
@@ -375,7 +352,10 @@ function LegacyProjectPage() {
 						onFileClick={onFileClick}
 						selectedWorkspace={selectedWorkspace}
 						attachments={attachmentTree}
-						onSendSuccess={handleProjectPageSendSuccess}
+						isEmptyStatus
+						createTopic={createTopicForProjectSend}
+						onSendComplete={handleSendComplete}
+						onSendSuccess={handleSendSuccess}
 					/>
 				</div>
 			</div>
