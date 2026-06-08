@@ -138,7 +138,7 @@ describe("SuperMobileShellRouteLayout", () => {
 		vi.restoreAllMocks()
 	})
 
-	it("silently reloads recent items whenever the sidebar opens", async () => {
+	it("does not reload recent items when the sidebar opens", () => {
 		render(
 			<SuperMobileShellRouteLayout activeView="chats" closeSidebarAriaLabel="close">
 				<OpenSidebarButton />
@@ -148,17 +148,10 @@ describe("SuperMobileShellRouteLayout", () => {
 		expect(reloadRecentItemsMock).not.toHaveBeenCalled()
 
 		fireEvent.click(screen.getByTestId("open-sidebar"))
-
-		await waitFor(() => {
-			expect(reloadRecentItemsMock).toHaveBeenCalledTimes(1)
-		})
-
 		fireEvent.click(screen.getByTestId("close-sidebar"))
 		fireEvent.click(screen.getByTestId("open-sidebar"))
 
-		await waitFor(() => {
-			expect(reloadRecentItemsMock).toHaveBeenCalledTimes(2)
-		})
+		expect(reloadRecentItemsMock).not.toHaveBeenCalled()
 	})
 
 	it("navigates home without view transition when brand logo is clicked", () => {

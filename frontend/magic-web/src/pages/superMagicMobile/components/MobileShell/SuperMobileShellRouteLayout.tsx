@@ -104,13 +104,6 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 		}
 	}, [])
 
-	useEffect(() => {
-		if (!isSidebarOpen) return
-
-		// Shell 常驻挂载，侧栏再次打开不会重新触发 hook 初始化；这里补一次静默刷新，保证“最近使用”状态及时更新。
-		void reloadRecentItems()
-	}, [isSidebarOpen, reloadRecentItems])
-
 	const shellOutletContext = useMemo<SuperMobileShellOutletContext>(
 		() => ({
 			isSidebarOpen,
