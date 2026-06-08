@@ -10,6 +10,7 @@ import MagicModal from "../MagicModal/locales/fil_PH"
 import PhoneInput from "../PhoneInput/locales/fil_PH"
 import MobileFilter from "../MobileFilter/locales/fil_PH"
 import MobileList from "../MobileList/locales/fil_PH"
+import TimeFilterPanel from "../TimeFilterPanel/locales/fil_PH"
 
 export default {
 	Demo,
@@ -24,4 +25,5 @@ export default {
 	PhoneInput,
 	MobileFilter,
 	MobileList,
+	TimeFilterPanel,
 }

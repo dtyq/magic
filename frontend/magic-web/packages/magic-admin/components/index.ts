@@ -50,6 +50,18 @@ export type { MagicSpinProps } from "./MagicSpin"
 export { default as MagicDatePicker } from "./MagicDatePicker"
 export type { MagicDatePickerProps, MagicDatePickerRangePickerProps } from "./MagicDatePicker"
 
+export { default as TimeFilterPanel } from "./TimeFilterPanel"
+export type { TimeFilterPanelProps } from "./TimeFilterPanel"
+export {
+	CommonAbsolutePresetKey,
+	HistoryMode,
+	RelativeMode,
+	RelativeUnit,
+	TimeFilterTab,
+	TimePresetKey,
+} from "./TimeFilterPanel"
+export type { TimeFilterHistoryItem, TimeRangeValue } from "./TimeFilterPanel"
+
 export { default as MagicCard } from "./MagicCard"
 export type { MagicCardProps } from "./MagicCard"
 

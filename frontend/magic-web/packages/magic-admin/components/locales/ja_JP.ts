@@ -10,6 +10,7 @@ import MagicModal from "../MagicModal/locales/ja_JP"
 import PhoneInput from "../PhoneInput/locales/ja_JP"
 import MobileFilter from "../MobileFilter/locales/ja_JP"
 import MobileList from "../MobileList/locales/ja_JP"
+import TimeFilterPanel from "../TimeFilterPanel/locales/ja_JP"
 
 export default {
 	Demo,
@@ -24,4 +25,5 @@ export default {
 	PhoneInput,
 	MobileFilter,
 	MobileList,
+	TimeFilterPanel,
 }
