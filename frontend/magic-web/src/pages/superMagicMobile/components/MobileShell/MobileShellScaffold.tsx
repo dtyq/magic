@@ -194,7 +194,6 @@ export default function MobileShellScaffold({
 
 		setIsDragging(true)
 		setDragPanelX(clampPanelX(nextPanelX, currentSidebarWidth))
-		e.preventDefault()
 	}
 
 	function handleTouchEnd() {
