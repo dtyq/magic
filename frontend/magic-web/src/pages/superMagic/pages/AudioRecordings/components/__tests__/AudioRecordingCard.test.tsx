@@ -71,6 +71,25 @@ describe("AudioRecordingCard", () => {
 		).toBeInTheDocument()
 	})
 
+	it("opens preview when not_summarized item has audio_file_id", () => {
+		const onOpen = vi.fn()
+		render(
+			<AudioRecordingCard
+				item={createItem({
+					card_status: "not_summarized",
+					is_summarized: false,
+					current_phase: "merging",
+					phase_status: "completed",
+					audio_file_id: "mock-audio-file-001",
+				})}
+				onOpen={onOpen}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("audio-recording-card-project-1"))
+		expect(onOpen).toHaveBeenCalledTimes(1)
+	})
+
 	it("shows generate summary button for merging completed items", () => {
 		const onOpen = vi.fn()
 		const onSummarize = vi.fn()
@@ -81,6 +100,7 @@ describe("AudioRecordingCard", () => {
 					is_summarized: false,
 					current_phase: "merging",
 					phase_status: "completed",
+					audio_file_id: "mock-audio-file-001",
 				})}
 				onOpen={onOpen}
 				onSummarize={onSummarize}

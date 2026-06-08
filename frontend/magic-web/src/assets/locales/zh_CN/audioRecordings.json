@@ -71,6 +71,7 @@
 		"loading": "正在加载录音详情...",
 		"loadFailed": "加载失败，请稍后重试",
 		"entryNotFound": "未找到录音入口文件",
+		"audioNotFound": "未找到录音音频文件",
 		"untitled": "未命名录音"
 	}
 }

@@ -184,6 +184,55 @@ describe("AudioRecordingsStore", () => {
 
 		expect(store.list).toHaveLength(1)
 		expect(store.list[0]?.id).toBe("done")
+		expect(store.hasMore).toBe(false)
+	})
+
+	it("stops pagination when all items on page 1 are filtered out but total is positive", async () => {
+		const store = new AudioRecordingsStore()
+		vi.mocked(SuperMagicApi.queryAudioProjects).mockResolvedValue({
+			list: [
+				createApiItem("app-processing", {
+					project_status: "",
+					extra: {
+						duration: 60,
+						current_phase: "merging",
+						phase_status: "in_progress",
+						tags: [],
+					},
+				}),
+			],
+			total: 1,
+		})
+
+		await store.fetchList({ page: 1 })
+
+		expect(store.list).toHaveLength(0)
+		expect(store.hasMore).toBe(false)
+		expect(SuperMagicApi.queryAudioProjects).toHaveBeenCalledTimes(1)
+	})
+
+	it("does not load more after client summary tab filters out the only visible item", async () => {
+		const store = new AudioRecordingsStore()
+		store.setSummaryFilter("summarized")
+		vi.mocked(SuperMagicApi.queryAudioProjects).mockResolvedValue({
+			list: [
+				createApiItem("summarizing", {
+					project_status: "",
+					extra: {
+						duration: 120,
+						current_phase: "summarizing",
+						phase_status: "in_progress",
+						tags: [],
+					},
+				}),
+			],
+			total: 1,
+		})
+
+		await store.fetchList({ page: 1 })
+
+		expect(store.list).toHaveLength(0)
+		expect(store.hasMore).toBe(false)
 	})
 
 	it("optimistically updates item after submitSummary for imported audio", async () => {

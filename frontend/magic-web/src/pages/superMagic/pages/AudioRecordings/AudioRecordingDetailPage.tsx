@@ -5,16 +5,25 @@ import { useTranslation } from "react-i18next"
 import { useLocation, useParams } from "react-router"
 import { SuperMagicApi } from "@/apis"
 import { Button } from "@/components/shadcn-ui/button"
+import { cn } from "@/lib/utils"
 import Detail, { type DetailRef } from "@/pages/superMagic/components/Detail"
 import { AttachmentDataProcessor } from "@/pages/superMagic/utils/attachmentDataProcessor"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
-import { findAudioEntryFile } from "./utils/find-audio-entry-file"
+import type { AudioRecordingCardStatus } from "@/types/audioProject"
+import {
+	resolveAudioPreviewTarget,
+	resolveAudioPreviewTargetWithFallback,
+	type AudioPreviewMissingKind,
+	type AudioPreviewTarget,
+} from "./utils/resolve-audio-preview-target"
 import { AudioRecordingsStore } from "./stores/audio-recordings-store"
 
 interface AudioRecordingDetailLocationState {
 	projectName?: string
+	cardStatus?: AudioRecordingCardStatus
+	audioFileId?: string
 }
 
 /** Full-width audio HTML detail page without project file tree sidebar */
@@ -30,11 +39,16 @@ function AudioRecordingDetailPage() {
 	const [attachmentList, setAttachmentList] = useState<AttachmentItem[]>([])
 	const [loading, setLoading] = useState(true)
 	const [loadError, setLoadError] = useState(false)
-	const [entryMissing, setEntryMissing] = useState(false)
+	const [previewMissingKind, setPreviewMissingKind] = useState<AudioPreviewMissingKind | null>(
+		null,
+	)
+	const [previewKind, setPreviewKind] = useState<AudioPreviewTarget["kind"] | null>(null)
 	const [resolvedTitle, setResolvedTitle] = useState<string>("")
 
 	const locationState = location.state as AudioRecordingDetailLocationState | null
 	const initialTitle = locationState?.projectName?.trim() ?? ""
+	const routeCardStatus = locationState?.cardStatus
+	const routeAudioFileId = locationState?.audioFileId?.trim()
 
 	useEffect(() => {
 		if (initialTitle) {
@@ -59,7 +73,8 @@ function AudioRecordingDetailPage() {
 		let cancelled = false
 		setLoading(true)
 		setLoadError(false)
-		setEntryMissing(false)
+		setPreviewMissingKind(null)
+		setPreviewKind(null)
 
 		SuperMagicApi.getAttachmentsByProjectId({ projectId, temporaryToken: "" })
 			.then((response) => {
@@ -69,14 +84,34 @@ function AudioRecordingDetailPage() {
 				setAttachments(processed.tree)
 				setAttachmentList(processed.list)
 
-				const audioEntry = findAudioEntryFile(processed.tree)
-				if (!audioEntry) {
-					setEntryMissing(true)
+				const previewResult = routeCardStatus
+					? {
+							target: resolveAudioPreviewTarget({
+								cardStatus: routeCardStatus,
+								audioFileId: routeAudioFileId,
+								tree: processed.tree,
+								list: processed.list,
+							}),
+							missingKind: null as AudioPreviewMissingKind | null,
+						}
+					: resolveAudioPreviewTargetWithFallback({
+							audioFileId: routeAudioFileId,
+							tree: processed.tree,
+							list: processed.list,
+						})
+
+				if (!previewResult.target) {
+					setPreviewMissingKind(
+						previewResult.missingKind ??
+							(routeCardStatus === "not_summarized" ? "raw-audio" : "html-entry"),
+					)
 					return
 				}
 
+				setPreviewKind(previewResult.target.kind)
+
 				window.setTimeout(() => {
-					detailRef.current?.openFileTab?.(audioEntry)
+					detailRef.current?.openFileTab?.(previewResult.target?.file)
 				}, 100)
 			})
 			.catch(() => {
@@ -90,11 +125,22 @@ function AudioRecordingDetailPage() {
 		return () => {
 			cancelled = true
 		}
-	}, [projectId])
+	}, [projectId, routeCardStatus, routeAudioFileId])
+
+	const previewMissingMessage = useMemo(() => {
+		if (previewMissingKind === "raw-audio") return t("detail.audioNotFound")
+		return t("detail.entryNotFound")
+	}, [previewMissingKind, t])
 
 	const pageTitle = useMemo(() => {
 		return resolvedTitle || t("detail.untitled")
 	}, [resolvedTitle, t])
+
+	/** Raw audio preview uses a white canvas to match AudioPreview; HTML summary keeps muted shell */
+	const isRawAudioPreviewMode =
+		previewKind === "raw-audio" ||
+		routeCardStatus === "not_summarized" ||
+		previewMissingKind === "raw-audio"
 
 	function handleBack() {
 		navigate({ name: RouteName.AudioRecordings })
@@ -118,7 +164,12 @@ function AudioRecordingDetailPage() {
 				<h1 className="truncate text-sm font-semibold text-foreground">{pageTitle}</h1>
 			</div>
 
-			<div className="relative min-h-0 flex-1 bg-muted">
+			<div
+				className={cn(
+					"relative min-h-0 flex-1",
+					isRawAudioPreviewMode ? "bg-white" : "bg-muted",
+				)}
+			>
 				{loading ? (
 					<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
 						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -135,16 +186,16 @@ function AudioRecordingDetailPage() {
 					</div>
 				) : null}
 
-				{!loading && !loadError && entryMissing ? (
+				{!loading && !loadError && previewMissingKind ? (
 					<div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-						<p className="text-sm text-muted-foreground">{t("detail.entryNotFound")}</p>
+						<p className="text-sm text-muted-foreground">{previewMissingMessage}</p>
 						<Button variant="outline" onClick={handleBack}>
 							{t("detail.back")}
 						</Button>
 					</div>
 				) : null}
 
-				{!loading && !loadError && !entryMissing ? (
+				{!loading && !loadError && !previewMissingKind ? (
 					<Detail
 						ref={detailRef}
 						disPlayDetail={null}

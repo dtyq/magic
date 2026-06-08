@@ -71,6 +71,7 @@
 		"loading": "Loading recording detail...",
 		"loadFailed": "Failed to load. Please try again.",
 		"entryNotFound": "Recording entry file not found",
+		"audioNotFound": "Recording audio file not found",
 		"untitled": "Untitled recording"
 	}
 }

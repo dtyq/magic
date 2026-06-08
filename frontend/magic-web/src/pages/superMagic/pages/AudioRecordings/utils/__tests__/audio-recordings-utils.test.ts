@@ -1,28 +1,22 @@
 import { describe, expect, it, vi } from "vitest"
-import {
-	formatRecordingCreatedTime,
-	formatRecordingDefaultName,
-	parseAudioProjectTimestamp,
-	resolveRecordingDisplayName,
-	resolveRecordingSourceLabel,
-} from "../audio-recordings-utils"
 import type { AudioProjectListItem } from "@/types/audioProject"
-
-vi.mock("@/utils/string", () => ({
-	formatTime: (time: number, format?: string) => {
-		if (format === "YYYY/MM/DD HH:mm") return "2026/06/06 11:05"
-		return "Apr 10 09:15"
-	},
-}))
 
 vi.mock("i18next", () => ({
 	default: {
-		t: (key: string, options?: { datetime?: string }) => {
-			if (key === "defaultName") return `${options?.datetime} 的录音`
-			return key
-		},
+		t: (key: string) => key,
 	},
+	t: (key: string) => key,
 }))
+
+vi.mock("@/utils/string", () => ({
+	formatTime: () => "mock-time",
+}))
+import {
+	isAudioProjectDetailReady,
+	isAudioProjectPreviewReady,
+} from "../audio-recordings-utils"
+
+const MOCK_AUDIO_FILE_ID = "mock-audio-file-001"
 
 function createItem(overrides: Partial<AudioProjectListItem> = {}): AudioProjectListItem {
 	return {
@@ -31,9 +25,9 @@ function createItem(overrides: Partial<AudioProjectListItem> = {}): AudioProject
 		card_status: "summarized",
 		is_summarized: true,
 		created_at: 1710000000,
-		duration: 125,
+		duration: 754,
 		tags: [],
-		device_id: "",
+		device_id: "mock-device",
 		audio_source: "recorded",
 		current_phase: "summarizing",
 		phase_status: "completed",
@@ -41,84 +35,56 @@ function createItem(overrides: Partial<AudioProjectListItem> = {}): AudioProject
 	}
 }
 
-describe("parseAudioProjectTimestamp", () => {
-	it("parses valid unix seconds string", () => {
-		expect(parseAudioProjectTimestamp("1710000000")).toBe(1710000000)
+describe("isAudioProjectPreviewReady", () => {
+	it("allows summarized items", () => {
+		expect(isAudioProjectPreviewReady(createItem())).toBe(true)
 	})
 
-	it("parses numeric unix seconds", () => {
-		expect(parseAudioProjectTimestamp(1710000000)).toBe(1710000000)
-	})
-
-	it("returns null for invalid values", () => {
-		expect(parseAudioProjectTimestamp("")).toBeNull()
-		expect(parseAudioProjectTimestamp("invalid")).toBeNull()
-		expect(parseAudioProjectTimestamp(0)).toBeNull()
-	})
-})
-
-describe("formatRecordingCreatedTime", () => {
-	it("returns string fallback when timestamp is invalid", () => {
-		expect(formatRecordingCreatedTime("invalid")).toBe("invalid")
-	})
-
-	it("formats valid timestamp", () => {
-		expect(formatRecordingCreatedTime(1710000000)).toBe("Apr 10 09:15")
-	})
-})
-
-describe("formatRecordingDefaultName", () => {
-	it("formats valid timestamp with localized recording suffix", () => {
-		expect(formatRecordingDefaultName(1710000000)).toBe("2026/06/06 11:05 的录音")
-	})
-
-	it("returns empty string for invalid timestamp", () => {
-		expect(formatRecordingDefaultName("invalid")).toBe("")
-	})
-})
-
-describe("resolveRecordingDisplayName", () => {
-	it("prefers trimmed project name when present", () => {
-		expect(resolveRecordingDisplayName("Weekly sync", 1710000000)).toBe("Weekly sync")
-	})
-
-	it("falls back to localized default name when project name is blank", () => {
-		expect(resolveRecordingDisplayName("", 1710000000)).toBe("2026/06/06 11:05 的录音")
-		expect(resolveRecordingDisplayName("   ", 1710000000)).toBe("2026/06/06 11:05 的录音")
-	})
-})
-
-describe("resolveRecordingSourceLabel", () => {
-	const labels = {
-		sourceRecorded: "Phone mic",
-		sourceImported: "Imported audio",
-		sourceDevice: "Device recording",
-	}
-
-	it("prefers device name when present", () => {
+	it("allows not_summarized items with audio_file_id", () => {
 		expect(
-			resolveRecordingSourceLabel(
-				createItem({ device_id: "Redmi K70 Ultra", audio_source: "recorded" }),
-				labels,
+			isAudioProjectPreviewReady(
+				createItem({
+					card_status: "not_summarized",
+					is_summarized: false,
+					audio_file_id: MOCK_AUDIO_FILE_ID,
+				}),
 			),
-		).toBe("Redmi K70 Ultra")
+		).toBe(true)
 	})
 
-	it("falls back to imported label without device name", () => {
+	it("blocks not_summarized items without audio_file_id", () => {
 		expect(
-			resolveRecordingSourceLabel(
-				createItem({ audio_source: "imported", device_id: "" }),
-				labels,
+			isAudioProjectPreviewReady(
+				createItem({
+					card_status: "not_summarized",
+					is_summarized: false,
+				}),
 			),
-		).toBe("Imported audio")
+		).toBe(false)
 	})
 
-	it("falls back to recorded label without device name", () => {
+	it("blocks summarizing items", () => {
 		expect(
-			resolveRecordingSourceLabel(
-				createItem({ audio_source: "recorded", device_id: "" }),
-				labels,
+			isAudioProjectPreviewReady(
+				createItem({
+					card_status: "summarizing",
+					is_summarized: false,
+				}),
 			),
-		).toBe("Phone mic")
+		).toBe(false)
+	})
+})
+
+describe("isAudioProjectDetailReady", () => {
+	it("only allows summarized items", () => {
+		expect(isAudioProjectDetailReady(createItem())).toBe(true)
+		expect(
+			isAudioProjectDetailReady(
+				createItem({
+					card_status: "not_summarized",
+					audio_file_id: MOCK_AUDIO_FILE_ID,
+				}),
+			),
+		).toBe(false)
 	})
 })

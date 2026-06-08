@@ -25,7 +25,7 @@ import type { AudioProjectListItem } from "@/types/audioProject"
 import {
 	formatRecordingCreatedTime,
 	formatRecordingDuration,
-	isAudioProjectDetailReady,
+	isAudioProjectPreviewReady,
 	resolveRecordingDisplayName,
 	resolveRecordingSourceLabel,
 } from "../utils/audio-recordings-utils"
@@ -268,7 +268,7 @@ function AudioRecordingCard({
 }: AudioRecordingCardProps) {
 	const { t } = useTranslation("audioRecordings")
 	const [tagsExpanded, setTagsExpanded] = useState(false)
-	const isReady = isAudioProjectDetailReady(item)
+	const isReady = isAudioProjectPreviewReady(item)
 	const showSummaryButton = shouldShowSummaryButton(item.current_phase, item.phase_status)
 	const summaryButtonVariant = getSummaryButtonVariant(item.current_phase, item.phase_status)
 	const canClickSummary = canClickSummaryButton(

@@ -62,8 +62,13 @@ export class AudioRecordingsStore {
 		return this.actionSubmittingIds.has(projectId)
 	}
 
+	/**
+	 * Whether the server may return another page.
+	 * Uses server pagination (page × pageSize vs total), not client list.length,
+	 * because normalize/tab filters can shrink visible rows without implying more pages.
+	 */
 	get hasMore() {
-		if (this.total > 0) return this.list.length < this.total
+		if (this.total > 0) return this.page * this.pageSize < this.total
 		return this.lastPageLength === this.pageSize
 	}
 

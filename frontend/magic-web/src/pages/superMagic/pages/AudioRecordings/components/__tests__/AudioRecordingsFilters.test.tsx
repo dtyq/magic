@@ -103,15 +103,16 @@ describe("AudioRecordingsFilters", () => {
 		expect(screen.getByTestId("audio-recordings-sort-filter")).toBeInTheDocument()
 		expect(screen.getByTestId("audio-recordings-search-input")).toBeInTheDocument()
 		expect(screen.getByTestId("audio-recordings-refresh-button")).toBeInTheDocument()
-		expect(screen.getByTestId("audio-recordings-list-count")).toHaveTextContent("3")
+		expect(screen.getByTestId("audio-recordings-summary-filter-count")).toHaveTextContent("3")
 	})
 
-	it("shows the active summary option label on the trigger", () => {
-		renderFilters({ summaryFilter: "summarized" })
+	it("shows the active summary option label and count on the trigger", () => {
+		renderFilters({ summaryFilter: "summarized", listCount: 7 })
 
 		expect(screen.getByTestId("audio-recordings-summary-filter")).toHaveTextContent(
 			"Summarized",
 		)
+		expect(screen.getByTestId("audio-recordings-summary-filter-count")).toHaveTextContent("7")
 	})
 
 	it("calls onSummaryFilterChange when a summary menu item is selected", () => {

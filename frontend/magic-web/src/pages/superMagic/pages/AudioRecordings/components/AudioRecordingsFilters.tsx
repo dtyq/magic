@@ -80,11 +80,44 @@ function fromSortOption(option: AudioRecordingsSortOption): {
 	return { sortBy, sortOrder }
 }
 
+/** Renders summary filter label with optional count badge for trigger and menu rows */
+function SummaryOptionLabel({
+	label,
+	count,
+	variant,
+}: {
+	label: string
+	count?: number
+	variant: "trigger" | "menu"
+}) {
+	if (variant === "trigger") {
+		return (
+			<span className="flex items-baseline gap-1.5 text-lg font-medium text-foreground">
+				<span>{label}</span>
+				{count != null ? (
+					<span className="-ml-1.5" data-testid="audio-recordings-summary-filter-count">
+						（{count}）
+					</span>
+				) : null}
+			</span>
+		)
+	}
+
+	return (
+		<span className="flex min-w-0 flex-1 items-center gap-1.5">
+			<span>{label}</span>
+			{count != null ? <span className="text-xs text-muted-foreground">{count}</span> : null}
+		</span>
+	)
+}
+
 /** Summary status dropdown using the same trigger pattern as DatePresetFilter */
 function SummaryStatusFilter({
+	listCount,
 	summaryFilter,
 	onSummaryFilterChange,
 }: {
+	listCount: number
 	summaryFilter: AudioRecordingSummaryFilter
 	onSummaryFilterChange: (value: AudioRecordingSummaryFilter) => void
 }) {
@@ -112,7 +145,7 @@ function SummaryStatusFilter({
 					className="flex h-8 items-center gap-1 rounded-lg px-1 transition-colors hover:bg-muted"
 					data-testid="audio-recordings-summary-filter"
 				>
-					<span className="text-lg font-medium text-foreground">{activeLabel}</span>
+					<SummaryOptionLabel label={activeLabel} count={listCount} variant="trigger" />
 					<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
 				</button>
 			</DropdownMenuTrigger>
@@ -357,18 +390,11 @@ function AudioRecordingsFilters({
 			data-testid="audio-recordings-filters"
 		>
 			<div className="flex flex-wrap items-center justify-between gap-2.5">
-				<div className="flex flex-wrap items-baseline gap-2.5">
-					<SummaryStatusFilter
-						summaryFilter={summaryFilter}
-						onSummaryFilterChange={onSummaryFilterChange}
-					/>
-					<div
-						className="text-sm leading-5 text-muted-foreground"
-						data-testid="audio-recordings-list-count"
-					>
-						{listCount}
-					</div>
-				</div>
+				<SummaryStatusFilter
+					listCount={listCount}
+					summaryFilter={summaryFilter}
+					onSummaryFilterChange={onSummaryFilterChange}
+				/>
 				<div className="flex flex-wrap items-center gap-1.5">
 					<DatePresetFilter
 						datePreset={datePreset}

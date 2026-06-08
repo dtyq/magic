@@ -80,9 +80,16 @@ export function formatRecordingDuration(seconds: number): string {
 	return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`
 }
 
-/** Whether the card should navigate to the detail page */
+/** Whether the card should navigate to the summarized HTML detail page */
 export function isAudioProjectDetailReady(item: AudioProjectListItem): boolean {
 	return item.card_status === "summarized"
+}
+
+/** Whether the card can open a preview: HTML summary or raw audio for not-yet-summarized items */
+export function isAudioProjectPreviewReady(item: AudioProjectListItem): boolean {
+	if (item.card_status === "summarized") return true
+	if (item.card_status === "not_summarized" && item.audio_file_id?.trim()) return true
+	return false
 }
 
 /** Parses API created_at / create_timestamp (unix seconds) into a numeric timestamp */

@@ -87,6 +87,8 @@ function AudioRecordingsDesktop({ scrollViewportRef }: AudioRecordingsDesktopPro
 			params: { projectId: item.id },
 			state: {
 				projectName: resolveRecordingDisplayName(item.project_name, item.created_at),
+				cardStatus: item.card_status,
+				audioFileId: item.audio_file_id,
 			},
 		})
 	}
