@@ -61,6 +61,8 @@ db.sqlite3-journal
 # IDE 相关
 .vscode/
 .idea/
+.browser/
+.mcp/
 *.swp
 *.swo
 *~
@@ -71,6 +73,7 @@ db.sqlite3-journal
 docker-compose*
 .dockerignore
 Dockerfile
+Dockerfile.pyinstaller
 
 # 临时文件和调试
 tmp/
@@ -82,7 +85,15 @@ debug/
 # 其他不需要的文件
 plan.md
 trigger_ci.txt
+config/tool_definitions.json
 .chat_history/
+.checkpoints/
+.client_message/
+.credentials/
+.runtime/
+.ruff_cache/
+.user/
+.venv_test/
 .workspace/
 
 # 环境变量

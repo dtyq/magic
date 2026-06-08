@@ -24,11 +24,15 @@ SHELL ["/bin/bash", "-c"]
 
 # 准备基础依赖
 ARG DEBIAN_VERSION=trixie
-ARG DEBIAN_APT_MIRROR=mirrors.aliyun.com
+ARG DEBIAN_APT_MIRROR=http://deb.debian.org
 RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var/cache/apt \
     --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists-${TARGETARCH},target=/var/lib/apt/lists \
-    # setup apt mirror follow deb-822 format
-    sed -i.bak "s/deb.debian.org/${DEBIAN_APT_MIRROR}/g" /etc/apt/sources.list.d/debian.sources && \
+    cp /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list.d/debian.sources.bak && \
+    APT_MIRROR="${DEBIAN_APT_MIRROR}" && \
+    if [[ "${APT_MIRROR}" != http://* && "${APT_MIRROR}" != https://* ]]; then \
+        APT_MIRROR="http://${APT_MIRROR}"; \
+    fi && \
+    sed -i "s|^URIs: http://deb.debian.org|URIs: ${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources && \
     # debian的docker会自动删除下载的包 导致缓存失效 因此修改一下
     mv /etc/apt/apt.conf.d/docker-clean /tmp/docker-clean.bak && \
     apt-get update && \
@@ -77,21 +81,33 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var
 
 # 安装指定版本的Node.js和TypeScript
 ARG NODE_VERSION=24
-ARG NODEJS_MIRROR=https://mirrors.aliyun.com/nodejs-release/
-ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG NODEJS_MIRROR=https://nodejs.org/dist
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ARG NVM_VERSION=v0.40.3
+ARG NVM_INSTALL_BASE_URL=https://raw.githubusercontent.com/nvm-sh/nvm
+ARG NVM_SOURCE=https://github.com/nvm-sh/nvm.git
 RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/root/.npm \
     --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-compile-cache-${TARGETARCH},target=/tmp/node-compile-cache \
     --mount=type=cache,id=debian-${DEBIAN_VERSION}-nvm-cache-${TARGETARCH},target=/root/.nvm/.cache \
     # install nvm for use to choose node version
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && \
+    curl -fsSL "${NVM_INSTALL_BASE_URL}/${NVM_VERSION}/install.sh" | \
+        NVM_SOURCE="${NVM_SOURCE}" PROFILE="${HOME}/.bashrc" bash && \
     . ~/.bashrc && \
     export NVM_NODEJS_ORG_MIRROR="${NODEJS_MIRROR}" && \
     export NPM_CONFIG_REGISTRY="${NPM_REGISTRY}" && \
     nvm install ${NODE_VERSION} && \
     nvm use ${NODE_VERSION} && \
-    # install pnpm
-    curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash - && \
-    . ~/.bashrc && \
+    export PNPM_HOME="/root/.local/share/pnpm" && \
+    mkdir -p "${PNPM_HOME}" && \
+    # install pnpm from npm registry to avoid relying on get.pnpm.io during builds
+    npm --registry="${NPM_REGISTRY}" \
+        --cache=/root/.npm \
+        install -g pnpm@11.5.2 && \
+    export PATH="${PNPM_HOME}:${PATH}" && \
+    ln -sf "$(command -v pnpm)" "${PNPM_HOME}/pnpm" && \
+    pnpm config set global-bin-dir "${PNPM_HOME}" && \
+    echo 'export PNPM_HOME="/root/.local/share/pnpm"' >> ~/.bashrc && \
+    echo 'export PATH="${PNPM_HOME}:${PATH}"' >> ~/.bashrc && \
     # install typescript
     pnpm --registry="${NPM_REGISTRY}" \
         --cache=/root/.npm \
@@ -119,46 +135,18 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/roo
 ENV NVM_DIR=/root/.nvm
 ENV PNPM_HOME=/root/.local/share/pnpm
 
-# 安装 lark-cli 及飞书 skills，安装 dws（钉钉 Workspace CLI）及钉钉 skills
-RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/root/.npm \
-    . ~/.bashrc && \
-    pnpm --registry="${NPM_REGISTRY}" \
-        --cache=/root/.npm \
-        install -g @larksuite/cli && \
-    npx --registry="${NPM_REGISTRY}" skills add larksuite/cli -g -y && \
-    echo "========== lark-cli 版本信息 ==========" && \
-    lark-cli --version && \
-    UNZIP= npm --registry="${NPM_REGISTRY}" \
-        install -g dingtalk-workspace-cli && \
-    echo "========== dws 版本信息 ==========" && \
-    dws version && \
-    rm -rf /root/.dws/cache /root/.lark-cli/cache
-
-# 杂项配置
-COPY deploy/ /app/deploy/
-RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var/cache/apt \
-    --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists-${TARGETARCH},target=/var/lib/apt/lists \
-    # alias python
-    ln -sf /usr/bin/python3 /usr/bin/python && \
-    # setup timezone
-    ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime && \
-    echo "${TZ}" > /etc/timezone && \
-    # 用bash做默认shell 不要用坑爹dash
-    ln -sf /usr/bin/bash /bin/sh && \
-    # 让entrypoint执行bashrc，确保 nvm / pnpm 等 PATH 注入到服务进程环境
-    cp /app/deploy/entrypoint.sh /entrypoint.sh && \
-    chmod +x /entrypoint.sh && \
-    # ensure locale is always set in interactive shells (e.g. kubectl exec -- bash)
-    echo 'export LANG=en_US.UTF-8' >> ~/.bashrc && \
-    echo 'export LC_CTYPE=en_US.UTF-8' >> ~/.bashrc
+# ========= 基础venv =========
+FROM base AS venv
+ARG DEBIAN_VERSION
+ARG TARGETARCH
 
 # 设置工作目录
 WORKDIR /app
 
 # 创建venv，安装依赖
-COPY requirements.txt requirements_sandbox.txt .
+COPY requirements_runtime.txt requirements_sandbox.txt .
 ENV PATH="/venv/bin:$PATH"
-ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PIP_INDEX_URL=https://pypi.org/simple
 RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/root/.cache/pip \
     pip config set global.index-url "${PIP_INDEX_URL}" && \
     python3 -m venv /venv && \
@@ -169,21 +157,91 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/roo
     pip install \
         --prefer-binary \
         uv \
-        -r requirements.txt \
+        -r requirements_runtime.txt \
         -r requirements_sandbox.txt && \
-    opentelemetry-bootstrap -a install && \
-    python /app/deploy/setup_font.py
+    opentelemetry-bootstrap -a install
 
-# 安装项目
+# matplotlib配置和字体设置
+COPY deploy/setup_font.py /app/deploy/setup_font.py
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var/cache/apt \
+    --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-lists-${TARGETARCH},target=/var/lib/apt/lists \
+    python3 /app/deploy/setup_font.py
+
+# ========= 项目构建 =========
+FROM venv AS builder
+ARG DEBIAN_VERSION
+ARG TARGETARCH
+
+# 安装本地 agentlang 包，普通业务代码变化不会重跑这一层
+COPY agentlang/ ./agentlang/
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/root/.cache/pip \
+    pip install ./agentlang
+
 COPY . .
-RUN pip install ./agentlang && \
-    python3 main.py tools generate
+RUN python3 main.py tools generate
 
-# 还原镜像源
+# ========= 预制 CLI =========
+FROM base AS prebuilt_cli
+ARG DEBIAN_VERSION
+ARG TARGETARCH
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ARG GITHUB_URL_MIRROR=
+ARG CLI_CACHE_DATE=19700101
+
+# 安装 lark-cli 及飞书 skills，安装 dws（钉钉 Workspace CLI）及钉钉 skills
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/root/.npm \
+    . ~/.bashrc && \
+    if [[ -n "${GITHUB_URL_MIRROR}" ]]; then \
+        git config --global url."${GITHUB_URL_MIRROR}".insteadOf "https://github.com/"; \
+    fi && \
+    echo "========== CLI 缓存日期: ${CLI_CACHE_DATE} ==========" && \
+    pnpm --registry="${NPM_REGISTRY}" \
+        --cache=/root/.npm \
+        install -g @larksuite/cli@latest && \
+    npx --registry="${NPM_REGISTRY}" skills add larksuite/cli -g -y && \
+    echo "========== lark-cli 版本信息 ==========" && \
+    lark-cli --version && \
+    UNZIP= npm --registry="${NPM_REGISTRY}" \
+        install -g dingtalk-workspace-cli@latest && \
+    echo "========== dws 版本信息 ==========" && \
+    dws version && \
+    rm -rf /root/.dws/cache /root/.lark-cli/cache
+
+# ========= 最终镜像 =========
+FROM prebuilt_cli
+
+WORKDIR /app
+
+ENV PATH="/venv/bin:$PATH"
+
+# 合并 Python 运行环境和字体产物，避免预制 CLI 层成为 venv/builder 的父层
+COPY --from=venv /venv /venv
+COPY --from=venv /usr/share/fonts /usr/share/fonts
+COPY --from=venv /etc/fonts /etc/fonts
+COPY --from=venv /var/cache/fontconfig /var/cache/fontconfig
+COPY --from=builder /app /app
+
+# 杂项配置
 RUN \
-    # restore mirrors
+    # alias python
+    ln -sf /usr/bin/python3 /usr/bin/python && \
+    # setup timezone
+    ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime && \
+    echo "${TZ}" > /etc/timezone && \
+    # 用bash做默认shell 不要用坑爹dash
+    ln -sf /usr/bin/bash /bin/sh && \
+    # 还原 apt 源配置备份
     mv /etc/apt/sources.list.d/debian.sources.bak /etc/apt/sources.list.d/debian.sources && \
-    rm ~/.config/pip/pip.conf
+    rm -f ~/.config/pip/pip.conf && \
+    # ensure locale is always set in interactive shells (e.g. kubectl exec -- bash)
+    echo 'export LANG=en_US.UTF-8' >> ~/.bashrc && \
+    echo 'export LC_CTYPE=en_US.UTF-8' >> ~/.bashrc && \
+    # 创建 vim 交换/备份/undo 目录
+    mkdir -p ~/.vim/swap ~/.vim/backup ~/.vim/undo
+
+COPY deploy/.vimrc /root/.vimrc
+COPY deploy/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # 获取Git commit ID并保存到环境变量
 ARG CI_COMMIT_SHA="未知"

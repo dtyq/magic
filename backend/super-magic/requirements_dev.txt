@@ -1,0 +1,9 @@
+# 测试相关依赖
+pytest==8.0.0
+pytest-asyncio==0.23.5
+pytest-cov==6.1.1
+
+# 代码质量与开发工具
+ruff==0.11.2
+pylint==3.3.6
+pyright==1.1.398  # TypeScript 语法检查的附加支持
