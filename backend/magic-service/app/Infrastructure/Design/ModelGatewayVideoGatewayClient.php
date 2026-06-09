@@ -25,6 +25,7 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
      */
     public function submitVideo(array $payload, array $businessParams): array
     {
+        $payload = $this->disableManagedPolling($payload);
         $mergedBusinessParams = $this->mergeBusinessParams($payload, $businessParams);
         $requestDTO = new CreateVideoDTO($payload);
         $requestDTO->setAccessToken($this->getMagicAccessToken());
@@ -95,6 +96,25 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
         }
 
         return array_merge($payloadBusinessParams, $businessParams);
+    }
+
+    /**
+     * Design 侧已有独立轮询和归档 MQ，这里关闭 /v1/videos 的通用托管轮询，避免同一任务被两套 MQ 重复查询。
+     *
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function disableManagedPolling(array $payload): array
+    {
+        $execution = $payload['execution'] ?? [];
+        if (! is_array($execution)) {
+            $execution = [];
+        }
+
+        $execution['managed_polling'] = false;
+        $payload['execution'] = $execution;
+
+        return $payload;
     }
 
     /**

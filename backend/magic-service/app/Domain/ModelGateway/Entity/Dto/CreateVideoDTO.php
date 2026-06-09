@@ -130,6 +130,25 @@ class CreateVideoDTO extends AbstractRequestDTO
         return $this->execution;
     }
 
+    public function isManagedPollingEnabled(): bool
+    {
+        if (! array_key_exists('managed_polling', $this->execution)) {
+            return true;
+        }
+
+        $value = $this->execution['managed_polling'];
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (int) $value !== 0;
+        }
+
+        $normalized = strtolower(trim((string) $value));
+        return ! in_array($normalized, ['0', 'false', 'off', 'no'], true);
+    }
+
     public function setExtensions(mixed $extensions): void
     {
         $this->extensions = $this->normalizeArrayField($extensions);
