@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity;
 
 use App\Infrastructure\Core\AbstractEntity;
+use DateTime;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\HiddenType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
@@ -122,6 +123,16 @@ class ProjectEntity extends AbstractEntity
      */
     protected ?string $deletedAt = null;
 
+    /**
+     * @var bool 当前用户是否置顶
+     */
+    protected bool $isPinned = false;
+
+    /**
+     * @var null|string 当前用户置顶时间
+     */
+    protected ?string $pinnedAt = null;
+
     public function __construct(array $data = [])
     {
         $this->initProperty($data);
@@ -154,6 +165,8 @@ class ProjectEntity extends AbstractEntity
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
+            'is_pinned' => $this->isPinned,
+            'pinned_at' => $this->pinnedAt,
         ];
 
         // 移除null值
@@ -511,5 +524,27 @@ class ProjectEntity extends AbstractEntity
     public function setDefaultJoinPermission(MemberRole $defaultJoinPermission): void
     {
         $this->defaultJoinPermission = $defaultJoinPermission;
+    }
+
+    public function isPinned(): bool
+    {
+        return $this->isPinned;
+    }
+
+    public function setIsPinned(null|bool|int|string $isPinned): self
+    {
+        $this->isPinned = (bool) $isPinned;
+        return $this;
+    }
+
+    public function getPinnedAt(): ?string
+    {
+        return $this->pinnedAt;
+    }
+
+    public function setPinnedAt(null|DateTime|string $pinnedAt): self
+    {
+        $this->pinnedAt = $pinnedAt === null ? null : $this->createDateTimeString($pinnedAt);
+        return $this;
     }
 }

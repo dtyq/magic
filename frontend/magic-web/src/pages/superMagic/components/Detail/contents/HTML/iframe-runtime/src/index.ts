@@ -10,17 +10,11 @@
  *   { type: "activateEditorRuntime" } — initializes the full EditorRuntime
  *   (DOM selector, undo/redo, style editing, etc.).
  */
-
 import { EditorRuntime } from "./runtime/EditorRuntime"
 import { EditorLogger } from "./utils/EditorLogger"
-import { MagicFSApi } from "./magic-api/MagicFSApi"
-import { MagicLLMApi } from "./magic-api/MagicLLMApi"
-import { MagicReloadApi } from "./magic-api/MagicReloadApi"
-import { MagicInputApi } from "./magic-api/MagicInputApi"
-import { MagicI18nApi } from "./magic-api/MagicI18nApi"
-import { MagicWorkspaceApi } from "./magic-api/MagicWorkspaceApi"
 import { DevToolsCollector, DEVTOOLS_MSG } from "./features/DevToolsCollector"
 import { ElementInspectorHandler } from "./features/ElementInspectorHandler"
+import { installMagicAPIs } from "./magic-api"
 
 // ─── Phase 1: Install APIs (always runs) ───────────────────────────────────
 
@@ -279,15 +273,6 @@ function getObjectKeys(obj: unknown): string[] {
 	return Array.from(keys).sort()
 }
 
-function installAPIs(): void {
-	new MagicFSApi().install()
-	new MagicLLMApi().install()
-	new MagicReloadApi().install()
-	new MagicInputApi().install()
-	new MagicI18nApi().install()
-	new MagicWorkspaceApi().install() // 工作区文件操作（上传/下载/附加到消息）
-}
-
 // ─── Phase 2: Activate editor (on demand) ──────────────────────────────────
 
 function activateEditorRuntime(scaleRatio: number): void {
@@ -306,7 +291,7 @@ function activateEditorRuntime(scaleRatio: number): void {
 	if (typeof window !== "undefined") {
 		if ((window as unknown as Record<string, unknown>).__elementSelectorV2__) {
 			try {
-				;(
+				; (
 					(window as unknown as Record<string, unknown>).__elementSelectorV2__ as {
 						destroy?: () => void
 					}
@@ -445,7 +430,7 @@ window.addEventListener("message", (event: MessageEvent) => {
 // ─── Bootstrap ─────────────────────────────────────────────────────────────
 // APIs do not require DOM readiness — run immediately so that window.Magic.*
 // is available to inline scripts, matching the previous getMagicMethodsScript behavior.
-installAPIs()
+installMagicAPIs()
 
 // Notify parent that iframe-runtime is ready. This allows the parent to
 // re-enable DevTools after an iframe content refresh.
@@ -458,6 +443,15 @@ try {
 // ─── Type declarations ──────────────────────────────────────────────────────
 
 declare global {
+	/** Tiptap JSON 文档结构（用于 createTopicAndSend / sendMessage 的 message 参数） */
+	interface TiptapJSONContent {
+		type: string
+		attrs?: Record<string, unknown>
+		content?: TiptapJSONContent[]
+		text?: string
+		[key: string]: unknown
+	}
+
 	interface Window {
 		__iframeEditorRuntime__?: EditorRuntime
 		__MAGIC_SCALE_RATIO__?: number
@@ -465,11 +459,60 @@ declare global {
 		/** 由 full-content.ts 注入的初始语言代码，供 MagicI18nApi 读取 */
 		__MAGIC_INITIAL_LANG__?: string
 		Magic: {
+			// ─── 新命名空间 ──────────────────────────────────────────────
+			agent?: {
+				getAgents?: () => Promise<
+					Array<{
+						id: string
+						name: string
+						icon: string
+						color: string
+						type: "official" | "custom" | "public"
+					}>
+				>
+			}
+			project?: {
+				uploadFiles?: (files: unknown[]) => Promise<unknown>
+				downloadFiles?: (filePaths: string[]) => Promise<unknown>
+				addFilesToMessage?: (files: unknown[], agentMode?: string) => Promise<unknown>
+				createTopicAndSend?: (
+					message: string | TiptapJSONContent,
+					options?: { agentId?: string; model?: string },
+				) => Promise<{ topicId: string }>
+				sendMessage?: (
+					message: string | TiptapJSONContent,
+					options?: { model?: string },
+				) => Promise<void>
+			}
+			// ─── 向后兼容（deprecated）────────────────────────────────────
 			reload?: () => void
 			setInputMessage?: (message: string) => void
+			/** @deprecated 使用 window.Magic.project.uploadFiles */
 			uploadFiles?: (files: unknown[]) => Promise<unknown>
+			/** @deprecated 使用 window.Magic.project.downloadFiles */
 			downloadFiles?: (filePaths: string[]) => Promise<unknown>
-			addFilesToMessage?: (files: unknown[]) => void
+			/** @deprecated 使用 window.Magic.project.addFilesToMessage */
+			addFilesToMessage?: (files: unknown[], agentMode?: string) => Promise<unknown>
+			/** @deprecated 使用 window.Magic.agent.getAgents */
+			getAgents?: () => Promise<
+				Array<{
+					id: string
+					name: string
+					icon: string
+					color: string
+					type: "official" | "custom" | "public"
+				}>
+			>
+			/** @deprecated 使用 window.Magic.project.createTopicAndSend */
+			createTopicAndSend?: (
+				message: string | TiptapJSONContent,
+				options?: { agentId?: string; model?: string },
+			) => Promise<{ topicId: string }>
+			/** @deprecated 使用 window.Magic.project.sendMessage */
+			sendMessage?: (
+				message: string | TiptapJSONContent,
+				options?: { model?: string },
+			) => Promise<void>
 			i18n?: {
 				lang: string
 				subscribe: (callback: (result: { lang: string }) => void) => () => void

@@ -50,7 +50,6 @@ type mockDocumentAppService struct {
 	destroyErr            error
 	showErr               error
 	showResp              *docdto.DocumentDTO
-	originalFileLinkErr   error
 	lastCreateInput       *docdto.CreateDocumentInput
 	lastGetByThirdFile    *docdto.GetDocumentsByThirdFileIDInput
 	lastListInput         *docdto.ListDocumentInput
@@ -62,10 +61,6 @@ type mockDocumentAppService struct {
 	lastShowKBCode        string
 	lastShowOrgCode       string
 	lastShowUserID        string
-	lastOriginalLinkCode  string
-	lastOriginalLinkKB    string
-	lastOriginalLinkOrg   string
-	lastOriginalLinkUser  string
 	lastCountOrgCode      string
 	lastCountKBCodes      []string
 	lastDestroyCode       string
@@ -110,26 +105,6 @@ func (m *mockDocumentAppService) Show(_ context.Context, code, knowledgeBaseCode
 		return m.showResp, nil
 	}
 	return &docdto.DocumentDTO{}, nil
-}
-
-func (m *mockDocumentAppService) GetOriginalFileLink(
-	_ context.Context,
-	code, knowledgeBaseCode, organizationCode, userID string,
-) (*docdto.OriginalFileLinkDTO, error) {
-	m.lastOriginalLinkCode = code
-	m.lastOriginalLinkKB = knowledgeBaseCode
-	m.lastOriginalLinkOrg = organizationCode
-	m.lastOriginalLinkUser = userID
-	if m.originalFileLinkErr != nil {
-		return nil, m.originalFileLinkErr
-	}
-	return &docdto.OriginalFileLinkDTO{
-		Available: true,
-		URL:       "https://example.com/doc.md",
-		Name:      "doc.md",
-		Key:       "ORG1/doc.md",
-		Type:      "external",
-	}, nil
 }
 
 func (m *mockDocumentAppService) List(_ context.Context, input *docdto.ListDocumentInput) (*pagehelper.Result, error) {
@@ -354,16 +329,6 @@ func TestDocumentRPCIgnoresAgentScopeFields(t *testing.T) {
 		t.Fatalf("expected show to ignore agent_code, got %v", err)
 	}
 
-	originalLink := jsonrpc.WrapTyped(handler.GetOriginalFileLinkRPC)
-	if _, err := originalLink(context.Background(), "svc.knowledge.document.getOriginalFileLink", jsonRawMessagef(`{
-		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
-		"code": "DOC1",
-		"knowledge_base_code": "KB1",
-		"agent_code": "%s"
-	}`, testLegacyAgentCode)); err != nil {
-		t.Fatalf("expected getOriginalFileLink to ignore agent_code, got %v", err)
-	}
-
 	list := jsonrpc.WrapTyped(handler.ListRPC)
 	if _, err := list(context.Background(), "svc.knowledge.document.queries", jsonRawMessagef(`{
 		"organization_code": "ORG1",
@@ -548,31 +513,6 @@ func TestShowRPCPassesKnowledgeBaseCodeAndOrganization(t *testing.T) {
 	}
 }
 
-func TestGetOriginalFileLinkRPCPassesExpectedPayload(t *testing.T) {
-	t.Parallel()
-
-	appSvc := &mockDocumentAppService{}
-	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
-
-	result, err := handler.GetOriginalFileLinkRPC(context.Background(), &dto.GetOriginalFileLinkRequest{
-		Code:              testDocumentCode,
-		KnowledgeBaseCode: testDocumentKBCode,
-		DataIsolation: dto.DataIsolation{
-			OrganizationCode: testDocumentOrgCode,
-			UserID:           "U1",
-		},
-	})
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	if appSvc.lastOriginalLinkCode != testDocumentCode || appSvc.lastOriginalLinkKB != testDocumentKBCode || appSvc.lastOriginalLinkOrg != testDocumentOrgCode || appSvc.lastOriginalLinkUser != "U1" {
-		t.Fatalf("unexpected original-file-link input: code=%q kb=%q org=%q user=%q", appSvc.lastOriginalLinkCode, appSvc.lastOriginalLinkKB, appSvc.lastOriginalLinkOrg, appSvc.lastOriginalLinkUser)
-	}
-	if result == nil || !result.Available || result.Type != "external" {
-		t.Fatalf("unexpected result: %#v", result)
-	}
-}
-
 func TestGetByThirdFileIdRPCPassesExpectedPayload(t *testing.T) {
 	t.Parallel()
 
@@ -660,16 +600,6 @@ func TestDocumentRPCShowAndValidationErrors(t *testing.T) {
 		ThirdFileID:       testDocumentThirdFileID,
 	}); err == nil {
 		t.Fatal("expected get-by-third-file error")
-	}
-
-	appSvc = &mockDocumentAppService{originalFileLinkErr: errDocumentRPCBoom}
-	handler = knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
-	if _, err := handler.GetOriginalFileLinkRPC(context.Background(), &dto.GetOriginalFileLinkRequest{
-		Code:              "DOC1",
-		KnowledgeBaseCode: testDocumentKBCode,
-		DataIsolation:     dto.DataIsolation{OrganizationCode: "ORG1"},
-	}); err == nil {
-		t.Fatal("expected original-file-link error")
 	}
 }
 

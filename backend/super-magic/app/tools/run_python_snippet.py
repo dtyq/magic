@@ -7,9 +7,11 @@ from pydantic import Field, field_validator
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
+from app.path_manager import PathManager
 from app.core.entity.tool.tool_result_types import TerminalToolResult
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
+from app.tools.python_snippet_repair import prepare_python_code
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.process_executor import ProcessExecutor
 from app.utils.terminal_tool_detail_generator import TerminalToolDetailGenerator
@@ -83,6 +85,10 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams], WorkspaceTool[R
     ```
     """
 
+    @staticmethod
+    def _prepare_python_code(python_code: str) -> str:
+        return prepare_python_code(python_code, logger=logger, caller="run_python_snippet")
+
     async def execute(self, tool_context: ToolContext, params: RunPythonSnippetParams) -> TerminalToolResult:
         """
         执行Python代码片段
@@ -107,6 +113,7 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams], WorkspaceTool[R
             TerminalToolResult: 执行结果
         """
         script_file_path = None
+        python_code = self._prepare_python_code(params.python_code)
 
         try:
             # 处理工作目录
@@ -131,7 +138,7 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams], WorkspaceTool[R
             # 第一步：写入Python代码到临时文件
             try:
                 async with aiofiles.open(script_file_path, 'w', encoding='utf-8') as f:
-                    await f.write(params.python_code)
+                    await f.write(python_code)
                 logger.debug(f"成功写入Python代码到: {script_file_path}")
             except Exception as e:
                 logger.exception(f"写入Python脚本失败: {e}")
@@ -148,7 +155,10 @@ class RunPythonSnippet(AbstractFileTool[RunPythonSnippetParams], WorkspaceTool[R
             result = await ProcessExecutor.execute_command(
                 command=command,
                 cwd=exec_cwd,
-                timeout=params.timeout
+                timeout=params.timeout,
+                extra_env={
+                    "SUPER_MAGIC_PROJECT_ROOT": str(PathManager.get_project_root()),
+                },
             )
 
             return result

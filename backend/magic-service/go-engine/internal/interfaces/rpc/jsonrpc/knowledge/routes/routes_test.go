@@ -17,11 +17,18 @@ func knowledgeMethods() []string {
 		constants.MethodKnowledgeBaseSaveProcess,
 		constants.MethodKnowledgeBaseShow,
 		constants.MethodKnowledgeBaseList,
+		constants.MethodKnowledgeBaseLinkAgentKnowledgeBases,
+		constants.MethodKnowledgeBaseUnlinkAgentKnowledgeBases,
+		constants.MethodKnowledgeBaseUpdateAgentKnowledgeBaseBinding,
 		constants.MethodKnowledgeTeamshareStartVector,
 		constants.MethodKnowledgeTeamshareManageable,
 		constants.MethodKnowledgeTeamshareManageableProgress,
+		constants.MethodKnowledgeBaseNodes,
 		constants.MethodKnowledgeBaseDestroy,
+		constants.MethodKnowledgeBaseRebuildPermissions,
 		constants.MethodKnowledgeBaseRebuild,
+		constants.MethodKnowledgeBaseRebuildStatus,
+		constants.MethodKnowledgeBaseSwitchEmbeddingModelMeta,
 		constants.MethodKnowledgeBaseRepairSourceBindings,
 		constants.MethodKnowledgeBaseRebuildCleanup,
 	}
@@ -30,13 +37,18 @@ func knowledgeMethods() []string {
 func fragmentMethods() []string {
 	return []string{
 		constants.MethodFragmentCreate,
+		constants.MethodFragmentRuntimeCreate,
 		constants.MethodFragmentShow,
 		constants.MethodFragmentList,
 		constants.MethodFragmentListHTTP,
 		constants.MethodFragmentDestroy,
+		constants.MethodFragmentRuntimeDestroyByBusinessID,
+		constants.MethodFragmentRuntimeDestroyByMetadataFilter,
 		constants.MethodFragmentSync,
 		constants.MethodFragmentSimilarity,
 		constants.MethodFragmentSimilarityHTTP,
+		constants.MethodFragmentRuntimeSimilarity,
+		constants.MethodFragmentSimilarityByAgent,
 		constants.MethodFragmentPreview,
 		constants.MethodFragmentPreviewHTTP,
 	}
@@ -55,7 +67,6 @@ func documentMethods() []string {
 		constants.MethodDocumentCreate,
 		constants.MethodDocumentUpdate,
 		constants.MethodDocumentShow,
-		constants.MethodDocumentGetOriginalFileLink,
 		constants.MethodDocumentList,
 		constants.MethodDocumentGetByThirdFileID,
 		constants.MethodDocumentCountByKnowledgeBaseCodes,
@@ -63,6 +74,12 @@ func documentMethods() []string {
 		constants.MethodDocumentSync,
 		constants.MethodDocumentReVectorizedByThirdFileID,
 		constants.MethodKnowledgeProjectFileNotifyChange,
+	}
+}
+
+func opsMethods() []string {
+	return []string{
+		constants.MethodSocketIORedisCleanup,
 	}
 }
 
@@ -128,6 +145,15 @@ func TestRegisterEmbeddingRoutes(t *testing.T) {
 	assertRegisteredMethods(t, router, embeddingMethods())
 }
 
+func TestRegisterOpsRoutes(t *testing.T) {
+	t.Parallel()
+
+	router := &fakeRouter{}
+	routes.RegisterOpsRoutes(router, stubProvider(opsMethods()...))
+
+	assertRegisteredMethods(t, router, opsMethods())
+}
+
 func newDependencies(router *fakeRouter) routes.Dependencies {
 	return routes.Dependencies{
 		Server:           router,
@@ -135,6 +161,7 @@ func newDependencies(router *fakeRouter) routes.Dependencies {
 		FragmentHandler:  stubProvider(fragmentMethods()...),
 		EmbeddingHandler: stubProvider(embeddingMethods()...),
 		DocumentHandler:  stubProvider(documentMethods()...),
+		OpsHandler:       stubProvider(opsMethods()...),
 	}
 }
 
@@ -143,12 +170,14 @@ func allKnowledgeMethods() []string {
 	fragment := fragmentMethods()
 	embedding := embeddingMethods()
 	document := documentMethods()
-	methods := make([]string, 0, 1+len(knowledge)+len(fragment)+len(embedding)+len(document))
+	ops := opsMethods()
+	methods := make([]string, 0, 1+len(knowledge)+len(fragment)+len(embedding)+len(document)+len(ops))
 	methods = append(methods, constants.MethodPing)
 	methods = append(methods, knowledge...)
 	methods = append(methods, fragment...)
 	methods = append(methods, embedding...)
 	methods = append(methods, document...)
+	methods = append(methods, ops...)
 	return methods
 }
 

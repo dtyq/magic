@@ -34,9 +34,14 @@ class WorkspaceListResponseDTO extends AbstractDTO
      * @param array $result [total, list, auto_create]
      * @param array $workspaceStatusMap ['workspace_id' => 'status'] mapping
      * @param array $projectCountMap ['workspace_id' => count] mapping
+     * @param array $cooperateProjectCountMap ['workspace_id' => count] mapping
      */
-    public static function fromResult(array $result, array $workspaceStatusMap = [], array $projectCountMap = []): self
-    {
+    public static function fromResult(
+        array $result,
+        array $workspaceStatusMap = [],
+        array $projectCountMap = [],
+        array $cooperateProjectCountMap = []
+    ): self {
         $dto = new self();
         $dto->total = $result['total'];
         $dto->autoCreate = $result['auto_create'] ?? false;
@@ -46,12 +51,14 @@ class WorkspaceListResponseDTO extends AbstractDTO
                 $workspaceId = $workspace['id'];
                 $workspaceStatus = $workspaceStatusMap[$workspaceId] ?? null;
                 $projectCount = $projectCountMap[$workspaceId] ?? 0;
-                $dto->list[] = WorkspaceItemDTO::fromArray($workspace, $workspaceStatus, $projectCount);
+                $cooperateProjectCount = $cooperateProjectCountMap[$workspaceId] ?? 0;
+                $dto->list[] = WorkspaceItemDTO::fromArray($workspace, $workspaceStatus, $projectCount, $cooperateProjectCount);
             } else {
                 $workspaceId = $workspace->getId();
                 $workspaceStatus = $workspaceStatusMap[$workspaceId] ?? null;
                 $projectCount = $projectCountMap[$workspaceId] ?? 0;
-                $dto->list[] = WorkspaceItemDTO::fromEntity($workspace, $workspaceStatus, $projectCount);
+                $cooperateProjectCount = $cooperateProjectCountMap[$workspaceId] ?? 0;
+                $dto->list[] = WorkspaceItemDTO::fromEntity($workspace, $workspaceStatus, $projectCount, $cooperateProjectCount);
             }
         }
 

@@ -20,6 +20,8 @@ import type { ReferenceResourceSourceType } from "../MessageEditor/reference-ass
 import type { ReferenceResourcePanelItem } from "../../types"
 import SizeIconPreview from "../ui/custom/SizeIconPreview"
 import SourceList, { type SourceListOption, type SourceListRenderItemParams } from "../SourceList"
+import sourceListStyles from "../SourceList/SourceList.module.css"
+import { cn } from "../../lib/utils"
 
 interface ImageEditorReferencePopoverState {
 	slotKey: string
@@ -113,6 +115,7 @@ function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
 
 interface ImageEditorControlsProps {
 	config: ImageEditorConfig
+	hoveredMentionPath?: string | null
 	onSelectSource: (source: ReferenceResourceSourceType) => void
 	onProjectSelect?: (item: ReferenceResourcePanelItem) => void
 	/** 参考文件删除回调，传入时优先使用（用于同步到 TipTap） */
@@ -121,8 +124,14 @@ interface ImageEditorControlsProps {
 }
 
 export default function ImageEditorControls(props: ImageEditorControlsProps) {
-	const { config, onSelectSource, onProjectSelect, onReferenceFileRemove, renderSendButton } =
-		props
+	const {
+		config,
+		hoveredMentionPath,
+		onSelectSource,
+		onProjectSelect,
+		onReferenceFileRemove,
+		renderSendButton,
+	} = props
 	const { t } = useCanvasDesignI18n()
 
 	const {
@@ -222,7 +231,11 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 			const referencePopoverState = resolveReferencePopoverState(option)
 			return (
 				<ImageEditorReferenceSlotPopover
-					className={className}
+					className={cn(
+						className,
+						option.resourcePath === hoveredMentionPath &&
+							sourceListStyles.sourceItemMentionHovered,
+					)}
 					style={style}
 					content={content}
 					slotKey={referencePopoverState.slotKey}
@@ -252,6 +265,7 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 			referenceResourceType,
 			referenceFileInfos,
 			onProjectSelect,
+			hoveredMentionPath,
 		],
 	)
 

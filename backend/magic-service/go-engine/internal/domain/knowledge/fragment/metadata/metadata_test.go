@@ -88,11 +88,18 @@ func TestBuildFragmentPayloadCompactsMetadataForVectorStore(t *testing.T) {
 			"document_type":          2,
 			"organization_code":      "org-001",
 			"document_name":          "测试文档",
+			"source_url":             "https://docs.example.test/doc-001",
+			"source_provider":        "external_docs",
+			"third_file_id":          "source-1:doc-001",
+			"file_key":               "ORG/files/doc-001.md",
 			"token_count":            128,
 		},
 	}
 
 	payload := fragmetadata.BuildFragmentPayload(fragment)
+	if payload.FileKey != "ORG/files/doc-001.md" {
+		t.Fatalf("expected payload file key, got %q", payload.FileKey)
+	}
 	ext, ok := payload.Metadata["ext"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected payload metadata ext map, got %#v", payload.Metadata["ext"])
@@ -100,7 +107,12 @@ func TestBuildFragmentPayloadCompactsMetadataForVectorStore(t *testing.T) {
 	if _, ok := ext["document_code"]; ok {
 		t.Fatalf("did not expect duplicated document_code inside metadata ext: %+v", ext)
 	}
-	if ext["section_title"] != "B" || ext["token_count"] != 128 {
+	if ext["section_title"] != "B" ||
+		ext["token_count"] != 128 ||
+		ext["source_url"] != "https://docs.example.test/doc-001" ||
+		ext["source_provider"] != "external_docs" ||
+		ext["third_file_id"] != "source-1:doc-001" ||
+		ext["file_key"] != "ORG/files/doc-001.md" {
 		t.Fatalf("expected ext to preserve non-filterable metadata, got %+v", ext)
 	}
 	if payload.Metadata["section_level"] != 2 {
@@ -180,6 +192,35 @@ func TestBuildFragmentDisplayContent(t *testing.T) {
 	want = "会议纪要 > 讨论要点 > 1.14 原文显示问题\n\n命中正文\n\n邻接正文"
 	if got != want {
 		t.Fatalf("unexpected display content:\nwant: %q\ngot:  %q", want, got)
+	}
+
+	got = fragmetadata.BuildFragmentDisplayContent(
+		"命中正文",
+		map[string]any{
+			"ext": map[string]any{
+				"source_url": "https://docs.example.test/doc-001",
+			},
+		},
+		"",
+		"",
+	)
+	want = "命中正文"
+	if got != want {
+		t.Fatalf("unexpected display content:\nwant: %q\ngot:  %q", want, got)
+	}
+}
+
+func TestResolveFragmentSourceURLFromExt(t *testing.T) {
+	t.Parallel()
+
+	got := fragmetadata.ResolveFragmentSourceURL(map[string]any{
+		"ext": map[string]any{
+			"source_provider": "external_docs",
+			"url":             "https://docs.example.test/doc-001",
+		},
+	})
+	if got != "https://docs.example.test/doc-001" {
+		t.Fatalf("unexpected source url: %q", got)
 	}
 }
 

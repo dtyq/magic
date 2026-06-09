@@ -3,6 +3,7 @@ import type { JSONContent } from "@tiptap/core"
 import type { MagicClawItem } from "@/apis"
 import type { MessageListContextState } from "@/pages/superMagic/components/MessageList/context"
 import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 import { getAvatarUrl } from "@/utils/avatar"
 import { cn } from "@/lib/utils"
 import { getMagiClawTemplateAvatarConfig } from "../../MagiClawPage/MagiClawTemplateAvatar"
@@ -10,13 +11,14 @@ import { getMagiClawTemplateAvatarConfig } from "../../MagiClawPage/MagiClawTemp
 interface UseClawPlaygroundMessageListContextValueParams {
 	setSelectedTopic: (topic: Topic) => void
 	magicClaw?: MagicClawItem | null
+	projectFilesStore?: ProjectFilesStore
 }
 
 /** Shared MessageListProvider value for Claw playground (desktop + mobile). */
 export function useClawPlaygroundMessageListContextValue(
 	params: UseClawPlaygroundMessageListContextValueParams,
 ): MessageListContextState {
-	const { setSelectedTopic, magicClaw } = params
+	const { setSelectedTopic, magicClaw, projectFilesStore } = params
 
 	const assistantAvatarUrl = useMemo(() => {
 		if (!magicClaw) return undefined
@@ -27,13 +29,14 @@ export function useClawPlaygroundMessageListContextValue(
 
 	return useMemo(
 		() => ({
-			allowRevoke: false,
+			allowRevoke: true,
 			allowUserMessageCopy: true,
 			allowScheduleTaskCreate: false,
 			allowMessageTooltip: true,
 			allowConversationCopy: false,
 			allowCreateNewTopic: false,
 			onTopicSwitch: setSelectedTopic,
+			projectFilesStore,
 			renderAssistantAvatar: assistantAvatarUrl
 				? ({ className } = {}) => (
 						<img
@@ -48,6 +51,6 @@ export function useClawPlaygroundMessageListContextValue(
 				: undefined,
 			showTaskCompletedBadge: false,
 		}),
-		[assistantAvatarUrl, setSelectedTopic],
+		[assistantAvatarUrl, setSelectedTopic, projectFilesStore],
 	)
 }

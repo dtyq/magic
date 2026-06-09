@@ -37,6 +37,7 @@ func TestSimilarityKeepsNonTabularHitContentUntouched(t *testing.T) {
 			DocumentCode:  "DOC1",
 			DocumentName:  "会议纪要",
 			DocumentType:  1,
+			FileKey:       "ORG/files/meeting.md",
 			ChunkIndex:    3,
 			SectionPath:   "会议纪要 > 讨论要点",
 			SectionTitle:  "1.14 原文显示问题",
@@ -45,6 +46,9 @@ func TestSimilarityKeepsNonTabularHitContentUntouched(t *testing.T) {
 
 	if result.Content != "命中正文" {
 		t.Fatalf("expected non-tabular hit content to remain untouched, got %q", result.Content)
+	}
+	if result.FileKey != "ORG/files/meeting.md" {
+		t.Fatalf("expected file key to pass through, got %q", result.FileKey)
 	}
 	assertSimilarityResultHasNoContextMetadata(t, result.Metadata)
 }

@@ -138,12 +138,50 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 	// State: mobile file selector popup visibility
 	const [fileSelectorPopupVisible, setFileSelectorPopupVisible] = useState(false)
 
+	// State: resizable left panel width
+	const [leftPanelWidth, setLeftPanelWidth] = useState(248)
+	const isResizing = useRef(false)
+	const LEFT_PANEL_MIN_WIDTH = 200
+	const LEFT_PANEL_MAX_WIDTH = 400
+
 	// Sync externalResourceId to resourceId state
 	useEffect(() => {
 		if (externalResourceId) {
 			setResourceId(externalResourceId)
 		}
 	}, [externalResourceId])
+
+	// Handle resize of left panel
+	const handleResizeMouseDown = useCallback(
+		(e: React.MouseEvent) => {
+			e.preventDefault()
+			isResizing.current = true
+			const startX = e.clientX
+			const startWidth = leftPanelWidth
+
+			const handleMouseMove = (moveEvent: MouseEvent) => {
+				if (!isResizing.current) return
+				const newWidth = startWidth + (moveEvent.clientX - startX)
+				setLeftPanelWidth(
+					Math.min(LEFT_PANEL_MAX_WIDTH, Math.max(LEFT_PANEL_MIN_WIDTH, newWidth)),
+				)
+			}
+
+			const handleMouseUp = () => {
+				isResizing.current = false
+				document.removeEventListener("mousemove", handleMouseMove)
+				document.removeEventListener("mouseup", handleMouseUp)
+				document.body.style.cursor = ""
+				document.body.style.userSelect = ""
+			}
+
+			document.body.style.cursor = "col-resize"
+			document.body.style.userSelect = "none"
+			document.addEventListener("mousemove", handleMouseMove)
+			document.addEventListener("mouseup", handleMouseUp)
+		},
+		[leftPanelWidth],
+	)
 
 	useEffect(() => {
 		if (externalProjectId) {
@@ -599,6 +637,7 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 				const shareMessageText = generateShareMessageText({
 					fileCount: actualFileCount,
 					mainFileName: apiResult?.main_file_name || t("share.untitled"),
+					shareName,
 					projectName: projectName,
 					shareProject: shareProject,
 					shareUrl,
@@ -842,9 +881,9 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 		<div className="flex flex-col">
 			<div className={styles.body}>
 				{/* Left: File selector - 单文件模式下不显示 */}
-				<div className={styles.fileListSection}>
+				<div className={styles.fileListSection} style={{ width: leftPanelWidth }}>
 					{/* Share Project Switch */}
-					<div className="flex items-start justify-between gap-3 px-3 py-3 pb-0">
+					<div className="flex items-start gap-3 px-3 py-3 pb-0">
 						<Switch checked={shareProject} onCheckedChange={handleShareProjectChange} />
 						<div className="flex flex-col gap-2">
 							<div className="text-sm font-medium leading-none text-foreground">
@@ -871,6 +910,12 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 						allowSetDefaultOpen
 						className={styles.fileSelector}
 					/>
+
+					{/* Resize Handle */}
+					<div className={styles.resizeHandle} onMouseDown={handleResizeMouseDown}>
+						<div className="resize-bar" />
+						<div className="resize-bar" style={{ marginLeft: 2 }} />
+					</div>
 				</div>
 
 				{/* Right: Statistics + Share type selector */}

@@ -101,7 +101,7 @@ func (s *ParseService) ParseDocumentWithOptions(
 		return nil, err
 	}
 
-	parser, resolvedURL, reader, err := s.prepareParse(ctx, fileURL, normalizedFileType)
+	parser, resolvedURL, reader, err := s.prepareParse(ctx, fileURL, normalizedFileType, options)
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +182,7 @@ func (s *ParseService) prepareParse(
 	ctx context.Context,
 	fileURL string,
 	normalizedFileType string,
+	options ParseOptions,
 ) (Parser, string, io.ReadCloser, error) {
 	parser, err := s.resolveParser(normalizedFileType)
 	if err != nil {
@@ -194,7 +195,7 @@ func (s *ParseService) prepareParse(
 	}
 
 	resolvedURL := ""
-	if parser.NeedsResolvedURL() && fileURL != "" {
+	if needsResolvedURL(ctx, parser, normalizedFileType, options) && fileURL != "" {
 		link, err := s.fileFetcher.GetLink(ctx, fileURL, "GET", 10*time.Minute)
 		if err != nil {
 			s.logger.KnowledgeWarnContext(ctx, "Failed to resolve file URL", "error", err, "url", fileURL)
@@ -211,6 +212,13 @@ func (s *ParseService) prepareParse(
 		return nil, "", nil, fmt.Errorf("failed to fetch file: %w", err)
 	}
 	return parser, resolvedURL, NewSourceSizeLimitedReadCloser(reader, s.ResourceLimits()), nil
+}
+
+func needsResolvedURL(ctx context.Context, parser Parser, normalizedFileType string, options ParseOptions) bool {
+	if policy, ok := parser.(ParserResolvedURLPolicy); ok {
+		return policy.NeedsResolvedURLForOptions(ctx, normalizedFileType, options)
+	}
+	return parser.NeedsResolvedURL()
 }
 
 func (s *ParseService) resolveParser(normalizedFileType string) (Parser, error) {

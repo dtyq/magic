@@ -305,16 +305,9 @@ class BaseAgent(ABC):
         else:
             self.tools = agent_define.tools_config
 
-        # 保持 llm_id 始终是 Agent 文件中定义的原始模型ID
-        # 动态模型选择完全由每次对话时的 _resolve_effective_model_info() 处理
+        # 保持 llm_id 始终是 Agent 文件中定义的原始模型 ID
         self.llm_id = agent_define.model_id
         logger.info(f"加载完成: model_id={agent_define.model_id}, 工具数量={len(self.tools)}")
-
-        # 记录动态模型配置情况（仅用于日志）
-        if self.agent_context and self.agent_context.has_dynamic_model_id():
-            dynamic_model_id = self.agent_context.get_dynamic_model_id()
-            if dynamic_model_id and dynamic_model_id.strip():
-                logger.info(f"检测到动态模型配置: {dynamic_model_id}，将在对话时动态选择模型")
 
     def set_agent_state(self, state: AgentState) -> None:
         """

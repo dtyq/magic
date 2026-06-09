@@ -7,13 +7,15 @@ Correlation ID 管理器
 """
 
 import uuid
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
 from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
+
+_GLOBAL_SCOPE_ID = "__global__"
 
 
 class EventPairType(str, Enum):
@@ -79,6 +81,7 @@ class CorrelationContext:
     """Correlation 上下文信息"""
     correlation_id: str
     event_pair_type: EventPairType  # 事件配对类型
+    scope_id: str
     created_at: float
     consumed: bool = False
     retry_count: int = 0  # 重试次数
@@ -102,37 +105,47 @@ class CorrelationIdManager:
 
     def __init__(self):
         self._contexts: Dict[str, CorrelationContext] = {}
-        # 按事件类型存储当前活跃的 correlation_id（每种类型只有一个）
+        # 按 AgentContext scope + 事件类型存储当前活跃的 correlation_id。
+        # 同一个全局 manager 内，不同 AgentContext 的事件互不消费。
         # 注意：由于 asyncio 是单线程模型，不需要线程锁
-        self._active_correlations: Dict[EventPairType, str] = {}
+        self._active_correlations: Dict[Tuple[str, EventPairType], str] = {}
         # V2 流式中断降级时保存的 correlation_id：
         # V2 流式 chunk 以 request_id 作为 correlation_id 推送前端，
         # 流式中断降级非流式时需沿用，否则前端会将 chunk 和最终消息视为两条消息。
         self._stream_fallback_cid: Optional[str] = None
 
-    def generate_for_before_event(self, event_pair_type: EventPairType) -> str:
+    def generate_for_before_event(
+        self,
+        event_pair_type: EventPairType,
+        scope_id: Optional[str] = None,
+    ) -> str:
         """
         为 before 事件生成 correlation_id
 
-        如果同类型事件已有活跃的 correlation_id（未被消耗），则复用它（重试场景）
+        如果同 scope 下同类型事件已有活跃的 correlation_id（未被消耗），则复用它（重试场景）
         否则生成新的 correlation_id
 
         Args:
             event_pair_type: 事件配对类型
+            scope_id: AgentContext 唯一标识；未传时使用全局 scope，兼容无 AgentContext 场景。
 
         Returns:
             str: correlation_id
         """
         import time
 
-        # 检查是否有同类型的活跃 correlation_id（重试场景）
-        existing_correlation_id = self._active_correlations.get(event_pair_type)
+        normalized_scope_id = self._normalize_scope_id(scope_id)
+        active_key = self._active_key(event_pair_type, normalized_scope_id)
+
+        # 检查是否有同 scope 下同类型的活跃 correlation_id（重试场景）
+        existing_correlation_id = self._active_correlations.get(active_key)
         if existing_correlation_id and existing_correlation_id in self._contexts:
             context = self._contexts[existing_correlation_id]
             if not context.consumed:
                 context.retry_count += 1
                 logger.debug(f"复用 correlation_id: {existing_correlation_id}, "
-                           f"事件类型: {event_pair_type}, 重试次数: {context.retry_count}")
+                           f"事件类型: {event_pair_type}, scope: {normalized_scope_id}, "
+                           f"重试次数: {context.retry_count}")
                 return existing_correlation_id
 
         # 生成新的 correlation_id
@@ -140,58 +153,83 @@ class CorrelationIdManager:
         context = CorrelationContext(
             correlation_id=correlation_id,
             event_pair_type=event_pair_type,
+            scope_id=normalized_scope_id,
             created_at=time.time(),
             consumed=False,
             retry_count=0
         )
 
         self._contexts[correlation_id] = context
-        self._active_correlations[event_pair_type] = correlation_id
+        self._active_correlations[active_key] = correlation_id
 
-        logger.debug(f"生成 correlation_id: {correlation_id}, 事件类型: {event_pair_type}")
+        logger.debug(f"生成 correlation_id: {correlation_id}, 事件类型: {event_pair_type}, scope: {normalized_scope_id}")
         return correlation_id
 
-    def get_active_correlation_id(self, event_pair_type: EventPairType) -> Optional[str]:
+    def get_active_correlation_id(
+        self,
+        event_pair_type: EventPairType,
+        scope_id: Optional[str] = None,
+    ) -> Optional[str]:
         """
         获取指定事件类型的活跃 correlation_id
 
         Args:
             event_pair_type: 事件配对类型
+            scope_id: AgentContext 唯一标识；未传时使用全局 scope，兼容无 AgentContext 场景。
 
         Returns:
             Optional[str]: 活跃的 correlation_id，如果没有则返回 None
         """
-        correlation_id = self._active_correlations.get(event_pair_type)
+        active_key = self._active_key(event_pair_type, self._normalize_scope_id(scope_id))
+        correlation_id = self._active_correlations.get(active_key)
         if correlation_id and correlation_id in self._contexts:
             context = self._contexts[correlation_id]
             if not context.consumed:
                 return correlation_id
         return None
 
-    def consume_for_after_event(self, event_pair_type: EventPairType) -> Optional[str]:
+    def consume_for_after_event(
+        self,
+        event_pair_type: EventPairType,
+        scope_id: Optional[str] = None,
+    ) -> Optional[str]:
         """
         为 after 事件消耗对应的 correlation_id
 
         Args:
             event_pair_type: 事件配对类型
+            scope_id: AgentContext 唯一标识；未传时使用全局 scope，兼容无 AgentContext 场景。
 
         Returns:
             Optional[str]: 被消耗的 correlation_id，如果没有对应的活跃 correlation_id 则返回 None
         """
-        correlation_id = self._active_correlations.get(event_pair_type)
+        normalized_scope_id = self._normalize_scope_id(scope_id)
+        active_key = self._active_key(event_pair_type, normalized_scope_id)
+        correlation_id = self._active_correlations.get(active_key)
         if correlation_id and correlation_id in self._contexts:
             context = self._contexts[correlation_id]
             if not context.consumed:
                 context.consumed = True
                 # 清理活跃列表
-                del self._active_correlations[event_pair_type]
+                del self._active_correlations[active_key]
 
                 logger.debug(f"消耗 correlation_id: {correlation_id}, "
-                           f"事件类型: {event_pair_type}, 重试次数: {context.retry_count}")
+                           f"事件类型: {event_pair_type}, scope: {normalized_scope_id}, "
+                           f"重试次数: {context.retry_count}")
                 return correlation_id
 
-        logger.warning(f"无法为事件类型 {event_pair_type} 找到可消耗的 correlation_id")
+        logger.warning(f"无法为事件类型 {event_pair_type} scope={normalized_scope_id} 找到可消耗的 correlation_id")
         return None
+
+    @staticmethod
+    def _normalize_scope_id(scope_id: Optional[str]) -> str:
+        if isinstance(scope_id, str) and scope_id.strip():
+            return scope_id.strip()
+        return _GLOBAL_SCOPE_ID
+
+    @staticmethod
+    def _active_key(event_pair_type: EventPairType, scope_id: str) -> Tuple[str, EventPairType]:
+        return scope_id, event_pair_type
 
     def set_stream_fallback_cid(self, cid: Optional[str]) -> None:
         """保存 V2 流式中断后的降级 correlation_id

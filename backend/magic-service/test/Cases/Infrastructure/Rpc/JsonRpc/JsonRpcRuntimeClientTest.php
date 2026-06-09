@@ -70,6 +70,33 @@ class JsonRpcRuntimeClientTest extends TestCase
         $this->assertSame('内部错误', $exception->getMessage());
     }
 
+    public function testBuildRemoteErrorExceptionShouldPreserveRemoteData(): void
+    {
+        $client = $this->newClient();
+        $debugData = [
+            'debug' => [
+                'request_id' => 'req-debug-1',
+                'stack' => 'goroutine 1 [running]',
+            ],
+        ];
+
+        $exception = self::invokePrivate(
+            $client,
+            'buildRemoteErrorException',
+            [[
+                'error' => [
+                    'code' => 5000,
+                    'message' => 'panic: nil pointer',
+                    'data' => $debugData,
+                ],
+            ]]
+        );
+
+        $this->assertInstanceOf(BusinessException::class, $exception);
+        $this->assertTrue($exception->hasData());
+        $this->assertSame($debugData, $exception->getData());
+    }
+
     public function testBuildRequestContextShouldIncludeRequestIdAndLanguage(): void
     {
         $client = $this->newClient();

@@ -302,7 +302,7 @@ class MessageProcessor:
             else:
                 logger.info(f"使用现有的任务ID: {existing_task_id}")
 
-            # 🔥 处理动态配置和模型选择（容错模式：失败不影响聊天流程）
+            # 处理动态配置（容错模式：失败不影响聊天流程）
             try:
                 # 将 agent_mode 解析为 agent_type，用于 dynamic_config skills 按 agent 隔离
                 _agent_type = self._resolve_agent_type(message.agent_mode)
@@ -310,12 +310,6 @@ class MessageProcessor:
             except Exception as e:
                 logger.error(f"动态配置处理失败: {e}")
                 logger.info("🔄 动态配置处理失败，将使用全局配置继续聊天流程")
-
-            try:
-                await self._handle_dynamic_model_selection(message.model_id, agent_context)
-            except Exception as e:
-                logger.error(f"动态模型选择处理失败: {e}")
-                logger.info("🔄 动态模型选择处理失败，将使用Agent默认模型继续聊天流程")
 
             # 处理非人类限流配置（容错模式：失败不影响聊天流程）
             await self._handle_non_human_options(message.dynamic_config, agent_context)
@@ -532,37 +526,18 @@ class MessageProcessor:
             )
 
             if success:
-                model_ids = dynamic_config.get_model_ids()
-                if model_ids:
-                    logger.info(f"✅ 已写入动态配置: {len(model_ids)}个模型 {model_ids} -> {config_file_path}")
-                else:
-                    logger.info(f"✅ 已写入空的动态配置 -> {config_file_path}")
-
+                logger.info(f"已写入动态配置: {config_file_path}")
                 if warnings:
                     logger.debug(f"⚠️  动态配置写入时有警告: {'; '.join(warnings)}")
             else:
                 error_msg = f"动态配置验证失败: {'; '.join(warnings)}"
-                logger.error(f"❌ {error_msg}")
-                logger.info("🔄 动态配置注入失败，将使用全局配置继续聊天流程")
+                logger.error(f"错误详情: {error_msg}")
+                logger.info("动态配置注入失败，将使用全局配置继续聊天流程")
 
         except Exception as e:
-            logger.error(f"❌ 动态配置注入异常: {e}")
+            logger.error(f"动态配置注入异常: {e}")
             logger.error(f"错误详情: {traceback.format_exc()}")
-            logger.info("🔄 动态配置注入失败，将使用全局配置继续聊天流程")
-
-    async def _handle_dynamic_model_selection(self, model_id: Optional[str], agent_context):
-        """处理动态模型选择（容错模式：失败不影响聊天流程）"""
-        if not model_id or not model_id.strip():
-            return
-
-        try:
-            # 直接设置动态模型ID，让LLMFactory.call_with_tool_support()在实际使用时进行兜底处理
-            agent_context.set_dynamic_model_id(model_id)
-            logger.info(f"✅ 已设置动态模型选择: {model_id}")
-
-        except Exception as e:
-            logger.error(f"❌ 动态模型选择设置异常: {e}")
-            logger.info("🔄 动态模型选择设置失败，将使用Agent默认模型继续聊天流程")
+            logger.info("动态配置注入失败，将使用全局配置继续聊天流程")
 
     async def _handle_non_human_options(
         self,

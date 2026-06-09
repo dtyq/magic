@@ -135,6 +135,7 @@ class ProjectImageStorageService implements ProjectImageStorageInterface {
 			// Step 3: Save to project
 			const saveResult = await superMagicUploadTokenService.saveFileToProject({
 				project_id: projectId,
+				parent_id: options?.parentFolderId,
 				file_key: uploadResult.key,
 				file_name: uploadResult.name,
 				file_size: uploadResult.size,

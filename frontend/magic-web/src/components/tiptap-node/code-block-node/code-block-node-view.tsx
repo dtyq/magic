@@ -23,7 +23,7 @@ const DiffHighlighter = lazy(async () => {
 export function CodeBlockNodeView(props: NodeViewProps) {
 	const { node, editor } = props
 	const language = node.attrs.language || "text"
-	const [diffStyle, setDiffStyle] = useState<Record<string, any> | null>(null)
+	const [diffStyle, setDiffStyle] = useState<Record<string, unknown> | null>(null)
 	useEffect(() => {
 		if (language !== "diff" || diffStyle) return
 		import("react-syntax-highlighter/dist/esm/styles/hljs").then((styleModule) => {
@@ -71,7 +71,7 @@ export function CodeBlockNodeView(props: NodeViewProps) {
 		return (
 			<NodeViewWrapper as="div">
 				<Suspense fallback={null}>
-					<MagicMermaid data={codeContent} />
+					<MagicMermaid data={codeContent} allowPreview />
 				</Suspense>
 			</NodeViewWrapper>
 		)

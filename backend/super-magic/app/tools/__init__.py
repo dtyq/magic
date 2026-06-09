@@ -33,7 +33,6 @@ from app.tools.generate_video import GenerateVideo, QueryVideoGeneration
 from app.tools.image_search import ImageSearch
 from app.tools.list_dir import ListDir
 from app.tools.purify import Purify
-from app.tools.markitdown_plugins import excel_plugin, docx_plugin
 
 # 导出工具类
 from app.tools.read_file import ReadFile
@@ -58,7 +57,18 @@ from app.tools.magic_calendar import ManageCalendar, CreateCalendarProject
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.append_to_file import AppendToFile
 from app.tools.convert_pdf import ConvertPdf
-from app.tools.convert_to_markdown import ConvertToMarkdown
+from app.tools.document_parse import (
+    BuildDocumentIndex,
+    ConvertDocumentFormat,
+    ExportDocumentMarkdown,
+    ExtractDocumentContent,
+    InspectDocument,
+    PlanDocumentReading,
+    SampleDocumentContent,
+    SummarizeDocument,
+    UnderstandDocumentImages,
+)
+from app.tools.env_manager import ListEnv, SetEnv, UnsetEnv
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
 from app.tools.video_understanding import VideoUnderstanding
@@ -111,6 +121,22 @@ from app.tools.read_skills import ReadSkills
 from app.tools.run_sdk_snippet import RunSdkSnippet
 from app.tools.search_knowledge import SearchKnowledge
 
+# MCP 工具集（code_mode_only=True，只允许通过 sdk.tool.call 调用）
+from app.tools.mcp import (
+    McpAddServer,
+    McpCallTool,
+    McpConnectServer,
+    McpGetToolSchema,
+    McpListServers,
+    McpListTools,
+)
+
+# Remote 工具集（将 magic-service mention 中的 tool / agent 以本地工具形态转发）
+from app.tools.remote import (
+    CallSimpleAgent,
+    CallSimpleTool,
+)
+
 # Import design package modules to ensure they are available in encrypted environment
 import app.tools.design.manager
 import app.tools.design.utils
@@ -140,7 +166,18 @@ __all__ = [
     "WaitWechatLogin",
     "CompactChatHistory",
     "ConvertPdf",
-    "ConvertToMarkdown",
+    "BuildDocumentIndex",
+    "ConvertDocumentFormat",
+    "ExportDocumentMarkdown",
+    "ExtractDocumentContent",
+    "InspectDocument",
+    "PlanDocumentReading",
+    "SampleDocumentContent",
+    "SummarizeDocument",
+    "UnderstandDocumentImages",
+    "ListEnv",
+    "SetEnv",
+    "UnsetEnv",
     "CreateSlide",
     "CreateSlideProject",
     "CreateMemory",
@@ -191,9 +228,6 @@ __all__ = [
     "ManageCron",
     "ManageCalendar",
     "CreateCalendarProject",
-    "excel_plugin",
-    "docx_plugin",
-
     # 视频项目工具
     "SetupVideoProject",
     "AnalyzeVideoProject",
@@ -229,4 +263,16 @@ __all__ = [
     "GenerateCanvasVideos",
     "SearchCanvasImages",
     "SearchImagePrompts",
+
+    # MCP 工具集
+    "McpAddServer",
+    "McpCallTool",
+    "McpConnectServer",
+    "McpGetToolSchema",
+    "McpListServers",
+    "McpListTools",
+
+    # Remote 工具集
+    "CallSimpleAgent",
+    "CallSimpleTool",
 ]

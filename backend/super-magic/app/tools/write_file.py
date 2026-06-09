@@ -1,20 +1,22 @@
-from app.i18n import i18n
 import asyncio
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, NamedTuple, Optional
 
 import aiofiles
+import json_repair
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
-from app.core.entity.message.server_message import FileContent, ToolDetail
-from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
+from agentlang.tools.tool_result import ToolResult
+from agentlang.utils.syntax_checker import SyntaxChecker
+from app.core.entity.message.server_message import FileContent, ToolDetail
+from app.i18n import i18n
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from agentlang.utils.syntax_checker import SyntaxChecker
 from app.utils.async_file_utils import async_exists
 
 logger = get_logger(__name__)
@@ -107,13 +109,21 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
         try:
             # 使用父类方法获取安全的文件路径
             file_path = self.resolve_path(params.file_path)
+            initial_file_exists = await async_exists(file_path)
+
+            content_to_write, auto_repaired_json, original_syntax_errors = await self._prepare_content_for_write(
+                file_path=file_path,
+                content=params.content,
+                file_exists=initial_file_exists,
+            )
+
             # 创建目录（如果需要）
             await self._create_directories(file_path)
 
             # 使用版本控制上下文管理器处理事件，时间戳由 record_file_read 负责
             async with self._file_versioning_context(tool_context, file_path, update_timestamp=False) as file_exists:
                 # 写入文件内容
-                await self._write_file(file_path, params.content)
+                await self._write_file(file_path, content_to_write)
 
             # 记录写入后的文件状态（含内容快照），使 Horizon 能追踪后续外部修改并生成 diff
             try:
@@ -134,11 +144,11 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
                 logger.warning(f"[write_file] record_file_read 失败: {_horizon_err}")
 
             # 执行语法检查
-            syntax_result = await SyntaxChecker.check_syntax(str(file_path), params.content)
+            syntax_result = await SyntaxChecker.check_syntax(str(file_path), content_to_write)
 
             # 计算文件统计信息
             write_result = self._calculate_write_stats(
-                params.content,
+                content_to_write,
                 file_exists, # 传递原始的文件存在状态
                 not syntax_result.is_valid,
                 syntax_result.errors
@@ -151,6 +161,13 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
                 f"Size: {write_result.file_size} bytes"
             )
 
+            if auto_repaired_json:
+                output += (
+                    "\n\nNotice: JSON content was auto-repaired before writing. "
+                    "The file on disk now contains the repaired, valid JSON content. "
+                    "Do not retry this write only to fix JSON syntax; use the written file for subsequent steps."
+                )
+
             if not syntax_result.is_valid:
                 errors_str = "\n".join(syntax_result.errors)
                 output += f"\n\nWarning: File has syntax issues:\n{errors_str}"
@@ -159,7 +176,11 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
             # 返回操作结果，将文件是否已存在的信息保存到 extra_info 中
             return ToolResult(
                 content=output,
-                extra_info={"file_existed": file_exists}
+                extra_info={
+                    "file_existed": file_exists,
+                    "auto_repaired_json": auto_repaired_json,
+                    "original_syntax_errors": original_syntax_errors,
+                }
             )
 
         except Exception as e:
@@ -171,6 +192,36 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
                 "2. Use edit_file to add content blocks incrementally\n"
                 "3. Keep each operation within reasonable scope (<200 lines)\n\n"
                 "WORKFLOW: write_file(framework) → edit_file(content1) → edit_file(content2)...")
+
+    async def _prepare_content_for_write(
+        self,
+        file_path: Path,
+        content: str,
+        file_exists: bool,
+    ) -> tuple[str, bool, list]:
+        """写入前准备内容；仅新建 .json 文件允许可验证自动修复。"""
+        if file_exists or file_path.suffix.lower() != ".json":
+            return content, False, []
+
+        try:
+            json.loads(content)
+            return content, False, []
+        except json.JSONDecodeError:
+            pass
+
+        original_syntax = await SyntaxChecker.check_syntax(str(file_path), content)
+        original_syntax_errors = [] if original_syntax.is_valid else original_syntax.errors
+
+        try:
+            repaired_object = json_repair.repair_json(content, return_objects=True)
+            repaired_content = json.dumps(repaired_object, ensure_ascii=False, indent=2)
+            json.loads(repaired_content)
+        except Exception as repair_error:
+            logger.info(f"新建 JSON 文件自动修复失败，保持原内容: {file_path}, error={repair_error}")
+            return content, False, original_syntax_errors
+
+        logger.info(f"新建 JSON 文件已自动修复: {file_path}")
+        return repaired_content, True, original_syntax_errors
 
     async def _create_directories(self, file_path: Path) -> None:
         """创建文件所需的目录结构"""

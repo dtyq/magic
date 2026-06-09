@@ -17,6 +17,9 @@ logger = get_logger(__name__)
 # Environment variable name for debug log file path
 STDOUT_MESSAGE_DEBUG_FILE_ENV = "STDOUT_MESSAGE_DEBUG_FILE"
 
+# Max length for tool.detail field when printing logs (only affects log output, not actual data)
+_TOOL_DETAIL_LOG_MAX_LEN = 1000
+
 
 class StdoutStream(Stream):
     """A Stream implementation for handling data through standard output.
@@ -80,6 +83,49 @@ class StdoutStream(Stream):
             # Not valid JSON, return original data
             return data
 
+    def _truncate_tool_detail_for_log(self, data: str) -> str:
+        """Truncate payload.tool.detail field for log printing only.
+
+        The tool.detail field can be very long (e.g. web search results),
+        which makes logs hard to read. We replace it with a short preview
+        when printing to the logger. The original ``data`` is NOT modified;
+        actual stream output and debug file still get the full content.
+        """
+        try:
+            parsed = json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            return data
+
+        if not isinstance(parsed, dict):
+            return data
+
+        payload = parsed.get("payload")
+        if not isinstance(payload, dict):
+            return data
+
+        tool = payload.get("tool")
+        if not isinstance(tool, dict) or "detail" not in tool:
+            return data
+
+        detail = tool.get("detail")
+        try:
+            detail_str = detail if isinstance(detail, str) else json.dumps(detail, ensure_ascii=False)
+        except (TypeError, ValueError):
+            detail_str = str(detail)
+
+        if len(detail_str) <= _TOOL_DETAIL_LOG_MAX_LEN:
+            return data
+
+        truncated = (
+            detail_str[:_TOOL_DETAIL_LOG_MAX_LEN]
+            + f"...(truncated, total {len(detail_str)} chars)"
+        )
+        tool["detail"] = truncated
+        try:
+            return json.dumps(parsed, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return data
+
     def _format_json_payload_only(self, data: str) -> str:
         """Try to format only the payload field from JSON data, return original if not valid JSON or no payload."""
         try:
@@ -131,7 +177,7 @@ class StdoutStream(Stream):
             IOError: When there's an error writing to stdout.
         """
         try:
-            logger.info(f"StdoutStream: {data}")
+            logger.info(f"StdoutStream: {self._truncate_tool_detail_for_log(data)}")
             # Write to debug file if enabled
             self._write_to_debug_file(data)
             return len(data)

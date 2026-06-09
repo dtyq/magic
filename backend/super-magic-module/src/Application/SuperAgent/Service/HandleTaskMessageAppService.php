@@ -281,6 +281,8 @@ class HandleTaskMessageAppService extends AbstractAppService
             extra: $userMessageDTO->getExtra(),
         );
         $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
         $taskEntity->setTaskId((string) $taskEntity->getId());
         return $taskEntity;
@@ -413,12 +415,14 @@ class HandleTaskMessageAppService extends AbstractAppService
             (string) $taskContext->getProjectId(),
         );
 
+        // 传话题已绑定的 sandbox_id（未绑定则为空），让 Domain 在没有绑定时能走 warm pool。
+        // 不要传 topic_id，否则会跳过 warm 池守卫。
         $agentContext = $this->agentDomainService->buildInitAgentContext(
             dataIsolation: $dataIsolation,
             projectEntity: $projectEntity,
             topicEntity: $topicEntity,
             taskEntity: $taskContext->getTask(),
-            sandboxId: (string) $topicEntity->getId(),
+            sandboxId: (string) $topicEntity->getSandboxId(),
             memories: $memories
         );
 
@@ -428,6 +432,8 @@ class HandleTaskMessageAppService extends AbstractAppService
         $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
         $taskContext->setSandboxId($sandboxId);
 
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
         return $sandboxId;

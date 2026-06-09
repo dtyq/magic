@@ -37,6 +37,7 @@ use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Infrastructure\Core\DataIsolation\BaseOrganizationInfoManager;
+use App\Infrastructure\Core\DataIsolation\BaseSubscriptionManager;
 use App\Infrastructure\Core\DataIsolation\BaseThirdPlatformDataIsolationManager;
 use App\Infrastructure\Core\DataIsolation\OrganizationInfoManagerInterface;
 use App\Infrastructure\Core\DataIsolation\SubscriptionManagerInterface;
@@ -70,7 +71,6 @@ use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
-use Dtyq\MagicEnterprise\Application\Kernel\EnterpriseSubscriptionManager;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
@@ -714,6 +714,7 @@ class VideoOperationAppServiceTest extends TestCase
                 $this->callback(function (VideoPointEstimateRequest $request): bool {
                     $this->assertSame(8, $request->getInputVideoDurationSeconds());
                     $this->assertTrue($request->hasReferenceVideo());
+                    $this->assertTrue($request->hasAudioOutput());
 
                     return true;
                 }),
@@ -773,6 +774,165 @@ class VideoOperationAppServiceTest extends TestCase
 
         $this->assertSame(88, $result->getPoints());
         $this->assertSame(['mode' => 'test'], $result->getDetail());
+    }
+
+    public function testEstimateUsesKelingOmniAdapterToResolveAudioOutputWhenReferenceVideoExists(): void
+    {
+        $dataIsolation = $this->createDataIsolation();
+        $referenceVideoUrl = 'https://93.184.216.34/keling-reference-estimate.mp4';
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'kling-v3-omni',
+            'task' => 'generate',
+            'prompt' => 'follow the reference motion',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => $referenceVideoUrl],
+                ],
+            ],
+            'generation' => [
+                'duration_seconds' => 5,
+                'resolution' => '720p',
+                'generate_audio' => true,
+            ],
+        ]);
+
+        MockHttpsStreamWrapper::setBody($referenceVideoUrl, 'keling-reference-video-binary');
+
+        $llmAppService = $this->createMock(LLMAppService::class);
+        $llmAppService->expects($this->once())
+            ->method('createModelGatewayDataIsolationByAccessToken')
+            ->with('token-estimate-keling-reference', [])
+            ->willReturn($dataIsolation);
+
+        $pointComponent = $this->createMock(PointComponentInterface::class);
+        $pointComponent->expects($this->once())
+            ->method('estimateVideoPoints')
+            ->with(
+                $this->callback(function (VideoPointEstimateRequest $request): bool {
+                    $this->assertFalse($request->hasAudioOutput());
+
+                    return true;
+                }),
+                $dataIsolation,
+            )
+            ->willReturn(new PointEstimateResult('video', 66, ['mode' => 'adapter-audio-output']));
+
+        $modelGatewayMapper = $this->createMock(ModelGatewayMapper::class);
+        $modelGatewayMapper->expects($this->once())
+            ->method('getOrganizationVideoModel')
+            ->with($dataIsolation, 'kling-v3-omni')
+            ->willReturn($this->createVideoModelEntry(
+                new VideoModel([], 'kling-v3-omni', 'provider-model-keling', ProviderCode::Keling)
+            ));
+
+        $probe = new CallbackVideoMediaProbe(function (string $filePath): VideoMediaMetadata {
+            $this->assertFileExists($filePath);
+            $this->assertSame('keling-reference-video-binary', file_get_contents($filePath));
+
+            return new VideoMediaMetadata(6.11, 1280, 720);
+        });
+
+        $service = new VideoOperationAppService(
+            $llmAppService,
+            new VideoQueueDomainService(new InMemoryVideoQueueOperationRepository()),
+            new QueueOperationExecutionDomainService(
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
+                new RecordingQueueOperationExecutor(submitResult: 'unused'),
+            ),
+            $pointComponent,
+            $modelGatewayMapper,
+            $this->createVideoGenerationConfigDomainService(),
+            new FileDomainService(new InMemoryCloudFileRepository()),
+            $this->createVideoBillingDetailsResolver(),
+            $probe,
+            new VideoInputMediaMetadataResolver(
+                $this->createMock(TaskFileDomainService::class),
+                new FileDomainService(new InMemoryCloudFileRepository()),
+                $probe,
+                $this->createMock(CacheInterface::class),
+            ),
+        );
+
+        $result = $service->estimate('token-estimate-keling-reference', $requestDTO);
+
+        $this->assertSame(66, $result->getPoints());
+        $this->assertSame(['mode' => 'adapter-audio-output'], $result->getDetail());
+    }
+
+    public function testGeneratedEventIncludesHasAudioOutputFromKelingOmniAdapter(): void
+    {
+        $dataIsolation = $this->createDataIsolation();
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'kling-v3-omni',
+            'task' => 'generate',
+            'prompt' => 'follow the reference motion',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/reference-motion.mp4'],
+                ],
+            ],
+            'generation' => [
+                'duration_seconds' => 5,
+                'resolution' => '720p',
+                'generate_audio' => true,
+            ],
+        ]);
+
+        $operationRepository = new InMemoryVideoQueueOperationRepository();
+        $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
+        $executionDomainService = new QueueOperationExecutionDomainService(
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
+            new RecordingQueueOperationExecutor(
+                submitResult: 'provider-task-keling-omni-reference',
+                queryResult: [
+                    'status' => 'succeeded',
+                    'output' => [
+                        'video_url' => 'https://example.com/keling-omni-reference.mp4',
+                    ],
+                ],
+            ),
+        );
+
+        $llmAppService = $this->createMock(LLMAppService::class);
+        $llmAppService->expects($this->exactly(2))
+            ->method('createModelGatewayDataIsolationByAccessToken')
+            ->with('token-keling-omni-reference', [])
+            ->willReturn($dataIsolation);
+
+        $pointComponent = $this->createMock(PointComponentInterface::class);
+        $pointComponent->expects($this->once())
+            ->method('checkPointsSufficient')
+            ->with($requestDTO, $dataIsolation);
+
+        $modelGatewayMapper = $this->createMock(ModelGatewayMapper::class);
+        $modelGatewayMapper->expects($this->once())
+            ->method('getOrganizationVideoModel')
+            ->with($dataIsolation, 'kling-v3-omni')
+            ->willReturn($this->createVideoModelEntry(
+                new VideoModel([], 'kling-v3-omni', 'provider-model-keling', ProviderCode::Keling)
+            ));
+
+        $service = new VideoOperationAppService(
+            $llmAppService,
+            $videoQueueDomainService,
+            $executionDomainService,
+            $pointComponent,
+            $modelGatewayMapper,
+            $this->createVideoGenerationConfigDomainService(),
+            new FileDomainService(new InMemoryCloudFileRepository()),
+            $this->createVideoBillingDetailsResolver(),
+            $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
+        );
+
+        $enqueueResponse = $service->enqueue('token-keling-omni-reference', $requestDTO);
+        $response = $service->getOperation('token-keling-omni-reference', $enqueueResponse->getId());
+        $this->assertFalse($response->getOutput()['has_audio_output'] ?? true);
+
+        $this->assertCount(1, $this->eventDispatcher->events);
+        $event = $this->eventDispatcher->events[0];
+        $this->assertInstanceOf(VideoGeneratedEvent::class, $event);
+        $this->assertFalse($event->hasAudioOutput());
     }
 
     public function testGetOperationRejectsProviderTaskIdFallbackWhenInternalOperationIsMissing(): void
@@ -2110,6 +2270,26 @@ class VideoOperationAppServiceTest extends TestCase
     }
 }
 
+class VideoOperationTestSubscriptionManager extends BaseSubscriptionManager
+{
+    protected bool $enabled = true;
+
+    public function getPersonalVideoGenerationConcurrencyLimit(): ?int
+    {
+        $featureLimits = $this->getCurrentSubscriptionInfo()['skus'][0]['attributes']['feature_limits'] ?? [];
+        if (! array_key_exists('personal_video_generation_concurrency_limit', $featureLimits)) {
+            return 1;
+        }
+
+        $limit = $featureLimits['personal_video_generation_concurrency_limit'];
+        if (is_numeric($limit)) {
+            return (int) $limit;
+        }
+
+        return null;
+    }
+}
+
 final class InMemoryVideoQueueOperationRepository implements VideoQueueOperationRepositoryInterface
 {
     /** @var array<string, VideoQueueOperationEntity> */
@@ -2753,7 +2933,7 @@ final readonly class EventDispatcherContainer implements ContainerInterface
             ConfigInterface::class => $this->config,
             Producer::class => new RecordingProducer(),
             ThirdPlatformDataIsolationManagerInterface::class => new BaseThirdPlatformDataIsolationManager(),
-            SubscriptionManagerInterface::class => new EnterpriseSubscriptionManager(),
+            SubscriptionManagerInterface::class => new VideoOperationTestSubscriptionManager(),
             OrganizationInfoManagerInterface::class => new BaseOrganizationInfoManager(),
             PhpSerializerPacker::class => new PhpSerializerPacker(),
             LoggerFactory::class => $this->loggerFactory,

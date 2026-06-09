@@ -1,7 +1,13 @@
 import { resolveCanonicalResourcePath, normalizePathLocal } from "./pathUtils"
+import {
+	getCacheKey,
+	normalizeResourceNamespace,
+	normalizeResourcePathForLookup,
+} from "@/workers/service-worker/canvasMediaShared"
+import { isAppServiceWorkerFeatureEnabled } from "@/workers/service-worker/register"
 
 /**
- * 画布媒体离线缓存（主线程 IndexedDB + `canvas-media-resource-sw.js`）。
+ * 画布媒体离线缓存（主线程 IndexedDB + 主 SW Canvas 虚拟资源通道）。
  *
  * 与 SW 配合时的根因备忘：
  * - 虚拟 URL 命中 SW 后，IDB 查找键须与 SW 内 `normalizeResourcePathForLookup` 一致（见 SW 文件头注释：fetch
@@ -15,8 +21,6 @@ export type MediaResourceOfflineCacheMediaType = "image" | "video"
 export interface MediaResourceOfflineCacheOptions {
 	/** 离线缓存总容量上限，默认 1GB */
 	maxBytes?: number
-	/** 自定义 Service Worker 地址；默认使用 Vite public 下的 canvas-media-resource-sw.js */
-	serviceWorkerUrl?: string
 }
 
 export type MediaResourceOfflineCacheConfig = boolean | MediaResourceOfflineCacheOptions | undefined
@@ -27,17 +31,6 @@ export interface MediaResourceOfflineCacheManagerOptions {
 	getResolveAbsolutePath?: () => ((path: string) => string) | undefined
 	/** 获取宿主注入的虚拟媒体资源 scope，用于隔离工作区/项目上下文 */
 	getVirtualResourceScope?: () => string | undefined
-}
-
-export interface MediaResourceOfflineCacheUnregisterOptions {
-	/** 即使仍有 CanvasDesign 实例正在使用离线缓存，也强制卸载 SW */
-	force?: boolean
-	/** 同时清理 CacheStorage 中的媒体缓存 */
-	clearCache?: boolean
-	/** 同时清理 IndexedDB 中的媒体资源索引 */
-	clearDatabase?: boolean
-	/** 自定义 Service Worker 地址；默认清理 canvas-media-resource-sw.js */
-	serviceWorkerUrl?: string
 }
 
 export interface CachedMediaResource {
@@ -101,6 +94,10 @@ interface VirtualResourceHealthState {
 	repairAttempts: number
 }
 
+interface EnsureServiceWorkerOptions {
+	requireController?: boolean
+}
+
 /**
  * Bump this whenever the virtual URL shape, resource id, namespace/scope rules,
  * path normalization, IndexedDB schema, or CacheStorage key semantics change.
@@ -115,18 +112,13 @@ const CACHE_BASE_NAME = "canvas-media-resources"
 const CACHE_NAME = `${CACHE_BASE_NAME}-v${OFFLINE_CACHE_VERSION}`
 const HEALTH_STORAGE_KEY = `${CACHE_BASE_NAME}-health-v${OFFLINE_CACHE_VERSION}`
 const DEFAULT_MAX_BYTES = 1024 * 1024 * 1024
-const DEFAULT_SW_FILE = "canvas-media-resource-sw.js"
 const DEFAULT_RESOURCE_NAMESPACE = "__global__"
-/** Treat the virtual-resource channel as unhealthy only after repeated failures, not a single flaky request. */
-const VIRTUAL_RESOURCE_FAILURE_THRESHOLD = 3
-/** Count virtual-resource failures inside this rolling window before tripping the in-page circuit breaker. */
 const VIRTUAL_RESOURCE_FAILURE_WINDOW_MS = 10_000
-/** Persisted cooldown: page reloads should bypass a known-bad SW instead of failing once again before fallback. */
+const VIRTUAL_RESOURCE_FAILURE_THRESHOLD = 3
 const VIRTUAL_RESOURCE_FALLBACK_COOLDOWN_MS = 60_000
-/** Repair throttle: clearing IDB/CacheStorage and updating SW should not happen repeatedly during network flaps. */
-const VIRTUAL_RESOURCE_REPAIR_THROTTLE_MS = 5 * 60_000
+const VIRTUAL_RESOURCE_REPAIR_THROTTLE_MS = 30_000
+const SERVICE_WORKER_READY_TIMEOUT_MS = 1500
 
-/** 读取当前 controlling worker，避免 TS 在 `await` 之后仍把 `navigator.serviceWorker.controller` 窄成 `null`。 */
 function readServiceWorkerController(): ServiceWorker | null {
 	if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return null
 	return navigator.serviceWorker.controller
@@ -190,32 +182,6 @@ function coerceToPathString(value: unknown): string {
 	return String(value)
 }
 
-/** 与 `canvas-media-resource-sw.js` 中 `normalizeResourcePathForLookup` 保持一致，供 IDB 索引使用。 */
-function normalizeResourcePathForLookup(path: string | null | undefined): string {
-	if (path == null || path === "") return ""
-	let p = String(path).replace(/^\/+/g, "")
-	try {
-		p = decodeURIComponent(p)
-	} catch {
-		// 非法转义序列时保留原串
-	}
-	return p
-}
-
-function normalizeResourceNamespace(namespace: string | null | undefined): string {
-	const normalized = normalizeResourcePathForLookup(namespace)
-	return normalized || DEFAULT_RESOURCE_NAMESPACE
-}
-
-function getDeprecatedStorageNames(baseName: string, currentVersion: number): string[] {
-	const names = new Set<string>([baseName])
-	if (currentVersion > 1) {
-		names.add(`${baseName}-v${currentVersion - 1}`)
-	}
-	names.delete(`${baseName}-v${currentVersion}`)
-	return [...names]
-}
-
 /**
  * 根据规范化后的资源路径生成虚拟链接。
  *
@@ -229,36 +195,17 @@ function getDeprecatedStorageNames(baseName: string, currentVersion: number): st
 function getVirtualResourceUrlForResourcePath(
 	resourcePath: string,
 	mediaType: MediaResourceOfflineCacheMediaType,
-	scopePath?: string,
+	namespacePath?: string,
 ): string {
 	return joinUrlPathSegments(
 		window.location.origin,
-		getServiceWorkerScope(getDefaultServiceWorkerUrl()),
 		VIRTUAL_RESOURCE_ROUTE_PREFIX,
 		VIRTUAL_RESOURCE_PATH_SEGMENT,
-		scopePath || window.location.pathname,
+		namespacePath || window.location.pathname,
 		mediaType,
 		VIRTUAL_RESOURCE_DESIGN_RESOURCE_SEGMENT,
 		resourcePath,
 	)
-}
-
-function getDefaultServiceWorkerUrl(): string {
-	return `${getBaseUrl()}${DEFAULT_SW_FILE}`
-}
-
-function getServiceWorkerScope(swUrl: string): string {
-	try {
-		const url = new URL(swUrl, window.location.href)
-		const pathname = url.pathname
-		return pathname.slice(0, pathname.lastIndexOf("/") + 1) || "/"
-	} catch {
-		return "/"
-	}
-}
-
-function getAbsoluteServiceWorkerUrl(swUrl: string): string {
-	return new URL(swUrl, window.location.href).href
 }
 
 function isBrowserOfflineCacheSupported(): boolean {
@@ -277,15 +224,16 @@ function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
 	})
 }
 
+function transactionToPromise(transaction: IDBTransaction): Promise<void> {
+	return new Promise((resolve, reject) => {
+		transaction.oncomplete = () => resolve()
+		transaction.onerror = () => reject(transaction.error)
+		transaction.onabort = () => reject(transaction.error)
+	})
+}
+
 export class MediaResourceOfflineCacheManager {
-	private static registrationPromises = new Map<
-		string,
-		Promise<ServiceWorkerRegistration | null>
-	>()
 	private static activeConsumerCount = 0
-	private static defaultUnregisterPromise?: Promise<boolean>
-	private static deprecatedStorageCleanupPromise?: Promise<void>
-	private static virtualResourceRepairPromise?: Promise<void>
 
 	private options: MediaResourceOfflineCacheOptions | null
 	private dbPromise?: Promise<IDBDatabase>
@@ -348,14 +296,7 @@ export class MediaResourceOfflineCacheManager {
 	private getCacheKey(
 		entry: Pick<CachedMediaResource, "cacheKey" | "namespace" | "path" | "mediaType">,
 	): string {
-		return (
-			entry.cacheKey ||
-			this.getVirtualResourceUrlForNamespace(
-				entry.path,
-				normalizeResourceNamespace(entry.namespace),
-				entry.mediaType,
-			)
-		)
+		return getCacheKey(entry)
 	}
 
 	public destroy(): void {
@@ -373,38 +314,13 @@ export class MediaResourceOfflineCacheManager {
 	 * `exchangeOssSrc` 因 `isActiveConsumer === false` 退回 OSS 直链，从而与 SW 虚拟路径策略不一致。
 	 */
 	private isOfflineCacheFeatureOn(): boolean {
-		return !!this.options && isBrowserOfflineCacheSupported()
+		return (
+			!!this.options && isBrowserOfflineCacheSupported() && isAppServiceWorkerFeatureEnabled()
+		)
 	}
 
 	public static getActiveConsumerCount(): number {
 		return MediaResourceOfflineCacheManager.activeConsumerCount
-	}
-
-	public static async unregisterServiceWorker(
-		options: MediaResourceOfflineCacheUnregisterOptions = {},
-	): Promise<boolean> {
-		if (!isBrowserOfflineCacheSupported()) return false
-		if (MediaResourceOfflineCacheManager.activeConsumerCount > 0 && !options.force) return false
-
-		const swUrl = options.serviceWorkerUrl || getDefaultServiceWorkerUrl()
-		const absoluteSwUrl = getAbsoluteServiceWorkerUrl(swUrl)
-		const registrations = await navigator.serviceWorker.getRegistrations()
-		const targetRegistrations = registrations.filter((registration) =>
-			[registration.active, registration.waiting, registration.installing].some(
-				(worker) => worker?.scriptURL === absoluteSwUrl,
-			),
-		)
-
-		const unregisterResults = await Promise.all(
-			targetRegistrations.map((registration) => registration.unregister()),
-		)
-
-		MediaResourceOfflineCacheManager.registrationPromises.delete(absoluteSwUrl)
-
-		if (options.clearCache) await caches.delete(CACHE_NAME)
-		if (options.clearDatabase) await this.deleteDatabase()
-
-		return unregisterResults.some(Boolean)
 	}
 
 	/**
@@ -419,7 +335,7 @@ export class MediaResourceOfflineCacheManager {
 	): Promise<CachedMediaResource | null> {
 		try {
 			if (!this.isOfflineCacheFeatureOn() || this.shouldBypassVirtualResource()) return null
-			const registration = await this.ensureServiceWorker()
+			const registration = await this.ensureServiceWorker({ requireController: true })
 			if (!registration) return null
 			const now = Date.now()
 			const namespace = this.getResourceNamespace()
@@ -596,7 +512,6 @@ export class MediaResourceOfflineCacheManager {
 	private syncActiveConsumer(): void {
 		if (!this.options || !isBrowserOfflineCacheSupported()) {
 			this.deactivateConsumer()
-			MediaResourceOfflineCacheManager.requestDefaultUnregister()
 			return
 		}
 
@@ -605,7 +520,6 @@ export class MediaResourceOfflineCacheManager {
 			this.isActiveConsumer = true
 		}
 
-		MediaResourceOfflineCacheManager.requestDeprecatedStorageCleanup()
 		void this.ensureServiceWorker()
 	}
 
@@ -617,7 +531,6 @@ export class MediaResourceOfflineCacheManager {
 			MediaResourceOfflineCacheManager.activeConsumerCount - 1,
 		)
 		this.isActiveConsumer = false
-		MediaResourceOfflineCacheManager.requestDefaultUnregister()
 	}
 
 	/**
@@ -626,65 +539,33 @@ export class MediaResourceOfflineCacheManager {
 	 * 这一步的意义是让“虚拟链接”具备可解释性：渲染层拿到的是同源占位 URL，
 	 * 但真正的响应由 SW 在后续请求中根据 `cacheKey/sourceUrl` 还原。
 	 */
-	private async ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+	private async ensureServiceWorker(
+		options: EnsureServiceWorkerOptions = {},
+	): Promise<ServiceWorkerRegistration | null> {
 		if (!this.isOfflineCacheFeatureOn()) return null
 
-		const swUrl = this.options?.serviceWorkerUrl || getDefaultServiceWorkerUrl()
-		const absoluteSwUrl = getAbsoluteServiceWorkerUrl(swUrl)
-		const existingPromise =
-			MediaResourceOfflineCacheManager.registrationPromises.get(absoluteSwUrl)
-		if (existingPromise) return existingPromise
+		const registration = await this.waitForServiceWorkerReady()
+		if (!registration) return null
+		if (options.requireController && !readServiceWorkerController()) return null
 
-		const swScope = getServiceWorkerScope(swUrl)
-		const registrationPromise = navigator.serviceWorker
-			.register(swUrl, { scope: swScope })
-			.then(async (registration) => {
-				await navigator.serviceWorker.ready.catch(() => registration)
-				await this.waitForServiceWorkerController()
-				this.getRegistrationWorker(registration)?.postMessage({
-					type: "CANVAS_MEDIA_CACHE_CONFIG",
-					maxBytes: this.getMaxBytes(),
-				})
-				if (MediaResourceOfflineCacheManager.activeConsumerCount === 0) {
-					MediaResourceOfflineCacheManager.requestDefaultUnregister()
-				}
-				return registration
-			})
-			.catch(() => null)
-
-		MediaResourceOfflineCacheManager.registrationPromises.set(
-			absoluteSwUrl,
-			registrationPromise,
-		)
-		return registrationPromise
+		this.getRegistrationWorker(registration)?.postMessage({
+			type: "CANVAS_MEDIA_CACHE_CONFIG",
+			maxBytes: this.getMaxBytes(),
+		})
+		return registration
 	}
 
-	private async waitForServiceWorkerController(): Promise<void> {
-		const initialController = readServiceWorkerController()
-		if (initialController) return
-
-		await new Promise<void>((resolve) => {
-			function cleanup() {
-				window.clearTimeout(timeoutId)
-				navigator.serviceWorker.removeEventListener(
-					"controllerchange",
-					handleControllerChange,
-				)
-			}
-
-			function finish() {
-				cleanup()
-				resolve()
-			}
-
-			function handleControllerChange() {
-				finish()
-			}
-
-			const timeoutId = window.setTimeout(finish, 1000)
-
-			navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange)
+	private async waitForServiceWorkerReady(): Promise<ServiceWorkerRegistration | null> {
+		let timeoutId: number | undefined
+		const readyPromise = navigator.serviceWorker.ready.catch(() => null)
+		const timeoutPromise = new Promise<null>((resolve) => {
+			timeoutId = window.setTimeout(() => resolve(null), SERVICE_WORKER_READY_TIMEOUT_MS)
 		})
+		const registration = await Promise.race([readyPromise, timeoutPromise])
+		if (timeoutId !== undefined) {
+			window.clearTimeout(timeoutId)
+		}
+		return registration
 	}
 
 	private async postMessageToServiceWorker(message: unknown): Promise<void> {
@@ -782,6 +663,7 @@ export class MediaResourceOfflineCacheManager {
 			...(cacheKey !== derivedCacheKey ? { cacheKey } : {}),
 		}
 		await requestToPromise(store.put(storedEntry))
+		await transactionToPromise(transaction)
 	}
 
 	private async getEntry(
@@ -904,90 +786,6 @@ export class MediaResourceOfflineCacheManager {
 	}
 
 	private requestVirtualResourceRepair(): void {
-		if (MediaResourceOfflineCacheManager.virtualResourceRepairPromise) return
-
-		MediaResourceOfflineCacheManager.virtualResourceRepairPromise =
-			this.repairVirtualResourceStorage().finally(() => {
-				MediaResourceOfflineCacheManager.virtualResourceRepairPromise = undefined
-			})
-	}
-
-	private async repairVirtualResourceStorage(): Promise<void> {
 		this.cachePromises.clear()
-		await Promise.all([
-			this.clearCurrentDatabaseResources().catch(() => undefined),
-			caches.delete(CACHE_NAME).catch(() => false),
-			this.updateServiceWorkerRegistration().catch(() => undefined),
-		])
-	}
-
-	private async clearCurrentDatabaseResources(): Promise<void> {
-		const db = await this.openDb()
-		await new Promise<void>((resolve, reject) => {
-			const transaction = db.transaction(STORE_NAME, "readwrite")
-			transaction.oncomplete = () => resolve()
-			transaction.onerror = () => reject(transaction.error)
-			transaction.onabort = () => reject(transaction.error)
-			transaction.objectStore(STORE_NAME).clear()
-		})
-	}
-
-	private async updateServiceWorkerRegistration(): Promise<void> {
-		const registration = await this.ensureServiceWorker()
-		await registration?.update()
-	}
-
-	private static async deleteDatabase(databaseName = DB_NAME): Promise<void> {
-		await new Promise<void>((resolve, reject) => {
-			const request = indexedDB.deleteDatabase(databaseName)
-			request.onsuccess = () => resolve()
-			request.onerror = () => reject(request.error)
-			request.onblocked = () => resolve()
-		})
-	}
-
-	private static requestDeprecatedStorageCleanup(): void {
-		if (MediaResourceOfflineCacheManager.deprecatedStorageCleanupPromise) return
-		MediaResourceOfflineCacheManager.deprecatedStorageCleanupPromise =
-			MediaResourceOfflineCacheManager.cleanupDeprecatedStorage().finally(() => {
-				MediaResourceOfflineCacheManager.deprecatedStorageCleanupPromise = undefined
-			})
-	}
-
-	private static async cleanupDeprecatedStorage(): Promise<void> {
-		if (!isBrowserOfflineCacheSupported()) return
-
-		const deprecatedDbNames = getDeprecatedStorageNames(DB_BASE_NAME, OFFLINE_CACHE_VERSION)
-		const deprecatedCacheNames = new Set(
-			getDeprecatedStorageNames(CACHE_BASE_NAME, OFFLINE_CACHE_VERSION),
-		)
-
-		await Promise.all([
-			Promise.all(
-				deprecatedDbNames.map((databaseName) =>
-					this.deleteDatabase(databaseName).catch(() => undefined),
-				),
-			),
-			caches
-				.keys()
-				.then((names) =>
-					Promise.all(
-						names
-							.filter((cacheName) => deprecatedCacheNames.has(cacheName))
-							.map((cacheName) => caches.delete(cacheName)),
-					),
-				)
-				.catch(() => undefined),
-		])
-	}
-
-	private static requestDefaultUnregister(): void {
-		if (MediaResourceOfflineCacheManager.activeConsumerCount > 0) return
-		if (MediaResourceOfflineCacheManager.defaultUnregisterPromise) return
-
-		MediaResourceOfflineCacheManager.defaultUnregisterPromise =
-			MediaResourceOfflineCacheManager.unregisterServiceWorker().finally(() => {
-				MediaResourceOfflineCacheManager.defaultUnregisterPromise = undefined
-			})
 	}
 }

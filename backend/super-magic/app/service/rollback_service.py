@@ -95,7 +95,7 @@ class RollbackService:
             logger.error(f"获取前一个checkpoint失败: {e}")
             return None
 
-    async def start_rollback(self, target_message_id: str) -> None:
+    async def start_rollback(self, target_message_id: str) -> List[Dict[str, str]]:
         """开始回滚到指定消息的执行前状态
 
         Args:
@@ -130,9 +130,11 @@ class RollbackService:
             await self.checkpoint_service.metadata_manager.set_rollback_in_progress(True)
             try:
                 # 执行回滚到实际目标checkpoint
-                await self.rollback_executor.start_rollback(actual_target_checkpoint_id)
+                success, affected_files = await self.rollback_executor.start_rollback(actual_target_checkpoint_id)
             finally:
                 await self.checkpoint_service.metadata_manager.set_rollback_in_progress(False)
+            if not success:
+                raise RollbackException(ErrorCode.ROLLBACK_GENERAL_ERROR, "回滚执行失败")
             logger.info(f"开始回滚成功完成: {target_message_id}")
 
             # 注意：这里不需要 reload 主 Agent 的内存 chat_history。
@@ -145,6 +147,8 @@ class RollbackService:
             except Exception as version_error:
                 # 版本创建失败不应该影响回滚操作
                 logger.error(f"文件版本创建失败，但回滚操作已成功: {version_error}")
+
+            return affected_files
         except RollbackException:
             raise
         except Exception as e:
@@ -185,7 +189,7 @@ class RollbackService:
             logger.error(f"提交回滚过程中发生错误: {e}")
             raise RollbackException(ErrorCode.ROLLBACK_GENERAL_ERROR, f"提交回滚过程中发生未知错误: {str(e)}")
 
-    async def undo_rollback(self) -> None:
+    async def undo_rollback(self) -> List[Dict[str, str]]:
         """撤回回滚操作，将 current_checkpoint_id 恢复到最新的 checkpoint
 
         将系统状态从当前 checkpoint 恢复到 checkpoints 列表中的最后一个 checkpoint。
@@ -220,14 +224,14 @@ class RollbackService:
             # 3. 检查是否需要撤回回滚
             if current_checkpoint_id == latest_checkpoint_id:
                 logger.info("当前已经是最新状态，无需撤回回滚")
-                return
+                return []
 
             # 4. 执行撤回回滚到最新 checkpoint
             logger.info(f"开始撤回回滚到最新checkpoint: {latest_checkpoint_id}")
             # 通知 magicfs：回滚期间跳过 checkpoint 维护，避免它把工作区改动回灌成 latest_content
             await self.checkpoint_service.metadata_manager.set_rollback_in_progress(True)
             try:
-                success = await self.rollback_executor.undo_rollback(latest_checkpoint_id)
+                success, affected_files = await self.rollback_executor.undo_rollback(latest_checkpoint_id)
             finally:
                 await self.checkpoint_service.metadata_manager.set_rollback_in_progress(False)
             if not success:
@@ -246,6 +250,7 @@ class RollbackService:
                 logger.error(f"文件版本创建失败，但撤回回滚操作已成功: {version_error}")
 
             logger.info(f"撤回回滚成功完成，当前checkpoint: {latest_checkpoint_id}")
+            return affected_files
 
         except RollbackException:
             raise

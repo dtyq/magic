@@ -65,18 +65,6 @@ class KnowledgeBaseDocumentApi extends AbstractKnowledgeBaseApi
     }
 
     /**
-     * 获取文档原始文件访问链接.
-     */
-    public function originalFileLink(string $knowledgeBaseCode, string $code): array
-    {
-        return $this->knowledgeBaseDocumentAppService->originalFileLink(
-            $this->getAuthorization(),
-            $knowledgeBaseCode,
-            $code,
-        );
-    }
-
-    /**
      * 删除文档.
      */
     public function destroy(string $knowledgeBaseCode, string $code)

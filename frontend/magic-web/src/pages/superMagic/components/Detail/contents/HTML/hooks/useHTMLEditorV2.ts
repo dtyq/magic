@@ -288,12 +288,13 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 
 					console.log("[useHTMLEditorV2] save result", result)
 
-					if (!result?.cleanHtml) {
-						console.error("[useHTMLEditorV2] save failed: no cleanHtml in result")
+					const htmlForClean = result?.html || result?.cleanHtml
+					if (!htmlForClean) {
+						console.error("[useHTMLEditorV2] save failed: no html in result")
 						return defaultResult
 					}
 
-					const cleanContent = filterInjectedTags(result.cleanHtml, filePathMapping)
+					const cleanContent = filterInjectedTags(htmlForClean, filePathMapping)
 					await saveEditContent(
 						cleanContent,
 						String(fileId),
@@ -304,7 +305,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 
 					return {
 						cleanContent,
-						rawContent: result.html || result.cleanHtml,
+						rawContent: htmlForClean,
 						fileId: fileId,
 						success: true,
 					}

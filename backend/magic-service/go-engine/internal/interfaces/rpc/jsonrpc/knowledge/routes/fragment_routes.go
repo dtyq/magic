@@ -23,6 +23,7 @@ func RegisterFragmentRoutes(router RPCRouter, h HandlerProvider) {
 		constants.MethodFragmentSimilarity,
 		constants.MethodFragmentSimilarityHTTP,
 		constants.MethodFragmentRuntimeSimilarity,
+		constants.MethodFragmentFlowVectorSimilarityByUser,
 		constants.MethodFragmentSimilarityByAgent,
 		constants.MethodFragmentPreview,
 		constants.MethodFragmentPreviewHTTP,

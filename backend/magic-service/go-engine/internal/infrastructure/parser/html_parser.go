@@ -13,11 +13,11 @@ import (
 
 // HTMLParser 解析 HTML 文档。
 type HTMLParser struct {
-	assetLoader   richTextAssetLoader
-	htmlRenderer  htmlTextRenderer
-	ocrClient     documentdomain.OCRClient
-	maxOCRPerFile int
-	limits        documentdomain.ResourceLimits
+	assetLoader     richTextAssetLoader
+	htmlRenderer    htmlTextRenderer
+	visualExtractor documentdomain.VisualTextExtractor
+	maxOCRPerFile   int
+	limits          documentdomain.ResourceLimits
 }
 
 // NewHTMLParser 创建 HTML 解析器。
@@ -32,17 +32,32 @@ func NewHTMLParserWithAssets(
 	maxOCRPerFile int,
 	resourceLimits ...documentdomain.ResourceLimits,
 ) *HTMLParser {
+	return NewHTMLParserWithVisualAssets(
+		fileFetcher,
+		newVisualTextExtractorFromOCR(ocrClient),
+		maxOCRPerFile,
+		resourceLimits...,
+	)
+}
+
+// NewHTMLParserWithVisualAssets 创建带资源与视觉转文字能力的 HTML 解析器。
+func NewHTMLParserWithVisualAssets(
+	fileFetcher documentdomain.FileFetcher,
+	visualExtractor documentdomain.VisualTextExtractor,
+	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
+) *HTMLParser {
 	limits := documentdomain.DefaultResourceLimits()
 	if len(resourceLimits) > 0 {
 		limits = resourceLimits[0]
 	}
 	assetLoader := newRichTextAssetLoader(fileFetcher, limits)
 	return &HTMLParser{
-		assetLoader:   assetLoader,
-		htmlRenderer:  newHTMLTextRenderer(assetLoader),
-		ocrClient:     ocrClient,
-		maxOCRPerFile: documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
-		limits:        documentdomain.NormalizeResourceLimits(limits),
+		assetLoader:     assetLoader,
+		htmlRenderer:    newHTMLTextRenderer(assetLoader),
+		visualExtractor: visualExtractor,
+		maxOCRPerFile:   documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:          documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -101,7 +116,7 @@ func (p *HTMLParser) ParseDocumentWithOptions(
 	if err != nil {
 		return nil, fmt.Errorf("parse html failed: %w", err)
 	}
-	ocrHelper := newRichTextImageOCRHelper(p.ocrClient, p.maxOCRPerFile, options)
+	ocrHelper := newRichTextImageOCRHelper(p.visualExtractor, p.maxOCRPerFile, options)
 	blocks := p.htmlRenderer.renderBlocks(ctx, fileURL, root, ocrHelper)
 	parsed := documentdomain.NewPlainTextParsedDocument(fileType, strings.Join(filterNonEmptyStrings(blocks), "\n\n"))
 	ocrHelper.apply(parsed)

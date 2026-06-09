@@ -275,6 +275,40 @@ class MetadataUtil:
             logger.debug(f"获取 user authorization 失败: {e}")
             return None
 
+    @classmethod
+    def get_magic_authorization(cls) -> Optional[str]:
+        """
+        从 .credentials/magic_gateway_credentials.json 读取 Magic-Authorization token。
+
+        Returns:
+            Optional[str]: magic_authorization 值，文件不存在或读取失败时返回 None。
+
+        说明：
+            该文件用于 warm-pool 沙箱：此类沙箱在创建时还不知道用户身份，
+            而运行中的容器无法再注入/修改环境变量，因此 MAGIC_AUTHORIZATION
+            环境变量始终为空。网关会在 mount 阶段把该用户的网关 token 通过
+            K8s exec 写入此文件，供 agent 作为环境变量为空时的回退来源。
+
+            文件名为 magic_gateway_credentials.json 而非仅 authorization：它是
+            网关侧凭据的集合（当前为 token，未来可扩展过期时间、签名参数等）。
+            与 metadata.json 中的 authorization（对应 User-Authorization）刻意
+            分开存放：两者身份不同（此处是网关 token，对应 Magic-Authorization），
+            且 magic-gateway 链路后续将废弃，独立成文件便于将来直接删除。
+        """
+        config_path = PathManager.get_credentials_dir() / "magic_gateway_credentials.json"
+        if not config_path.exists():
+            return None
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return None
+            value = data.get("magic_authorization")
+            return value if value else None
+        except Exception as e:
+            logger.debug(f"获取 magic authorization 失败: {e}")
+            return None
+
     @staticmethod
     def _find_header_key(headers: Dict[str, Any], target_header: str) -> Optional[str]:
         target = target_header.lower()
@@ -302,6 +336,12 @@ class MetadataUtil:
         """
         if magic_authorization is None:
             magic_authorization = config.get("sandbox.magic_authorization")
+
+        # warm-pool 沙箱没有 MAGIC_AUTHORIZATION 环境变量（创建时未知用户身份，
+        # 运行中又无法注入 env），网关会在 mount 时把 token 写入
+        # .credentials/magic_gateway_credentials.json，这里作为环境变量为空时的回退。
+        if not magic_authorization:
+            magic_authorization = cls.get_magic_authorization()
 
         magic_header_key = cls._find_header_key(headers, "Magic-Authorization")
         magic_header_value = headers.get(magic_header_key) if magic_header_key else None

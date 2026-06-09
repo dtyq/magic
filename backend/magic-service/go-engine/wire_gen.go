@@ -15,6 +15,7 @@ import (
 	"magic/internal/interfaces/http"
 	"magic/internal/interfaces/http/handlers"
 	"magic/internal/interfaces/rpc/jsonrpc/knowledge/service"
+	service2 "magic/internal/interfaces/rpc/jsonrpc/ops/service"
 )
 
 // Injectors from wire.go:
@@ -69,10 +70,17 @@ func InitializeApplication() (*httpapi.Server, func(), error) {
 	knowledgeBaseDocumentRepository := infra.ProvideDocumentRepository(sqlcClient, sugaredLogger)
 	documentDomainService := knowledge.ProvideDocumentDomainService(knowledgeBaseDocumentRepository, sugaredLogger)
 	phpFileRPCClient := infra.ProvidePHPFileRPCClient(server, sugaredLogger)
+	phpaiAbilityConfigRPCClient := infra.ProvideAIAbilityConfigProvider(server, sugaredLogger)
+	phpModelCallConfigRPCClient := infra.ProvideModelCallConfigProvider(server, sugaredLogger)
 	phpocrConfigRPCClient := infra.ProvideOCRConfigProvider(server, sugaredLogger)
 	ocrResultCacheRepository := infra.ProvideOCRResultCacheRepository(sqlcClient, sugaredLogger)
 	volcengineOCRClient := infra.ProvideVolcengineOCRClient(config, client, phpocrConfigRPCClient, phpocrConfigRPCClient, ocrResultCacheRepository, sugaredLogger)
-	v := infra.ProvideDocumentParsers(config, phpFileRPCClient, volcengineOCRClient)
+	visionConfig := infra.ProvideKnowledgeVisualUnderstandingConfig(config)
+	openAICompatibleVisionTextClient := infra.ProvideOpenAICompatibleVisionTextClient(visionConfig, sugaredLogger)
+	pdFiumPageRenderer := infra.ProvidePDFiumPageRenderer()
+	modelVisualTextExtractor := infra.ProvideModelVisualTextExtractor(openAICompatibleVisionTextClient, pdFiumPageRenderer, visionConfig, config, sugaredLogger)
+	visualTextExtractor := infra.ProvideConfigurableVisualTextExtractor(phpaiAbilityConfigRPCClient, phpModelCallConfigRPCClient, volcengineOCRClient, modelVisualTextExtractor, sugaredLogger)
+	v := infra.ProvideDocumentParsers(config, phpFileRPCClient, visualTextExtractor)
 	parseService := infra.ProvideDocumentParseService(config, phpFileRPCClient, v, sugaredLogger)
 	phpKnowledgeBasePermissionRPCClient := infra.ProvideKnowledgeBasePermissionPort(server, sugaredLogger)
 	phpSuperMagicAgentRPCClient := infra.ProvideSuperMagicAgentPort(server, sugaredLogger)
@@ -131,15 +139,23 @@ func InitializeApplication() (*httpapi.Server, func(), error) {
 	}
 	triggerService := rebuild.ProvideKnowledgeRebuildTriggerService(runner, coordinator, sugaredLogger)
 	cleanupService := rebuild.ProvideKnowledgeRebuildCleanupService(mySQLStore, coordinator, vectorDBManagementRepository, phpKnowledgeBasePermissionRPCClient, sugaredLogger)
-	knowledgeBaseRPCDeps := service.ProvideKnowledgeBaseRPCDeps(knowledgeRevectorizeAppService, triggerService, cleanupService, client)
+	knowledgeBaseRPCDeps := service.ProvideKnowledgeBaseRPCDeps(knowledgeRevectorizeAppService, triggerService, cleanupService, coordinator, client)
 	knowledgeBaseRPCService := service.ProvideKnowledgeBaseRPCService(knowledgeBaseAppService, documentAppService, knowledgeBaseRPCDeps, sugaredLogger)
 	fragmentRPCService := service.NewFragmentRPCService(fragmentAppService, sugaredLogger)
 	documentRPCService := service.NewDocumentRPCService(documentAppService, sugaredLogger)
 	embeddingAppService := knowledge.ProvideEmbeddingAppService(domainService, sugaredLogger, embeddingDefaultModel)
 	embeddingRPCService := service.NewEmbeddingRPCService(embeddingAppService, sugaredLogger)
-	rpcHandlers := httpapi.ProvideRPCHandlers(knowledgeBaseRPCService, fragmentRPCService, documentRPCService, embeddingRPCService)
+	opsRPCService := service2.ProvideOpsRPCService(config, client, redisLockManager, phpKnowledgeBasePermissionRPCClient, sugaredLogger)
+	rpcHandlers := httpapi.ProvideRPCHandlers(knowledgeBaseRPCService, fragmentRPCService, documentRPCService, embeddingRPCService, opsRPCService)
 	debugHandler := handlers.NewDebugHandler(embeddingAppService)
-	serverRuntimeDeps := httpapi.ProvideServerRuntimeDeps(server, rpcHandlers, debugHandler)
+	magicfsRepository := infra.ProvideMagicFSRepository(sqlcClient)
+	phpMagicFSFileRPCClient := infra.ProvideMagicFSFilePort(server, sugaredLogger)
+	fileVersionService := app.ProvideMagicFSFileVersionService(magicfsRepository, phpMagicFSFileRPCClient)
+	magicFSFileHandler := handlers.NewMagicFSFileHandler(fileVersionService)
+	phpWebAuthRPCClient := infra.ProvideWebAuthProvider(server, sugaredLogger)
+	knowledgeSourceFileLinkService := knowledge.ProvideKnowledgeSourceFileLinkService(phpWebAuthRPCClient, documentDomainService, knowledgebaseDomainService, phpFileRPCClient, basePortDeps, registry)
+	knowledgeSourceFileHandler := handlers.NewKnowledgeSourceFileHandler(knowledgeSourceFileLinkService)
+	serverRuntimeDeps := httpapi.ProvideServerRuntimeDeps(server, rpcHandlers, debugHandler, magicFSFileHandler, knowledgeSourceFileHandler)
 	serverDependencies := httpapi.ProvideServerDependencies(serverConfig, serverBackgroundDeps, checkService, sugaredLogger, metrics, serverRuntimeDeps)
 	httpapiServer := httpapi.NewServerWithDependencies(serverDependencies)
 	return httpapiServer, func() {
@@ -153,19 +169,13 @@ func InitializeApplication() (*httpapi.Server, func(), error) {
 // wire.go:
 
 func provideServerConfig(cfg *autoload.Config) *httpapi.ServerConfig {
-	httpEnabled := false
-	if cfg.Server.Enabled != nil {
-		httpEnabled = *cfg.Server.Enabled
-	}
-
 	return &httpapi.ServerConfig{
-		Enabled:        httpEnabled,
-		Host:           cfg.Server.Host,
-		Port:           cfg.Server.Port,
-		Mode:           httpapi.Mode(cfg.Server.Mode),
-		BasePath:       cfg.Server.BasePath,
-		Env:            cfg.Server.Env,
-		PprofEnabled:   cfg.Server.PprofEnabled,
-		AllowedOrigins: cfg.Security.AllowedOrigins,
+		Port:            cfg.Server.Port,
+		StripPathPrefix: cfg.Server.StripPathPrefix,
+		Mode:            httpapi.Mode(cfg.Server.Mode),
+		BasePath:        cfg.Server.BasePath,
+		Env:             cfg.Server.Env,
+		PprofEnabled:    cfg.Server.PprofEnabled,
+		AllowedOrigins:  cfg.Security.AllowedOrigins,
 	}
 }

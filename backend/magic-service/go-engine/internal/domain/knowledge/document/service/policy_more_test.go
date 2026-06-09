@@ -152,8 +152,8 @@ func TestKnowledgeBaseFileSupportPolicies(t *testing.T) {
 		t.Fatal("expected unsupported extension to fail")
 	}
 	supportedExts := document.SupportedKnowledgeBaseFileExtensions()
-	if !slices.Contains(supportedExts, "docx") || slices.Contains(supportedExts, "doc") ||
-		slices.Contains(supportedExts, "xls") || slices.Contains(supportedExts, "js") {
+	if !slices.Contains(supportedExts, "docx") || !slices.Contains(supportedExts, "doc") ||
+		!slices.Contains(supportedExts, "xls") || slices.Contains(supportedExts, "js") {
 		t.Fatalf("unexpected supported extensions: %#v", supportedExts)
 	}
 	if err := document.ValidateKnowledgeBaseDocumentFileSupport(&docentity.File{Name: "demo.docx"}); err != nil {

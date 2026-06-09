@@ -25,6 +25,7 @@ setup(
     install_requires=[
         "openai>=1.0.0",
         "python-dotenv>=0.19.0",
+        "cryptography>=42.0.0",
         "pydantic>=2.0.0",
         "aiohttp>=3.8.0",
         "numpy>=1.20.0",

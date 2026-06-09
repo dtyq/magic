@@ -36,7 +36,7 @@ func TestProductLineResolverResolveKnowledgeBaseTypeDefaultsToFlowVectorWhenBind
 	}
 }
 
-func TestProductLineResolverResolveSnapshotUsesBatchBindingLookupAndDefaultsMissingToFlowVector(t *testing.T) {
+func TestProductLineResolverResolveSnapshotKeepsBindingSnapshotAndDoesNotInferProductLine(t *testing.T) {
 	t.Parallel()
 
 	reader := &bindingReaderStub{
@@ -53,8 +53,11 @@ func TestProductLineResolverResolveSnapshotUsesBatchBindingLookupAndDefaultsMiss
 	if reader.batchCalls != 1 {
 		t.Fatalf("expected one batch call, got %d", reader.batchCalls)
 	}
-	if snapshot.KnowledgeBaseTypes["KB-1"] != kbentity.KnowledgeBaseTypeDigitalEmployee {
-		t.Fatalf("expected KB-1 digital employee, got %q", snapshot.KnowledgeBaseTypes["KB-1"])
+	if got := snapshot.AgentCodesByKnowledgeBase["KB-1"]; len(got) != 1 || got[0] != "SMA-1" {
+		t.Fatalf("expected KB-1 agent binding snapshot, got %#v", got)
+	}
+	if snapshot.KnowledgeBaseTypes["KB-1"] != kbentity.KnowledgeBaseTypeFlowVector {
+		t.Fatalf("expected KB-1 compatibility type to remain flow vector, got %q", snapshot.KnowledgeBaseTypes["KB-1"])
 	}
 	if snapshot.KnowledgeBaseTypes["KB-2"] != kbentity.KnowledgeBaseTypeFlowVector {
 		t.Fatalf("expected KB-2 flow vector, got %q", snapshot.KnowledgeBaseTypes["KB-2"])

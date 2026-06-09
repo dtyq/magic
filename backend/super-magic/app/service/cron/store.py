@@ -154,6 +154,7 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
             agent_name=payload_cfg.get("agent_name") or None,
             model_id=payload_cfg.get("model_id"),
             image_model_id=payload_cfg.get("image_model_id"),
+            video_model_id=payload_cfg.get("video_model_id"),
             timeout_seconds=payload_cfg.get("timeout_seconds"),
             notify_user=bool(payload_cfg.get("notify_user", payload_cfg.get("notify_main_agent", True))),
         )
@@ -308,6 +309,7 @@ def build_job_md(
     agent_name: str,
     model_id: Optional[str],
     image_model_id: Optional[str],
+    video_model_id: Optional[str],
     timeout_seconds: Optional[int],
     enabled: bool,
     name: Optional[str],
@@ -343,6 +345,8 @@ def build_job_md(
         frontmatter["payload"]["model_id"] = model_id
     if image_model_id is not None:
         frontmatter["payload"]["image_model_id"] = image_model_id
+    if video_model_id is not None:
+        frontmatter["payload"]["video_model_id"] = video_model_id
     if timeout_seconds is not None:
         frontmatter["payload"]["timeout_seconds"] = timeout_seconds
     if not notify_user:
@@ -359,6 +363,7 @@ def patch_job_md(
     agent_name: Optional[str],
     model_id: Optional[str],
     image_model_id: Optional[str],
+    video_model_id: Optional[str],
     timeout_seconds: Optional[int],
     enabled: Optional[bool],
     body: Optional[str],
@@ -400,6 +405,8 @@ def patch_job_md(
         payload["model_id"] = model_id
     if image_model_id is not None:
         payload["image_model_id"] = image_model_id
+    if video_model_id is not None:
+        payload["video_model_id"] = video_model_id
     if timeout_seconds is not None:
         payload["timeout_seconds"] = timeout_seconds
     if notify_user is not None:

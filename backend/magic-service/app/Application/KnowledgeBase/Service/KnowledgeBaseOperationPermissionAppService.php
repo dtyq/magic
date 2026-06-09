@@ -156,6 +156,45 @@ readonly class KnowledgeBaseOperationPermissionAppService
         );
     }
 
+    /**
+     * 增量写入知识库权限。
+     *
+     * @param array<array{target_type: TargetType, target_id: string, operation: Operation}> $permissions
+     */
+    public function grantKnowledgePermissions(
+        KnowledgeBasePermissionDataIsolation $dataIsolation,
+        string $knowledgeCode,
+        array $permissions
+    ): void {
+        $knowledgeCode = trim($knowledgeCode);
+        if ($knowledgeCode === '' || $permissions === []) {
+            return;
+        }
+
+        $entities = [];
+        foreach ($permissions as $permissionSpec) {
+            $targetId = trim((string) ($permissionSpec['target_id'] ?? ''));
+            $targetType = $permissionSpec['target_type'] ?? null;
+            $operation = $permissionSpec['operation'] ?? null;
+            if ($targetId === '' || ! $targetType instanceof TargetType || ! $operation instanceof Operation) {
+                continue;
+            }
+
+            $permission = new OperationPermissionEntity();
+            $permission->setTargetType($targetType);
+            $permission->setTargetId($targetId);
+            $permission->setOperation($operation);
+            $entities[] = $permission;
+        }
+
+        $this->operationPermissionDomainService->batchUpsertResourceOperations(
+            $dataIsolation,
+            ResourceType::Knowledge,
+            $knowledgeCode,
+            $entities
+        );
+    }
+
     public function cleanupKnowledgePermission(
         KnowledgeBasePermissionDataIsolation $dataIsolation,
         string $knowledgeCode

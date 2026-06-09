@@ -73,6 +73,35 @@ func (s *KnowledgeBaseAppService) validateSuperMagicAgents(
 	return nil
 }
 
+func (s *KnowledgeBaseAppService) validateAccessibleSuperMagicAgents(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	agentCodes []string,
+) error {
+	if len(agentCodes) == 0 {
+		return nil
+	}
+	if s == nil || s.superMagicAgentAccess == nil {
+		return ErrKnowledgeBaseSuperMagicAgentAccessCheckerRequired
+	}
+	accessible, err := s.superMagicAgentAccess.ListAccessibleCodes(ctx, organizationCode, userID, agentCodes)
+	if err != nil {
+		return fmt.Errorf("list accessible super magic agents: %w", err)
+	}
+	inaccessible := make([]string, 0, len(agentCodes))
+	for _, agentCode := range agentCodes {
+		if _, ok := accessible[agentCode]; ok {
+			continue
+		}
+		inaccessible = append(inaccessible, agentCode)
+	}
+	if len(inaccessible) > 0 {
+		return fmt.Errorf("%w: action=read agent_codes=%s", ErrKnowledgeBasePermissionDenied, strings.Join(inaccessible, ","))
+	}
+	return nil
+}
+
 func (s *KnowledgeBaseAppService) replaceKnowledgeBaseAgentBindings(
 	ctx context.Context,
 	kbCode string,
@@ -137,47 +166,6 @@ func knowledgeBaseTypeFromKnowledgeBase(kb *kbentity.KnowledgeBase) kbentity.Typ
 		return kbentity.KnowledgeBaseTypeFlowVector
 	}
 	return kbentity.NormalizeKnowledgeBaseTypeOrDefault(kb.KnowledgeBaseType)
-}
-
-func (s *KnowledgeBaseAppService) filterKnowledgeBaseCodesByAgentCodes(
-	ctx context.Context,
-	knowledgeBaseCodes []string,
-	agentCodes []string,
-) ([]string, error) {
-	if len(knowledgeBaseCodes) == 0 || len(agentCodes) == 0 {
-		return knowledgeBaseCodes, nil
-	}
-	snapshot, err := s.resolveKnowledgeBaseBindingSnapshot(ctx, knowledgeBaseCodes)
-	if err != nil {
-		return nil, err
-	}
-	filtered := make([]string, 0, len(knowledgeBaseCodes))
-	for _, code := range knowledgeBaseCodes {
-		if hasAgentCodeIntersection(snapshot.AgentCodesByKnowledgeBase[code], agentCodes) {
-			filtered = append(filtered, code)
-		}
-	}
-	return filtered, nil
-}
-
-func hasAgentCodeIntersection(currentAgentCodes, requestedAgentCodes []string) bool {
-	if len(requestedAgentCodes) == 0 {
-		return true
-	}
-	requested := make(map[string]struct{}, len(requestedAgentCodes))
-	for _, agentCode := range requestedAgentCodes {
-		trimmed := strings.TrimSpace(agentCode)
-		if trimmed == "" {
-			continue
-		}
-		requested[trimmed] = struct{}{}
-	}
-	for _, agentCode := range currentAgentCodes {
-		if _, ok := requested[strings.TrimSpace(agentCode)]; ok {
-			return true
-		}
-	}
-	return false
 }
 
 func applyKnowledgeBaseBindingInfo(

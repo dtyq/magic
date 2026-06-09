@@ -13,7 +13,7 @@ import (
 )
 
 const findTaskFileMetaByID = `-- name: FindTaskFileMetaByID :one
-SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, source, created_at, updated_at, deleted_at
+SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, latest_version, metadata_version, space_type, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, display_config, source, created_at, updated_at, deleted_at
 FROM magic_super_agent_task_files
 WHERE file_id = ?
 LIMIT 1
@@ -31,6 +31,9 @@ func (q *Queries) FindTaskFileMetaByID(ctx context.Context, fileID uint64) (Magi
 		&i.LatestModifiedTopicID,
 		&i.TaskID,
 		&i.LatestModifiedTaskID,
+		&i.LatestVersion,
+		&i.MetadataVersion,
+		&i.SpaceType,
 		&i.FileType,
 		&i.FileName,
 		&i.FileExtension,
@@ -43,6 +46,7 @@ func (q *Queries) FindTaskFileMetaByID(ctx context.Context, fileID uint64) (Magi
 		&i.Sort,
 		&i.ParentID,
 		&i.Metadata,
+		&i.DisplayConfig,
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -80,7 +84,7 @@ func (q *Queries) FindTaskFileParentLinkByID(ctx context.Context, fileID uint64)
 }
 
 const findTaskFileRootDirectoryByProjectID = `-- name: FindTaskFileRootDirectoryByProjectID :one
-SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, source, created_at, updated_at, deleted_at
+SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, latest_version, metadata_version, space_type, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, display_config, source, created_at, updated_at, deleted_at
 FROM magic_super_agent_task_files
 WHERE project_id = ?
   AND parent_id IS NULL
@@ -102,6 +106,9 @@ func (q *Queries) FindTaskFileRootDirectoryByProjectID(ctx context.Context, proj
 		&i.LatestModifiedTopicID,
 		&i.TaskID,
 		&i.LatestModifiedTaskID,
+		&i.LatestVersion,
+		&i.MetadataVersion,
+		&i.SpaceType,
 		&i.FileType,
 		&i.FileName,
 		&i.FileExtension,
@@ -114,12 +121,28 @@ func (q *Queries) FindTaskFileRootDirectoryByProjectID(ctx context.Context, proj
 		&i.Sort,
 		&i.ParentID,
 		&i.Metadata,
+		&i.DisplayConfig,
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const getMagicFSFileMetadataVersionByID = `-- name: GetMagicFSFileMetadataVersionByID :one
+SELECT metadata_version
+FROM magic_super_agent_task_files
+WHERE file_id = ?
+  AND deleted_at IS NULL
+LIMIT 1
+`
+
+func (q *Queries) GetMagicFSFileMetadataVersionByID(ctx context.Context, fileID uint64) (uint32, error) {
+	row := q.db.QueryRowContext(ctx, getMagicFSFileMetadataVersionByID, fileID)
+	var metadata_version uint32
+	err := row.Scan(&metadata_version)
+	return metadata_version, err
 }
 
 const listTaskFileChildLinksByParentIDs = `-- name: ListTaskFileChildLinksByParentIDs :many
@@ -226,7 +249,7 @@ func (q *Queries) ListTaskFileParentLinksByProjectID(ctx context.Context, projec
 }
 
 const listVisibleTaskFileChildrenByParent = `-- name: ListVisibleTaskFileChildrenByParent :many
-SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, source, created_at, updated_at, deleted_at
+SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, latest_version, metadata_version, space_type, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, display_config, source, created_at, updated_at, deleted_at
 FROM magic_super_agent_task_files
 WHERE project_id = ?
   AND parent_id = ?
@@ -260,6 +283,9 @@ func (q *Queries) ListVisibleTaskFileChildrenByParent(ctx context.Context, arg L
 			&i.LatestModifiedTopicID,
 			&i.TaskID,
 			&i.LatestModifiedTaskID,
+			&i.LatestVersion,
+			&i.MetadataVersion,
+			&i.SpaceType,
 			&i.FileType,
 			&i.FileName,
 			&i.FileExtension,
@@ -272,6 +298,7 @@ func (q *Queries) ListVisibleTaskFileChildrenByParent(ctx context.Context, arg L
 			&i.Sort,
 			&i.ParentID,
 			&i.Metadata,
+			&i.DisplayConfig,
 			&i.Source,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -291,7 +318,7 @@ func (q *Queries) ListVisibleTaskFileChildrenByParent(ctx context.Context, arg L
 }
 
 const listVisibleTaskFileChildrenByParentAfter = `-- name: ListVisibleTaskFileChildrenByParentAfter :many
-SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, source, created_at, updated_at, deleted_at
+SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, latest_version, metadata_version, space_type, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, display_config, source, created_at, updated_at, deleted_at
 FROM magic_super_agent_task_files
 WHERE project_id = ?
   AND parent_id = ?
@@ -339,6 +366,9 @@ func (q *Queries) ListVisibleTaskFileChildrenByParentAfter(ctx context.Context, 
 			&i.LatestModifiedTopicID,
 			&i.TaskID,
 			&i.LatestModifiedTaskID,
+			&i.LatestVersion,
+			&i.MetadataVersion,
+			&i.SpaceType,
 			&i.FileType,
 			&i.FileName,
 			&i.FileExtension,
@@ -351,6 +381,7 @@ func (q *Queries) ListVisibleTaskFileChildrenByParentAfter(ctx context.Context, 
 			&i.Sort,
 			&i.ParentID,
 			&i.Metadata,
+			&i.DisplayConfig,
 			&i.Source,
 			&i.CreatedAt,
 			&i.UpdatedAt,

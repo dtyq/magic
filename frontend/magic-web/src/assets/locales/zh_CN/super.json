@@ -580,12 +580,15 @@
 				"untitledPost": "未命名帖子"
 			},
 			"edit": {
+				"addArticleFileToChat": "添加文章文件到输入框",
 				"addCurrentPageToChat": "添加本卡片到当前对话",
 				"addPostFolderToCurrentChat": "添加该文章到当前对话",
 				"cancel": "取消",
 				"discard": "放弃",
+				"goToArticleEdit": "编辑文章",
 				"goToEdit": "修改本卡片",
 				"noCards": "当前文章没有卡片",
+				"refreshArticle": "刷新文章",
 				"refreshCard": "刷新卡片",
 				"refreshConfirmDescription": "当前编辑内容有未保存更改。你可以立即保存，或放弃更改后再刷新。",
 				"refreshConfirmTitle": "刷新前处理未保存更改",
@@ -773,6 +776,11 @@
 		"uploadFailed": "上传失败",
 		"uploadFailedPrefix": "上传失败: ",
 		"uploadedAttachments": "已上传附件 ({{count}})"
+	},
+	"htmlEditor": {
+		"dropOverlay": {
+			"hint": "释放以插入图片"
+		}
 	},
 	"fileViewer": {
 		"addNewSlide": "新建幻灯片",
@@ -1215,6 +1223,8 @@
 		"modeNotAvailableMessage": "当前模式暂不可用，请\"新建话题\" 并选择可用的模式后继续",
 		"modelSwitch": {
 			"autoModelDescription": "Auto 模式自动选用当前任务执行效率最高的AI模型，适合处理大多数常规任务，积分消耗适中。",
+			"collapseDescription": "收起模型描述",
+			"expandDescription": "展开模型描述",
 			"headerTitle": "模型选择",
 			"imageModel": "生图模型",
 			"languageModel": "语言模型",
@@ -1415,6 +1425,8 @@
 	"modeToggle": {
 		"cannotSwitchModeMessage": "当前团队成员不可切换，创建新话题即可启用「<strong>{{modeName}}</strong>」。",
 		"createNewTopic": "创建新话题",
+		"emptySearchResult": "没有匹配的团队成员",
+		"searchPlaceholder": "搜索团队成员",
 		"selectCrew": "选择团队成员",
 		"selectMode": "选择模式"
 	},
@@ -1790,16 +1802,31 @@
 		},
 		"message": {
 			"completing": "正在完成总结...",
+			"continueSummary": "继续总结",
+			"continuingSummaryAfterAudioCheck": "正在继续生成总结...",
 			"generatingSummary": "正在生成总结...",
 			"migratingImages": "正在迁移图片...",
 			"missingRequiredParams": "缺少必需的参数，请重新选择项目和模型",
+			"placeholderUploadCancel": "取消",
+			"placeholderUploadCancelled": "已取消音频整理",
+			"placeholderUploadProgress": "音频整理中：已完成 {{percent}}%，待处理 {{remaining}} 个",
+			"placeholderUploadProgressTitle": "正在整理音频",
+			"placeholderUploadTimeout": "音频整理时间较长，请稍后再试",
+			"placeholderUploadTooManyFailed": "需要整理的音频片段较多（{{count}} 个）。请先选择“再试一次”，以尽量保留完整录音。",
 			"processingProject": "正在处理项目信息...",
+			"retryUploadChunks": "再试一次",
+			"retryingAudioChunks": "正在重新整理音频，请稍候...",
 			"starting": "正在开始总结...",
 			"stoppingRecording": "正在停止录音...",
 			"summaryComplete": "总结完成",
 			"summaryFailed": "总结失败，请重试",
 			"summaryGenerationFailed": "生成总结失败，请稍后重试",
-			"uploadChunksFailed": "音频分片上传失败，请检查网络连接后重试",
+			"uploadChunksCompletingError": "音频整理时遇到问题，请稍后重试",
+			"uploadChunksPreparingError": "音频还没有完全准备好，请稍后再试",
+			"uploadFailureDecisionContent": "本次录音有 {{failed}}/{{total}} 个音频片段暂未准备完成。建议先再试一次，以尽量保留完整内容；也可以直接继续总结，系统会基于已准备好的音频生成结果。未完成的时间段可能不会被纳入总结。",
+			"uploadFailureDecisionTitle": "还有少量音频需要确认",
+			"uploadProgress": "音频整理中：已完成 {{percent}}%，待处理 {{pending}} 个",
+			"uploadProgressNeedsDecision": "音频整理中：已完成 {{percent}}%",
 			"uploadingChunks": "正在上传音频分片..."
 		},
 		"messageListFallback": {
@@ -1818,6 +1845,9 @@
 				"takeNotes": "写笔记"
 			},
 			"title": "录音总结"
+		},
+		"chunkProduction": {
+			"failed": "录音异常：未检测到音频数据，请停止并重新开始"
 		},
 		"network": {
 			"max_retries_reached": "部分音频分片上传失败，请检查网络连接",
@@ -2324,6 +2354,7 @@
 		"shareMessageDashboard": "我分享了一个数据分析仪表板给你:",
 		"shareMessageDesign": "我分享了一个画布给你:",
 		"shareMessageMultipleFiles": "我分享了一些文件给你 (共 {{count}} 个文件):",
+		"shareMessageMultipleFilesFile": "📄 文件：{{shareName}}",
 		"shareMessageMultipleFilesLink": "🔗 访问链接: {{shareUrl}}",
 		"shareMessageMultipleFilesTip": "💡 点击链接即可直接查看文件内容。",
 		"shareMessageProject": "我分享了一个项目给你：",
@@ -2658,7 +2689,7 @@
 		"insertImage": "新增图片",
 		"inspector": {
 			"agentPromptPlaceholder": "在此描述你遇到的问题",
-			"agentPromptSuffix": "请描述你遇到的问题：",
+			"agentPromptSuffix": "请对选中元素进行处理：",
 			"agentPromptTitle": "[HTML 元素检查] 我选中了页面中的一个元素，其详细信息如下：",
 			"computedStyles": "计算样式",
 			"copySelector": "复制选择器",
@@ -2873,6 +2904,8 @@
 	},
 	"topicFiles": {
 		"AIOptimization": "AI 编辑",
+		"aiPick": "AI 选取",
+		"aiPickTooltip": "点击后选取页面元素，让 AI 对其进行修改",
 		"addFile": "添加文件",
 		"addFolder": "添加文件夹",
 		"batchExportingPdf": "批量导出 PDF 中",
@@ -3207,8 +3240,12 @@
 		"aiGeneratedTip": "上述内容由 AI 生成，请仔细甄别",
 		"attachments": "附件（{{count}}）",
 		"collapseUserMessage": "收起",
+		"consumptionPoints": "本轮使用 {{points}} 积分",
 		"consumptionPoints1": "本轮使用",
 		"consumptionPoints2": "积分",
+		"usedModel": "使用模型：",
+		"usedImageModel": "图像模型：",
+		"usedVideoModel": "视频模型：",
 		"copyTopic": "从此处创建新话题",
 		"deleteProjectConfirm": "确定要删除项目: \"{{name}}\" 吗？",
 		"deleteTopicConfirm": "确定要删除话题: \"{{name}}\" 吗？",

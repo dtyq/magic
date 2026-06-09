@@ -11,7 +11,7 @@ import { visualizer } from "rollup-plugin-visualizer"
 import keepConsole from "vite-plugin-keep-console"
 import babelPluginAntdStyle from "babel-plugin-antd-style"
 import { viteExternalsPlugin } from "vite-plugin-externals"
-import createCanvasDesignPublicAssetsPlugin from "./plugins/vite-plugin-canvas-design-public-assets"
+import createAppServiceWorkerPlugin from "./plugins/vite-plugin-app-service-worker"
 import vitePluginTransformBaseImports from "./plugins/vite-plugin-transform-base-imports"
 import vitePluginCriticalFontPreload from "./plugins/vite-plugin-font-preload"
 import { getViteEditionConfig } from "./vite/edition"
@@ -24,6 +24,12 @@ const ENV_PREFIX = "MAGIC_"
 
 /** 是否为开发环境 */
 const isDev = process.env.NODE_ENV === "development"
+
+/** 本地开发 HTTPS hosts，支持逗号分隔多个，默认 magic.t.teamshare.cn */
+const devHosts = (process.env.DEV_HOSTS ?? "magic.com")
+	.split(",")
+	.map((h) => h.trim())
+	.filter(Boolean)
 
 /** 是否开启依赖分析 */
 const isVisualizer = process.env.VISUALIZER === "true"
@@ -53,7 +59,6 @@ function getBaseViteConfig(): UserConfig {
 		},
 		build: {
 			outDir: resolve(__dirname, "dist"),
-			// Enterprise uses root `enterprise/`; outDir is repo `dist/` (outside root).
 			emptyOutDir: true,
 			reportCompressedSize: false,
 			sourcemap: isEnableSourceMap,
@@ -144,10 +149,44 @@ function getBaseViteConfig(): UserConfig {
 					find: "@enterprise",
 					replacement: resolve(__dirname, "enterprise/src"),
 				},
+				{
+					find: "@dtyq/x-markdown",
+					replacement: resolve(__dirname, "packages/x-markdown/src/index.ts"),
+				},
+				// packages/logger may have its own node_modules during local development.
+				// Pin ARMS to the app dependency so Vite does not resolve a nested version
+				// whose rrweb subpath imports are blocked by package exports.
+				{
+					find: "@arms/rum-browser",
+					replacement: resolve(__dirname, "node_modules/@arms/rum-browser/lib/index.js"),
+				},
+				{
+					find: "@admin",
+					replacement: resolve(__dirname, "packages/magic-admin/src"),
+				},
+				{
+					find: "@admin-components",
+					replacement: resolve(__dirname, "packages/magic-admin/components/index.ts"),
+				},
+				{
+					find: "@dtyq/magic-admin/components",
+					replacement: resolve(__dirname, "packages/magic-admin/components/index.ts"),
+				},
+				{
+					find: "@dtyq/magic-admin/provider",
+					replacement: resolve(
+						__dirname,
+						"packages/magic-admin/src/provider/AdminProvider/index.tsx",
+					),
+				},
+				{
+					find: "@dtyq/magic-admin",
+					replacement: resolve(__dirname, "packages/magic-admin/src/index.ts"),
+				},
 			],
 		},
 		plugins: [
-			createCanvasDesignPublicAssetsPlugin(),
+			createAppServiceWorkerPlugin(),
 			// Transform named imports from @/components/base to default imports
 			// 将 @/components/base 的命名导入转换为默认导入
 			vitePluginTransformBaseImports({
@@ -244,7 +283,8 @@ function getBaseViteConfig(): UserConfig {
 				? [
 						mkcert({
 							// 本地配置该地址的 host, 满足文件私有桶上传
-							hosts: ["magic.com"],
+							// 可通过环境变量 DEV_HOSTS 覆盖，多个 host 用逗号分隔
+							hosts: devHosts,
 						}),
 						// http2Proxy({ quiet: true }),
 					]

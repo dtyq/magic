@@ -45,6 +45,7 @@ class CronPayload:
     agent_name: Optional[str] = None
     model_id: Optional[str] = None
     image_model_id: Optional[str] = None
+    video_model_id: Optional[str] = None
     timeout_seconds: Optional[int] = None
     notify_user: bool = True
 

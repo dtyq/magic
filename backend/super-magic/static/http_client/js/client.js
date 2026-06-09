@@ -67,6 +67,7 @@ const FILE_PREVIEW_INITIALIZED_KEY = 'httpClient.filePreviewInitialized';
 const WORKSPACE_ABSOLUTE_PATH_KEY = 'httpClient.workspaceAbsolutePath';
 const MESSAGE_INPUT_DRAFT_KEY = 'httpClient.messageInputDraft';
 const RAW_JSON_INPUT_DRAFT_KEY = 'httpClient.rawJsonInputDraft';
+const CLIENT_CONTEXT_INPUT_DRAFT_KEY = 'httpClient.clientContextInputDraft';
 const TOOL_DETAIL_MODEL_RATIO_KEY = 'httpClient.toolDetailModelRatio';
 const TOOL_DETAIL_MODEL_COLLAPSED_KEY = 'httpClient.toolDetailModelCollapsed';
 const TOOL_DETAIL_PREVIEW_PATH = '__virtual__/tool-detail.md';
@@ -135,6 +136,11 @@ function restoreInputDrafts() {
     const rawJsonDraft = localStorage.getItem(RAW_JSON_INPUT_DRAFT_KEY);
     if (rawJsonInput && rawJsonDraft !== null && !rawJsonInput.value) {
         rawJsonInput.value = rawJsonDraft;
+    }
+
+    const clientContextDraft = localStorage.getItem(CLIENT_CONTEXT_INPUT_DRAFT_KEY);
+    if (clientContextInput && clientContextDraft !== null && !clientContextInput.value) {
+        clientContextInput.value = clientContextDraft;
     }
 }
 
@@ -373,12 +379,21 @@ const agentCodeInput = document.getElementById('agentCodeInput');
 const agentCodeGroup = document.getElementById('agentCodeGroup');
 const customAgentCodeInput = document.getElementById('customAgentCodeInput');
 const customAgentCodeGroup = document.getElementById('customAgentCodeGroup');
+const localCrewAgentOptions = document.getElementById('localCrewAgentOptions');
 const modelIdInput = document.getElementById('modelIdInput');
 const modelIdSelect = document.getElementById('modelIdSelect');
 const imageModelSelect = document.getElementById('imageModelSelect');
 const videoModelSelect = document.getElementById('videoModelSelect');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
 const rawJsonInput = document.getElementById('rawJsonInput');
+const clientContextInput = document.getElementById('clientContextInput');
+const clientContextOpenBtn = document.getElementById('clientContextOpenBtn');
+const clientContextCount = document.getElementById('clientContextCount');
+const clientContextClearBtn = document.getElementById('clientContextClearBtn');
+const clientContextModal = document.getElementById('clientContextModal');
+const clientContextModalCount = document.getElementById('clientContextModalCount');
+const clientContextModalClearBtn = document.getElementById('clientContextModalClearBtn');
+const clientContextModalCloseBtn = document.getElementById('clientContextModalCloseBtn');
 const languageSelect = document.getElementById('languageSelect');
 const messageVersionSelect = document.getElementById('messageVersionSelect');
 const imModeToggle = document.getElementById('imModeToggle');
@@ -417,7 +432,83 @@ function initCompactPanelToggle(toggle, body, arrow, storageKey, defaultOpen) {
 const configPanelToggle = document.getElementById('configPanelToggle');
 const configPanelBody = document.getElementById('configPanelBody');
 const configPanelArrow = document.getElementById('configPanelArrow');
+
+function renderLocalCrewOptions(crews) {
+    if (!localCrewAgentOptions) return;
+    localCrewAgentOptions.innerHTML = '';
+    (Array.isArray(crews) ? crews : []).forEach((crew) => {
+        if (!crew || !crew.agent_code) return;
+        const option = document.createElement('option');
+        option.value = crew.agent_code;
+        option.label = crew.domain && crew.crew
+            ? `${crew.domain}/${crew.crew}`
+            : (crew.crew_dir || crew.agent_code);
+        localCrewAgentOptions.appendChild(option);
+    });
+}
+
+async function loadLocalCrewOptions() {
+    if (!localCrewAgentOptions) return;
+    const serverUrl = (serverUrlInput.value.trim() || 'http://127.0.0.1:8002').replace(/\/+$/, '');
+    try {
+        const response = await fetch(`${serverUrl}/api/v1/debug/local-crew/list`);
+        const json = await response.json().catch(() => null);
+        if (!response.ok || json?.code !== 1000) {
+            renderLocalCrewOptions([]);
+            return;
+        }
+        renderLocalCrewOptions(json.data?.crews || []);
+    } catch (error) {
+        renderLocalCrewOptions([]);
+    }
+}
+
 initCompactPanelToggle(configPanelToggle, configPanelBody, configPanelArrow, INIT_CONFIG_PANEL_OPEN_KEY, false);
+
+function refreshClientContextDebugState() {
+    const length = clientContextInput?.value.length || 0;
+    const hasManualContext = length > 0;
+    if (clientContextOpenBtn) clientContextOpenBtn.classList.toggle('has-manual-context', hasManualContext);
+    if (clientContextCount) clientContextCount.textContent = `${length}字`;
+    if (clientContextModalCount) clientContextModalCount.textContent = `${length} 字符`;
+    if (clientContextClearBtn) clientContextClearBtn.style.display = hasManualContext ? '' : 'none';
+    if (clientContextModalClearBtn) clientContextModalClearBtn.disabled = !hasManualContext;
+}
+
+function clearManualClientContext() {
+    if (!clientContextInput) return;
+    clientContextInput.value = '';
+    localStorage.removeItem(CLIENT_CONTEXT_INPUT_DRAFT_KEY);
+    refreshClientContextDebugState();
+    if (clientContextModal?.style.display !== 'none') clientContextInput.focus();
+}
+
+function openClientContextModal() {
+    if (!clientContextModal) return;
+    clientContextModal.style.display = 'flex';
+    refreshClientContextDebugState();
+    setTimeout(() => clientContextInput?.focus(), 50);
+}
+
+function closeClientContextModal() {
+    if (clientContextModal) clientContextModal.style.display = 'none';
+}
+
+function initClientContextModal() {
+    clientContextOpenBtn?.addEventListener('click', openClientContextModal);
+    clientContextClearBtn?.addEventListener('click', clearManualClientContext);
+    clientContextModalCloseBtn?.addEventListener('click', closeClientContextModal);
+    clientContextModalClearBtn?.addEventListener('click', clearManualClientContext);
+    clientContextModal?.addEventListener('click', (event) => {
+        if (event.target === clientContextModal) closeClientContextModal();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && clientContextModal?.style.display !== 'none') {
+            closeClientContextModal();
+        }
+    });
+    refreshClientContextDebugState();
+}
 
 // ── MCP 配置面板 ──────────────────────────────────────────────────────────────
 
@@ -1129,6 +1220,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始化 MCP 配置面板
     initMcpPanel();
+    loadLocalCrewOptions();
 
     // 初始化快捷键提示
     initSendHint();
@@ -1138,8 +1230,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始化输入栏自定义选择器
     initCustomSelects();
+    initClientContextModal();
 
     restoreInputDrafts();
+    refreshClientContextDebugState();
 
     // 原始事件默认隐藏，用户打开后才展示调试事件盒
     initRawEventsToggle();
@@ -1190,6 +1284,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         rawJsonInput.addEventListener('input', () => {
             saveTextDraft(RAW_JSON_INPUT_DRAFT_KEY, rawJsonInput.value);
+        });
+    }
+
+    if (clientContextInput) {
+        clientContextInput.addEventListener('input', () => {
+            saveTextDraft(CLIENT_CONTEXT_INPUT_DRAFT_KEY, clientContextInput.value);
+            refreshClientContextDebugState();
         });
     }
 
@@ -1643,12 +1744,59 @@ function applyLocalDebugOptions(messageData) {
     if (!messageData || typeof messageData !== 'object') return;
     messageData.dynamic_config = Object.assign({}, messageData.dynamic_config, {
         enable_debug_tool_result_content: true,
+        client_context: buildLocalDebugClientContext(),
     });
     if (currentMessageVersion) {
         messageData.dynamic_config.message_version = currentMessageVersion;
     } else {
         delete messageData.dynamic_config.message_version;
     }
+}
+
+function buildLocalDebugClientContext() {
+    return {
+        version: '1.0.0',
+        data: {
+            content: buildLocalDebugClientContextContent(),
+        },
+    };
+}
+
+function buildLocalDebugClientContextContent() {
+    const manualContent = getManualClientContextContent();
+    if (manualContent) return manualContent;
+
+    const openedTabs = [...filePreviewTabs.values()]
+        .map(tab => formatClientContextTabName(tab))
+        .filter(Boolean);
+    const focusedFile = getClientContextFocusedFile();
+
+    if (!openedTabs.length && !focusedFile) return '';
+
+    const tabLines = openedTabs.length
+        ? openedTabs.map(tabName => `- ${tabName}`).join('\n')
+        : 'None';
+    return [
+        'Open tabs:',
+        tabLines,
+        `Focused file: ${focusedFile || 'None'}`,
+    ].join('\n');
+}
+
+function formatClientContextTabName(tab) {
+    if (!tab || typeof tab !== 'object') return '';
+    if (isToolDetailPreviewPath(tab.path)) return tab.title || 'Tool detail';
+    return tab.path || tab.title || '';
+}
+
+function getClientContextFocusedFile() {
+    if (!activeFilePreviewPath || isToolDetailPreviewPath(activeFilePreviewPath)) return '';
+    return activeFilePreviewPath;
+}
+
+function getManualClientContextContent() {
+    if (!clientContextInput) return '';
+    return clientContextInput.value.trim();
 }
 
 // 发送消息

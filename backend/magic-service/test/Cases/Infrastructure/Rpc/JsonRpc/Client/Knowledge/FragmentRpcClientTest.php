@@ -144,6 +144,38 @@ class FragmentRpcClientTest extends TestCase
         ));
     }
 
+    public function testFlowVectorSimilarityByUserShouldMapRequestAndKeepZeroScoreThreshold(): void
+    {
+        $manager = $this->createMock(RpcClientManager::class);
+        $manager->expects($this->once())
+            ->method('call')
+            ->with(
+                SvcMethods::SERVICE_KNOWLEDGE_FRAGMENT . '.' . SvcMethods::METHOD_FLOW_VECTOR_SIMILARITY_BY_USER,
+                $this->callback(function (array $params): bool {
+                    return ($params['data_isolation']['organization_code'] ?? '') === 'DT001'
+                        && ($params['data_isolation']['user_id'] ?? '') === 'MAGIC-U1'
+                        && ($params['magic_user_id'] ?? '') === 'MAGIC-U1'
+                        && ($params['keyword'] ?? '') === 'keyword'
+                        && ($params['top_k'] ?? 0) === 10
+                        && array_key_exists('score_threshold', $params)
+                        && (float) $params['score_threshold'] === 0.0
+                        && ($params['business_params']['organization_code'] ?? '') === 'DT001'
+                        && ($params['business_params']['user_id'] ?? '') === 'MAGIC-U1';
+                })
+            )
+            ->willReturn(['list' => []]);
+
+        $client = new FragmentRpcClient($manager);
+        $client->flowVectorSimilarityByUser(FragmentRequestDTO::forFlowVectorSimilarityByUser(
+            'MAGIC-U1',
+            'keyword',
+            10,
+            0.0,
+            new DataIsolationDTO('DT001', 'MAGIC-U1'),
+            new BusinessParamsDTO('DT001', 'MAGIC-U1'),
+        ));
+    }
+
     public function testRuntimeDestroyMethodsShouldMapRequest(): void
     {
         $manager = $this->createMock(RpcClientManager::class);

@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 from ..kernel.magic_service_api import MagicServiceAbstractApi
 from ..parameter.add_agent_skills_parameter import AddAgentSkillsParameter
+from ..parameter.agent_execute_parameter import AgentExecuteParameter
 from ..parameter.delete_agent_skills_parameter import DeleteAgentSkillsParameter
 from ..parameter.get_agent_details_parameter import GetAgentDetailsParameter
 from ..parameter.get_agent_openapi_parameter import GetAgentOpenApiParameter
@@ -18,6 +19,7 @@ from ..parameter.search_knowledge_parameter import SearchKnowledgeParameter
 from ..parameter.tool_execute_parameter import ToolExecuteParameter
 from ..parameter.update_agent_parameter import UpdateAgentParameter
 from ..result.agent_details_result import AgentDetailsResult
+from ..result.agent_execute_result import AgentExecuteResult
 from ..result.agent_openapi_result import AgentOpenApiResult
 from ..result.import_skill_result import ImportSkillResult
 from ..result.ingest_third_party_message_result import IngestThirdPartyMessageResult
@@ -110,6 +112,25 @@ class AgentApi(MagicServiceAbstractApi):
         # Return structured result
         return ToolExecuteResult(data)
 
+    async def execute_agent_async(
+        self,
+        parameter: AgentExecuteParameter
+    ) -> AgentExecuteResult:
+        """
+        Execute an agent (one chat round) via the agent-execute open-api (async).
+
+        Backed by magic-service apiChatByMCPTool. Pass `conversation_id` to keep context.
+
+        Args:
+            parameter: AgentExecuteParameter instance
+
+        Returns:
+            AgentExecuteResult containing reply messages and conversation_id
+        """
+        endpoint_path = "/api/v1/open-api/sandbox/agents/agent-execute"
+        data = await self.request_by_parameter_async(parameter, 'POST', endpoint_path)
+        return AgentExecuteResult(data)
+
     async def search_knowledge_async(
         self,
         parameter: SearchKnowledgeParameter,
@@ -126,7 +147,7 @@ class AgentApi(MagicServiceAbstractApi):
         agent_code = quote(parameter.get_agent_code(), safe="")
         endpoint_path = f"/api/v1/open-api/sandbox/knowledge/agents/{agent_code}/similarity"
         data = await self.request_by_parameter_async(parameter, "GET", endpoint_path)
-        return SearchKnowledgeResult(data)
+        return SearchKnowledgeResult(data, query=parameter.query)
 
     def ingest_third_party_message(
         self,

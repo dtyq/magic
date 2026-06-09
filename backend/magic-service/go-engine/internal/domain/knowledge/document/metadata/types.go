@@ -151,6 +151,9 @@ type Parser = documentservice.Parser
 // ParserWithOptions 复用带选项解析器契约。
 type ParserWithOptions = documentservice.ParserWithOptions
 
+// ParserResolvedURLPolicy 复用动态可访问 URL 策略契约。
+type ParserResolvedURLPolicy = documentservice.ParserResolvedURLPolicy
+
 // StructuredDocumentParser 复用结构化解析器契约。
 type StructuredDocumentParser = documentservice.StructuredDocumentParser
 
@@ -166,6 +169,15 @@ type FileFetcher interface {
 
 // OCRClient 复用 OCR 客户端契约。
 type OCRClient = documentservice.OCRClient
+
+// VisualTextExtractor 复用视觉转文字契约。
+type VisualTextExtractor = documentservice.VisualTextExtractor
+
+// VisualTextExtractorResolvedURLPolicy 复用视觉转文字 URL 策略契约。
+type VisualTextExtractorResolvedURLPolicy = documentservice.VisualTextExtractorResolvedURLPolicy
+
+// VisualTextExtractorPDFNativeBypassPolicy 复用 PDF 原生文字层跳过策略契约。
+type VisualTextExtractorPDFNativeBypassPolicy = documentservice.VisualTextExtractorPDFNativeBypassPolicy
 
 // ProjectFileMetadataReader 复用项目文件元数据读取契约。
 type ProjectFileMetadataReader = documentservice.ProjectFileMetadataReader
@@ -187,6 +199,18 @@ type OCRConfigProviderPort = documentservice.OCRConfigProviderPort
 
 // OCRUsageReporterPort 复用 OCR 用量上报契约。
 type OCRUsageReporterPort = documentservice.OCRUsageReporterPort
+
+// AIAbilityConfig 复用 AI 能力配置模型。
+type AIAbilityConfig = documentservice.AIAbilityConfig
+
+// ModelCallConfig 复用模型调用配置模型。
+type ModelCallConfig = documentservice.ModelCallConfig
+
+// VisualAbilityConfigProvider 复用视觉理解能力配置端口。
+type VisualAbilityConfigProvider = documentservice.VisualAbilityConfigProvider
+
+// VisualModelCallConfigProvider 复用视觉理解模型调用配置端口。
+type VisualModelCallConfigProvider = documentservice.VisualModelCallConfigProvider
 
 // OCRUsage 复用 OCR 实际用量模型。
 type OCRUsage = documentservice.OCRUsage
@@ -226,6 +250,16 @@ var (
 const (
 	// OCRProviderVolcengine 表示火山 OCR provider。
 	OCRProviderVolcengine = documentservice.OCRProviderVolcengine
+	// AIAbilityCodeKnowledgeBaseVisualUnderstanding 表示知识库视觉理解能力配置。
+	AIAbilityCodeKnowledgeBaseVisualUnderstanding = documentservice.AIAbilityCodeKnowledgeBaseVisualUnderstanding
+	// DefaultModelTypeLLM 表示模型网关的默认 LLM 模型类型。
+	DefaultModelTypeLLM = documentservice.DefaultModelTypeLLM
+	// ResourceLimitMaxVisualPageImageBytes 表示视觉理解单页图片大小限制。
+	ResourceLimitMaxVisualPageImageBytes = documentservice.ResourceLimitMaxVisualPageImageBytes
+	// ResourceLimitMaxVisualModelRequestBytes 表示视觉理解模型请求大小限制。
+	ResourceLimitMaxVisualModelRequestBytes = documentservice.ResourceLimitMaxVisualModelRequestBytes
+	// ResourceLimitStageVisualUnderstanding 表示视觉理解处理阶段。
+	ResourceLimitStageVisualUnderstanding = documentservice.ResourceLimitStageVisualUnderstanding
 )
 
 // WithOCRUsageContext 将 OCR 用量上下文写入 context。
@@ -262,6 +296,11 @@ func CheckPDFPageCount(pageCount int, limits ResourceLimits) error {
 		return fmt.Errorf("check pdf page count: %w", err)
 	}
 	return nil
+}
+
+// NewResourceLimitError 构造资源限制错误。
+func NewResourceLimitError(limitName string, limitValue, observedValue int64, stage, message string) error {
+	return fmt.Errorf("%w", documentservice.NewResourceLimitError(limitName, limitValue, observedValue, stage, message))
 }
 
 // CheckArchiveUncompressedSize 校验压缩包总解压大小。

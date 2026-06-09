@@ -55,13 +55,6 @@ type ShowDocumentRequest struct {
 	KnowledgeBaseCode string        `json:"knowledge_base_code" validate:"required"`
 }
 
-// GetOriginalFileLinkRequest 获取文档原始文件访问链接请求。
-type GetOriginalFileLinkRequest struct {
-	DataIsolation     DataIsolation `json:"data_isolation"`
-	Code              string        `json:"code" validate:"required"`
-	KnowledgeBaseCode string        `json:"knowledge_base_code" validate:"required"`
-}
-
 // ListDocumentRequest 查询文档列表请求
 type ListDocumentRequest struct {
 	DataIsolation     DataIsolation `json:"data_isolation"`
@@ -274,13 +267,4 @@ func (r *NotifyProjectFileChangeRequest) UnmarshalJSON(data []byte) error {
 type CountByKnowledgeBaseCodesRequest struct {
 	DataIsolation      DataIsolation `json:"data_isolation"`
 	KnowledgeBaseCodes []string      `json:"knowledge_base_codes"`
-}
-
-// OriginalFileLinkResponse 获取文档原始文件访问链接响应。
-type OriginalFileLinkResponse struct {
-	Available bool   `json:"available"`
-	URL       string `json:"url"`
-	Name      string `json:"name"`
-	Key       string `json:"key"`
-	Type      string `json:"type"`
 }

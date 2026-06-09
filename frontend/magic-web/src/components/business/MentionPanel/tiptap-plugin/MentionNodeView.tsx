@@ -1,5 +1,13 @@
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react"
-import { memo, useCallback, type ComponentType, type MouseEvent } from "react"
+import {
+	Component,
+	memo,
+	useCallback,
+	useEffect,
+	type ComponentType,
+	type MouseEvent,
+	type ReactNode,
+} from "react"
 import MagicFileIcon from "@/components/base/MagicFileIcon"
 import TSIcon, { type IconParkIconElement } from "@/components/base/TSIcon"
 import BotIcon from "@/components/business/MentionPanel/components/icons/BotIcon"
@@ -7,6 +15,7 @@ import PlugIcon from "@/components/business/MentionPanel/components/icons/PlugIc
 import SkillIcon from "@/components/business/MentionPanel/components/icons/SkillIcon"
 import ToolIcon from "@/components/business/MentionPanel/components/icons/ToolIcon"
 import { useIsMobile } from "@/hooks/useIsMobile"
+import { logger as Logger } from "@/utils/log"
 import { MentionItemType } from "../types"
 import {
 	getMentionDisplayName,
@@ -14,6 +23,34 @@ import {
 	type MentionPanelPluginOptions,
 	type TiptapMentionAttributes,
 } from "./types"
+
+const logger = Logger.createLogger("MentionNodeView")
+
+interface MentionNodeViewErrorBoundaryState {
+	hasError: boolean
+}
+
+class MentionNodeViewErrorBoundary extends Component<
+	{ fallback: ReactNode; children: ReactNode },
+	MentionNodeViewErrorBoundaryState
+> {
+	state: MentionNodeViewErrorBoundaryState = { hasError: false }
+
+	static getDerivedStateFromError() {
+		return { hasError: true }
+	}
+
+	componentDidCatch(error: unknown) {
+		logger.error("render error", error)
+	}
+
+	render() {
+		if (this.state.hasError) {
+			return this.props.fallback
+		}
+		return this.props.children
+	}
+}
 
 interface MentionNodeIconProps {
 	type: TiptapMentionAttributes["type"]
@@ -95,7 +132,26 @@ function MentionNodeChip({ attrs, deleteNode }: MentionNodeChipProps) {
 	)
 }
 
-function MentionNodeView(props: ReactNodeViewProps) {
+function MentionNodeViewFallback({ attrs }: { attrs?: TiptapMentionAttributes }) {
+	let displayName = "@"
+	try {
+		displayName = `@${getMentionDisplayName(attrs!)}`
+	} catch {
+		const data = attrs?.data as Record<string, unknown> | undefined
+		displayName = `@${(data?.name as string) || (data?.file_name as string) || "..."}`
+	}
+	return (
+		<NodeViewWrapper
+			as="span"
+			className="magic-mention inline-flex px-0.5 align-middle"
+			contentEditable={false}
+		>
+			{displayName}
+		</NodeViewWrapper>
+	)
+}
+
+function MentionNodeViewInner(props: ReactNodeViewProps) {
 	const isMobile = useIsMobile()
 	const attrs = props.node.attrs as TiptapMentionAttributes & {
 		mentionSuggestionChar?: string
@@ -104,7 +160,11 @@ function MentionNodeView(props: ReactNodeViewProps) {
 	const Renderer = options.nodeViewRenderers?.[attrs.type as MentionItemType]
 
 	if (Renderer) {
-		return <Renderer {...props} attrs={attrs} />
+		return (
+			<MentionNodeViewErrorBoundary fallback={<MentionNodeViewFallback attrs={attrs} />}>
+				<Renderer {...props} attrs={attrs} />
+			</MentionNodeViewErrorBoundary>
+		)
 	}
 
 	return (
@@ -119,9 +179,27 @@ function MentionNodeView(props: ReactNodeViewProps) {
 			{isMobile ? (
 				<MentionNodeChip attrs={attrs} deleteNode={props.deleteNode} />
 			) : (
-				`@${getMentionDisplayName(attrs)}`
+				`@${getMentionDisplayName(attrs)}` +
+				(attrs.type === MentionItemType.FOLDER ? "/" : "")
 			)}
 		</NodeViewWrapper>
+	)
+}
+
+function MentionNodeView(props: ReactNodeViewProps) {
+	const attrs = props.node.attrs as TiptapMentionAttributes
+
+	useEffect(() => {
+		logger.log("mounted", { type: attrs.type, data: attrs.data })
+		return () => {
+			logger.log("unmounted", { type: attrs.type, data: attrs.data })
+		}
+	}, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+	return (
+		<MentionNodeViewErrorBoundary fallback={<MentionNodeViewFallback attrs={attrs} />}>
+			<MentionNodeViewInner {...props} />
+		</MentionNodeViewErrorBoundary>
 	)
 }
 

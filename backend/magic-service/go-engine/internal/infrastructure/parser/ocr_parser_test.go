@@ -40,6 +40,22 @@ func (e testError) Error() string { return string(e) }
 
 const errFail testError = "fail"
 
+type fakeVisualTextExtractor struct {
+	needsURL bool
+}
+
+func (f fakeVisualTextExtractor) RecognizeSource(context.Context, string, io.Reader, string) (string, error) {
+	return "ok", nil
+}
+
+func (f fakeVisualTextExtractor) RecognizeBytes(context.Context, []byte, string) (string, error) {
+	return "ok", nil
+}
+
+func (f fakeVisualTextExtractor) NeedsResolvedURL(context.Context, string) bool {
+	return f.needsURL
+}
+
 func TestOCRParserParseWithOCR(t *testing.T) {
 	t.Parallel()
 
@@ -84,13 +100,33 @@ func TestOCRParserSupports(t *testing.T) {
 	t.Parallel()
 
 	p := parser.NewOCRParser(nil)
-	for _, ext := range []string{"PDF", "jpg", "jpeg", "png", "bmp"} {
+	for _, ext := range []string{"jpg", "jpeg", "png", "bmp"} {
 		if !p.Supports(ext) {
 			t.Fatalf("expected %s supported", ext)
 		}
 	}
+	if p.Supports("pdf") {
+		t.Fatalf("expected pdf handled by PDF parser")
+	}
 	if p.Supports("txt") {
 		t.Fatalf("expected txt not supported")
+	}
+}
+
+func TestOCRParserNeedsResolvedURLForOptionsDelegatesVisualPolicy(t *testing.T) {
+	t.Parallel()
+
+	p := parser.NewVisualTextParser(fakeVisualTextExtractor{needsURL: false})
+	if p.NeedsResolvedURLForOptions(context.Background(), "png", document.DefaultParseOptions()) {
+		t.Fatal("expected visual parser to skip resolved URL when extractor does not need it")
+	}
+	if p.NeedsResolvedURLForOptions(context.Background(), "png", document.ParseOptions{
+		ParsingType:     document.ParsingTypePrecise,
+		ImageExtraction: true,
+		TableExtraction: true,
+		ImageOCR:        false,
+	}) {
+		t.Fatal("expected disabled image OCR to skip resolved URL")
 	}
 }
 

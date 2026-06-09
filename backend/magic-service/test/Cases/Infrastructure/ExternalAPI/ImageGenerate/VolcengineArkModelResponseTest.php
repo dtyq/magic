@@ -56,6 +56,7 @@ class VolcengineArkModelResponseTest extends TestCase
             'completion_tokens' => 1680,
             'total_tokens' => 1692,
             'generated_images' => 1,
+            'thoughts_tokens' => 0,
         ], $response->getUsage()->toArray());
     }
 }

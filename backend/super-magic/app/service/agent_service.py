@@ -27,9 +27,10 @@ from app.utils.path_utils import get_workspace_dir
 from app.utils.path_utils import get_storage_dir
 from app.service.asr.asr_context_diff_service import AsrContextDiffService
 from app.service.channel_context_service import ChannelContextService
+from app.core.client_context import ClientContextService
 from app.service.image_model_sizes_service import ImageModelSizesService
-from app.service.mcp_servers_service import MCPServersService
 from app.service.video_model_config_service import VideoModelConfigService
+from app.service.cli_status import CliStatusFactory
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.core.base_service import Base
 from app.service.mention import MentionContextBuilder
@@ -303,16 +304,16 @@ class AgentService(Base):
             agent_context: Agent context
         """
         try:
-            # Get sandbox_id from agent_context. If not present, skip download.
-            sandbox_id = agent_context.get_sandbox_id()
-            if not sandbox_id:
-                logger.warning("agent_context 中没有 sandbox_id，跳过下载聊天历史")
+            # Get topic_id from agent_context. If not present, skip download.
+            topic_id = agent_context.get_metadata().get("topic_id")
+            if not topic_id:
+                logger.warning("agent_context 中没有 topic_id，跳过下载聊天历史")
                 return
 
-            # Construct the object name using the sandbox_id
-            chat_history_object_name = f"chat_history_{sandbox_id}.zip"
+            # Construct the object name using the topic_id
+            chat_history_object_name = f"chat_history_{topic_id}.zip"
             logger.info(
-                f"使用来自 agent_context 的 sandbox_id: {sandbox_id}，构造聊天历史归档名称: {chat_history_object_name}"
+                f"使用来自 agent_context 的 topic_id: {topic_id}，构造聊天历史归档名称: {chat_history_object_name}"
             )
 
             logger.info(f"下载聊天历史归档: {chat_history_object_name}")
@@ -392,14 +393,14 @@ class AgentService(Base):
             agent_context: Agent context
         """
         try:
-            # Get sandbox_id from agent_context. If not present, skip download.
-            sandbox_id = agent_context.get_sandbox_id()
-            if not sandbox_id:
-                logger.info("No sandbox_id in agent_context, skipping checkpoints download")
+            # Get topic_id from agent_context. If not present, skip download.
+            topic_id = agent_context.get_metadata().get("topic_id")
+            if not topic_id:
+                logger.info("No topic_id in agent_context, skipping checkpoints download")
                 return
 
-            # Construct the object key using the sandbox_id
-            checkpoints_object_name = f"checkpoints_{sandbox_id}.zip"
+            # Construct the object key using the topic_id
+            checkpoints_object_name = f"checkpoints_{topic_id}.zip"
             base_path = get_storage_dir(storage_service.credentials)
             checkpoints_dir_name = InitClientMessageUtil.get_checkpoints_dir()
             dir_path = BaseFileProcessor.combine_path(base_path, checkpoints_dir_name)
@@ -542,7 +543,7 @@ class AgentService(Base):
         chat_client_message = agent_context.get_chat_client_message()
         query = chat_client_message.prompt
 
-        # 🔥 ASR 录音纪要聊天模式：注入上下文 Diff
+        # ASR 录音纪要聊天模式：注入上下文 Diff
         try:
             asr_task_key = None
             if chat_client_message.dynamic_config:
@@ -574,14 +575,22 @@ class AgentService(Base):
         if chat_client_message and hasattr(chat_client_message, "attachments") and chat_client_message.attachments:
             query = await self._process_attachments(agent_context, query, chat_client_message.attachments)
 
-        # 将图片/视频模型信息同步到 horizon（配置变化时 horizon 会在下次 system_injected_context 中注入，
-        # 首次和上下文压缩后也会通过 initial_context 全量注入）
-        await ImageModelSizesService.sync_to_horizon(
+        # 将前端页面上下文同步到 horizon。Horizon 会负责首次全文注入、后续 diff 注入和 baseline 推进。
+        await ClientContextService.sync_to_horizon(
             chat_client_message.dynamic_config,
             agent.agent_context.horizon,
         )
+
+        media_model_config = agent.agent_context.model_context.media_model_payload()
+
+        # 将图片/视频模型信息同步到 horizon（配置变化时 horizon 会在下次 system_injected_context 中注入，
+        # 首次和上下文压缩后也会通过 initial_context 全量注入）
+        await ImageModelSizesService.sync_to_horizon(
+            media_model_config,
+            agent.agent_context.horizon,
+        )
         await VideoModelConfigService.sync_to_horizon(
-            chat_client_message.dynamic_config,
+            media_model_config,
             agent.agent_context.horizon,
         )
 
@@ -591,8 +600,7 @@ class AgentService(Base):
         except Exception as _e:
             logger.warning(f"[AgentService] 刷新工作区文件树失败: {_e}")
 
-        # 处理 MCP 服务器信息：为加载了 using-mcp skill 的 agent 追加可用服务器信息
-        query = await MCPServersService.append_mcp_servers_to_query(query, agent)
+        await CliStatusFactory.wait_initial(agent_context)
 
         try:
             await agent.run_main_agent(query)
@@ -604,7 +612,6 @@ class AgentService(Base):
         self,
         stream_mode: bool,
         streams: Optional[List[Stream]] = [],
-        llm: Optional[str] = None,
         task_id: Optional[str] = "",
         is_main_agent: bool = False,
         interrupt_queue: Optional[asyncio.Queue] = None,
@@ -616,7 +623,6 @@ class AgentService(Base):
         Args:
             stream_mode: 是否启用流式输出
             streams: 可选的通信流实例
-            llm: 大语言模型名称
             task_id: 任务ID，若为None则自动生成
             is_main_agent: 标记当前agent是否是主agent，默认为False
 
@@ -625,7 +631,6 @@ class AgentService(Base):
         """
         agent_context = AgentContext()
         agent_context.set_task_id(task_id)
-        agent_context.set_llm(llm)
         agent_context.stream_mode = stream_mode
         agent_context.ensure_workspace_dir()
         agent_context.is_main_agent = is_main_agent

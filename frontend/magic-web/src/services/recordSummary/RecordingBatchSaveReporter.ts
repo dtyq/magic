@@ -12,6 +12,8 @@ interface RecordingBatchSaveFile {
 	fileKey: string
 	fileName: string
 	fileSize: number
+	isHidden?: boolean
+	allowOverwrite?: boolean
 }
 
 export class RecordingBatchSaveReporter {
@@ -19,13 +21,29 @@ export class RecordingBatchSaveReporter {
 	private inFlightReports = new Map<string, Promise<void>>()
 
 	async reportUploadedFile(file: RecordingBatchSaveFile): Promise<void> {
+		await this.reportUploadedFileInternal(file, false)
+	}
+
+	async reportUploadedFileStrict(file: RecordingBatchSaveFile): Promise<void> {
+		await this.reportUploadedFileInternal(file, true)
+	}
+
+	private async reportUploadedFileInternal(
+		file: RecordingBatchSaveFile,
+		throwOnError: boolean,
+	): Promise<void> {
 		if (!file.projectId || !file.topicId || !file.fileKey || !file.fileName) {
 			logger.warn("Skip batch save for incomplete file info", file)
+			if (throwOnError) {
+				throw new Error("Incomplete file info for batch save")
+			}
 			return
 		}
 
 		const reportKey = this.getReportKey(file.sessionId, file.fileKey)
-		if (this.hasSavedFile(file.sessionId, file.fileKey)) {
+
+		// Skip duplicate reports unless allowOverwrite is set (for note/transcript files)
+		if (!file.allowOverwrite && this.hasSavedFile(file.sessionId, file.fileKey)) {
 			logger.log("Skip duplicate batch save", {
 				sessionId: file.sessionId,
 				fileKey: file.fileKey,
@@ -33,13 +51,13 @@ export class RecordingBatchSaveReporter {
 			return
 		}
 
+		// Wait for any in-flight report to complete before starting a new one
 		const activeReport = this.inFlightReports.get(reportKey)
 		if (activeReport) {
 			await activeReport
-			return
 		}
 
-		const reportPromise = this.saveUploadedFile(file)
+		const reportPromise = this.saveUploadedFile(file, throwOnError)
 		this.inFlightReports.set(reportKey, reportPromise)
 
 		try {
@@ -52,14 +70,17 @@ export class RecordingBatchSaveReporter {
 	clearSession(sessionId: string): void {
 		this.savedFilesBySession.delete(sessionId)
 
-		for (const reportKey of this.inFlightReports.keys()) {
+		for (const reportKey of Array.from(this.inFlightReports.keys())) {
 			if (reportKey.startsWith(`${sessionId}::`)) {
 				this.inFlightReports.delete(reportKey)
 			}
 		}
 	}
 
-	private async saveUploadedFile(file: RecordingBatchSaveFile): Promise<void> {
+	private async saveUploadedFile(
+		file: RecordingBatchSaveFile,
+		throwOnError: boolean,
+	): Promise<void> {
 		try {
 			await SuperMagicApi.batchSaveFiles({
 				project_id: file.projectId,
@@ -75,13 +96,18 @@ export class RecordingBatchSaveReporter {
 						file_type: "user_upload",
 						storage_type: "workspace",
 						source: UploadSource.RecordSummary,
+						...(file.isHidden ? { is_hidden: true } : {}),
 					},
 				],
 			})
 
-			logger.log("Batch save reported", {
+			logger.report("Batch save reported", {
 				sessionId: file.sessionId,
 				fileKey: file.fileKey,
+				fileName: file.fileName,
+				fileSize: file.fileSize,
+				projectId: file.projectId,
+				topicId: file.topicId,
 				parentId: file.parentId,
 			})
 			this.markFileAsSaved(file.sessionId, file.fileKey)
@@ -89,8 +115,16 @@ export class RecordingBatchSaveReporter {
 			logger.error("Batch save failed", {
 				sessionId: file.sessionId,
 				fileKey: file.fileKey,
+				fileName: file.fileName,
+				fileSize: file.fileSize,
+				projectId: file.projectId,
+				topicId: file.topicId,
+				parentId: file.parentId,
 				error: error instanceof Error ? error.message : String(error),
 			})
+			if (throwOnError) {
+				throw error
+			}
 		}
 	}
 

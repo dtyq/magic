@@ -257,6 +257,8 @@ class ResourceShareDomainService
             'share_code',               // 分享码
             'is_enabled',               // 是否启用
             'share_project',            // 是否分享整个项目
+            'share_range',              // 团队分享范围（用于列表组装 share_scope）
+            'target_ids',               // 团队分享目标（仅用于列表计数，不直接对外返回）
             'deleted_at',               // 删除时间
         ];
 

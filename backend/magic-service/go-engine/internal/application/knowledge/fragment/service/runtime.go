@@ -8,20 +8,25 @@ import (
 
 	fragdto "magic/internal/application/knowledge/fragment/dto"
 	"magic/internal/constants"
+	kbaccess "magic/internal/domain/knowledge/access/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	fragmetadata "magic/internal/domain/knowledge/fragment/metadata"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
 	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
+	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/logkey"
 )
 
 const (
-	runtimeSimilarityDefaultTopK             = 10
-	runtimeSimilarityCandidateScoreThreshold = 0.1
-	runtimeDestroyBatchSize                  = 1000
+	runtimeSimilarityDefaultTopK              = 10
+	runtimeSimilarityCandidateScoreThreshold  = 0.1
+	runtimeDestroyBatchSize                   = 1000
+	flowVectorSimilarityKnowledgeBasePageSize = 500
 )
 
 type runtimeSliceValueKind int
@@ -82,14 +87,80 @@ func (s *FragmentAppService) RuntimeSimilarity(
 		if !kb.Enabled {
 			return nil, shared.ErrKnowledgeBaseDisabled
 		}
-		s.applyResolvedRouteToKnowledgeBase(ctx, kb)
 	}
 
-	topK, scoreThreshold := resolveRuntimeSimilarityConfig(input, knowledgeBases[0])
+	return s.runtimeSimilarityWithKnowledgeBases(ctx, input, knowledgeBases)
+}
+
+// FlowVectorSimilarityByUser 按用户可读的已启用 flow 向量知识库执行相似度搜索。
+func (s *FragmentAppService) FlowVectorSimilarityByUser(
+	ctx context.Context,
+	input *fragdto.FlowVectorSimilarityByUserInput,
+) ([]*fragdto.SimilarityResultDTO, error) {
+	if input == nil {
+		return nil, shared.ErrKnowledgeBaseNotFound
+	}
+	organizationCode := strings.TrimSpace(input.OrganizationCode)
+	userID := strings.TrimSpace(input.UserID)
+	keyword := strings.TrimSpace(input.Keyword)
+	if organizationCode == "" || userID == "" || keyword == "" {
+		return nil, shared.ErrKnowledgeBaseNotFound
+	}
+
+	accessService := s.knowledgeAccessService()
+	if accessService == nil {
+		return []*fragdto.SimilarityResultDTO{}, nil
+	}
+	actor := kbaccess.Actor{
+		OrganizationCode: organizationCode,
+		UserID:           userID,
+	}
+	knowledgeBases, err := s.loadAccessibleFlowVectorKnowledgeBases(ctx, accessService, actor)
+	if err != nil {
+		return nil, err
+	}
+	if len(knowledgeBases) == 0 {
+		return []*fragdto.SimilarityResultDTO{}, nil
+	}
+
+	businessParams := normalizeFlowVectorSimilarityBusinessParams(input.BusinessParams, organizationCode, userID)
+	return s.runtimeSimilarityWithKnowledgeBases(ctx, &fragdto.RuntimeSimilarityInput{
+		OrganizationCode: organizationCode,
+		Query:            keyword,
+		TopK:             input.TopK,
+		ScoreThreshold:   input.ScoreThreshold,
+		BusinessParams:   businessParams,
+	}, knowledgeBases)
+}
+
+func (s *FragmentAppService) runtimeSimilarityWithKnowledgeBases(
+	ctx context.Context,
+	input *fragdto.RuntimeSimilarityInput,
+	knowledgeBases []*kbentity.KnowledgeBase,
+) ([]*fragdto.SimilarityResultDTO, error) {
+	if input == nil {
+		return nil, shared.ErrKnowledgeBaseNotFound
+	}
+	activeKnowledgeBases := make([]*kbentity.KnowledgeBase, 0, len(knowledgeBases))
+	for _, kb := range knowledgeBases {
+		if kb == nil {
+			continue
+		}
+		if !kb.Enabled {
+			return nil, shared.ErrKnowledgeBaseDisabled
+		}
+		s.applyResolvedRouteToKnowledgeBase(ctx, kb)
+		activeKnowledgeBases = append(activeKnowledgeBases, kb)
+	}
+	if len(activeKnowledgeBases) == 0 {
+		return []*fragdto.SimilarityResultDTO{}, nil
+	}
+
+	topK, scoreThreshold := resolveRuntimeSimilarityConfig(input, activeKnowledgeBases[0])
 	metadataFilter := buildRuntimeMetadataFilter(input.MetadataFilter)
 
-	results := make([]*fragdto.SimilarityResultDTO, 0, len(knowledgeBases)*topK)
-	for _, kb := range knowledgeBases {
+	results := make([]*fragdto.SimilarityResultDTO, 0, len(activeKnowledgeBases)*topK)
+	for _, kb := range activeKnowledgeBases {
 		partial, err := s.runtimeSimilarityByKnowledgeBase(ctx, kb, input, topK, scoreThreshold, metadataFilter)
 		if err != nil {
 			return nil, err
@@ -97,6 +168,112 @@ func (s *FragmentAppService) RuntimeSimilarity(
 		results = append(results, partial...)
 	}
 	return results, nil
+}
+
+func (s *FragmentAppService) loadAccessibleFlowVectorKnowledgeBases(
+	ctx context.Context,
+	accessService *kbaccess.Service,
+	actor kbaccess.Actor,
+) ([]*kbentity.KnowledgeBase, error) {
+	flowVectorType := kbentity.KnowledgeBaseTypeFlowVector
+	enabled := true
+	knowledgeBases := make([]*kbentity.KnowledgeBase, 0)
+	seen := make(map[string]struct{})
+
+	for offset := 0; ; {
+		items, total, err := s.kbService.List(ctx, &kbrepository.Query{
+			OrganizationCode:  actor.OrganizationCode,
+			KnowledgeBaseType: &flowVectorType,
+			Enabled:           &enabled,
+			Offset:            offset,
+			Limit:             flowVectorSimilarityKnowledgeBasePageSize,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list accessible flow vector knowledge bases: %w", err)
+		}
+		if len(items) == 0 {
+			break
+		}
+
+		codes := flowVectorKnowledgeBaseCodes(items)
+		accessibleCodes, _, err := accessService.AccessibleCodes(ctx, actor, codes)
+		if err != nil {
+			return nil, fmt.Errorf("list accessible flow vector knowledge bases: %w", err)
+		}
+		accessibleCodeSet := flowVectorKnowledgeBaseCodeSet(accessibleCodes)
+		for _, item := range items {
+			if item == nil {
+				continue
+			}
+			code := strings.TrimSpace(item.Code)
+			if code == "" {
+				continue
+			}
+			if _, ok := accessibleCodeSet[code]; !ok {
+				continue
+			}
+			if _, ok := seen[code]; ok {
+				continue
+			}
+			seen[code] = struct{}{}
+			knowledgeBases = append(knowledgeBases, item)
+		}
+
+		offset += len(items)
+		if len(items) < flowVectorSimilarityKnowledgeBasePageSize || int64(offset) >= total {
+			break
+		}
+	}
+	return knowledgeBases, nil
+}
+
+func flowVectorKnowledgeBaseCodes(items []*kbentity.KnowledgeBase) []string {
+	codes := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		code := strings.TrimSpace(item.Code)
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		codes = append(codes, code)
+	}
+	return codes
+}
+
+func flowVectorKnowledgeBaseCodeSet(codes []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(codes))
+	for _, code := range codes {
+		if trimmed := strings.TrimSpace(code); trimmed != "" {
+			result[trimmed] = struct{}{}
+		}
+	}
+	return result
+}
+
+func normalizeFlowVectorSimilarityBusinessParams(
+	businessParams *ctxmeta.BusinessParams,
+	organizationCode string,
+	userID string,
+) *ctxmeta.BusinessParams {
+	normalized := &ctxmeta.BusinessParams{
+		OrganizationCode: organizationCode,
+		UserID:           userID,
+	}
+	if businessParams == nil {
+		return normalized
+	}
+	normalized.BusinessID = businessParams.BusinessID
+	normalized.SourceID = businessParams.SourceID
+	normalized.ThirdPlatformUserID = businessParams.ThirdPlatformUserID
+	normalized.ThirdPlatformOrganizationCode = businessParams.ThirdPlatformOrganizationCode
+	return normalized
 }
 
 // RuntimeDestroyByBusinessID 为 flow/teamshare runtime 按 business_id 删除片段。
@@ -281,15 +458,21 @@ func (s *FragmentAppService) similarityResultsToDTOs(
 	debug bool,
 ) ([]*fragdto.SimilarityResultDTO, error) {
 	assemblyStartedAt := time.Now()
+	documents := s.loadSimilarityResultDocuments(ctx, kb, results)
 	dtos := make([]*fragdto.SimilarityResultDTO, len(results))
 	for i, result := range results {
 		documentName := result.DocumentName
 		documentType := result.DocumentType
-		if documentName == "" || documentType == 0 {
-			doc, err := s.documentService.ShowByCodeAndKnowledgeBase(ctx, result.DocumentCode, result.KnowledgeCode)
-			if err == nil && doc != nil {
+		fileKey := strings.TrimSpace(result.FileKey)
+		if doc := documents[similarityDocumentKeyFromResult(result)]; doc != nil {
+			if documentName == "" {
 				documentName = doc.Name
+			}
+			if documentType == 0 {
 				documentType = doc.DocType
+			}
+			if fileKey == "" {
+				fileKey = downloadableSimilarityDocumentFileKey(doc)
 			}
 		}
 		displayContent, wordCount := buildSimilarityDisplayContent(result.Content, result.Metadata)
@@ -304,6 +487,7 @@ func (s *FragmentAppService) similarityResultsToDTOs(
 			DocumentCode:      result.DocumentCode,
 			DocumentName:      documentName,
 			DocumentType:      documentType,
+			FileKey:           fileKey,
 			DocType:           documentType,
 			BusinessID:        result.BusinessID,
 		}
@@ -333,6 +517,119 @@ func (s *FragmentAppService) similarityResultsToDTOs(
 		)
 	}
 	return dtos, nil
+}
+
+type similarityDocumentKey struct {
+	knowledgeBaseCode string
+	documentCode      string
+}
+
+func (s *FragmentAppService) loadSimilarityResultDocuments(
+	ctx context.Context,
+	kb *kbentity.KnowledgeBase,
+	results []*fragmodel.SimilarityResult,
+) map[similarityDocumentKey]*docentity.KnowledgeBaseDocument {
+	if s == nil || s.documentService == nil || len(results) == 0 {
+		return map[similarityDocumentKey]*docentity.KnowledgeBaseDocument{}
+	}
+
+	keys := make([]similarityDocumentKey, 0, len(results))
+	knowledgeBaseCodes := make([]string, 0, len(results))
+	documentCodes := make([]string, 0, len(results))
+	for _, result := range results {
+		if !similarityResultNeedsDocumentLookup(result) {
+			continue
+		}
+		key := similarityDocumentKeyFromResult(result)
+		if key.knowledgeBaseCode == "" || key.documentCode == "" {
+			continue
+		}
+		keys = append(keys, key)
+		knowledgeBaseCodes = append(knowledgeBaseCodes, key.knowledgeBaseCode)
+		documentCodes = append(documentCodes, key.documentCode)
+	}
+	if len(keys) == 0 {
+		return map[similarityDocumentKey]*docentity.KnowledgeBaseDocument{}
+	}
+
+	organizationCode := ""
+	if kb != nil {
+		organizationCode = strings.TrimSpace(kb.OrganizationCode)
+	}
+	if organizationCode == "" {
+		return s.loadSimilarityResultDocumentsIndividually(ctx, keys)
+	}
+
+	docs, err := s.documentService.ListByOrganizationKnowledgeBasesAndCodes(
+		ctx,
+		organizationCode,
+		uniqueStrings(knowledgeBaseCodes),
+		uniqueStrings(documentCodes),
+	)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.WarnContext(ctx, "List similarity result documents failed", "error", err)
+		}
+		return map[similarityDocumentKey]*docentity.KnowledgeBaseDocument{}
+	}
+	return similarityDocumentMap(docs)
+}
+
+func (s *FragmentAppService) loadSimilarityResultDocumentsIndividually(
+	ctx context.Context,
+	keys []similarityDocumentKey,
+) map[similarityDocumentKey]*docentity.KnowledgeBaseDocument {
+	docs := make(map[similarityDocumentKey]*docentity.KnowledgeBaseDocument, len(keys))
+	for _, key := range keys {
+		if _, exists := docs[key]; exists {
+			continue
+		}
+		doc, err := s.documentService.ShowByCodeAndKnowledgeBase(ctx, key.documentCode, key.knowledgeBaseCode)
+		if err == nil && doc != nil {
+			docs[key] = doc
+		}
+	}
+	return docs
+}
+
+func similarityResultNeedsDocumentLookup(result *fragmodel.SimilarityResult) bool {
+	if result == nil {
+		return false
+	}
+	return strings.TrimSpace(result.DocumentName) == "" ||
+		result.DocumentType == 0 ||
+		strings.TrimSpace(result.FileKey) == ""
+}
+
+func similarityDocumentKeyFromResult(result *fragmodel.SimilarityResult) similarityDocumentKey {
+	if result == nil {
+		return similarityDocumentKey{}
+	}
+	return similarityDocumentKey{
+		knowledgeBaseCode: strings.TrimSpace(result.KnowledgeCode),
+		documentCode:      strings.TrimSpace(result.DocumentCode),
+	}
+}
+
+func similarityDocumentMap(docs []*docentity.KnowledgeBaseDocument) map[similarityDocumentKey]*docentity.KnowledgeBaseDocument {
+	result := make(map[similarityDocumentKey]*docentity.KnowledgeBaseDocument, len(docs))
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		key := similarityDocumentKey{
+			knowledgeBaseCode: strings.TrimSpace(doc.KnowledgeBaseCode),
+			documentCode:      strings.TrimSpace(doc.Code),
+		}
+		if key.knowledgeBaseCode == "" || key.documentCode == "" {
+			continue
+		}
+		if _, exists := result[key]; exists {
+			continue
+		}
+		result[key] = doc
+	}
+	return result
 }
 
 func (s *FragmentAppService) listFragmentsByBusinessID(
@@ -445,6 +742,17 @@ func syncSimilarityResultMetadata(results []*fragdto.SimilarityResultDTO) {
 	}
 }
 
+func downloadableSimilarityDocumentFileKey(doc *docentity.KnowledgeBaseDocument) string {
+	if doc == nil {
+		return ""
+	}
+	return documentdomain.ResolveDocumentSourceFileKey(
+		doc.DocumentFile,
+		doc.ThirdPlatformType,
+		doc.ThirdFileID,
+	)
+}
+
 func syncSimilarityResultMetadataItem(result *fragdto.SimilarityResultDTO) {
 	if result == nil {
 		return
@@ -457,6 +765,9 @@ func syncSimilarityResultMetadataItem(result *fragdto.SimilarityResultDTO) {
 	}
 	if businessID := strings.TrimSpace(result.BusinessID); businessID != "" {
 		result.Metadata["business_id"] = businessID
+	}
+	if fileKey := strings.TrimSpace(result.FileKey); fileKey != "" {
+		result.Metadata["file_key"] = fileKey
 	}
 }
 

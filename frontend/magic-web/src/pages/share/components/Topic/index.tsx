@@ -45,7 +45,7 @@ import {
 } from "@/pages/superMagic/constants/resizablePanel"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
-import projectFilesStore from "@/stores/projectFiles"
+import { ProjectFilesStore } from "@/stores/projectFiles"
 import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
 import { calculateDefaultOpenFileId } from "@/pages/superMagic/components/Share/FileSelector/utils"
 import { useShareMenuFilters } from "../../hooks"
@@ -113,6 +113,8 @@ function Topic({
 	// Add activeFileId state management same as workspace
 	const [activeFileId, setActiveFileId] = useState<string | null>(null)
 	const [primaryPreviewFileId, setPrimaryPreviewFileId] = useState<string | null>(null)
+
+	const [projectFilesStore] = useState(() => new ProjectFilesStore())
 
 	const { handleDownloadAll, allLoading } = useDownloadAll({ projectId })
 
@@ -1084,6 +1086,7 @@ function Topic({
 												isLoadAll ? TaskStatus.FINISHED : TaskStatus.RUNNING
 											}
 											stickyMessageClassName="-top-[10px] pt-[10px] [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
+											projectFilesStore={projectFilesStore}
 										/>
 										{!taskIsEnd && messageList?.length > 0 && !hasStarted && (
 											<LoadingMessage />
@@ -1232,6 +1235,7 @@ function Topic({
 											isLoadAll ? TaskStatus.FINISHED : TaskStatus.RUNNING
 										}
 										stickyMessageClassName="top-0 z-1 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
+										projectFilesStore={projectFilesStore}
 									/>
 									{!taskIsEnd && messageList?.length > 0 && !hasStarted && (
 										<LoadingMessage />

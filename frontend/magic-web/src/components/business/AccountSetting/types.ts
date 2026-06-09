@@ -5,4 +5,5 @@ export enum AccountSettingPage {
 	MY_TEAM = "myTeam",
 	PREFERENCES = "preferences",
 	SCHEDULED_TASKS = "scheduledTasks",
+	DATA_EXPORT = "dataExport",
 }

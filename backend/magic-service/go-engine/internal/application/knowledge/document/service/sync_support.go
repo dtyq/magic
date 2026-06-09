@@ -2,13 +2,16 @@ package docapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
 	thirdplatformsource "magic/internal/application/knowledge/shared/thirdplatformsource"
 	docentity "magic/internal/domain/knowledge/document/entity"
 	document "magic/internal/domain/knowledge/document/service"
+	kshared "magic/internal/domain/knowledge/shared"
 	"magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/memoryguard"
@@ -176,6 +179,9 @@ func (s *DocumentAppService) resolveThirdPlatformDocumentSource(
 		businessParamsThirdPlatformUserID(businessParams),
 		businessParamsThirdPlatformOrganizationCode(businessParams),
 	)
+	if resolved, ok, err := s.resolveThirdPlatformDocumentSourceWithProvider(ctx, doc, request); ok || err != nil {
+		return resolved, err
+	}
 	resolved, err := s.thirdPlatformDocumentPort.Resolve(ctx, thirdplatform.DocumentResolveInput{
 		OrganizationCode:              request.OrganizationCode,
 		UserID:                        request.UserID,
@@ -190,6 +196,47 @@ func (s *DocumentAppService) resolveThirdPlatformDocumentSource(
 		return nil, fmt.Errorf("resolve third-platform document failed: %w", err)
 	}
 	return resolved, nil
+}
+
+func (s *DocumentAppService) resolveThirdPlatformDocumentSourceWithProvider(
+	ctx context.Context,
+	doc *docentity.KnowledgeBaseDocument,
+	request document.ThirdPlatformResolveRequest,
+) (*thirdplatform.DocumentResolveResult, bool, error) {
+	if s == nil || s.thirdPlatformProviders == nil {
+		return nil, false, nil
+	}
+	platformType := strings.ToLower(strings.TrimSpace(request.ThirdPlatformType))
+	if platformType == "" {
+		return nil, false, nil
+	}
+	provider, err := s.thirdPlatformProviders.Provider(platformType)
+	if err != nil {
+		if errors.Is(err, kshared.ErrUnsupportedThirdPlatformType) {
+			return nil, false, nil
+		}
+		return nil, true, fmt.Errorf("get third-platform provider: %w", err)
+	}
+	latest, err := provider.ResolveLatestContent(ctx, thirdplatformprovider.ResolveLatestContentInput{
+		OrganizationCode:  request.OrganizationCode,
+		UserID:            request.UserID,
+		KnowledgeBaseCode: request.KnowledgeBaseCode,
+		ThirdFileID:       request.ThirdFileID,
+		Document:          doc,
+	})
+	if err != nil {
+		return nil, true, fmt.Errorf("resolve third-platform document with provider: %w", err)
+	}
+	if latest == nil {
+		return nil, false, nil
+	}
+	return &thirdplatform.DocumentResolveResult{
+		SourceKind:   thirdplatform.DocumentSourceKindRawContent,
+		RawContent:   latest.Content,
+		Content:      latest.Content,
+		DocType:      latest.DocType,
+		DocumentFile: latest.DocumentFile,
+	}, true, nil
 }
 
 func (s *DocumentAppService) shouldParseProjectFileDirectly(

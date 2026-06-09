@@ -2,6 +2,7 @@ import { CHARACTER_COUNT_LIMIT } from "@/components/business/RecordingSummary/co
 import type { HttpClient } from "@/apis/core/HttpClient"
 import { genRequestUrl } from "@/utils/http"
 import { UploadConfig as SDKUploadConfig } from "@dtyq/upload-sdk"
+import { PresetFile, RecordingDirectory } from "@/types/recordSummary"
 
 export enum RecordingSummaryType {
 	FileUpload = "file_upload", // file upload

@@ -15,6 +15,10 @@ const (
 	SyncModeCreate = "create"
 	// SyncModeResync 表示重同步。
 	SyncModeResync = "resync"
+	// AIAbilityCodeKnowledgeBaseVisualUnderstanding 表示知识库视觉理解能力配置。
+	AIAbilityCodeKnowledgeBaseVisualUnderstanding = "knowledge_base_visual_understanding"
+	// DefaultModelTypeLLM 表示模型网关的默认 LLM 模型类型。
+	DefaultModelTypeLLM = "llm"
 )
 
 // SourceOverride 表示同步时直接注入的已解析文档内容。
@@ -54,6 +58,11 @@ type ParserWithOptions interface {
 	ParseWithOptions(ctx context.Context, fileURL string, file io.Reader, fileType string, options ParseOptions) (string, error)
 }
 
+// ParserResolvedURLPolicy 定义解析器按当前上下文动态判断是否需要可访问 URL 的能力。
+type ParserResolvedURLPolicy interface {
+	NeedsResolvedURLForOptions(ctx context.Context, fileType string, options ParseOptions) bool
+}
+
 // FileFetcher 定义文档源文件读取能力。
 type FileFetcher interface {
 	Fetch(ctx context.Context, path string) (io.ReadCloser, error)
@@ -81,6 +90,50 @@ type OCRClient interface {
 type OCRSourceClient interface {
 	OCRClient
 	OCRSource(ctx context.Context, fileURL string, file io.Reader, fileType string) (string, error)
+}
+
+// VisualTextExtractor 定义图片、PDF 等视觉内容转文字能力。
+type VisualTextExtractor interface {
+	RecognizeSource(ctx context.Context, fileURL string, file io.Reader, fileType string) (string, error)
+	RecognizeBytes(ctx context.Context, data []byte, fileType string) (string, error)
+}
+
+// VisualTextExtractorResolvedURLPolicy 定义视觉转文字实现是否需要可访问 URL。
+type VisualTextExtractorResolvedURLPolicy interface {
+	NeedsResolvedURL(ctx context.Context, fileType string) bool
+}
+
+// VisualTextExtractorPDFNativeBypassPolicy 定义 PDF 是否跳过原生文字层提取。
+type VisualTextExtractorPDFNativeBypassPolicy interface {
+	BypassesNativePDFText(ctx context.Context, fileType string) bool
+}
+
+// AIAbilityConfig 是从 PHP 能力管理读取到的通用能力配置。
+type AIAbilityConfig struct {
+	Code             string
+	OrganizationCode string
+	Enabled          bool
+	Config           map[string]any
+}
+
+// ModelCallConfig 是从 PHP 模型网关读取到的通用模型调用配置。
+type ModelCallConfig struct {
+	ModelID        string
+	Model          string
+	ProviderCode   string
+	AccessToken    string
+	RequestBaseURL string
+	RawConfig      map[string]any
+}
+
+// VisualAbilityConfigProvider 定义视觉理解能力配置读取端口。
+type VisualAbilityConfigProvider interface {
+	GetVisualAbilityConfig(ctx context.Context, organizationCode, abilityCode string) (AIAbilityConfig, error)
+}
+
+// VisualModelCallConfigProvider 定义视觉理解模型调用配置读取端口。
+type VisualModelCallConfigProvider interface {
+	GetVisualModelCallConfig(ctx context.Context, organizationCode, modelID, modelType string) (ModelCallConfig, error)
 }
 
 // StructuredDocumentParser 定义可返回结构化文档的解析器能力。

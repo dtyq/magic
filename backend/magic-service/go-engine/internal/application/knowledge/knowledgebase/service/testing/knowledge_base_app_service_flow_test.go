@@ -6,6 +6,7 @@ import (
 	"errors"
 	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -2834,6 +2835,9 @@ func TestKnowledgeBaseAppServiceListDefaultsMissingBindingsToFlowVectorView(t *t
 		},
 	})
 	app.SetKnowledgeBaseBindingRepository(bindingRepo)
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
 
 	result, err := app.List(context.Background(), &kbdto.ListKnowledgeBaseInput{
 		OrganizationCode: "ORG-1",
@@ -2893,7 +2897,7 @@ func TestKnowledgeBaseAppServiceListKeepsRequestedCodesWithExternalPermission(t 
 	}
 }
 
-func TestKnowledgeBaseAppServiceListFiltersByDigitalEmployeeView(t *testing.T) {
+func TestKnowledgeBaseAppServiceListFiltersByAgentBindingWithoutProductLineScope(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
@@ -2915,6 +2919,9 @@ func TestKnowledgeBaseAppServiceListFiltersByDigitalEmployeeView(t *testing.T) {
 		},
 	})
 	app.SetKnowledgeBaseBindingRepository(bindingRepo)
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
 
 	result, err := app.List(context.Background(), &kbdto.ListKnowledgeBaseInput{
 		OrganizationCode: "ORG-1",
@@ -2930,8 +2937,8 @@ func TestKnowledgeBaseAppServiceListFiltersByDigitalEmployeeView(t *testing.T) {
 	if domain.lastListQuery == nil || !reflect.DeepEqual(domain.lastListQuery.Codes, []string{testAppKnowledgeBaseCode2}) {
 		t.Fatalf("expected readable codes passed through query, got %#v", domain.lastListQuery)
 	}
-	if domain.lastListQuery.KnowledgeBaseType == nil || *domain.lastListQuery.KnowledgeBaseType != kbentity.KnowledgeBaseTypeDigitalEmployee {
-		t.Fatalf("expected digital-employee list query, got %#v", domain.lastListQuery)
+	if domain.lastListQuery.KnowledgeBaseType != nil {
+		t.Fatalf("expected agent list query to include all bound product lines, got %#v", domain.lastListQuery)
 	}
 	if bindingRepo.batchListCalls != 2 {
 		t.Fatalf("expected two batch binding lookups, got %d", bindingRepo.batchListCalls)
@@ -2939,6 +2946,401 @@ func TestKnowledgeBaseAppServiceListFiltersByDigitalEmployeeView(t *testing.T) {
 	list := mustKnowledgeBaseDTOList(t, result.List)
 	if len(list) != 1 || list[0].KnowledgeBaseType != string(kbentity.KnowledgeBaseTypeDigitalEmployee) {
 		t.Fatalf("expected one digital employee knowledge base, got %#v", list)
+	}
+}
+
+func TestKnowledgeBaseAppServiceLinkAgentKnowledgeBasesRequiresEditableFlowKnowledge(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		listKBS: []*kbentity.KnowledgeBase{
+			{Code: testAppKnowledgeBaseCode, OrganizationCode: testOrganizationCode1, KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector},
+			{Code: testAppKnowledgeBaseCode2, OrganizationCode: testOrganizationCode1, KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector},
+		},
+		listTotal: 2,
+	}
+	bindingRepo := &recordingKnowledgeBaseBindingRepository{}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{
+			testAppKnowledgeBaseCode:  "edit",
+			testAppKnowledgeBaseCode2: "admin",
+		},
+	})
+	app.SetKnowledgeBaseBindingRepository(bindingRepo)
+
+	result, err := app.LinkAgentKnowledgeBases(context.Background(), &kbdto.AgentKnowledgeBaseBindingsInput{
+		OrganizationCode:   testOrganizationCode1,
+		UserID:             "user-1",
+		AgentCode:          " SMA-1 ",
+		KnowledgeBaseCodes: []string{testAppKnowledgeBaseCode2, testAppKnowledgeBaseCode, testAppKnowledgeBaseCode},
+	})
+	if err != nil {
+		t.Fatalf("LinkAgentKnowledgeBases() error = %v", err)
+	}
+	if result.AgentCode != "SMA-1" || !reflect.DeepEqual(result.KnowledgeBaseCodes, []string{testAppKnowledgeBaseCode, testAppKnowledgeBaseCode2}) {
+		t.Fatalf("unexpected link result: %#v", result)
+	}
+	if domain.lastListQuery == nil ||
+		domain.lastListQuery.KnowledgeBaseType == nil ||
+		*domain.lastListQuery.KnowledgeBaseType != kbentity.KnowledgeBaseTypeFlowVector {
+		t.Fatalf("expected flow-vector validation query, got %#v", domain.lastListQuery)
+	}
+	if !reflect.DeepEqual(bindingRepo.bindIDsByKnowledgeBase[testAppKnowledgeBaseCode], []string{"SMA-1"}) ||
+		!reflect.DeepEqual(bindingRepo.bindIDsByKnowledgeBase[testAppKnowledgeBaseCode2], []string{"SMA-1"}) {
+		t.Fatalf("expected agent bindings persisted, got %#v", bindingRepo.bindIDsByKnowledgeBase)
+	}
+}
+
+func TestKnowledgeBaseAppServiceLinkAgentKnowledgeBasesRejectsWithoutFlowEditPermission(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		listKBS: []*kbentity.KnowledgeBase{
+			{Code: testAppKnowledgeBaseCode, OrganizationCode: testOrganizationCode1, KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector},
+		},
+		listTotal: 1,
+	}
+	bindingRepo := &recordingKnowledgeBaseBindingRepository{}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{testAppKnowledgeBaseCode: "read"},
+	})
+	app.SetKnowledgeBaseBindingRepository(bindingRepo)
+
+	_, err := app.LinkAgentKnowledgeBases(context.Background(), &kbdto.AgentKnowledgeBaseBindingsInput{
+		OrganizationCode:   testOrganizationCode1,
+		UserID:             "user-1",
+		AgentCode:          "SMA-1",
+		KnowledgeBaseCodes: []string{testAppKnowledgeBaseCode},
+	})
+	if err == nil || !errors.Is(err, service.ErrKnowledgeBasePermissionDenied) {
+		t.Fatalf("expected permission denied, got %v", err)
+	}
+	if len(bindingRepo.bindIDsByKnowledgeBase) != 0 {
+		t.Fatalf("expected no bindings persisted, got %#v", bindingRepo.bindIDsByKnowledgeBase)
+	}
+}
+
+func TestKnowledgeBaseAppServiceUpdateAgentKnowledgeBaseBindingPatchesMetadata(t *testing.T) {
+	t.Parallel()
+
+	bindingRepo := &recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{
+			testAppKnowledgeBaseCode: {"SMA-1"},
+		},
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			Code:              testAppKnowledgeBaseCode,
+			Name:              "原始名称",
+			Description:       "原始描述",
+			Icon:              "origin-icon",
+			Enabled:           true,
+			OrganizationCode:  testOrganizationCode1,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+		},
+	}, nil, nil, nil, "")
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
+	app.SetKnowledgeBaseBindingRepository(bindingRepo)
+
+	displayName := "员工内名称"
+	disabled := false
+	result, err := app.UpdateAgentKnowledgeBaseBinding(context.Background(), &kbdto.UpdateAgentKnowledgeBaseBindingInput{
+		OrganizationCode:  testOrganizationCode1,
+		UserID:            "user-1",
+		AgentCode:         "SMA-1",
+		KnowledgeBaseCode: testAppKnowledgeBaseCode,
+		Name:              &displayName,
+		Enabled:           &disabled,
+	})
+	if err != nil {
+		t.Fatalf("UpdateAgentKnowledgeBaseBinding() error = %v", err)
+	}
+	if result.Name != displayName || result.Description != "原始描述" || result.Enabled {
+		t.Fatalf("unexpected binding update result: %#v", result)
+	}
+	metadata := bindingRepo.metadataByKnowledgeBase[testAppKnowledgeBaseCode]
+	if metadata.DisplayName != displayName || metadata.IsEnabled() {
+		t.Fatalf("expected patched metadata persisted, got %#v", metadata)
+	}
+}
+
+func TestKnowledgeBaseAppServiceListAppliesAgentBindingMetadata(t *testing.T) {
+	t.Parallel()
+
+	originEnabled := true
+	bindingEnabled := false
+	domain := &recordingKnowledgeBaseDomainService{
+		listKBS: []*kbentity.KnowledgeBase{
+			{
+				Code:              testAppKnowledgeBaseCode,
+				Name:              "原始名称",
+				Description:       "原始描述",
+				Icon:              "origin-icon",
+				Enabled:           originEnabled,
+				OrganizationCode:  testOrganizationCode1,
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			},
+		},
+		listTotal: 1,
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{testAppKnowledgeBaseCode: "edit"},
+	})
+	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{
+			testAppKnowledgeBaseCode: {"SMA-1"},
+		},
+		metadataByKnowledgeBase: map[string]kbentity.AgentKnowledgeBaseBindingMetadata{
+			testAppKnowledgeBaseCode: {
+				DisplayName: "员工内名称",
+				Enabled:     &bindingEnabled,
+			},
+		},
+	})
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
+
+	result, err := app.ListQueryApp().List(context.Background(), &kbdto.ListKnowledgeBaseInput{
+		OrganizationCode: testOrganizationCode1,
+		UserID:           "user-1",
+		AgentCodes:       []string{"SMA-1"},
+		Codes:            []string{testAppKnowledgeBaseCode},
+		Limit:            10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	list := mustKnowledgeBaseDTOList(t, result.List)
+	if len(list) != 1 {
+		t.Fatalf("expected one knowledge base, got %#v", list)
+	}
+	if list[0].Name != "员工内名称" || list[0].Description != "原始描述" || list[0].Enabled {
+		t.Fatalf("expected metadata override and effective disabled, got %#v", list[0])
+	}
+	if list[0].OriginEnabled == nil || *list[0].OriginEnabled != originEnabled {
+		t.Fatalf("expected origin enabled=true, got %#v", list[0].OriginEnabled)
+	}
+	if list[0].BindingEnabled == nil || *list[0].BindingEnabled != bindingEnabled {
+		t.Fatalf("expected binding enabled=false, got %#v", list[0].BindingEnabled)
+	}
+}
+
+func TestKnowledgeBaseAppServiceListAgentBoundFlowKnowledgeRequiresReadPermission(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		listKBS: []*kbentity.KnowledgeBase{
+			{
+				Code:              testAppKnowledgeBaseCode,
+				Name:              "关联知识库",
+				OrganizationCode:  testOrganizationCode1,
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			},
+		},
+		listTotal: 1,
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{},
+	})
+	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{
+			testAppKnowledgeBaseCode: {"SMA-1"},
+		},
+	})
+
+	result, err := app.ListQueryApp().List(context.Background(), &kbdto.ListKnowledgeBaseInput{
+		OrganizationCode: testOrganizationCode1,
+		UserID:           "user-1",
+		AgentCodes:       []string{"SMA-1"},
+		Limit:            10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if domain.lastListQuery == nil || !reflect.DeepEqual(domain.lastListQuery.Codes, []string{testAppKnowledgeBaseCode}) {
+		t.Fatalf("expected query scoped to bound knowledge base, got %#v", domain.lastListQuery)
+	}
+	list := mustKnowledgeBaseDTOList(t, result.List)
+	if result.Total != 0 || len(list) != 0 {
+		t.Fatalf("expected linked flow knowledge base without read permission to be hidden, got total=%d list=%#v", result.Total, list)
+	}
+}
+
+func TestKnowledgeBaseAppServiceListAgentBoundDigitalEmployeeKnowledgeWithoutDirectReadPermission(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		listKBS: []*kbentity.KnowledgeBase{
+			{
+				Code:              testAppKnowledgeBaseCode,
+				Name:              "自建知识库",
+				OrganizationCode:  testOrganizationCode1,
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+			},
+		},
+		listTotal: 1,
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{},
+	})
+	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{
+			testAppKnowledgeBaseCode: {"SMA-1"},
+		},
+	})
+
+	result, err := app.ListQueryApp().List(context.Background(), &kbdto.ListKnowledgeBaseInput{
+		OrganizationCode: testOrganizationCode1,
+		UserID:           "user-1",
+		AgentCodes:       []string{"SMA-1"},
+		Limit:            10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	list := mustKnowledgeBaseDTOList(t, result.List)
+	if len(list) != 1 || list[0].Code != testAppKnowledgeBaseCode {
+		t.Fatalf("expected digital employee knowledge base without direct read permission, got %#v", list)
+	}
+	if list[0].UserOperation != kbaccess.UserOperationNone {
+		t.Fatalf("expected no direct knowledge base operation, got %d", list[0].UserOperation)
+	}
+}
+
+func TestKnowledgeBaseAppServiceListAgentBoundKnowledgeRejectsInaccessibleAgent(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs:   map[string]struct{}{"SMA-1": {}},
+		accessibleIDs: map[string]struct{}{},
+	})
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{})
+	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{
+			testAppKnowledgeBaseCode: {"SMA-1"},
+		},
+	})
+
+	_, err := app.ListQueryApp().List(context.Background(), &kbdto.ListKnowledgeBaseInput{
+		OrganizationCode: testOrganizationCode1,
+		UserID:           "user-1",
+		AgentCodes:       []string{"SMA-1"},
+		Limit:            10,
+	})
+	if err == nil || !errors.Is(err, service.ErrKnowledgeBasePermissionDenied) {
+		t.Fatalf("expected agent access denied, got %v", err)
+	}
+	if domain.lastListQuery != nil {
+		t.Fatalf("expected knowledge base list query to be skipped, got %#v", domain.lastListQuery)
+	}
+}
+
+func TestKnowledgeBaseAppServiceListMultipleAgentsDoesNotApplySingleBindingMetadata(t *testing.T) {
+	t.Parallel()
+
+	bindingEnabled := false
+	domain := &recordingKnowledgeBaseDomainService{
+		listKBS: []*kbentity.KnowledgeBase{
+			{
+				Code:              testAppKnowledgeBaseCode,
+				Name:              "原始名称",
+				Enabled:           true,
+				OrganizationCode:  testOrganizationCode1,
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			},
+		},
+		listTotal: 1,
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}, "SMA-2": {}},
+	})
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{testAppKnowledgeBaseCode: "read"},
+	})
+	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{
+			testAppKnowledgeBaseCode: {"SMA-1", "SMA-2"},
+		},
+		metadataByKnowledgeBase: map[string]kbentity.AgentKnowledgeBaseBindingMetadata{
+			testAppKnowledgeBaseCode: {
+				DisplayName: "员工内名称",
+				Enabled:     &bindingEnabled,
+			},
+		},
+	})
+
+	result, err := app.ListQueryApp().List(context.Background(), &kbdto.ListKnowledgeBaseInput{
+		OrganizationCode: testOrganizationCode1,
+		UserID:           "user-1",
+		AgentCodes:       []string{"SMA-1", "SMA-2"},
+		Limit:            10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	list := mustKnowledgeBaseDTOList(t, result.List)
+	if len(list) != 1 {
+		t.Fatalf("expected one knowledge base, got %#v", list)
+	}
+	if list[0].Name != "原始名称" || !list[0].Enabled {
+		t.Fatalf("expected multi-agent list to keep original display fields, got %#v", list[0])
+	}
+}
+
+func TestKnowledgeBaseAppServiceUnlinkAgentKnowledgeBasesOnlyRequiresManageableAgent(t *testing.T) {
+	t.Parallel()
+
+	bindingRepo := &recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{
+			testAppKnowledgeBaseCode: {"SMA-1", "SMA-2"},
+		},
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, &recordingKnowledgeBaseDomainService{}, nil, nil, nil, "")
+	app.SetSuperMagicAgentReader(&recordingSuperMagicAgentReader{
+		existingIDs: map[string]struct{}{"SMA-1": {}},
+	})
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{testAppKnowledgeBaseCode: "none"},
+	})
+	app.SetKnowledgeBaseBindingRepository(bindingRepo)
+
+	result, err := app.UnlinkAgentKnowledgeBases(context.Background(), &kbdto.AgentKnowledgeBaseBindingsInput{
+		OrganizationCode:   testOrganizationCode1,
+		UserID:             "user-1",
+		AgentCode:          "SMA-1",
+		KnowledgeBaseCodes: []string{testAppKnowledgeBaseCode},
+	})
+	if err != nil {
+		t.Fatalf("UnlinkAgentKnowledgeBases() error = %v", err)
+	}
+	if result.AgentCode != "SMA-1" || !reflect.DeepEqual(result.KnowledgeBaseCodes, []string{testAppKnowledgeBaseCode}) {
+		t.Fatalf("unexpected unlink result: %#v", result)
+	}
+	if !reflect.DeepEqual(bindingRepo.bindIDsByKnowledgeBase[testAppKnowledgeBaseCode], []string{"SMA-2"}) {
+		t.Fatalf("expected only requested agent binding removed, got %#v", bindingRepo.bindIDsByKnowledgeBase)
 	}
 }
 
@@ -3871,14 +4273,15 @@ type fragmentRepairServiceStub struct {
 }
 
 type recordingKnowledgeBaseBindingRepository struct {
-	bindIDsByKnowledgeBase map[string][]string
-	lastReplaceCode        string
-	lastReplaceBindType    kbentity.BindingType
-	lastReplaceBindIDs     []string
-	replaceErr             error
-	listErr                error
-	batchListErr           error
-	batchListCalls         int
+	bindIDsByKnowledgeBase  map[string][]string
+	metadataByKnowledgeBase map[string]kbentity.AgentKnowledgeBaseBindingMetadata
+	lastReplaceCode         string
+	lastReplaceBindType     kbentity.BindingType
+	lastReplaceBindIDs      []string
+	replaceErr              error
+	listErr                 error
+	batchListErr            error
+	batchListCalls          int
 }
 
 func (r *recordingKnowledgeBaseBindingRepository) ReplaceBindings(
@@ -3929,11 +4332,118 @@ func (r *recordingKnowledgeBaseBindingRepository) ListBindIDsByKnowledgeBases(
 	return result, nil
 }
 
+func (r *recordingKnowledgeBaseBindingRepository) LinkAgentKnowledgeBases(
+	_ context.Context,
+	_ string,
+	_ string,
+	agentCode string,
+	knowledgeBaseCodes []string,
+) ([]string, error) {
+	if r.bindIDsByKnowledgeBase == nil {
+		r.bindIDsByKnowledgeBase = map[string][]string{}
+	}
+	for _, code := range knowledgeBaseCodes {
+		r.bindIDsByKnowledgeBase[code] = append(r.bindIDsByKnowledgeBase[code], agentCode)
+	}
+	return append([]string(nil), knowledgeBaseCodes...), nil
+}
+
+func (r *recordingKnowledgeBaseBindingRepository) UnlinkAgentKnowledgeBases(
+	_ context.Context,
+	_ string,
+	_ string,
+	agentCode string,
+	knowledgeBaseCodes []string,
+) ([]string, error) {
+	if r.bindIDsByKnowledgeBase == nil {
+		r.bindIDsByKnowledgeBase = map[string][]string{}
+	}
+	for _, code := range knowledgeBaseCodes {
+		current := r.bindIDsByKnowledgeBase[code]
+		next := current[:0]
+		for _, bindID := range current {
+			if bindID != agentCode {
+				next = append(next, bindID)
+			}
+		}
+		r.bindIDsByKnowledgeBase[code] = append([]string(nil), next...)
+	}
+	return append([]string(nil), knowledgeBaseCodes...), nil
+}
+
+func (r *recordingKnowledgeBaseBindingRepository) ListKnowledgeBaseBindingsByBindID(
+	_ context.Context,
+	_ kbentity.BindingType,
+	bindID string,
+	_ string,
+) ([]kbentity.AgentKnowledgeBaseBinding, error) {
+	result := make([]kbentity.AgentKnowledgeBaseBinding, 0)
+	for knowledgeBaseCode, bindIDs := range r.bindIDsByKnowledgeBase {
+		if !slices.Contains(bindIDs, bindID) {
+			continue
+		}
+		result = append(result, kbentity.AgentKnowledgeBaseBinding{
+			KnowledgeBaseCode: knowledgeBaseCode,
+			Metadata:          r.metadataByKnowledgeBase[knowledgeBaseCode],
+		})
+	}
+	return result, nil
+}
+
+func (r *recordingKnowledgeBaseBindingRepository) ListKnowledgeBaseBindingsByBindIDs(
+	_ context.Context,
+	_ kbentity.BindingType,
+	bindIDs []string,
+	_ string,
+) ([]kbentity.AgentKnowledgeBaseBinding, error) {
+	r.batchListCalls++
+	result := make([]kbentity.AgentKnowledgeBaseBinding, 0)
+	seen := make(map[string]struct{}, len(r.bindIDsByKnowledgeBase))
+	for knowledgeBaseCode, currentBindIDs := range r.bindIDsByKnowledgeBase {
+		for _, bindID := range bindIDs {
+			if !slices.Contains(currentBindIDs, bindID) {
+				continue
+			}
+			if _, ok := seen[knowledgeBaseCode]; ok {
+				break
+			}
+			seen[knowledgeBaseCode] = struct{}{}
+			result = append(result, kbentity.AgentKnowledgeBaseBinding{
+				KnowledgeBaseCode: knowledgeBaseCode,
+				Metadata:          r.metadataByKnowledgeBase[knowledgeBaseCode],
+			})
+			break
+		}
+	}
+	return result, nil
+}
+
+func (r *recordingKnowledgeBaseBindingRepository) UpdateAgentKnowledgeBaseBindingMetadata(
+	_ context.Context,
+	_ string,
+	_ string,
+	agentCode string,
+	knowledgeBaseCode string,
+	patch kbentity.AgentKnowledgeBaseBindingMetadataPatch,
+) (*kbentity.AgentKnowledgeBaseBinding, error) {
+	if r.metadataByKnowledgeBase == nil {
+		r.metadataByKnowledgeBase = map[string]kbentity.AgentKnowledgeBaseBindingMetadata{}
+	}
+	if !slices.Contains(r.bindIDsByKnowledgeBase[knowledgeBaseCode], agentCode) {
+		return nil, service.ErrKnowledgeBaseNotFound
+	}
+	metadata := r.metadataByKnowledgeBase[knowledgeBaseCode].ApplyPatch(patch)
+	r.metadataByKnowledgeBase[knowledgeBaseCode] = metadata
+	return &kbentity.AgentKnowledgeBaseBinding{KnowledgeBaseCode: knowledgeBaseCode, Metadata: metadata}, nil
+}
+
 type recordingSuperMagicAgentReader struct {
 	existingIDs   map[string]struct{}
 	manageableIDs map[string]struct{}
+	accessibleIDs map[string]struct{}
 	existingErr   error
 	manageableErr error
+	accessibleErr error
 }
 
 func (r *recordingSuperMagicAgentReader) ListExistingCodesByOrg(context.Context, string, []string) (map[string]struct{}, error) {
@@ -3952,6 +4462,21 @@ func (r *recordingSuperMagicAgentReader) ListManageableCodes(context.Context, st
 		return nil, r.manageableErr
 	}
 	source := r.manageableIDs
+	if source == nil {
+		source = r.existingIDs
+	}
+	result := make(map[string]struct{}, len(source))
+	for id := range source {
+		result[id] = struct{}{}
+	}
+	return result, nil
+}
+
+func (r *recordingSuperMagicAgentReader) ListAccessibleCodes(context.Context, string, string, []string) (map[string]struct{}, error) {
+	if r.accessibleErr != nil {
+		return nil, r.accessibleErr
+	}
+	source := r.accessibleIDs
 	if source == nil {
 		source = r.existingIDs
 	}

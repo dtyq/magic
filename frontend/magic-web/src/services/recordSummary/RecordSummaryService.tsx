@@ -5,7 +5,12 @@ import { reaction, toJS } from "mobx"
 import { MediaRecorderService } from "./MediaRecorderService"
 import { RecordingPersistence } from "./RecordingPersistence"
 import { RecordingSessionManager } from "./RecordingSessionManager"
-import { ChunkUploader } from "./ChunkUploader"
+import {
+	ChunkUploader,
+	PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+	type PlaceholderUploadProgress,
+	type SessionUploadProgress,
+} from "./ChunkUploader"
 import {
 	TabCoordinator,
 	type RecordingDataSyncData,
@@ -36,7 +41,8 @@ import { UploadSource } from "@/pages/superMagic/components/MessageEditor/hooks/
 import RecordStatusChecker from "./RecordStatusChecker"
 import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { userStore } from "@/models/user"
-import { StoredAudioChunk } from "./MediaRecorderService/AudioChunkDB"
+import { StoredAudioChunk, AudioChunkDB } from "./MediaRecorderService/AudioChunkDB"
+import { RECORDING_HISTORY_RETENTION_DAYS } from "./RecordingSessionHistoryDB"
 import { formatDuration } from "./utils/format"
 import { createRecordingLogger } from "./utils/RecordingLogger"
 import { DEFAULT_RECORDING_CONFIG } from "./utils/config"
@@ -52,6 +58,7 @@ import SilenceDetector from "./SilenceDetector"
 import { DurationTracker } from "./DurationTracker"
 import { getSummaryMessageService, SummaryStage } from "./SummaryMessageService"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { Button } from "@/components/shadcn-ui/button"
 
 const logger = createRecordingLogger("Main")
 
@@ -59,6 +66,14 @@ const PERSIST_INTERVAL_MS = 5000
 // 最大录制时长 12小时
 const MAX_RECORDING_DURATION_MS = 12 * 60 * 60 * 1000
 // const MAX_RECORDING_DURATION_MS = 10 * 1000
+
+type UploadFailureDecision = "retry" | "ignore"
+
+interface EnsureUploadOptions {
+	topicId?: string
+	projectId?: string
+	allowUserDecision?: boolean
+}
 
 class RecordSummaryService {
 	// Duration tracking (using reliable AudioContext-based tracker)
@@ -104,6 +119,12 @@ class RecordSummaryService {
 	private silenceMessageKey = "recording-silence-detected"
 	// 用于管理总结过程中的消息提示
 	private summaryMessageService = getSummaryMessageService()
+	// 分片生产监控定时器，用于检测录音是否正常产出分片
+	private chunkProductionWatchdog: NodeJS.Timeout | null = null
+	// 录音开始后是否已收到第一个分片
+	private hasReceivedFirstChunk = false
+	// 是否已尝试过自动恢复
+	private hasAttemptedChunkRecovery = false
 	constructor() {
 		logger.log("RecordSummaryService constructor")
 
@@ -149,12 +170,24 @@ class RecordSummaryService {
 		this.recordingPersistence = new RecordingPersistence(DEFAULT_RECORDING_CONFIG.persistence)
 		this.sessionManager = new RecordingSessionManager(DEFAULT_RECORDING_CONFIG.sessionRestore)
 
-		// Fire-and-forget cleanup of expired session history (30 days retention)
+		// Fire-and-forget cleanup of expired session history.
+		// 过期会话清理后，同步清理对应的音频分片
 		void this.sessionManager
 			.getHistoryDB()
 			.cleanupExpired()
+			.then(async (expiredSessionIds) => {
+				if (expiredSessionIds.length === 0) return
+				const chunkDB = new AudioChunkDB()
+				for (const sessionId of expiredSessionIds) {
+					await chunkDB.deleteAllSessionChunks(sessionId)
+				}
+				logger.log("已清理过期会话关联的音频分片", {
+					sessionCount: expiredSessionIds.length,
+					retentionDays: RECORDING_HISTORY_RETENTION_DAYS,
+				})
+			})
 			.catch((error) => {
-				logger.error("清理过期会话历史失败", {
+				logger.error("清理过期会话历史或音频分片失败", {
 					error: error instanceof Error ? error.message : String(error),
 				})
 			})
@@ -325,6 +358,12 @@ class RecordSummaryService {
 		chatTopic?: Topic | null
 		audioSource?: AudioSourceConfig
 	}) => {
+		// Guard: prevent concurrent startRecording calls
+		if (recordSummaryStore.isStartingRecord) {
+			logger.warn("startRecording：已在启动中，忽略重复请求")
+			return
+		}
+
 		try {
 			recordSummaryStore.setIsStartingRecord(true)
 
@@ -425,6 +464,9 @@ class RecordSummaryService {
 					audioSource = currentAudioSource
 					this.recordingPersistence.updateSessionAudioSource(audioSource)
 				}
+
+				// 启动分片生产监控：如果 30s 内没有收到任何分片，记录错误
+				this.startChunkProductionWatchdog(session.id)
 			} catch (error) {
 				this.handleMediaRecorderError(error as Error)
 				return
@@ -634,6 +676,24 @@ class RecordSummaryService {
 	}
 
 	/**
+	 * Sync directories to session for persistence
+	 * 同步目录信息到会话以持久化
+	 */
+	private syncDirectoriesToSession = () => {
+		const currentSession = this.sessionManager.getCurrentSession()
+		if (!currentSession) {
+			return
+		}
+
+		const directories = this.chunkUploader.getTokenManager().getDirectories(currentSession.id)
+		if (directories) {
+			currentSession.directories = directories
+			this.recordingPersistence.saveSession(currentSession)
+			logger.log("Directories synced to session", directories)
+		}
+	}
+
+	/**
 	 * Get note file information for current session
 	 * 获取当前会话的笔记文件信息
 	 */
@@ -711,6 +771,28 @@ class RecordSummaryService {
 		}
 
 		return presetFiles
+	}
+
+	getAsrDisplayDir = () => {
+		const currentSession = this.sessionManager.getCurrentSession()
+		if (!currentSession) {
+			return undefined
+		}
+
+		// Priority 1: Get from session (persisted)
+		if (currentSession.directories?.asr_display_dir) {
+			return currentSession.directories.asr_display_dir
+		}
+
+		// Priority 2: Get from token manager (memory cache)
+		const directories = this.chunkUploader.getTokenManager().getDirectories(currentSession.id)
+
+		// If found in token manager but not in session, sync to session
+		if (directories) {
+			this.syncDirectoriesToSession()
+		}
+
+		return directories?.asr_display_dir
 	}
 
 	/**
@@ -1217,6 +1299,12 @@ class RecordSummaryService {
 			logger.log("Preset files restored to token manager from session", session.presetFiles)
 		}
 
+		// 恢复 directories 到 tokenManager 缓存（如果 session 中有）
+		if (session.directories) {
+			this.chunkUploader.getTokenManager().restoreDirectories(session.id, session.directories)
+			logger.log("Directories restored to token manager from session", session.directories)
+		}
+
 		// 初始化或恢复内容文件管理器
 		if (!this.contentFileManager.isInitialized()) {
 			try {
@@ -1491,6 +1579,38 @@ class RecordSummaryService {
 		await this.stopRecordingServices()
 
 		const sessionId = this.sessionManager.getCurrentSession()?.id || ""
+		const sessionForProjectLogic = {
+			workspace: workspace,
+			project: project,
+			topic: topic,
+			id: sessionId,
+		} as RecordingSession
+
+		let finalProject: ProjectListItem | null = null
+		let finalTopic: Topic | null = null
+
+		try {
+			this.summaryMessageService.showStageMessage(SummaryStage.ProcessingProject)
+			const ensured = await this.ensureProjectAndTopic(sessionForProjectLogic)
+			finalProject = ensured.project
+			finalTopic = ensured.topic
+		} catch (err) {
+			logger.error("处理项目和话题失败", err)
+			this.summaryMessageService.showError(
+				i18n.t("recordingSummary.message.missingRequiredParams", { ns: "super" }),
+			)
+			handleError(err as Error)
+			return
+		}
+
+		if (!finalProject || !finalTopic) {
+			const error = new Error("projectId, topic_id is required")
+			this.summaryMessageService.showError(
+				i18n.t("recordingSummary.message.missingRequiredParams", { ns: "super" }),
+			)
+			handleError(error)
+			return
+		}
 
 		try {
 			if (sessionId) {
@@ -1498,15 +1618,22 @@ class RecordSummaryService {
 				this.summaryMessageService.showStageMessage(SummaryStage.UploadingChunks)
 
 				// 触发上传会话分片
-				this.chunkUploader.uploadSession(sessionId, topic?.id || "", project?.id || "")
+				await this.chunkUploader.uploadSession(sessionId, finalTopic.id, finalProject.id)
 
-				await this.ensureSessionUploadComplete({ id: sessionId } as RecordingSession)
+				await this.ensureSessionUploadComplete(
+					{ id: sessionId, topic: finalTopic, project: finalProject } as RecordingSession,
+					{
+						topicId: finalTopic.id,
+						projectId: finalProject.id,
+						allowUserDecision: true,
+					},
+				)
 				logger.report("所有分片上传完成")
 			}
 		} catch (err) {
 			logger.error(`${sessionId} 等待所有分片上传完成失败`, err)
 			this.summaryMessageService.showError(
-				i18n.t("recordingSummary.message.uploadChunksFailed", { ns: "super" }),
+				i18n.t("recordingSummary.message.uploadChunksPreparingError", { ns: "super" }),
 			)
 			handleError(err as Error)
 			return
@@ -1527,20 +1654,6 @@ class RecordSummaryService {
 			// 停止定期上报
 			this.statusReporter.stopPeriodicReport()
 		}
-
-		/**
-		 * 项目相关业务逻辑处理
-		 */
-		this.summaryMessageService.showStageMessage(SummaryStage.ProcessingProject)
-		const sessionForProjectLogic = {
-			workspace: workspace,
-			project: project,
-			topic: topic,
-			id: sessionId,
-		} as RecordingSession
-
-		const { project: finalProject, topic: finalTopic } =
-			await this.ensureProjectAndTopic(sessionForProjectLogic)
 
 		const modelId = model_id
 		const taskKey = sessionId
@@ -1814,12 +1927,17 @@ class RecordSummaryService {
 				await this.stopRecordingServices()
 			}
 
-			// 2. 等待分片上传完成和一致性检查
-			await this.ensureSessionUploadComplete(session)
-
-			// 3. 处理项目和话题创建逻辑
+			// 2. 处理项目和话题创建逻辑，先确保上传分片能 batch-save 到后端
 			const { project: finalProject, topic: finalTopic } =
 				await this.ensureProjectAndTopic(session)
+
+			// 3. 等待分片上传完成和一致性检查
+			await this.chunkUploader.uploadSession(session.id, finalTopic.id, finalProject.id)
+			await this.ensureSessionUploadComplete(session, {
+				topicId: finalTopic.id,
+				projectId: finalProject.id,
+				allowUserDecision: true,
+			})
 
 			// 4. 调用总结API
 			const result = await this.processSummaryForSession(
@@ -1936,6 +2054,9 @@ class RecordSummaryService {
 	 */
 	reset = async () => {
 		const currentSessionId = this.sessionManager.getCurrentSession()?.id
+
+		// 停止分片生产监控
+		this.stopChunkProductionWatchdog()
 
 		// 停止语音服务
 		if (this.voiceToTextService) {
@@ -2054,12 +2175,131 @@ class RecordSummaryService {
 	) => {
 		logger.log(`${storedChunk.sessionId} 添加了一个分片`, storedChunk)
 
+		// 标记已收到第一个分片，清除生产监控
+		if (!this.hasReceivedFirstChunk) {
+			this.hasReceivedFirstChunk = true
+			this.stopChunkProductionWatchdog()
+			// 如果之前触发了分片异常提示，收到数据后清除
+			if (recordSummaryStore.errorState.hasChunkError) {
+				recordSummaryStore.setChunkError(false)
+				magicToast.destroy("recording-chunk-production-failed")
+			}
+		}
+
 		// 触发上传检查
 		const currentSession = this.sessionManager.getCurrentSession()
 		if (currentSession) {
 			// 更新会话分片索引
 			this.sessionManager.updateSessionChunkIndex(chunkIndex + 1) // +1 because MediaRecorder increments after emitting
 			this.handleAudioChunkSaved(storedChunk, indexdbSaveSuccess)
+		}
+	}
+
+	/**
+	 * 启动分片生产监控
+	 * 录音启动后如果一段时间内没有收到音频分片：
+	 * 1. 第一次超时：尝试自动重启 MediaRecorder 进行恢复
+	 * 2. 恢复后仍无分片：通过录音面板常驻错误条提示用户
+	 */
+	private startChunkProductionWatchdog(sessionId: string) {
+		this.hasReceivedFirstChunk = false
+		this.hasAttemptedChunkRecovery = false
+		this.stopChunkProductionWatchdog()
+
+		// 20s 超时 (chunkDuration 10s 的 2 倍)
+		const WATCHDOG_TIMEOUT_MS = 20000
+		this.chunkProductionWatchdog = setTimeout(() => {
+			this.handleChunkProductionTimeout(sessionId, WATCHDOG_TIMEOUT_MS)
+		}, WATCHDOG_TIMEOUT_MS)
+	}
+
+	/**
+	 * 处理分片生产超时
+	 */
+	private async handleChunkProductionTimeout(sessionId: string, timeoutMs: number) {
+		if (this.hasReceivedFirstChunk) return
+
+		const currentSession = this.sessionManager.getCurrentSession()
+		if (!currentSession || currentSession.id !== sessionId) return
+
+		if (!this.hasAttemptedChunkRecovery) {
+			// 第一次超时：尝试自动恢复
+			this.hasAttemptedChunkRecovery = true
+			logger.warn("分片生产监控：首次超时，尝试自动重启录音器", {
+				sessionId,
+				timeoutMs,
+			})
+
+			try {
+				// 停止并重启 MediaRecorder，保留同一 session
+				await this.mediaRecorderService.stopRecording()
+				this.mediaRecorderService.reset()
+				await this.mediaRecorderService.startRecording(sessionId, 0)
+
+				logger.log("分片生产监控：录音器已重启，等待分片产出")
+
+				// 重启后再等 20s 观察
+				this.chunkProductionWatchdog = setTimeout(() => {
+					this.handleChunkProductionTimeout(sessionId, timeoutMs)
+				}, timeoutMs)
+			} catch (error) {
+				logger.error("分片生产监控：自动重启录音器失败", { error: String(error) })
+				this.notifyUserChunkProductionFailed()
+			}
+		} else {
+			// 恢复尝试后仍无分片，通知用户
+			logger.error("分片生产监控：自动恢复失败，录音器无法正常产出分片", {
+				sessionId,
+			})
+			this.notifyUserChunkProductionFailed()
+		}
+	}
+
+	/**
+	 * 通知用户录音分片生产异常（常驻 toast，不自动消失，带停止按钮）
+	 */
+	private notifyUserChunkProductionFailed() {
+		recordSummaryStore.setChunkError(true)
+		magicToast.warning({
+			content: (
+				<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+					<span>
+						{i18n.t("recordingSummary.chunkProduction.failed", { ns: "super" })}
+					</span>
+					<button
+						type="button"
+						onClick={() => {
+							magicToast.destroy("recording-chunk-production-failed")
+							this.cancelRecording({ notifyServer: true })
+						}}
+						style={{
+							flexShrink: 0,
+							padding: "2px 8px",
+							fontSize: 12,
+							borderRadius: 4,
+							border: "1px solid currentColor",
+							background: "transparent",
+							color: "inherit",
+							cursor: "pointer",
+							whiteSpace: "nowrap",
+						}}
+					>
+						{i18n.t("recordingSummary.actions.stopRecording", { ns: "super" })}
+					</button>
+				</div>
+			),
+			duration: 0,
+			key: "recording-chunk-production-failed",
+		})
+	}
+
+	/**
+	 * 停止分片生产监控
+	 */
+	private stopChunkProductionWatchdog() {
+		if (this.chunkProductionWatchdog) {
+			clearTimeout(this.chunkProductionWatchdog)
+			this.chunkProductionWatchdog = null
 		}
 	}
 
@@ -3215,7 +3455,10 @@ class RecordSummaryService {
 	/**
 	 * 确保会话的分片上传完成
 	 */
-	private async ensureSessionUploadComplete(session: RecordingSession): Promise<void> {
+	private async ensureSessionUploadComplete(
+		session: RecordingSession,
+		options: EnsureUploadOptions = {},
+	): Promise<void> {
 		try {
 			// 验证分片索引一致性并修复
 			const consistencyResult = await this.validateChunkIndexConsistency(session.id)
@@ -3229,17 +3472,125 @@ class RecordSummaryService {
 
 			// 等待所有分片上传完成
 			if (session.id) {
-				logger.log(`${session.id} 等待分片上传完成...`)
-				// Calculate dynamic timeout based on pending chunks
-				// Base timeout: 30s, +10s per pending chunk (max 120s)
-				const queueStatus = await this.chunkUploader.getQueueStatus(session.id)
-				const pendingCount = queueStatus.pending || 0
-				const dynamicTimeout = Math.min(30000 + pendingCount * 10000, 120000) // 30s base + 10s/chunk, max 120s
-				logger.log(
-					`${session.id} 剩余分片数: ${pendingCount}, 超时时间: ${dynamicTimeout}ms`,
-				)
-				await this.chunkUploader.waitForAllUploadsCompleted(session.id, dynamicTimeout)
-				logger.log(`${session.id} 所有分片上传成功`)
+				const topicId = options.topicId ?? session.topic?.id ?? ""
+				const projectId = options.projectId ?? session.project?.id ?? ""
+				let shouldWaitForUploads = true
+
+				while (shouldWaitForUploads) {
+					logger.log(`${session.id} 等待分片上传结束...`)
+					// Calculate dynamic timeout based on IndexedDB pending chunks.
+					// Base timeout: 30s, +10s per pending chunk (max 120s)
+					const queueStatus = await this.chunkUploader.getQueueStatus(session.id)
+					const pendingCount = queueStatus.pending || 0
+					const dynamicTimeout = Math.min(30000 + pendingCount * 10000, 120000)
+					logger.log(
+						`${session.id} 剩余分片数: ${pendingCount}, 超时时间: ${dynamicTimeout}ms`,
+					)
+
+					const progress = await this.chunkUploader.waitForSessionUploadsSettled(
+						session.id,
+						dynamicTimeout,
+						(uploadProgress) => {
+							this.summaryMessageService.updateProgress(
+								this.formatUploadProgress(uploadProgress),
+							)
+						},
+					)
+
+					this.summaryMessageService.updateProgress(this.formatUploadProgress(progress))
+
+					if (progress.failed === 0) {
+						logger.log(`${session.id} 所有分片上传成功`)
+						return
+					}
+
+					logger.warn(`${session.id} 存在上传失败分片`, progress)
+
+					if (!options.allowUserDecision) {
+						throw new Error(
+							i18n.t("recordingSummary.message.uploadChunksPreparingError", {
+								ns: "super",
+							}),
+						)
+					}
+
+					const decision = await this.showUploadFailureDecisionModal(progress)
+
+					if (decision === "retry") {
+						this.summaryMessageService.showStageMessage(SummaryStage.UploadingChunks)
+						this.summaryMessageService.updateProgress(
+							i18n.t("recordingSummary.message.retryingAudioChunks", {
+								ns: "super",
+							}),
+						)
+						await this.chunkUploader.retryFailedChunks(session.id, topicId, projectId)
+						continue
+					}
+
+					this.summaryMessageService.showStageMessage(SummaryStage.UploadingChunks)
+					this.summaryMessageService.updateProgress(
+						i18n.t("recordingSummary.message.continuingSummaryAfterAudioCheck", {
+							ns: "super",
+						}),
+					)
+					if (progress.failed > PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS) {
+						throw new Error(
+							i18n.t("recordingSummary.message.placeholderUploadTooManyFailed", {
+								ns: "super",
+								count: progress.failed,
+								limit: PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+							}),
+						)
+					}
+
+					const placeholderAbortController = new AbortController()
+					const placeholderProgressModal = this.showPlaceholderUploadProgressModal(
+						progress.failed,
+						placeholderAbortController,
+					)
+					try {
+						await this.chunkUploader.uploadEmptyPlaceholdersForFailedChunks(
+							session.id,
+							topicId,
+							projectId,
+							{
+								signal: placeholderAbortController.signal,
+								onProgress: (placeholderProgress) => {
+									this.summaryMessageService.updateProgress(
+										this.formatPlaceholderUploadProgress(placeholderProgress),
+									)
+									placeholderProgressModal.update(placeholderProgress)
+								},
+							},
+						)
+					} catch (error) {
+						throw new Error(
+							this.getPlaceholderUploadErrorMessage(error, progress.failed),
+						)
+					} finally {
+						placeholderProgressModal.destroy()
+					}
+
+					const finalProgress = await this.chunkUploader.getSessionUploadProgress(
+						session.id,
+					)
+					this.summaryMessageService.updateProgress(
+						this.formatUploadProgress(finalProgress),
+					)
+
+					if (!finalProgress.completed) {
+						throw new Error(
+							i18n.t("recordingSummary.message.uploadChunksCompletingError", {
+								ns: "super",
+							}),
+						)
+					}
+
+					logger.warn(`${session.id} 用户选择忽略失败分片并上传空占位分片`, {
+						placeholderCount: progress.failed,
+					})
+					shouldWaitForUploads = false
+				}
 			}
 		} catch (error) {
 			logger.error(`${session.id} 等待分片上传完成失败`, error)
@@ -3247,6 +3598,157 @@ class RecordSummaryService {
 				`等待分片上传完成失败: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
+	}
+
+	private formatUploadProgress(progress: SessionUploadProgress): string {
+		const percent =
+			progress.total > 0 ? Math.round((progress.uploaded / progress.total) * 100) : 100
+
+		if (progress.failed > 0) {
+			return i18n.t("recordingSummary.message.uploadProgressNeedsDecision", {
+				ns: "super",
+				percent,
+			})
+		}
+
+		return i18n.t("recordingSummary.message.uploadProgress", {
+			ns: "super",
+			percent,
+			pending: progress.pending,
+		})
+	}
+
+	private formatPlaceholderUploadProgress(progress: PlaceholderUploadProgress): string {
+		const percent =
+			progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 100
+		const remaining = Math.max(progress.total - progress.completed, 0)
+		return i18n.t("recordingSummary.message.placeholderUploadProgress", {
+			ns: "super",
+			percent,
+			remaining,
+		})
+	}
+
+	private getPlaceholderUploadErrorMessage(error: unknown, failedCount: number): string {
+		const message = error instanceof Error ? error.message : String(error)
+		if (message.includes("Too many failed placeholder chunks")) {
+			return i18n.t("recordingSummary.message.placeholderUploadTooManyFailed", {
+				ns: "super",
+				count: failedCount,
+				limit: PLACEHOLDER_UPLOAD_MAX_FAILED_CHUNKS,
+			})
+		}
+		if (message.includes("cancelled")) {
+			return i18n.t("recordingSummary.message.placeholderUploadCancelled", {
+				ns: "super",
+			})
+		}
+		if (message.includes("timed out")) {
+			return i18n.t("recordingSummary.message.placeholderUploadTimeout", {
+				ns: "super",
+			})
+		}
+		return message
+	}
+
+	private showPlaceholderUploadProgressModal(
+		total: number,
+		abortController: AbortController,
+	): {
+		update: (progress: PlaceholderUploadProgress) => void
+		destroy: () => void
+	} {
+		const modalRef: { current?: ReturnType<typeof MagicModal.confirm> } = {}
+		let destroyed = false
+		const buildConfig = (progress: PlaceholderUploadProgress) => ({
+			title: i18n.t("recordingSummary.message.placeholderUploadProgressTitle", {
+				ns: "super",
+			}),
+			content: (
+				<div className="space-y-2 text-sm text-muted-foreground">
+					<div>{this.formatPlaceholderUploadProgress(progress)}</div>
+				</div>
+			),
+			closable: false,
+			maskClosable: false,
+			footer: (
+				<div className="flex items-center justify-end gap-2 border-t border-border bg-muted/50 p-2">
+					<Button
+						variant="outline"
+						onClick={() => {
+							abortController.abort()
+							destroyed = true
+							modalRef.current?.destroy()
+						}}
+					>
+						{i18n.t("recordingSummary.message.placeholderUploadCancel", {
+							ns: "super",
+						})}
+					</Button>
+				</div>
+			),
+		})
+		modalRef.current = MagicModal.confirm(
+			buildConfig({
+				total,
+				completed: 0,
+				failed: 0,
+				active: 0,
+			}),
+		)
+
+		return {
+			update: (progress) => {
+				if (destroyed) return
+				modalRef.current?.update(buildConfig(progress))
+			},
+			destroy: () => {
+				destroyed = true
+				modalRef.current?.destroy()
+			},
+		}
+	}
+
+	private showUploadFailureDecisionModal(
+		progress: SessionUploadProgress,
+	): Promise<UploadFailureDecision> {
+		this.summaryMessageService.destroy()
+
+		return new Promise((resolve) => {
+			const modalRef: { current?: ReturnType<typeof MagicModal.confirm> } = {}
+			const closeWith = (decision: UploadFailureDecision) => {
+				resolve(decision)
+				modalRef.current?.destroy()
+			}
+
+			modalRef.current = MagicModal.confirm({
+				title: i18n.t("recordingSummary.message.uploadFailureDecisionTitle", {
+					ns: "super",
+				}),
+				content: i18n.t("recordingSummary.message.uploadFailureDecisionContent", {
+					ns: "super",
+					failed: progress.failed,
+					total: progress.total,
+				}),
+				footer: (
+					<div className="flex items-center justify-end gap-2 border-t border-border bg-muted/50 p-2">
+						<Button variant="outline" onClick={() => closeWith("retry")}>
+							{i18n.t("recordingSummary.message.retryUploadChunks", {
+								ns: "super",
+							})}
+						</Button>
+						<Button variant="destructive" onClick={() => closeWith("ignore")}>
+							{i18n.t("recordingSummary.message.continueSummary", {
+								ns: "super",
+							})}
+						</Button>
+					</div>
+				),
+				closable: false,
+				maskClosable: false,
+				onCancel: () => closeWith("retry"),
+			})
+		})
 	}
 
 	/**

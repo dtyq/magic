@@ -609,6 +609,7 @@ func buildSimilarityResults(
 			DocumentCode:  result.Payload.DocumentCode,
 			DocumentName:  result.Payload.DocumentName,
 			DocumentType:  result.Payload.DocumentType,
+			FileKey:       result.Payload.FileKey,
 			BusinessID:    result.Payload.BusinessID,
 		}
 	}

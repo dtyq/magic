@@ -5,13 +5,16 @@ import (
 	"magic/internal/infrastructure/logging"
 	"magic/internal/interfaces/http/handlers"
 	rpchandler "magic/internal/interfaces/rpc/jsonrpc/knowledge/service"
+	opshandler "magic/internal/interfaces/rpc/jsonrpc/ops/service"
 )
 
 // ServerRuntimeDeps 聚合 RPC 运行时依赖，供 Wire 显式拼装。
 type ServerRuntimeDeps struct {
-	rpcServer    RPCServer
-	rpcHandlers  RPCHandlers
-	debugHandler *handlers.DebugHandler
+	rpcServer                  RPCServer
+	rpcHandlers                RPCHandlers
+	debugHandler               *handlers.DebugHandler
+	magicFSFileHandler         *handlers.MagicFSFileHandler
+	knowledgeSourceFileHandler *handlers.KnowledgeSourceFileHandler
 }
 
 // ServerBackgroundDeps 聚合 HTTP 服务所需的后台任务依赖。
@@ -27,12 +30,14 @@ func ProvideRPCHandlers(
 	fragment *rpchandler.FragmentRPCService,
 	document *rpchandler.DocumentRPCService,
 	embedding *rpchandler.EmbeddingRPCService,
+	ops *opshandler.OpsRPCService,
 ) RPCHandlers {
 	return RPCHandlers{
 		Knowledge: knowledge,
 		Fragment:  fragment,
 		Document:  document,
 		Embedding: embedding,
+		Ops:       ops,
 	}
 }
 
@@ -41,11 +46,15 @@ func ProvideServerRuntimeDeps(
 	rpcServer RPCServer,
 	rpcHandlers RPCHandlers,
 	debugHandler *handlers.DebugHandler,
+	magicFSFileHandler *handlers.MagicFSFileHandler,
+	knowledgeSourceFileHandler *handlers.KnowledgeSourceFileHandler,
 ) ServerRuntimeDeps {
 	return ServerRuntimeDeps{
-		rpcServer:    rpcServer,
-		rpcHandlers:  rpcHandlers,
-		debugHandler: debugHandler,
+		rpcServer:                  rpcServer,
+		rpcHandlers:                rpcHandlers,
+		debugHandler:               debugHandler,
+		magicFSFileHandler:         magicFSFileHandler,
+		knowledgeSourceFileHandler: knowledgeSourceFileHandler,
 	}
 }
 
@@ -72,15 +81,17 @@ func ProvideServerDependencies(
 	runtimeDeps ServerRuntimeDeps,
 ) *ServerDependencies {
 	return &ServerDependencies{
-		Config:              config,
-		CacheCleanupService: backgroundDeps.cacheCleanupService,
-		TaskQueueService:    backgroundDeps.taskQueueService,
-		RetrievalWarmup:     backgroundDeps.retrievalWarmup,
-		InfraServices:       infraServices,
-		Logger:              logger,
-		Metrics:             metrics,
-		RPCServer:           runtimeDeps.rpcServer,
-		RPCHandlers:         runtimeDeps.rpcHandlers,
-		DebugHandler:        runtimeDeps.debugHandler,
+		Config:                     config,
+		CacheCleanupService:        backgroundDeps.cacheCleanupService,
+		TaskQueueService:           backgroundDeps.taskQueueService,
+		RetrievalWarmup:            backgroundDeps.retrievalWarmup,
+		InfraServices:              infraServices,
+		Logger:                     logger,
+		Metrics:                    metrics,
+		RPCServer:                  runtimeDeps.rpcServer,
+		RPCHandlers:                runtimeDeps.rpcHandlers,
+		DebugHandler:               runtimeDeps.debugHandler,
+		MagicFSFileHandler:         runtimeDeps.magicFSFileHandler,
+		KnowledgeSourceFileHandler: runtimeDeps.knowledgeSourceFileHandler,
 	}
 }

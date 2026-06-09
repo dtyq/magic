@@ -35,4 +35,16 @@ interface KnowledgeBaseRepositoryInterface
     public function exist(KnowledgeBaseDataIsolation $dataIsolation, string $code): bool;
 
     public function updateWordCount(KnowledgeBaseDataIsolation $dataIsolation, string $knowledgeCode, int $deltaWordCount): void;
+
+    /**
+     * 查询当前所有知识库元数据中的嵌入模型 ID。
+     *
+     * @return string[]
+     */
+    public function getAllEmbeddingModelIds(): array;
+
+    /**
+     * 查询当前知识库集合真实生效的嵌入模型 ID。
+     */
+    public function getCurrentEmbeddingModelId(): string;
 }

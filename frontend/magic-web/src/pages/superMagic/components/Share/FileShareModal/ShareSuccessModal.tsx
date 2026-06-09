@@ -263,13 +263,14 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 		return generateShareMessageText({
 			fileCount,
 			mainFileName,
+			shareName,
 			projectName,
 			shareProject,
 			shareUrl,
 			fileDisplayConfig,
 			t,
 		})
-	}, [fileCount, mainFileName, projectName, shareProject, shareUrl, fileDisplayConfig, t])
+	}, [fileCount, mainFileName, shareName, projectName, shareProject, shareUrl, fileDisplayConfig, t])
 
 	// Render share message with clickable links
 	const renderShareMessage = useCallback(() => {
@@ -302,6 +303,18 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 								>
 									{urlMatch[0]}
 								</a>
+								<button
+									type="button"
+									className="ml-1 inline-flex translate-y-[2px] items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+									onClick={(e) => {
+										e.stopPropagation()
+										clipboard.writeText(urlMatch[0])
+										magicToast.success(t("share.copySuccess"))
+									}}
+									title={t("share.copyLink")}
+								>
+									<Copy className="h-3.5 w-3.5" />
+								</button>
 								{parts[1]}
 							</div>
 						)

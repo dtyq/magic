@@ -300,6 +300,147 @@ describe("EditorRuntime", () => {
 		})
 	})
 
+	describe("native image drop", () => {
+		it("does not intercept non-image file dragover", async () => {
+			const message: RequestMessage = {
+				version: MESSAGE_PROTOCOL_VERSION,
+				category: MessageCategory.REQUEST,
+				type: "ENTER_EDIT_MODE",
+				requestId: "req-native-non-image-dragover",
+				timestamp: Date.now(),
+				source: "parent",
+			}
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: message,
+					source: window.parent,
+				}),
+			)
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			const event = new Event("dragover", { bubbles: true, cancelable: true })
+			Object.defineProperties(event, {
+				clientX: { value: 10 },
+				clientY: { value: 10 },
+				dataTransfer: {
+					value: {
+						types: ["Files"],
+						items: [{ kind: "file", type: "application/pdf" }],
+					},
+				},
+			})
+
+			document.dispatchEvent(event)
+
+			expect(event.defaultPrevented).toBe(false)
+		})
+
+		it("uploads external images into the current file images folder", async () => {
+			const uploadFiles = vi.fn().mockResolvedValue([])
+			;(window as any).Magic = {
+				project: {
+					uploadFiles,
+				},
+			}
+
+			const message: RequestMessage = {
+				version: MESSAGE_PROTOCOL_VERSION,
+				category: MessageCategory.REQUEST,
+				type: "ENTER_EDIT_MODE",
+				requestId: "req-native-drop",
+				timestamp: Date.now(),
+				source: "parent",
+			}
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: message,
+					source: window.parent,
+				}),
+			)
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			const file = new File(["image"], "picture.png", { type: "image/png" })
+			const event = new Event("drop", { bubbles: true, cancelable: true })
+			Object.defineProperties(event, {
+				clientX: { value: 10 },
+				clientY: { value: 10 },
+				dataTransfer: {
+					value: {
+						types: ["Files"],
+						files: [file],
+					},
+				},
+			})
+
+			document.dispatchEvent(event)
+
+			await vi.waitFor(() => {
+				expect(uploadFiles).toHaveBeenCalledWith([
+					{
+						file,
+						path: "./images/picture.png",
+						filename: "picture.png",
+					},
+				])
+			})
+		})
+
+		it("deduplicates native image drop while upload is pending", async () => {
+			let resolveUpload: (value: unknown[]) => void = () => {}
+			const uploadFiles = vi.fn(
+				() =>
+					new Promise<unknown[]>((resolve) => {
+						resolveUpload = resolve
+					}),
+			)
+			;(window as any).Magic = {
+				project: {
+					uploadFiles,
+				},
+			}
+
+			const message: RequestMessage = {
+				version: MESSAGE_PROTOCOL_VERSION,
+				category: MessageCategory.REQUEST,
+				type: "ENTER_EDIT_MODE",
+				requestId: "req-native-drop-dedupe",
+				timestamp: Date.now(),
+				source: "parent",
+			}
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: message,
+					source: window.parent,
+				}),
+			)
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			const file = new File(["image"], "picture.png", { type: "image/png" })
+			const createDropEvent = () => {
+				const event = new Event("drop", { bubbles: true, cancelable: true })
+				Object.defineProperties(event, {
+					clientX: { value: 10 },
+					clientY: { value: 10 },
+					dataTransfer: {
+						value: {
+							types: ["Files"],
+							files: [file],
+						},
+					},
+				})
+				return event
+			}
+
+			document.dispatchEvent(createDropEvent())
+			document.dispatchEvent(createDropEvent())
+
+			await vi.waitFor(() => {
+				expect(uploadFiles).toHaveBeenCalledTimes(1)
+			})
+			resolveUpload([])
+		})
+	})
+
 	describe("destroy", () => {
 		it("should cleanup resources", () => {
 			const removeEventListenerSpy = vi.spyOn(window, "removeEventListener")

@@ -16,7 +16,7 @@ import (
 
 // PDFHybridParser 优先提取原生文字层，再补 OCR；没有可用文字层时回退整份 PDF OCR。
 type PDFHybridParser struct {
-	ocrClient           documentdomain.OCRClient
+	visualExtractor     documentdomain.VisualTextExtractor
 	maxOCRPerFile       int
 	resourceLimits      documentdomain.ResourceLimits
 	nativeTextExtractor func(string) (string, error)
@@ -30,14 +30,23 @@ func NewPDFHybridParserWithLimit(
 	maxOCRPerFile int,
 	resourceLimits ...documentdomain.ResourceLimits,
 ) *PDFHybridParser {
+	return NewPDFHybridParserWithVisualLimit(newVisualTextExtractorFromOCR(ocrClient), maxOCRPerFile, resourceLimits...)
+}
+
+// NewPDFHybridParserWithVisualLimit 创建带单文件视觉转文字限额的 PDF 混合解析器。
+func NewPDFHybridParserWithVisualLimit(
+	visualExtractor documentdomain.VisualTextExtractor,
+	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
+) *PDFHybridParser {
 	limits := documentdomain.DefaultResourceLimits()
 	if len(resourceLimits) > 0 {
 		limits = resourceLimits[0]
 	}
 	return &PDFHybridParser{
-		ocrClient:      ocrClient,
-		maxOCRPerFile:  documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
-		resourceLimits: documentdomain.NormalizeResourceLimits(limits),
+		visualExtractor: visualExtractor,
+		maxOCRPerFile:   documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		resourceLimits:  documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -83,6 +92,10 @@ func (p *PDFHybridParser) ParseDocumentWithOptions(
 	fileType string,
 	options documentdomain.ParseOptions,
 ) (*documentdomain.ParsedDocument, error) {
+	if p.bypassesNativePDFText(ctx, fileType) {
+		return p.parseDocumentByVisualExtractor(ctx, fileURL, file, fileType, options)
+	}
+
 	tmpFile, err := os.CreateTemp("", "pdf-*.pdf")
 	if err != nil {
 		return nil, fmt.Errorf("create temp pdf failed: %w", err)
@@ -125,7 +138,7 @@ func (p *PDFHybridParser) ParseDocumentWithOptions(
 		return nativeParsed, nil
 	}
 
-	ocrHelper := newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
+	ocrHelper := newEmbeddedImageOCRHelper(p.visualExtractor, p.maxOCRPerFile)
 	ocrFile, openErr := os.Open(filepath.Clean(tmpPath))
 	if openErr != nil {
 		ocrHelper.apply(nativeParsed)
@@ -158,11 +171,55 @@ func (p *PDFHybridParser) NeedsResolvedURL() bool {
 	return true
 }
 
+// NeedsResolvedURLForOptions 按视觉转文字实现和解析策略动态判断 PDF 是否需要可访问 URL。
+func (p *PDFHybridParser) NeedsResolvedURLForOptions(
+	ctx context.Context,
+	fileType string,
+	options documentdomain.ParseOptions,
+) bool {
+	if !options.ImageExtraction || !options.ImageOCR {
+		return false
+	}
+	if p.bypassesNativePDFText(ctx, fileType) {
+		return false
+	}
+	return p.NeedsResolvedURL()
+}
+
 func (p *PDFHybridParser) limits() documentdomain.ResourceLimits {
 	if p == nil {
 		return documentdomain.DefaultResourceLimits()
 	}
 	return documentdomain.NormalizeResourceLimits(p.resourceLimits)
+}
+
+func (p *PDFHybridParser) parseDocumentByVisualExtractor(
+	ctx context.Context,
+	fileURL string,
+	file io.Reader,
+	fileType string,
+	options documentdomain.ParseOptions,
+) (*documentdomain.ParsedDocument, error) {
+	if !options.ImageExtraction || !options.ImageOCR {
+		return documentdomain.NewPlainTextParsedDocument(fileType, ""), nil
+	}
+	if p == nil || p.visualExtractor == nil {
+		return nil, errEmbeddedOCRSourceUnavailable
+	}
+	limitedReader := documentdomain.NewSourceSizeLimitedReader(file, p.limits())
+	content, err := p.visualExtractor.RecognizeSource(ctx, fileURL, limitedReader, fileType)
+	if err != nil {
+		return nil, fmt.Errorf("visual pdf recognition failed: %w", err)
+	}
+	return documentdomain.NewPlainTextParsedDocument(fileType, strings.TrimSpace(content)), nil
+}
+
+func (p *PDFHybridParser) bypassesNativePDFText(ctx context.Context, fileType string) bool {
+	if p == nil || p.visualExtractor == nil {
+		return false
+	}
+	policy, ok := p.visualExtractor.(documentdomain.VisualTextExtractorPDFNativeBypassPolicy)
+	return ok && policy.BypassesNativePDFText(ctx, fileType)
 }
 
 func extractNativePDFText(pdfPath string) (string, error) {
@@ -216,7 +273,7 @@ func (p *PDFHybridParser) parseDocumentByOCRFallback(
 		return nil, errEmbeddedOCRSourceUnavailable
 	}
 
-	ocrHelper := newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
+	ocrHelper := newEmbeddedImageOCRHelper(p.visualExtractor, p.maxOCRPerFile)
 	file, err := os.Open(filepath.Clean(filePath))
 	if err != nil {
 		return nil, fmt.Errorf("open pdf source for ocr: %w", err)
@@ -233,7 +290,7 @@ func (p *PDFHybridParser) parseDocumentByOCRFallback(
 }
 
 func (p *PDFHybridParser) canFallbackToDocumentOCR(fileURL string, options documentdomain.ParseOptions) bool {
-	if p == nil || p.ocrClient == nil {
+	if p == nil || p.visualExtractor == nil {
 		return false
 	}
 	if !options.ImageExtraction || !options.ImageOCR {

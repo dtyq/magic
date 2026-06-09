@@ -101,10 +101,14 @@ describe("MyCrewCardMobile", () => {
 		expect(onNavigate).not.toHaveBeenCalled()
 	})
 
-	it("uses desktop footer labels for created cards", () => {
+	it("uses desktop footer labels for created cards (unpublished)", () => {
 		render(
 			<MyCrewCardMobile
-				employee={createEmployee({ sourceType: "LOCAL_CREATE", needUpgrade: false })}
+				employee={createEmployee({
+					sourceType: "LOCAL_CREATE",
+					needUpgrade: false,
+					latestVersionCode: null,
+				})}
 				listVariant="created"
 				href="/crew/agent-1"
 			/>,
@@ -116,6 +120,25 @@ describe("MyCrewCardMobile", () => {
 		expect(screen.getByTestId("my-crew-card-mobile-footer-badge")).toHaveTextContent(
 			"status.unpublished",
 		)
+	})
+
+	it("uses version badge for created cards (published)", () => {
+		render(
+			<MyCrewCardMobile
+				employee={createEmployee({
+					sourceType: "LOCAL_CREATE",
+					needUpgrade: false,
+					latestVersionCode: "v1.0.0",
+				})}
+				listVariant="created"
+				href="/crew/agent-1"
+			/>,
+		)
+
+		expect(screen.getByTestId("my-crew-card-mobile-footer-created-by")).toHaveTextContent(
+			"myCrewPage.crewType.createdByMe",
+		)
+		expect(screen.getByTestId("my-crew-card-mobile-footer-badge")).toHaveTextContent("v1.0.0")
 	})
 
 	it("uses desktop footer labels for hired cards", () => {

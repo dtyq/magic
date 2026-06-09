@@ -1,5 +1,6 @@
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import { SuperMagicApi } from "@/apis"
+import { SuperMagicApiErrorCode } from "@/pages/superMagic/constants/apiErrorCodes"
 import { findImagesDirItem, findParentDirectoryId } from "./fileFinder"
 import { UploadSubDir } from "@/components/CanvasDesign/types.magic"
 
@@ -68,7 +69,7 @@ export async function getOrCreateImagesDirFileId(
 		}
 	} catch (error: unknown) {
 		const errorObj = error as { code?: number; message?: string }
-		if (errorObj.code === 51168) {
+		if (errorObj.code === SuperMagicApiErrorCode.DuplicateFile) {
 			// 文件已存在，触发更新后重新查找
 			updateAttachments()
 			imagesDirItem = findImagesDirItem(suffixDir, flatAttachments)

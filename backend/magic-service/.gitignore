@@ -13,6 +13,7 @@ vendor/
 *.cache
 *.lock
 .php-accessor/
+.codegraph/
 .phpunit*
 .vscode/
 static/web/.next
@@ -29,7 +30,11 @@ composer.lock
 scripts/
 storage/files/test001
 /CLAUDE.md
+/AGENTS.md
 .cursor/
+.github
 docs/
 !go-engine/docs/
 !go-engine/docs/**
+
+.codegraph/

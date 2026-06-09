@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Domain\ModelGateway\Service;
 
 use App\Domain\ModelGateway\Entity\ValueObject\VideoMediaMetadata;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
+use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\Domain\ModelGateway\Service\VideoBillingDetailsResolver;
 use PHPUnit\Framework\TestCase;
 
@@ -53,5 +55,48 @@ class VideoBillingDetailsResolverTest extends TestCase
         $this->assertSame('1536x864', $billingDetails['size']);
         $this->assertSame(1536, $billingDetails['width']);
         $this->assertSame(864, $billingDetails['height']);
+    }
+
+    public function testResolveFromMetadataWithFallbackKeepsProbeDimensionsAndUsesRequestResolution(): void
+    {
+        $resolver = new VideoBillingDetailsResolver();
+        $operation = $this->createOperation(
+            rawRequest: [
+                'generation' => [
+                    'duration_seconds' => 5,
+                    'resolution' => '720p',
+                ],
+            ],
+        );
+
+        $billingDetails = $resolver->resolveFromMetadataWithFallback(
+            new VideoMediaMetadata(5.02, 960, 960),
+            $operation
+        );
+
+        $this->assertSame(5, $billingDetails['duration_seconds']);
+        $this->assertSame('720p', $billingDetails['resolution']);
+        $this->assertSame('960x960', $billingDetails['size']);
+        $this->assertSame(960, $billingDetails['width']);
+        $this->assertSame(960, $billingDetails['height']);
+    }
+
+    private function createOperation(array $rawRequest = [], array $providerPayload = []): VideoQueueOperationEntity
+    {
+        return new VideoQueueOperationEntity(
+            id: 'video-operation-test',
+            endpoint: 'video:test',
+            model: 'doubao-seedance-2-0-fast-260128',
+            modelVersion: 'doubao-seedance-2-0-fast-260128',
+            providerModelId: 'doubao-seedance-2-0-fast-260128',
+            providerCode: 'VolcengineArk',
+            providerName: 'volcengine-ark',
+            organizationCode: 'org-test',
+            userId: 'user-test',
+            status: VideoOperationStatus::SUCCEEDED,
+            seq: 0,
+            rawRequest: $rawRequest,
+            providerPayload: $providerPayload,
+        );
     }
 }

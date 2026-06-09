@@ -103,6 +103,8 @@ class RecordingSummaryStore {
 		hasVoiceError: boolean
 		/** 是否有录制错误 */
 		hasRecordingError: boolean
+		/** 是否有音频分片生产异常（录音器无法产出数据） */
+		hasChunkError: boolean
 		/** 是否正在重试 */
 		isRetrying: boolean
 		/** 重试次数信息 */
@@ -111,14 +113,15 @@ class RecordingSummaryStore {
 			max: number
 		}
 	} = {
-		hasVoiceError: false,
-		hasRecordingError: false,
-		isRetrying: false,
-		retryInfo: {
-			current: 0,
-			max: 3,
-		},
-	}
+			hasVoiceError: false,
+			hasRecordingError: false,
+			hasChunkError: false,
+			isRetrying: false,
+			retryInfo: {
+				current: 0,
+				max: 3,
+			},
+		}
 
 	businessData = {
 		/**
@@ -171,13 +174,13 @@ class RecordingSummaryStore {
 			sessionId?: string
 		}
 	} = {
-		tabStatus: "inactive",
-		activeTabData: {
-			message: [],
-			duration: "00:00:00",
-			isRecording: false,
-		},
-	}
+			tabStatus: "inactive",
+			activeTabData: {
+				message: [],
+				duration: "00:00:00",
+				isRecording: false,
+			},
+		}
 
 	// ==== 代理属性和方法，保持向后兼容 ====
 
@@ -730,11 +733,19 @@ class RecordingSummaryStore {
 	}
 
 	/**
+	 * 设置分片生产异常
+	 */
+	setChunkError(status: boolean) {
+		this.errorState.hasChunkError = status
+	}
+
+	/**
 	 * 重置错误状态
 	 */
 	resetErrorState() {
 		this.errorState.hasVoiceError = false
 		this.errorState.hasRecordingError = false
+		this.errorState.hasChunkError = false
 		this.errorState.isRetrying = false
 		this.errorState.retryInfo = {
 			current: 0,

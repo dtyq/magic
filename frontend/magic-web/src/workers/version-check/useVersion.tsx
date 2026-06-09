@@ -3,11 +3,14 @@ import { useTranslation } from "react-i18next"
 import { App, Flex } from "antd"
 import MagicButton from "@/components/base/MagicButton"
 import type MagicModal from "@/components/base/MagicModal"
-import { AppEnv } from "@/types/env"
 import useCheckUpdateWorker from "./useCheckUpdateWorker"
 import { ReflectMessageType } from "./const"
 import { isBreakingVersion } from "./utils"
 import { isProductionEnv } from "@/utils/env"
+import {
+	activateWaitingServiceWorkerAndReload,
+	getAppServiceWorkerRegistration,
+} from "@/workers/service-worker/register"
 
 const useVersion = () => {
 	const forbidUpdate = useRef(false)
@@ -48,7 +51,9 @@ const useVersion = () => {
 						type="primary"
 						onClick={() => {
 							refresh()
-							window.location.reload()
+							void activateWaitingServiceWorkerAndReload(
+								getAppServiceWorkerRegistration(),
+							)
 						}}
 					>
 						{t("common.refresh")}

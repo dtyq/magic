@@ -736,26 +736,48 @@ class ProjectAppService extends AbstractAppService
             $conditions,
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
-            'updated_at',
-            'desc'
+            $requestDTO->getOrderBy(),
+            $requestDTO->getSort()
         );
 
         // 提取所有项目ID和工作区ID
-        $projectIds = array_unique(array_map(fn ($project) => $project->getId(), $result['list'] ?? []));
-        $workspaceIds = array_unique(array_map(fn ($project) => $project->getWorkspaceId(), $result['list'] ?? []));
+        $projectIds = [];
+        $workspaceIds = [];
+        foreach ($result['list'] ?? [] as $project) {
+            $projectIds[] = $project->getId();
+            if ($project->getWorkspaceId() !== null) {
+                $workspaceIds[] = $project->getWorkspaceId();
+            }
+        }
+        $projectIds = array_values(array_unique($projectIds));
+        $workspaceIds = array_values(array_unique($workspaceIds));
 
         // 批量获取项目状态
         $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch($projectIds, $dataIsolation->getCurrentUserId());
+
+        // 批量获取当前用户在项目下的可见话题数量
+        $topicCountMap = $this->topicDomainService->countUserVisibleTopicsByProjectIds($projectIds, $dataIsolation->getCurrentUserId());
 
         // 批量获取工作区名称
         $workspaceNameMap = $this->workspaceDomainService->getWorkspaceNamesBatch($workspaceIds);
 
         // 批量获取项目成员数量，判断是否存在协作成员
         $projectMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIds);
-        $projectIdsWithMember = array_keys(array_filter($projectMemberCounts, fn ($count) => $count > 0));
+        $projectIdsWithMember = [];
+        foreach ($projectMemberCounts as $projectId => $count) {
+            if ($count > 0) {
+                $projectIdsWithMember[] = $projectId;
+            }
+        }
 
         // 创建响应DTO并传入项目状态映射和工作区名称映射
-        $listResponseDTO = ProjectListResponseDTO::fromResult($result, $workspaceNameMap, $projectIdsWithMember, $projectStatusMap);
+        $listResponseDTO = ProjectListResponseDTO::fromResult(
+            $result,
+            $workspaceNameMap,
+            $projectIdsWithMember,
+            $projectStatusMap,
+            $topicCountMap
+        );
 
         return $listResponseDTO->toArray();
     }
@@ -1262,7 +1284,8 @@ class ProjectAppService extends AbstractAppService
         $movedProjectEntity = $this->projectDomainService->moveProject(
             $requestDTO->getSourceProjectId(),
             $targetWorkspaceId,
-            $userAuthorization->getId()
+            $userAuthorization->getId(),
+            $requestDTO->getTargetProjectName()
         );
 
         $this->logger->info(sprintf(

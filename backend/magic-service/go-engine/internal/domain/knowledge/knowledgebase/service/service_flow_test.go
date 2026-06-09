@@ -3,6 +3,7 @@ package knowledgebase_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	autoloadcfg "magic/internal/config/autoload"
@@ -17,11 +18,12 @@ import (
 )
 
 const (
-	testKnowledgeBaseCode       = "KB-1"
-	routeResolverEffectiveModel = "text-embedding-3-large"
-	customCollectionName        = "knowledge_custom"
-	sharedCollectionName        = "shared_collection"
-	aliasTargetCollectionName   = "magic_knowledge_20260317"
+	testKnowledgeBaseCode         = "KB-1"
+	routeResolverEffectiveModel   = "text-embedding-3-large"
+	switchEmbeddingModelTestModel = "test-embed"
+	customCollectionName          = "knowledge_custom"
+	sharedCollectionName          = "shared_collection"
+	aliasTargetCollectionName     = "magic_knowledge_20260317"
 )
 
 var (
@@ -29,6 +31,7 @@ var (
 	errStubNotImplemented      = errors.New("not implemented")
 	errDeleteFragmentsFailed   = errors.New("delete fragments failed")
 	errResolverShouldNotRun    = errors.New("resolver should not be called")
+	errUpsertCollectionMeta    = errors.New("upsert collection meta failed")
 )
 
 func TestKnowledgeBaseDomainServiceSaveCreatesCollectionWhenMissing(t *testing.T) {
@@ -93,6 +96,186 @@ func TestKnowledgeBaseDomainServiceSaveUsesSelectorDefaultSparseBackend(t *testi
 	}
 	if got := repo.upsertedMeta[0].SparseBackend; got != shared.SparseBackendClientBM25QdrantIDFV1 {
 		t.Fatalf("expected sparse backend %q, got %q", shared.SparseBackendClientBM25QdrantIDFV1, got)
+	}
+}
+
+func TestKnowledgeBaseDomainServiceSwitchEmbeddingModelMetaCreatesCollectionAndUpsertsMeta(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubKnowledgeBaseRepository{}
+	vectorRepo := &stubVectorDBManagementRepository{collectionExists: false}
+	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
+
+	meta, err := svc.SwitchEmbeddingModelMeta(context.Background(), switchEmbeddingModelTestModel, 42)
+	if err != nil {
+		t.Fatalf("SwitchEmbeddingModelMeta returned error: %v", err)
+	}
+	if !strings.HasPrefix(meta.PhysicalCollectionName, constants.KnowledgeBaseCollectionName+"_model_") {
+		t.Fatalf("unexpected physical collection name: %q", meta.PhysicalCollectionName)
+	}
+	if vectorRepo.createdCollection != meta.PhysicalCollectionName || vectorRepo.createdVectorSize != 42 {
+		t.Fatalf("unexpected created collection: %#v", vectorRepo)
+	}
+	if vectorRepo.ensureAliasName != constants.KnowledgeBaseCollectionName || vectorRepo.ensureAliasTarget != meta.PhysicalCollectionName {
+		t.Fatalf("unexpected alias target: %#v", vectorRepo)
+	}
+	if vectorRepo.deletedCollection != "" {
+		t.Fatalf("expected old collections to be preserved, got deleted=%q", vectorRepo.deletedCollection)
+	}
+	if len(repo.upsertedMeta) != 1 {
+		t.Fatalf("expected one upserted meta, got %d", len(repo.upsertedMeta))
+	}
+	if got := repo.upsertedMeta[0]; got.CollectionName != constants.KnowledgeBaseCollectionName ||
+		got.PhysicalCollectionName != meta.PhysicalCollectionName ||
+		got.Model != switchEmbeddingModelTestModel ||
+		got.VectorDimension != 42 ||
+		got.SparseBackend != shared.SparseBackendQdrantBM25ZHV1 {
+		t.Fatalf("unexpected upserted meta: %+v", got)
+	}
+}
+
+func TestKnowledgeBaseDomainServiceSwitchEmbeddingModelMetaKeepsLegacyLogicalCollection(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubKnowledgeBaseRepository{}
+	vectorRepo := &stubVectorDBManagementRepository{
+		collectionExistsByName: map[string]bool{
+			constants.KnowledgeBaseCollectionName: true,
+		},
+	}
+	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
+
+	meta, err := svc.SwitchEmbeddingModelMeta(context.Background(), switchEmbeddingModelTestModel, 42)
+	if err != nil {
+		t.Fatalf("SwitchEmbeddingModelMeta returned error: %v", err)
+	}
+	if vectorRepo.createdCollection != meta.PhysicalCollectionName || vectorRepo.createdVectorSize != 42 {
+		t.Fatalf("unexpected created collection: %#v", vectorRepo)
+	}
+	if vectorRepo.ensureAliasName != "" || vectorRepo.swapAliasName != "" || vectorRepo.deletedCollection != "" {
+		t.Fatalf("expected legacy logical collection to be preserved without alias mutation, got %#v", vectorRepo)
+	}
+	if len(repo.upsertedMeta) != 1 {
+		t.Fatalf("expected one upserted meta, got %d", len(repo.upsertedMeta))
+	}
+	if got := repo.upsertedMeta[0]; got.CollectionName != constants.KnowledgeBaseCollectionName ||
+		got.PhysicalCollectionName != meta.PhysicalCollectionName ||
+		got.Model != switchEmbeddingModelTestModel ||
+		got.VectorDimension != 42 {
+		t.Fatalf("unexpected upserted meta: %+v", got)
+	}
+}
+
+func TestKnowledgeBaseDomainServiceSwitchEmbeddingModelMetaRollsBackAliasWhenMetaUpsertFails(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubKnowledgeBaseRepository{upsertMetaErr: errUpsertCollectionMeta}
+	vectorRepo := &stubVectorDBManagementRepository{
+		collectionExists: false,
+		aliasExists:      true,
+		aliasTarget:      aliasTargetCollectionName,
+	}
+	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
+
+	_, err := svc.SwitchEmbeddingModelMeta(context.Background(), switchEmbeddingModelTestModel, 42)
+	if !errors.Is(err, errUpsertCollectionMeta) {
+		t.Fatalf("expected upsert error, got %v", err)
+	}
+	if vectorRepo.swapAliasName != constants.KnowledgeBaseCollectionName {
+		t.Fatalf("expected alias rollback, got %#v", vectorRepo)
+	}
+	if vectorRepo.swapAliasOldTarget != vectorRepo.ensureAliasTarget || vectorRepo.swapAliasNewTarget != aliasTargetCollectionName {
+		t.Fatalf("unexpected alias rollback target: %#v", vectorRepo)
+	}
+	if vectorRepo.deletedCollection != "" {
+		t.Fatalf("expected rollback to preserve collections, got deleted=%q", vectorRepo.deletedCollection)
+	}
+}
+
+func TestKnowledgeBaseDomainServiceSwitchEmbeddingModelMetaReusesMatchingCollection(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubKnowledgeBaseRepository{}
+	vectorRepo := &stubVectorDBManagementRepository{
+		collectionExists: true,
+		collectionInfo: &shared.VectorCollectionInfo{
+			VectorSize:          42,
+			Points:              3,
+			HasNamedDenseVector: true,
+			HasSparseVector:     true,
+		},
+	}
+	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
+
+	meta, err := svc.SwitchEmbeddingModelMeta(context.Background(), switchEmbeddingModelTestModel, 42)
+	if err != nil {
+		t.Fatalf("SwitchEmbeddingModelMeta returned error: %v", err)
+	}
+	if vectorRepo.createdCollection != "" {
+		t.Fatalf("expected existing collection reuse, got created=%q", vectorRepo.createdCollection)
+	}
+	if vectorRepo.deletedCollection != "" {
+		t.Fatalf("expected existing collection to be preserved, got deleted=%q", vectorRepo.deletedCollection)
+	}
+	if vectorRepo.lastPayloadCollection != meta.PhysicalCollectionName {
+		t.Fatalf("expected payload indexes on physical collection, got %q", vectorRepo.lastPayloadCollection)
+	}
+}
+
+func TestKnowledgeBaseDomainServiceSwitchEmbeddingModelMetaRecreatesMismatchedCollection(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubKnowledgeBaseRepository{}
+	vectorRepo := &stubVectorDBManagementRepository{
+		collectionExists: true,
+		collectionInfo: &shared.VectorCollectionInfo{
+			VectorSize:          1536,
+			HasNamedDenseVector: true,
+			HasSparseVector:     true,
+		},
+	}
+	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
+
+	meta, err := svc.SwitchEmbeddingModelMeta(context.Background(), switchEmbeddingModelTestModel, 42)
+	if err != nil {
+		t.Fatalf("SwitchEmbeddingModelMeta returned error: %v", err)
+	}
+	if vectorRepo.deletedCollection != meta.PhysicalCollectionName {
+		t.Fatalf("expected mismatched collection deleted, got %q want %q", vectorRepo.deletedCollection, meta.PhysicalCollectionName)
+	}
+	if vectorRepo.createdCollection != meta.PhysicalCollectionName || vectorRepo.createdVectorSize != 42 {
+		t.Fatalf("unexpected recreated collection: %#v", vectorRepo)
+	}
+}
+
+func TestKnowledgeBaseDomainServiceSaveAfterSwitchUsesSwitchedModel(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubKnowledgeBaseRepository{}
+	vectorRepo := &stubVectorDBManagementRepository{collectionExists: false}
+	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
+
+	meta, err := svc.SwitchEmbeddingModelMeta(context.Background(), switchEmbeddingModelTestModel, 42)
+	if err != nil {
+		t.Fatalf("SwitchEmbeddingModelMeta returned error: %v", err)
+	}
+
+	vectorRepo.collectionExists = true
+	vectorRepo.collectionInfo = &shared.VectorCollectionInfo{
+		Name:                meta.PhysicalCollectionName,
+		VectorSize:          42,
+		HasNamedDenseVector: true,
+		HasSparseVector:     true,
+	}
+	kb := &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "新知识库"}
+	if err := svc.Save(context.Background(), kb); err != nil {
+		t.Fatalf("Save returned error: %v", err)
+	}
+	if kb.Model != switchEmbeddingModelTestModel || kb.EmbeddingConfig == nil || kb.EmbeddingConfig.ModelID != switchEmbeddingModelTestModel {
+		t.Fatalf("expected new knowledge base to use switched model, got model=%q embedding=%#v", kb.Model, kb.EmbeddingConfig)
+	}
+	if kb.ResolvedRoute == nil || kb.ResolvedRoute.VectorCollectionName != meta.PhysicalCollectionName {
+		t.Fatalf("expected switched physical collection route, got %#v", kb.ResolvedRoute)
 	}
 }
 
@@ -539,6 +722,7 @@ type stubKnowledgeBaseRepository struct {
 	metaErr                error
 	getCollectionMetaCalls int
 	upsertedMeta           []sharedroute.CollectionMeta
+	upsertMetaErr          error
 }
 
 func (s *stubKnowledgeBaseRepository) Save(_ context.Context, kb *kbentity.KnowledgeBase) error {
@@ -588,27 +772,47 @@ func (s *stubKnowledgeBaseRepository) UpdateProgress(_ context.Context, id int64
 	return nil
 }
 
+func (s *stubKnowledgeBaseRepository) UpdateWordCount(_ context.Context, id int64, _ int) error {
+	s.updatedProgressID = id
+	return nil
+}
+
+func (s *stubKnowledgeBaseRepository) RefreshWordCountByDocumentSum(context.Context, string, string, string) error {
+	return nil
+}
+
 func (s *stubKnowledgeBaseRepository) GetCollectionMeta(context.Context) (sharedroute.CollectionMeta, error) {
 	s.getCollectionMetaCalls++
 	return s.meta, s.metaErr
 }
 
 func (s *stubKnowledgeBaseRepository) UpsertCollectionMeta(_ context.Context, meta sharedroute.CollectionMeta) error {
+	if s.upsertMetaErr != nil {
+		return s.upsertMetaErr
+	}
 	s.upsertedMeta = append(s.upsertedMeta, meta)
+	s.meta = meta
 	return nil
 }
 
 type stubVectorDBManagementRepository struct {
-	collectionExists bool
-	collectionInfo   *shared.VectorCollectionInfo
-	aliasTarget      string
-	aliasExists      bool
-	defaultSelection shared.SparseBackendSelection
-	selections       map[string]shared.SparseBackendSelection
+	collectionExists       bool
+	collectionExistsByName map[string]bool
+	collectionInfo         *shared.VectorCollectionInfo
+	aliasTarget            string
+	aliasExists            bool
+	defaultSelection       shared.SparseBackendSelection
+	selections             map[string]shared.SparseBackendSelection
 
 	createdCollection      string
 	createdVectorSize      int64
 	lastAliasName          string
+	ensureAliasName        string
+	ensureAliasTarget      string
+	swapAliasName          string
+	swapAliasOldTarget     string
+	swapAliasNewTarget     string
+	deleteAliasName        string
 	lastCollectionInfoName string
 	lastPayloadCollection  string
 	lastPayloadSpecs       []shared.PayloadIndexSpec
@@ -624,7 +828,12 @@ func (s *stubVectorDBManagementRepository) CreateCollection(_ context.Context, n
 	return nil
 }
 
-func (s *stubVectorDBManagementRepository) CollectionExists(context.Context, string) (bool, error) {
+func (s *stubVectorDBManagementRepository) CollectionExists(_ context.Context, name string) (bool, error) {
+	if s.collectionExistsByName != nil {
+		if exists, ok := s.collectionExistsByName[name]; ok {
+			return exists, nil
+		}
+	}
 	return s.collectionExists, nil
 }
 
@@ -644,15 +853,21 @@ func (s *stubVectorDBManagementRepository) GetAliasTarget(_ context.Context, ali
 	return s.aliasTarget, s.aliasExists, nil
 }
 
-func (*stubVectorDBManagementRepository) EnsureAlias(context.Context, string, string) error {
+func (s *stubVectorDBManagementRepository) EnsureAlias(_ context.Context, alias, target string) error {
+	s.ensureAliasName = alias
+	s.ensureAliasTarget = target
 	return nil
 }
 
-func (*stubVectorDBManagementRepository) SwapAliasAtomically(context.Context, string, string, string) error {
+func (s *stubVectorDBManagementRepository) SwapAliasAtomically(_ context.Context, alias, oldTarget, newTarget string) error {
+	s.swapAliasName = alias
+	s.swapAliasOldTarget = oldTarget
+	s.swapAliasNewTarget = newTarget
 	return nil
 }
 
-func (*stubVectorDBManagementRepository) DeleteAlias(context.Context, string) error {
+func (s *stubVectorDBManagementRepository) DeleteAlias(_ context.Context, alias string) error {
+	s.deleteAliasName = alias
 	return nil
 }
 
@@ -660,7 +875,8 @@ func (*stubVectorDBManagementRepository) ListCollections(context.Context) ([]str
 	return nil, nil
 }
 
-func (s *stubVectorDBManagementRepository) DeleteCollection(context.Context, string) error {
+func (s *stubVectorDBManagementRepository) DeleteCollection(_ context.Context, name string) error {
+	s.deletedCollection = name
 	return nil
 }
 

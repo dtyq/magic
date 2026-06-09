@@ -13,6 +13,7 @@ import type {
 	ReferenceAssetTypeCounts,
 	ReferenceResourceType,
 } from "../MessageEditor/reference-assets/reference-resource.types"
+import type { ReferenceBindingMode } from "../MessageEditor/reference-assets/referenceBinding"
 
 /** useVideoEditorConfig 的入参 */
 export interface UseVideoEditorConfigOptions {
@@ -88,6 +89,8 @@ export interface VideoEditorConfig {
 	currentFrameImages: Array<string | undefined>
 	frameImageInfos: Array<{ src: string; fileName: string; path: string } | undefined>
 	currentReferenceImages: string[]
+	protectedReferencePaths: string[]
+	referenceBindingMode: ReferenceBindingMode
 	referenceImageInfos: Array<{
 		src: string
 		fileName: string

@@ -62,6 +62,9 @@ export function useTopicExamples({
 				cachedExampleList = data
 				return data
 			})
+			.catch(() => {
+				return {}
+			})
 			.finally(() => {
 				fetchPromise = null
 			})

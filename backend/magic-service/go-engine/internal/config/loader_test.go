@@ -178,12 +178,12 @@ func TestNew_PortEnvOverride_IntParsing(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 	// server.port 使用带默认值的环境变量，确保整型解析正确
-	content := []byte("server:\n  port: ${SERVER_PORT:=81}\n")
+	content := []byte("server:\n  port: ${GO_SERVER_PORT:=81}\n")
 	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
 		t.Fatalf("write temp config: %v", err)
 	}
 	t.Setenv("CONFIG_FILE", cfgPath)
-	t.Setenv("SERVER_PORT", "9090")
+	t.Setenv("GO_SERVER_PORT", "9090")
 	cfg := config.New()
 	if cfg.Server.Port != 9090 {
 		t.Fatalf("expected server.port=9090, got %d", cfg.Server.Port)
@@ -328,6 +328,22 @@ func TestNew_ServerEnabled_UsesEnvOverrideTrue(t *testing.T) {
 	}
 	if !*cfg.Server.Enabled {
 		t.Fatalf("expected server.enabled=true, got false")
+	}
+}
+
+func TestNew_ServerStripPathPrefixUsesEnvOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := []byte("server:\n  stripPathPrefix: ${SERVER_STRIP_PATH_PREFIX:-}\n")
+	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
+		t.Fatalf("write temp config: %v", err)
+	}
+	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("SERVER_STRIP_PATH_PREFIX", "/go")
+
+	cfg := config.New()
+	if cfg.Server.StripPathPrefix != "/go" {
+		t.Fatalf("expected server.stripPathPrefix=/go, got %q", cfg.Server.StripPathPrefix)
 	}
 }
 

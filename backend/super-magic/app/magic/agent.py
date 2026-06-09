@@ -35,7 +35,7 @@ from agentlang.config.config import config
 from agentlang.llms.error_classifier import LLMErrorClassifier, LLMErrorSnapshot
 from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
-from app.streaming.message_builder import LLMStreamingMessageBuilder
+from agentlang.llms.retry_policy import is_non_retryable_model_config_error
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage, TokenUsageCollection
 from agentlang.llms.token_usage.report import TokenUsageReport
@@ -54,6 +54,7 @@ from app.core.entity.final_task_state import (
     FinalTaskStateCode,
     build_final_task_state,
 )
+from app.core.models.agent_model_context import TextModelState
 from app.core.entity.message.server_message import TaskStatus
 from app.core.entity.message.client_message import MemoryItem
 
@@ -234,9 +235,6 @@ class Agent(BaseAgent):
         logger.info(f"初始化 agent: {self.agent_name}")
         self._initialize_agent()
 
-        # 初始化完成后，更新context中的llm
-        self.agent_context.llm = self.llm_name
-
         # agent id 处理
         if self.agent_context.is_main_agent:
             if agent_id:
@@ -262,6 +260,7 @@ class Agent(BaseAgent):
             agent_id=self.id,
             agent_model_id=self.llm_id,
         )
+        self._compact_request_pending_llm_call = False
 
         # 初始化 ChatHistory 实例
         self.chat_history = ChatHistory(
@@ -388,13 +387,10 @@ class Agent(BaseAgent):
             raise ValueError("Prompt is not set")
         if not self.llm_id:
             raise ValueError("LLM model is not set")
-        self.llm_client = LLMFactory.get(self.llm_id)
-        model_config = LLMFactory.get_model_config(self.llm_id)
-        self.llm_name = model_config.name
-        self.model_config = model_config
-        # 去掉 self.model_config 中的 api_key 和 api_base_url 等敏感信息
-        self.model_config.api_key = None
-        self.model_config.api_base_url = None
+
+        # Agent 初始化阶段只绑定配置模型 ID，不读取模型配置。
+        # 请求模型 / 会话模型 / Agent 默认模型的最终选择由 Dispatcher 统一写入 model_context。
+        self.agent_context.model_context.set_configured_text_model(self.llm_id)
 
         # 准备静态变量并应用到 system_prompt
         static_vars = self._prepare_prompt_static_variables()
@@ -437,16 +433,6 @@ class Agent(BaseAgent):
         Returns:
             Dict[str, str]: 包含静态变量名和对应值的字典
         """
-        # 计算推荐的最大输出token数，基于当前模型配置的80%
-        # 如果 model_config 尚未设置，使用默认值
-        if hasattr(self, 'model_config') and self.model_config:
-            recommended_max_output_tokens = int(self.model_config.max_output_tokens * 0.8)
-            logger.debug(f"model_config 已设置，使用 recommended_max_output_tokens: {recommended_max_output_tokens}")
-        else:
-            # 使用一个合理的默认值 4096
-            recommended_max_output_tokens = 4096
-            logger.debug("model_config 尚未设置，使用默认 recommended_max_output_tokens: 4096")
-
         # 读取幻灯片模板文件内容
         slide_template_html = ""
         try:
@@ -482,7 +468,6 @@ class Agent(BaseAgent):
             "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
             "project_root": str(PathManager.get_project_root()),
             "cwd": self.agent_context._workspace_dir,
-            "recommended_max_output_tokens": recommended_max_output_tokens,
             "python_version": sys.version,
             "nodejs_version": subprocess.check_output(["node", "--version"]).decode("utf-8").strip(),
             "typescript_version": subprocess.check_output(["tsc", "--version"]).decode("utf-8").strip(),
@@ -743,11 +728,21 @@ class Agent(BaseAgent):
                 status_code=snapshot.status_code,
             )
 
+        if is_non_retryable_model_config_error(exception):
+            return build_final_task_state(
+                FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                vendor_message=str(exception),
+                custom_message=self._build_user_friendly_custom_message(exception, is_llm_path=True),
+            )
+
         return None
 
     def _classify_llm_exception_for_user(self, exception: Exception) -> str | None:
         """根据 LLM 异常类型返回用户友好的 i18n key，返回 None 则使用默认文案。"""
         from openai import APITimeoutError, APIConnectionError, APIStatusError
+
+        if is_non_retryable_model_config_error(exception):
+            return "messages.llm_provider_config_error"
 
         if isinstance(exception, (StreamChunkTimeoutError, StreamInterruptedError, asyncio.TimeoutError, APITimeoutError)):
             return "messages.llm_provider_timeout"
@@ -845,16 +840,16 @@ class Agent(BaseAgent):
 
         # 在首次 build_context_update 前设置输出预算，确保 output_size_limit 能写入 initial_context
         # set_output_token_budget 只在首次设置时生效，_handle_agent_loop 里的调用会成为幂等 no-op
-        budget = self.model_config.max_output_tokens
+        budget = self.agent_context.model_context.get_output_token_budget(default=4096)
         self.agent_context.horizon.set_output_token_budget(budget)
 
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
         # 若历史末尾存在未完成的 tool call 序列，跳过注入避免破坏序列完整性
         try:
             if self.chat_history._is_tool_call_sequence_complete():
-                self._sync_horizon_llm_model_info()
-                ctx_update = await self.agent_context.horizon.build_context_update(
-                    injection_point="before_first_llm"
+                ctx_update = await self._build_horizon_context_update_safely(
+                    injection_point="before_first_llm",
+                    log_context="注入点1",
                 )
                 if ctx_update:
                     await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
@@ -971,11 +966,7 @@ class Agent(BaseAgent):
         """处理 agent 循环 - 使用Context对象简化参数传递和状态管理"""
         loop_state = AgentLoopState()
 
-        # 初始输出预算：直接使用模型配置的 max_output_tokens，只设置一次
-        if hasattr(self, "model_config") and self.model_config:
-            initial_budget = self.model_config.max_output_tokens
-        else:
-            initial_budget = 4096
+        initial_budget = self.agent_context.model_context.get_output_token_budget(default=4096)
         self.agent_context.horizon.set_output_token_budget(initial_budget)
 
         while loop_state.should_continue:
@@ -983,8 +974,8 @@ class Agent(BaseAgent):
             self.agent_context.update_activity_time()
 
             # 若上一轮 LLM 未调用 compact_chat_history 工具（调用了其他工具），
-            # _pre_compact_model_id 仍存在，在新一轮 LLM 调用前还原模型
-            self._restore_pre_compact_model(reason="LLM 未调用压缩工具，新一轮调用前还原")
+            # compact 临时模型仍存在，在新一轮 LLM 调用前还原模型
+            self._restore_stale_compact_model_before_loop()
 
             try:
                 # 如果预检测到pending工具调用，直接使用它
@@ -1167,9 +1158,9 @@ class Agent(BaseAgent):
                 # 无论是否 should_exit 都注入，因为 hidden message 会留在 chat history 供后续 LLM call 读取
                 try:
                     if tool_result.inject_horizon_after_tools:
-                        self._sync_horizon_llm_model_info()
-                        ctx_update = await self.agent_context.horizon.build_context_update(
-                            injection_point="after_tool_result"
+                        ctx_update = await self._build_horizon_context_update_safely(
+                            injection_point="after_tool_result",
+                            log_context="tool result 后",
                         )
                         if ctx_update:
                             await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
@@ -1491,19 +1482,15 @@ class Agent(BaseAgent):
         token_count = await self.chat_history.tokens_count()
         message_count = len(self.chat_history.messages)
 
-        # Get compact thresholds from config
-        token_threshold = self.compaction_config.token_threshold
+        runtime_model_id = self.agent_context.model_context.current_text_model_id or self.llm_id
+        token_threshold = self.compaction_config.resolve_token_threshold(runtime_model_id)
         message_threshold = self.compaction_config.max_conversation_rounds
 
         # Check if compact is needed
         if token_count > token_threshold or message_count > message_threshold:
-            # 若末尾消息已是压缩请求（reactive compact 刚注入），跳过重复注入
-            if self.chat_history.messages:
-                last_msg = self.chat_history.messages[-1]
-                last_content = getattr(last_msg, "content", "") or ""
-                if "compact_chat_history" in last_content:
-                    logger.info("已存在待处理的 compact 请求，跳过重复注入")
-                    return False
+            if self._has_pending_compact_request():
+                logger.info("已存在待处理的 compact 请求，跳过重复注入")
+                return False
 
             logger.info(f"Triggering compact: tokens={token_count}/{token_threshold}, messages={message_count}/{message_threshold}")
 
@@ -1523,6 +1510,18 @@ class Agent(BaseAgent):
 
         return False
 
+    def _has_pending_compact_request(self) -> bool:
+        """判断是否存在待执行的 compact 请求。"""
+        return self._compact_request_pending_llm_call
+
+    def _mark_compact_request_pending_llm_call(self) -> None:
+        """标记已注入 compact 请求，下一次 LLM 调用前不要还原 compact 模型。"""
+        self._compact_request_pending_llm_call = True
+
+    def _clear_compact_request_pending_llm_call(self) -> None:
+        """清理 compact 请求待执行标记。"""
+        self._compact_request_pending_llm_call = False
+
     async def _try_compact_chat_history_force(self) -> bool:
         """强制触发上下文压缩（不检查阈值），用于 reactive compact 场景。
 
@@ -1535,6 +1534,9 @@ class Agent(BaseAgent):
         message_count = len(self.chat_history.messages)
         if message_count < 4:
             logger.warning(f"消息数过少 ({message_count})，无法执行 reactive compact")
+            return False
+        if self._has_pending_compact_request():
+            logger.info("已存在待处理的 compact 请求，跳过 reactive compact 重复注入")
             return False
 
         logger.info(f"强制触发 reactive compact: messages={message_count}")
@@ -1549,45 +1551,49 @@ class Agent(BaseAgent):
     def _activate_compact_model(self) -> None:
         """切换到 compact 专属模型（如果配置了的话），并保存压缩前的模型状态
 
-        若 _pre_compact_model_id 已存在，说明上次压缩请求 LLM 未响应工具调用，
+        若已存在临时 compact 模型，说明上次压缩请求 LLM 未响应工具调用，
         模型已处于 compact 状态，跳过重复切换以避免覆盖原始模型记录。
         还原操作由 _restore_pre_compact_model 负责。
         """
         compact_model = get_compact_model_id()
+        model_context = self.agent_context.model_context
         if compact_model:
-            if hasattr(self, '_pre_compact_model_id'):
+            if model_context.has_active_compact_text_model():
                 # 上次压缩请求尚未完成（LLM 未调用 compact_chat_history 工具），不重复切换
                 logger.info(f"执行压缩，compact 专属模型已处于激活状态: {compact_model}")
             else:
-                # 保存压缩前的 dynamic_model_id 状态
-                if self.agent_context.has_dynamic_model_id():
-                    self._pre_compact_model_id = self.agent_context.get_dynamic_model_id()
-                else:
-                    self._pre_compact_model_id = None
-                self.agent_context.set_dynamic_model_id(compact_model)
+                model_context.activate_compact_text_model(compact_model)
                 logger.info(f"执行压缩，使用 compact 专属模型: {compact_model}")
         else:
-            effective_model_id, _ = self._resolve_effective_model_info()
-            logger.info(f"执行压缩，使用主 Agent 当前模型: {effective_model_id}")
+            logger.info(f"执行压缩，使用主 Agent 当前模型: {model_context.current_text_model_id or self.llm_id}")
 
     def _restore_pre_compact_model(self, reason: str = "压缩完成") -> None:
         """还原 compact 前保存的模型状态
 
-        若 _pre_compact_model_id 不存在，说明未切换过模型，直接跳过。
+        若不存在临时 compact 模型，说明未切换过模型，直接跳过。
 
         Args:
             reason: 还原原因，用于日志说明
         """
-        if not hasattr(self, '_pre_compact_model_id'):
+        model_context = self.agent_context.model_context
+        if not model_context.has_active_compact_text_model():
             return
-        original_model = self._pre_compact_model_id
-        del self._pre_compact_model_id
-        if original_model is not None:
-            self.agent_context.set_dynamic_model_id(original_model)
-            logger.info(f"{reason}，已恢复原 dynamic_model_id: {original_model}")
+        restored = model_context.restore_pre_compact_text_model()
+        current_model_id = model_context.current_text_model_id or self.llm_id
+        if restored:
+            logger.info(f"{reason}，已恢复压缩前文本模型: {current_model_id}")
         else:
-            self.agent_context.clear_dynamic_model_id()
-            logger.info(f"{reason}，已清除 compact 专属模型，恢复主 Agent 默认模型")
+            logger.info(f"{reason}，未检测到需要恢复的 compact 文本模型")
+
+    def _restore_stale_compact_model_before_loop(self) -> None:
+        """新一轮 LLM 调用前，恢复未被 compact 请求占用的临时 compact 模型。"""
+        model_context = self.agent_context.model_context
+        if not model_context.has_active_compact_text_model():
+            return
+        if self._has_pending_compact_request():
+            logger.debug("检测到待处理的 compact 请求，保留 compact 临时模型")
+            return
+        self._restore_pre_compact_model(reason="LLM 未调用压缩工具，新一轮调用前还原")
 
     def _build_compact_request(self) -> str:
         """构建压缩请求内容，同时切换到 compact 专属模型（如果配置了的话）
@@ -1596,6 +1602,7 @@ class Agent(BaseAgent):
         无论压缩成功还是失败都能正确恢复。
         """
         self._activate_compact_model()
+        self._mark_compact_request_pending_llm_call()
 
         # 被动触发：直接注入 SKILL.md 内容，无需 Agent 额外调用 read_skills
         return f"The conversation is too long and must be compacted now. You must call the `compact_chat_history` tool immediately.\n\n{self._compact_skill_content}"
@@ -1654,6 +1661,40 @@ class Agent(BaseAgent):
                     return snapshot
         return None
 
+    async def _try_fallback_compact_model_once(
+        self,
+        exception: Exception,
+        *,
+        non_stream_timeout: Optional[int] = None,
+    ) -> Optional[LLMResponseContext]:
+        """compact 临时模型失败时，恢复压缩前模型并非流式重试一次。"""
+        model_context = self.agent_context.model_context
+        if not model_context.consume_compact_text_model_fallback():
+            return None
+
+        failed_model_id = model_context.current_text_model_id or self.llm_id
+        logger.warning(
+            f"compact 临时模型请求失败，回退压缩前模型重试一次: "
+            f"failed_model={failed_model_id}, error={exception!r}"
+        )
+        self._restore_pre_compact_model(reason="compact 临时模型请求失败，回退当前模型重试")
+
+        retry_model_id = model_context.current_text_model_id or self.llm_id
+        logger.info(f"compact fallback 使用文本模型重试: {retry_model_id}")
+        return await self._prepare_and_call_llm(
+            use_stream=False,
+            non_stream_timeout=non_stream_timeout or config.get("llm.non_stream_timeout_seconds", 600),
+        )
+
+    def _log_agent_loop_exception(self, exception: Exception) -> None:
+        """记录 agent loop 异常，已分类的模型配置错误不打印完整堆栈。"""
+        if is_non_retryable_model_config_error(exception):
+            logger.warning(f"Agent循环遇到模型配置错误，进入终态处理: {exception}")
+            return
+
+        logger.error(f"Agent循环执行过程中发生错误: {exception!r}")
+        logger.error(f"错误堆栈: {traceback.format_exc()}")
+
     async def _interruptible_sleep(self, seconds: float) -> None:
         """可中断的等待，监听 interruption_event 以快速响应用户取消"""
         interrupt_event = self.agent_context.get_interruption_event()
@@ -1697,8 +1738,14 @@ class Agent(BaseAgent):
             except ResourceLimitExceededException:
                 raise  # 平台业务限制（积分/并发），直接终止
             except Exception as e:
+                compact_fallback = await self._try_fallback_compact_model_once(e)
+                if compact_fallback is not None:
+                    return compact_fallback
                 if self._find_context_window_error(e):
                     raise  # 上下文超长走 compact 路径
+                if is_non_retryable_model_config_error(e):
+                    logger.warning(f"流式请求遇到模型配置错误，不降级不重试，直接抛出: {e}")
+                    raise
                 # 确定性错误：不降级非流式，也不重试。
                 # 这类错误换成非流式请求同样会失败（模型不存在、API Key 无效、消息序列损坏等），
                 # 必须先检查此条件再走降级分支，否则会白白浪费一轮非流式请求。
@@ -1743,6 +1790,12 @@ class Agent(BaseAgent):
             except ResourceLimitExceededException:
                 raise  # 平台业务限制，直接终止
             except Exception as e:
+                compact_fallback = await self._try_fallback_compact_model_once(
+                    e,
+                    non_stream_timeout=timeout,
+                )
+                if compact_fallback is not None:
+                    return compact_fallback
                 if self._find_context_window_error(e):
                     if not loop_state.reactive_compact_attempted:
                         loop_state.reactive_compact_attempted = True
@@ -1755,6 +1808,9 @@ class Agent(BaseAgent):
                 # 确定性错误：重试必然失败，直接抛出由上层走终态逻辑。
                 # 400 消息序列损坏时，每次重试还会额外注入 recovery user 消息，
                 # 反而让序列更乱，形成死亡螺旋，必须在退避重试逻辑之前先拦截。
+                if is_non_retryable_model_config_error(e):
+                    logger.warning(f"非流式请求遇到模型配置错误，不重试，直接抛出: {e}")
+                    raise
                 if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
                     raise
 
@@ -1827,8 +1883,7 @@ class Agent(BaseAgent):
             self.set_agent_state(AgentState.ERROR)
             raise ValueError("无法准备与LLM的对话。")
 
-        # 🔥 检测并更新动态模型信息（确保记录的模型信息与实际使用的一致）
-        effective_model_id, effective_model_name = self._resolve_effective_model_info()
+        text_model_state = self._resolve_current_text_model()
 
         # _call_llm 的异常全部透传给 _call_llm_with_retry 做分类处理
         llm_start_time = time.time()
@@ -1844,31 +1899,22 @@ class Agent(BaseAgent):
         # 响应解析阶段：异常包装为 LLMCallRequestException 以区分 provider 异常
         try:
             token_usage = LLMFactory.token_tracker.extract_chat_history_usage_data(chat_response)
-            token_usage.model_id = effective_model_id
-            token_usage.model_name = effective_model_name
-            try:
-                model_config = LLMFactory.get_model_config(effective_model_id)
-                token_usage.resolved_model_id = model_config.resolved_model_id or None
-            except Exception:
-                pass
+            token_usage.model_id = text_model_state.model_id
+            token_usage.model_name = text_model_state.model_name
+            token_usage.resolved_model_id = text_model_state.resolved_model_id
 
             # 更新 horizon：实际生效的 LM 模型 + 当前上下文窗口使用量
             try:
-                horizon_model_info = self._build_horizon_llm_model_info(
-                    effective_model_id=effective_model_id,
-                    effective_model_name=effective_model_name,
-                )
-                context_window_total = (
-                    self.model_config.max_context_tokens
-                    if hasattr(self, "model_config") and self.model_config
-                    else 0
-                )
+                horizon_model_info = self._build_horizon_llm_model_info(text_model_state)
+                context_window_total = text_model_state.max_context_tokens
                 self.agent_context.horizon.update_llm_model(
                     horizon_model_info.model_id,
                     horizon_model_info.model_name,
                     horizon_model_info.description,
                 )
                 self.agent_context.horizon.update_context_usage(token_usage.input_tokens, context_window_total)
+                # 记录当前模型的最大上下文 token 数，供前端实时展示
+                token_usage.max_context_tokens = context_window_total or None
             except Exception as _horizon_err:
                 logger.warning(f"[AgentHorizon] 更新模型/上下文用量失败: {_horizon_err}")
 
@@ -1912,77 +1958,50 @@ class Agent(BaseAgent):
         except Exception as e:
             raise LLMCallRequestException(e) from e
 
-    def _resolve_effective_model_info(self) -> tuple[str, str]:
-        """
-        解析实际生效的模型信息（考虑动态模型选择）
-
-        Returns:
-            tuple[str, str]: (实际使用的model_id, 实际使用的model_name)
-        """
-        # 检查是否有动态模型ID设置
-        if self.agent_context.has_dynamic_model_id():
-            dynamic_model_id = self.agent_context.get_dynamic_model_id()
-            if dynamic_model_id and dynamic_model_id.strip():
-                try:
-                    LLMFactory.get(dynamic_model_id)
-                    model_config = LLMFactory.get_model_config(dynamic_model_id)
-                    dynamic_model_name = model_config.name
-                    resolved_model_id = model_config.resolved_model_id
-
-                    # 只在首次使用动态模型或模型发生变化时记录INFO日志
-                    previous_model = getattr(self, '_last_effective_model_id', None)
-                    if previous_model != dynamic_model_id:
-                        logger.info(f"切换到动态模型: {resolved_model_id} ({dynamic_model_name})")
-                        self._last_effective_model_id = dynamic_model_id
-                    else:
-                        logger.debug(f"继续使用动态模型: {resolved_model_id} ({dynamic_model_name})")
-
-                    return dynamic_model_id, dynamic_model_name
-                except Exception as e:
-                    logger.warning(f"获取动态模型 {dynamic_model_id} 配置失败: {e}，使用Agent默认模型")
-
-        # 兜底：使用Agent初始化时的模型信息
-        previous_model = getattr(self, '_last_effective_model_id', None)
-        if previous_model != self.llm_id:
-            logger.info(f"📋 切换到Agent默认模型: {self.llm_id} ({self.llm_name})")
-            self._last_effective_model_id = self.llm_id
-        else:
-            logger.debug(f"继续使用Agent默认模型: {self.llm_id} ({self.llm_name})")
-
-        return self.llm_id, self.llm_name
+    def _resolve_current_text_model(self) -> TextModelState:
+        """解析当前运行时文本模型。"""
+        return self.agent_context.model_context.resolve_text_model()
 
     def _build_horizon_llm_model_info(
         self,
-        *,
-        effective_model_id: Optional[str] = None,
-        effective_model_name: Optional[str] = None,
+        text_model_state: Optional[TextModelState] = None,
     ) -> HorizonLlmModelInfo:
         """把当前生效模型标准化为注入给 horizon 的展示态信息。"""
-        if not effective_model_id or not effective_model_name:
-            effective_model_id, effective_model_name = self._resolve_effective_model_info()
+        if text_model_state is None:
+            text_model_state = self._resolve_current_text_model()
 
-        # 对 LLM 展示时优先使用 resolved_model_id，避免暴露不友好的选择态占位值。
-        display_model_id = effective_model_id
-        display_model_name = effective_model_name
-        try:
-            model_config = LLMFactory.get_model_config(effective_model_id)
-            if model_config:
-                display_model_id = model_config.resolved_model_id or effective_model_id
-                display_model_name = model_config.name or effective_model_name
-        except Exception:
-            pass
+        display_model_id = text_model_state.display_model_id
+        display_model_name = text_model_state.model_name
 
         # 聚合模型要额外保留选择语义，否则只看到落地模型，看不出背后调度策略。
         special_model_descriptions = {
             "auto": "automatically selects the most efficient AI model for the current task",
             "max": "automatically selects the most capable AI model for the current scenario",
         }
-        description = special_model_descriptions.get(effective_model_id.lower(), "")
+        description = special_model_descriptions.get(text_model_state.model_id.lower(), "")
         return HorizonLlmModelInfo(
             model_id=display_model_id,
             model_name=display_model_name,
             description=description,
         )
+
+    async def _build_horizon_context_update_safely(
+        self,
+        injection_point: str,
+        log_context: str,
+    ) -> Optional[str]:
+        """构建 Horizon 注入内容，模型配置错误时静默跳过。"""
+        try:
+            self._sync_horizon_llm_model_info()
+            return await self.agent_context.horizon.build_context_update(
+                injection_point=injection_point
+            )
+        except Exception as horizon_err:
+            if is_non_retryable_model_config_error(horizon_err):
+                logger.debug(f"[AgentHorizon] {log_context} 跳过：模型配置错误: {horizon_err}")
+                return None
+            logger.warning(f"[AgentHorizon] {log_context} 注入失败: {horizon_err}")
+            return None
 
     def _sync_horizon_llm_model_info(self) -> None:
         """在注入 system_injected_context 前预同步模型信息，确保首包可见。"""
@@ -2315,7 +2334,8 @@ Since your subsequent output will be merged with pre-interruption content and di
             # Don't raise - allow agent to continue even if compaction fails
 
         finally:
-            # 压缩完成后还原 dynamic_model_id（无论成功或失败都执行）
+            self._clear_compact_request_pending_llm_call()
+            # 压缩完成后还原 compact 临时模型（无论成功或失败都执行）
             self._restore_pre_compact_model(reason="压缩完成")
 
     async def _reset_for_new_session(self) -> None:
@@ -2441,8 +2461,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         """
         from openai import APIError as _openai_APIError
 
-        logger.error(f"Agent循环执行过程中发生错误: {exception!r}")
-        logger.error(f"错误堆栈: {traceback.format_exc()}")
+        self._log_agent_loop_exception(exception)
 
         # 处理中断的工具调用
         await self._handle_interrupted_tool_calls(exception)
@@ -2632,8 +2651,9 @@ Since your subsequent output will be merged with pre-interruption content and di
             self.agent_context.set_final_response(None)
 
         # 兜底还原 compact 模型（防止 LLM 未调用 compact_chat_history 工具导致模型卡住）
-        if hasattr(self, '_pre_compact_model_id'):
+        if self.agent_context.model_context.has_active_compact_text_model():
             logger.warning("Agent 结束时检测到 compact 模型未还原，执行兜底恢复")
+            self._clear_compact_request_pending_llm_call()
             self._restore_pre_compact_model(reason="Agent 结束兜底")
 
         # 更新Agent状态 - 使用is_agent_running替代直接比较
@@ -2704,8 +2724,8 @@ Since your subsequent output will be merged with pre-interruption content and di
             if compact_param:
                 tools_list.append(compact_param)
 
-        # 3. 添加授权的 MCP 工具
-        await self._add_mcp_tools_to_list(tools_list)
+        # MCP 工具不再直接挂载：chat 维度的 MCP 配置由 using-mcp skill
+        # 按需查看并调用，不再通过 tool_factory 暴露给模型。
 
         # 保存工具列表到与聊天记录同名的.tools.json文件
         if self.chat_history and tools_list:
@@ -2716,8 +2736,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 将 AgentContext 作为扩展注册
         tool_context.register_extension("agent_context", self.agent_context)
 
-        # 🔥 动态获取实际生效的模型信息（每次对话都重新检查）
-        effective_model_id, effective_model_name = self._resolve_effective_model_info()
+        text_model_state = self._resolve_current_text_model()
 
         # ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ 调用 LLM ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ #
         start_time = time.time()
@@ -2749,13 +2768,12 @@ Since your subsequent output will be merged with pre-interruption content and di
         if non_stream_timeout is not None:
             processor_config.non_stream_timeout_seconds = non_stream_timeout
 
-        # 将实际生效的模型信息写入 processor_config
-        processor_config.model_id = effective_model_id
-        processor_config.model_name = effective_model_name
+        processor_config.model_id = text_model_state.model_id
+        processor_config.model_name = text_model_state.model_name
 
         try:
             llm_response: ChatCompletion = await LLMFactory.call_with_tool_support(
-                effective_model_id,
+                text_model_state.model_id,
                 messages,
                 tools=tools_list if tools_list else None,
                 stop=self.agent_context.stop_sequences if hasattr(self.agent_context, 'stop_sequences') else None,
@@ -2881,34 +2899,3 @@ Since your subsequent output will be merged with pre-interruption content and di
             bool: 是否具有该 skill
         """
         return skill_name in self.loaded_skills
-
-    async def _add_mcp_tools_to_list(self, tools_list: List[Dict[str, Any]]) -> None:
-        """添加授权的 MCP 工具到工具列表
-
-        Args:
-            tools_list: 工具列表，MCP 工具会被添加到此列表中
-        """
-        from app.mcp.manager import get_global_mcp_manager, is_mcp_tool
-
-        # 检查是否有 using-mcp skill
-        has_using_mcp_skill = self.has_skill("using-mcp")
-
-        # 添加 MCP 工具（如果有 using-mcp skill，则只添加 SuperMagicChat 的工具）
-        global_manager = get_global_mcp_manager()
-        if global_manager:
-            all_mcp_tools = await global_manager.get_all_tools()
-            for tool_name, tool_info in all_mcp_tools.items():
-                # 如果有 using-mcp skill，只添加 SuperMagicChat 的工具
-                if has_using_mcp_skill and tool_info.server_name != 'SuperMagicChat':
-                    logger.debug(f"Agent 具有 'using-mcp' skill，跳过非 SuperMagicChat 的 MCP 工具: {tool_name}")
-                    continue
-
-                try:
-                    tool_instance = tool_factory.get_tool_instance(tool_name)
-                    if tool_instance:
-                        tool_param = tool_instance.to_param()
-                        tools_list.append(tool_param)
-                        logger.debug(f"添加 MCP 工具: {tool_name} (server: {tool_info.server_name})")
-                except ValueError as e:
-                    # MCP 工具未注册到 tool_factory，跳过
-                    logger.debug(f"跳过未注册的 MCP 工具: {tool_name}")

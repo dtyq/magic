@@ -1,5 +1,12 @@
 package fragapp
 
+import (
+	"maps"
+	"strings"
+
+	fragmetadata "magic/internal/domain/knowledge/fragment/metadata"
+)
+
 const (
 	fragmentMetadataExtKey                = "ext"
 	fragmentMetadataContractVersionLegacy = "metadata_contract_version"
@@ -15,6 +22,11 @@ func sanitizeSimilarityResponseMetadata(metadata map[string]any, debug bool) map
 	}
 	return projectFragmentResponseMetadata(metadata, []string{
 		"url",
+		"source_url",
+		"source_provider",
+		"third_file_id",
+		"file_key",
+		"source_title",
 		"section_title",
 		"section_path",
 		"title",
@@ -27,6 +39,7 @@ func sanitizeSimilarityResponseMetadata(metadata map[string]any, debug bool) map
 }
 
 func projectFragmentResponseMetadata(metadata map[string]any, whitelist []string) map[string]any {
+	metadata = metadataWithProjectedSourceFields(metadata)
 	if len(metadata) == 0 {
 		return map[string]any{}
 	}
@@ -54,4 +67,30 @@ func projectFragmentResponseMetadata(metadata map[string]any, whitelist []string
 		projected[key] = value
 	}
 	return projected
+}
+
+func metadataWithProjectedSourceFields(metadata map[string]any) map[string]any {
+	sourceMetadata := fragmetadata.ExtractFragmentSourceMetadata(metadata)
+	if len(sourceMetadata) == 0 {
+		return metadata
+	}
+	projected := make(map[string]any, len(metadata)+len(sourceMetadata))
+	maps.Copy(projected, metadata)
+	for key, value := range sourceMetadata {
+		if !metadataProjectionHasValue(projected[key]) {
+			projected[key] = value
+		}
+	}
+	return projected
+}
+
+func metadataProjectionHasValue(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(typed) != ""
+	default:
+		return true
+	}
 }

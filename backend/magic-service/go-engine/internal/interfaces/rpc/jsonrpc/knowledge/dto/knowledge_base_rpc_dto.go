@@ -221,6 +221,40 @@ func (r ListSourceBindingNodesRequest) Validate() error {
 	return validateRequiredUserID(r.DataIsolation.UserID)
 }
 
+// AgentKnowledgeBaseBindingsRequest 表示数字员工关联或取消关联 flow 向量知识库请求。
+type AgentKnowledgeBaseBindingsRequest struct {
+	DataIsolation      DataIsolation `json:"data_isolation"`
+	AgentCode          string        `json:"agent_code" validate:"required"`
+	KnowledgeBaseCodes []string      `json:"knowledge_base_codes"`
+}
+
+// AgentKnowledgeBaseBindingsResponse 表示数字员工与 flow 向量知识库绑定结果。
+type AgentKnowledgeBaseBindingsResponse struct {
+	AgentCode          string   `json:"agent_code"`
+	KnowledgeBaseCodes []string `json:"knowledge_base_codes"`
+}
+
+// UpdateAgentKnowledgeBaseBindingRequest 表示更新数字员工下关联 flow 知识库配置的请求。
+type UpdateAgentKnowledgeBaseBindingRequest struct {
+	DataIsolation     DataIsolation `json:"data_isolation"`
+	AgentCode         string        `json:"agent_code" validate:"required"`
+	KnowledgeBaseCode string        `json:"knowledge_base_code" validate:"required"`
+	Name              *string       `json:"name,omitempty"`
+	Description       *string       `json:"description,omitempty"`
+	Icon              *string       `json:"icon,omitempty"`
+	Enabled           *bool         `json:"enabled,omitempty"`
+}
+
+// UpdateAgentKnowledgeBaseBindingResponse 表示关联 flow 知识库配置的有效展示结果。
+type UpdateAgentKnowledgeBaseBindingResponse struct {
+	AgentCode         string `json:"agent_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Name              string `json:"name"`
+	Description       string `json:"description"`
+	Icon              string `json:"icon"`
+	Enabled           bool   `json:"enabled"`
+}
+
 // CreateKnowledgeBaseRequest 创建知识库请求
 type CreateKnowledgeBaseRequest struct {
 	DataIsolation DataIsolation `json:"data_isolation"`
@@ -864,6 +898,68 @@ type RebuildKnowledgeBaseResponse struct {
 	Scope         string `json:"scope"`
 	RequestedMode string `json:"requested_mode"`
 	TargetModel   string `json:"target_model"`
+}
+
+// SwitchEmbeddingModelMetaRequest 直接切换共享知识库嵌入模型元数据请求。
+type SwitchEmbeddingModelMetaRequest struct {
+	DataIsolation   DataIsolation `json:"data_isolation"`
+	TargetModel     string        `json:"target_model" validate:"required"`
+	TargetDimension int64         `json:"target_dimension" validate:"required"`
+}
+
+// UnmarshalJSON 兼容 target_dimension 传字符串。
+func (r *SwitchEmbeddingModelMetaRequest) UnmarshalJSON(data []byte) error {
+	raw, err := unmarshalRequestObject(data, "switch embedding model meta request")
+	if err != nil {
+		return err
+	}
+
+	var dataIsolation DataIsolation
+	if field, ok := raw["data_isolation"]; ok {
+		if err := json.Unmarshal(field, &dataIsolation); err != nil {
+			return fmt.Errorf("unmarshal data_isolation: %w", err)
+		}
+	}
+	targetModel, err := decodeRequestStringValue(raw, "target_model")
+	if err != nil {
+		return err
+	}
+	targetDimension, err := decodeRequestInt64Value(raw, "target_dimension")
+	if err != nil {
+		return err
+	}
+
+	*r = SwitchEmbeddingModelMetaRequest{
+		DataIsolation:   dataIsolation,
+		TargetModel:     targetModel,
+		TargetDimension: targetDimension,
+	}
+	return nil
+}
+
+// SwitchEmbeddingModelMetaResponse 直接切换共享知识库嵌入模型元数据响应。
+type SwitchEmbeddingModelMetaResponse struct {
+	CollectionName         string `json:"collection_name"`
+	PhysicalCollectionName string `json:"physical_collection_name"`
+	Model                  string `json:"model"`
+	VectorDimension        int64  `json:"vector_dimension"`
+	SparseBackend          string `json:"sparse_backend"`
+}
+
+// RebuildKnowledgeBaseStatusRequest 查询知识库重建状态请求。
+type RebuildKnowledgeBaseStatusRequest struct {
+	DataIsolation DataIsolation `json:"data_isolation"`
+	RunID         string        `json:"run_id,omitempty"`
+}
+
+// RebuildKnowledgeBaseStatusResponse 查询知识库重建状态响应。
+type RebuildKnowledgeBaseStatusResponse struct {
+	CurrentRunID string            `json:"current_run_id,omitempty"`
+	RunID        string            `json:"run_id,omitempty"`
+	Status       string            `json:"status,omitempty"`
+	Phase        string            `json:"phase,omitempty"`
+	Error        string            `json:"error,omitempty"`
+	Job          map[string]string `json:"job,omitempty"`
 }
 
 // RepairSourceBindingsRequest 历史来源绑定修复请求。

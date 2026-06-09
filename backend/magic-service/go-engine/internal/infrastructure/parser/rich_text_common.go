@@ -7,14 +7,14 @@ import (
 )
 
 func newRichTextImageOCRHelper(
-	ocrClient documentdomain.OCRClient,
+	visualExtractor documentdomain.VisualTextExtractor,
 	maxOCRPerFile int,
 	options documentdomain.ParseOptions,
 ) *embeddedImageOCRHelper {
 	if !options.ImageExtraction || !options.ImageOCR {
 		return nil
 	}
-	return newEmbeddedImageOCRHelper(ocrClient, maxOCRPerFile)
+	return newEmbeddedImageOCRHelper(visualExtractor, maxOCRPerFile)
 }
 
 func failIfEmptyDueToOCROverload(parsed *documentdomain.ParsedDocument, ocrHelper *embeddedImageOCRHelper) error {

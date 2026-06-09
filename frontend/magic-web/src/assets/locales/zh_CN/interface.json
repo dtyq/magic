@@ -1032,6 +1032,12 @@
 			"hightImageConverted": "已转超清",
 			"hightImageConverting": "AI 超清转换中 {{num}}%",
 			"longPressCompare": "长按对比",
+			"mermaid": {
+				"copySvg": "复制 SVG",
+				"downloadPng": "下载 PNG",
+				"downloadSvg": "下载 SVG",
+				"fileName": "mermaid-diagram"
+			},
 			"navigateToMessage": "定位到消息",
 			"senderFiles": "{{username}}发送的文件",
 			"senderImage": "{{username}}发送的图片",

@@ -25,6 +25,7 @@ import (
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
 	"magic/internal/domain/knowledge/shared"
 	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
+	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/thirdplatform"
 	"magic/internal/pkg/timeformat"
 )
@@ -41,6 +42,8 @@ func buildPreviewRequestKey(input *fragdto.PreviewFragmentInput) string {
 	}
 	var builder strings.Builder
 	builder.WriteString(previewPlanFromInput(input, false).RequestKey)
+	builder.WriteString("|organization_code=")
+	builder.WriteString(strings.TrimSpace(input.OrganizationCode))
 	builder.WriteString("|document_code=")
 	builder.WriteString(strings.TrimSpace(input.DocumentCode))
 	builder.WriteString("|strategy=")
@@ -108,6 +111,29 @@ func previewRequestHasUsableSource(file *docfilehelper.DocumentFileDTO) bool {
 		return true
 	}
 	return file.ProjectFileID > 0
+}
+
+func withPreviewBusinessParams(ctx context.Context, input *fragdto.PreviewFragmentInput) context.Context {
+	if input == nil {
+		return ctx
+	}
+	params := &ctxmeta.BusinessParams{}
+	if existing, ok := ctxmeta.BusinessParamsFromContext(ctx); ok && existing != nil {
+		cloned := *existing
+		params = &cloned
+	}
+	if organizationCode := strings.TrimSpace(input.OrganizationCode); organizationCode != "" {
+		params.OrganizationCode = organizationCode
+		params.OrganizationID = organizationCode
+	}
+	if userID := strings.TrimSpace(input.UserID); userID != "" {
+		params.UserID = userID
+	}
+	if documentCode := strings.TrimSpace(input.DocumentCode); documentCode != "" {
+		params.BusinessID = documentCode
+		params.SourceID = documentCode
+	}
+	return ctxmeta.WithBusinessParams(ctx, params)
 }
 
 func normalizePreviewStrategyConfigKey(cfg *confighelper.StrategyConfigDTO) string {
@@ -289,6 +315,7 @@ func (s *FragmentAppService) Preview(ctx context.Context, input *fragdto.Preview
 		return nil, shared.ErrDocumentFileEmpty
 	}
 
+	ctx = withPreviewBusinessParams(ctx, input)
 	key := buildPreviewRequestKey(input)
 	resultCh := s.previewGroup.DoChan(key, func() (any, error) {
 		return s.previewInternal(ctx, input)
@@ -327,6 +354,7 @@ func (s *FragmentAppService) PreviewV2(ctx context.Context, input *fragdto.Previ
 		return nil, shared.ErrDocumentFileEmpty
 	}
 
+	ctx = withPreviewBusinessParams(ctx, input)
 	chunks, splitVersion, err := s.previewChunks(ctx, input)
 	if err != nil {
 		return nil, err
@@ -539,5 +567,19 @@ func EntityToDTO(e *fragmodel.KnowledgeBaseFragment) *fragdto.FragmentDTO {
 // BuildSimilarityDisplayContent 构造相似度展示文案并返回字数。
 func BuildSimilarityDisplayContent(content string, metadata map[string]any) (string, int) {
 	displayContent := fragmetadata.BuildFragmentDisplayContent(content, metadata, "", "")
+	displayContent = appendSimilaritySourceURL(displayContent, fragmetadata.ResolveFragmentSourceURL(metadata))
 	return displayContent, len([]rune(displayContent))
+}
+
+func appendSimilaritySourceURL(displayContent, sourceURL string) string {
+	sourceURL = strings.TrimSpace(sourceURL)
+	if sourceURL == "" {
+		return displayContent
+	}
+	sourceLine := "来源地址：" + sourceURL
+	displayContent = strings.TrimSpace(displayContent)
+	if displayContent == "" {
+		return sourceLine
+	}
+	return displayContent + "\n\n" + sourceLine
 }

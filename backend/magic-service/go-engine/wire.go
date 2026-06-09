@@ -5,6 +5,7 @@ package main
 import (
 	"github.com/google/wire"
 
+	documentapp "magic/internal/application/knowledge/document/service"
 	fragmentapp "magic/internal/application/knowledge/fragment/service"
 	"magic/internal/config/autoload"
 	diapp "magic/internal/di/app"
@@ -13,27 +14,24 @@ import (
 	"magic/internal/infrastructure/health"
 	"magic/internal/infrastructure/knowledge/documentsync"
 	metrics "magic/internal/infrastructure/metrics"
+	redisrebuild "magic/internal/infrastructure/persistence/redis/rebuild"
+	ipcclient "magic/internal/infrastructure/rpc/jsonrpc/client"
 	"magic/internal/infrastructure/transport/ipc/unixsocket"
 	httpserver "magic/internal/interfaces/http"
 	"magic/internal/interfaces/http/handlers"
 	rpchandler "magic/internal/interfaces/rpc/jsonrpc/knowledge/service"
+	opshandler "magic/internal/interfaces/rpc/jsonrpc/ops/service"
 )
 
 func provideServerConfig(cfg *autoload.Config) *httpserver.ServerConfig {
-	httpEnabled := false
-	if cfg.Server.Enabled != nil {
-		httpEnabled = *cfg.Server.Enabled
-	}
-
 	return &httpserver.ServerConfig{
-		Enabled:        httpEnabled,
-		Host:           cfg.Server.Host,
-		Port:           cfg.Server.Port,
-		Mode:           httpserver.Mode(cfg.Server.Mode),
-		BasePath:       cfg.Server.BasePath,
-		Env:            cfg.Server.Env,
-		PprofEnabled:   cfg.Server.PprofEnabled,
-		AllowedOrigins: cfg.Security.AllowedOrigins,
+		Port:            cfg.Server.Port,
+		StripPathPrefix: cfg.Server.StripPathPrefix,
+		Mode:            httpserver.Mode(cfg.Server.Mode),
+		BasePath:        cfg.Server.BasePath,
+		Env:             cfg.Server.Env,
+		PprofEnabled:    cfg.Server.PprofEnabled,
+		AllowedOrigins:  cfg.Security.AllowedOrigins,
 	}
 }
 
@@ -57,8 +55,11 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 		rpchandler.NewFragmentRPCService,
 		rpchandler.NewDocumentRPCService,
 		rpchandler.NewEmbeddingRPCService,
+		opshandler.ProvideOpsRPCService,
 
 		handlers.NewDebugHandler,
+		handlers.NewMagicFSFileHandler,
+		handlers.NewKnowledgeSourceFileHandler,
 
 		// 接口绑定
 		wire.Bind(new(httpserver.InfraServices), new(*health.CheckService)),
@@ -66,6 +67,9 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 		wire.Bind(new(httpserver.RPCServer), new(*unixsocket.Server)),
 		wire.Bind(new(httpserver.RetrievalWarmupService), new(*fragmentapp.FragmentAppService)),
 		wire.Bind(new(httpserver.TaskQueueService), new(*documentsync.Runtime)),
+		wire.Bind(new(opshandler.OfficialOrganizationMemberChecker), new(*ipcclient.PHPKnowledgeBasePermissionRPCClient)),
+		wire.Bind(new(rpchandler.KnowledgeBaseRebuildStateReader), new(*redisrebuild.Coordinator)),
+		wire.Bind(new(handlers.KnowledgeSourceFileService), new(*documentapp.KnowledgeSourceFileLinkService)),
 	)
 	return nil, nil, nil
 }

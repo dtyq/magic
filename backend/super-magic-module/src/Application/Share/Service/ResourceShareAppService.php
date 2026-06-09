@@ -75,6 +75,7 @@ use Dtyq\SuperMagic\Interfaces\Share\DTO\Response\ShareStatisticsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Exception;
 use Hyperf\Amqp\Producer;
+use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Db;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -758,6 +759,9 @@ class ResourceShareAppService extends AbstractShareAppService
 
         // 为有密码的分享项添加解密后的密码字段
         $list = $this->addDecryptedPasswordsToList($list);
+
+        // 添加团队分享范围摘要，避免列表接口返回 target_ids 明细
+        $list = $this->addShareScopeToList($list);
 
         // 类型转换：将内部类型12（Project）转换为外部类型13（FileCollection）+ share_project=true
         $list = $this->convertProjectTypeForShareList($list);
@@ -1946,6 +1950,8 @@ class ResourceShareAppService extends AbstractShareAppService
             }
         }
 
+        $allEntities = RelativeFilePathUtil::filterByValidParentChain($allEntities);
+
         return [$allEntities, $fileIds];
     }
 
@@ -2017,9 +2023,9 @@ class ResourceShareAppService extends AbstractShareAppService
     {
         // File 类型：resource_id 是文件集ID，需要通过文件集获取文件ID
         $collectionId = (int) $shareEntity->getResourceId();
-        $fileCollectionItems = $this->fileCollectionDomainService->getFilesByCollectionId($collectionId);
+        [$allEntities, $originalFileIds] = $this->getAllFileEntitiesFromFileCollection($collectionId);
 
-        if (empty($fileCollectionItems)) {
+        if (empty($allEntities) || empty($originalFileIds)) {
             return [
                 'list' => [],
                 'tree' => [],
@@ -2028,10 +2034,14 @@ class ResourceShareAppService extends AbstractShareAppService
         }
 
         // 单文件应该只有一个文件项
-        $fileId = (int) $fileCollectionItems[0]->getFileId();
-
-        // 获取文件实体
-        $fileEntity = $this->taskFileDomainService->getById($fileId);
+        $fileId = (int) $originalFileIds[0];
+        $fileEntity = null;
+        foreach ($allEntities as $entity) {
+            if ($entity->getFileId() === $fileId) {
+                $fileEntity = $entity;
+                break;
+            }
+        }
 
         if (! $fileEntity) {
             return [
@@ -2421,6 +2431,7 @@ class ResourceShareAppService extends AbstractShareAppService
         $allEntities = ! empty($fileIds)
             ? $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId)
             : [];
+        $allEntities = RelativeFilePathUtil::filterByValidParentChain($allEntities);
 
         // 过滤系统目录（如 .magic 及其子文件）
         $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
@@ -2973,6 +2984,132 @@ class ResourceShareAppService extends AbstractShareAppService
         }
 
         return $list;
+    }
+
+    /**
+     * 为分享列表添加团队分享范围摘要.
+     *
+     * @param array $list 分享列表
+     * @return array 添加了 share_scope 字段的列表
+     */
+    private function addShareScopeToList(array $list): array
+    {
+        foreach ($list as &$item) {
+            $targets = $this->normalizeShareTargets($item['target_ids'] ?? []);
+            $item['share_scope'] = $this->buildShareScope(
+                (int) ($item['share_type'] ?? 0),
+                isset($item['share_range']) ? (string) $item['share_range'] : null,
+                $targets
+            );
+
+            unset($item['target_ids'], $item['share_range']);
+        }
+        unset($item);
+
+        return $list;
+    }
+
+    /**
+     * 构建团队分享范围摘要.
+     */
+    private function buildShareScope(int $shareType, ?string $shareRange, array $targets): ?array
+    {
+        if ($shareType !== ShareAccessType::TeamShare->value) {
+            return null;
+        }
+
+        if ($shareRange === 'all' || $this->hasAllMembersTarget($targets)) {
+            return [
+                'type' => 'all',
+                'targets' => [],
+            ];
+        }
+
+        if ($shareRange === 'designated') {
+            [$userCount, $departmentCount] = $this->countDesignatedShareTargets($targets);
+
+            return [
+                'type' => 'designated',
+                'user_count' => $userCount,
+                'department_count' => $departmentCount,
+                'targets' => [],
+            ];
+        }
+
+        return [
+            'type' => $shareRange,
+            'targets' => [],
+        ];
+    }
+
+    /**
+     * 兼容 target_ids 的 JSON 字符串和数组两种形态.
+     */
+    private function normalizeShareTargets(mixed $targetIds): array
+    {
+        if (is_array($targetIds)) {
+            return $targetIds;
+        }
+
+        if (! is_string($targetIds) || $targetIds === '') {
+            return [];
+        }
+
+        try {
+            $decoded = Json::decode($targetIds);
+            return is_array($decoded) ? $decoded : [];
+        } catch (Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * 统计指定分享中的用户和部门数量.
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function countDesignatedShareTargets(array $targets): array
+    {
+        $userIds = [];
+        $departmentIds = [];
+
+        foreach ($targets as $target) {
+            if (! is_array($target)) {
+                continue;
+            }
+
+            $targetType = (string) ($target['target_type'] ?? '');
+            $targetId = (string) ($target['target_id'] ?? '');
+            if ($targetId === '') {
+                continue;
+            }
+
+            if ($targetType === 'User') {
+                $userIds[$targetId] = true;
+            } elseif ($targetType === 'Department' && $targetId !== '-1') {
+                $departmentIds[$targetId] = true;
+            }
+        }
+
+        return [count($userIds), count($departmentIds)];
+    }
+
+    /**
+     * Department=-1 是历史兼容的全员目标.
+     */
+    private function hasAllMembersTarget(array $targets): bool
+    {
+        foreach ($targets as $target) {
+            if (! is_array($target)) {
+                continue;
+            }
+
+            if (($target['target_type'] ?? '') === 'Department' && (string) ($target['target_id'] ?? '') === '-1') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

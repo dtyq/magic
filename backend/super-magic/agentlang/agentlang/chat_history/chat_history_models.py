@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from agentlang.config import model_config_utils
+from agentlang.config.models.model_config import model_config_utils
 from agentlang.logger import get_logger
 from agentlang.llms.token_usage.models import TokenUsage  # 导入统一的 TokenUsage 类
 
@@ -57,7 +57,7 @@ class CompactionConfig:
     max_conversation_rounds: int = 500  # 触发压缩的消息数量阈值
 
     # Dynamic threshold calculation (kept for compatibility)
-    default_token_threshold: int = 100_000
+    default_token_threshold: int = 180_000
     min_token_threshold: int = 100_000
     max_token_threshold: int = 180_000
     context_usage_ratio: float = 0.9
@@ -103,17 +103,15 @@ class CompactionConfig:
             ),
         ]
     )
+    _auto_token_threshold: bool = field(default=False, init=False, repr=False)
+    _resolved_token_threshold_model_id: Optional[str] = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
         """压缩配置的简化验证"""
-        # Set default token threshold if needed (auto-calculate when 0)
-        if self.token_threshold == 0:
-            self.token_threshold = self._calculate_model_based_threshold()
-            logger.info(f"Set token_threshold to {self.token_threshold} based on model {self.agent_model_id}")
+        self._auto_token_threshold = self.token_threshold == 0
 
-        # Basic validation after auto-calculation
-        if self.token_threshold <= 0:
-            raise ValueError("Token threshold must be positive")
+        if self.token_threshold < 0:
+            raise ValueError("Token threshold cannot be negative")
         if self.max_conversation_rounds <= 0:
             raise ValueError("Max conversation rounds must be positive")
         if not 0.01 <= self.context_usage_ratio <= 1.0:
@@ -123,6 +121,21 @@ class CompactionConfig:
                 raise ValueError("Pricing tier rule model_keywords cannot be empty")
             if rule.token_threshold <= 0:
                 raise ValueError("Pricing tier rule token_threshold must be positive")
+
+    def resolve_token_threshold(self, agent_model_id: Optional[str] = None) -> int:
+        """Resolve token threshold lazily, after the runtime model is selected."""
+        if agent_model_id and agent_model_id != self.agent_model_id:
+            self.agent_model_id = agent_model_id
+            if self._auto_token_threshold:
+                self._resolved_token_threshold_model_id = None
+
+        if self._auto_token_threshold:
+            if self._resolved_token_threshold_model_id != self.agent_model_id or self.token_threshold <= 0:
+                self.token_threshold = self._calculate_model_based_threshold()
+                self._resolved_token_threshold_model_id = self.agent_model_id
+                logger.info(f"Set token_threshold to {self.token_threshold} based on model {self.agent_model_id}")
+
+        return self.token_threshold or self.default_token_threshold
 
     def _get_model_match_texts(self) -> List[str]:
         """收集用于匹配策略规则的模型文本"""
@@ -682,3 +695,72 @@ class ToolMessage:
 
 # 所有可能的消息类型的联合类型
 ChatMessage = Union[SystemMessage, UserMessage, AssistantMessage, ToolMessage]
+
+
+# ==============================================================================
+# 对外暴露的上下文容量查值入口
+# ==============================================================================
+def _parse_pricing_interval(interval: str) -> Optional[int]:
+    """将 pricing_interval 字符串转为具体 token 数值。
+
+    "200K" -> 200000、"256K" -> 256000、"1M" -> 1000000；不可解析时返回 None。
+    """
+    if not interval:
+        return None
+    s = interval.strip().upper()
+    try:
+        if s.endswith("K"):
+            return int(float(s[:-1]) * 1000)
+        if s.endswith("M"):
+            return int(float(s[:-1]) * 1_000_000)
+        return int(s)
+    except Exception:
+        return None
+
+
+# 未命中定价分区规则时的默认上下文容量（与最低档位 200K 对齐）
+DEFAULT_USER_FACING_MAX_CONTEXT_TOKENS = 200_000
+
+
+def resolve_user_facing_max_context_tokens(model_id: str) -> Optional[int]:
+    """计算 `model_id` 对外暴露的最大上下文 token 容量。
+
+    与 [CompactionConfig._calculate_model_based_threshold] 保持取值口径一致：
+      1. 优先命中 `pricing_tier_rules` 时，返回 `pricing_interval` 解析后的数值
+         （如 "200K" -> 200000、"256K" -> 256000）。这也是用户感知的「模型标称上下文」。
+      2. 未命中时统一回退到 [DEFAULT_USER_FACING_MAX_CONTEXT_TOKENS]（200K），避免使用模型
+         原始 `max_context_tokens`（如 128K）造成前端展示与系统对外口径不一致。
+
+    供压缩以外的消费者（如消息工厂的实时 token_usage 输出）复用，避免重复实现查表逻辑。
+    """
+    if not model_id:
+        return DEFAULT_USER_FACING_MAX_CONTEXT_TOKENS
+    try:
+        # 1) 收集匹配文本（与 CompactionConfig._get_model_match_texts 等价）
+        match_texts: List[Any] = [model_id]
+        mc = model_config_utils.get_model_config(model_id)
+        if mc:
+            match_texts.extend([mc.name, mc.provider])
+            metadata = mc.metadata or {}
+            label = metadata.get("label")
+            if label:
+                match_texts.append(str(label))
+        match_texts_lower = [str(t).lower() for t in match_texts if t]
+
+        # 2) 读取默认规则表（default_factory 返回默认 list，不需实例化 CompactionConfig）
+        rules = CompactionConfig.__dataclass_fields__["pricing_tier_rules"].default_factory()
+
+        # 3) 与 _match_pricing_tier_rule 保持同步的子串包含匹配
+        for rule in rules:
+            for keyword in rule.model_keywords:
+                keyword_lower = keyword.lower()
+                if any(keyword_lower in t for t in match_texts_lower):
+                    interval_value = _parse_pricing_interval(rule.pricing_interval)
+                    if interval_value is not None:
+                        return interval_value
+
+        # 4) 未命中规则时统一回退为 200K
+        return DEFAULT_USER_FACING_MAX_CONTEXT_TOKENS
+    except Exception as e:
+        logger.warning(f"resolve_user_facing_max_context_tokens 失败 model_id={model_id}: {e}")
+        return DEFAULT_USER_FACING_MAX_CONTEXT_TOKENS

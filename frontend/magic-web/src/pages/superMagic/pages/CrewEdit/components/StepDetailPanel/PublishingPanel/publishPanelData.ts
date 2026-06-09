@@ -169,6 +169,7 @@ function mapAgentVersion(version: AgentVersionItem, locale: string): PublishHist
 		internalTarget: mapApiTargetToInternalTarget(version.publish_target_type),
 		publisherName: version.publisher?.name ?? "",
 		publishedAt: version.display_time || version.published_at || "",
+		reviewRemark: version.review_remark ?? "",
 		specificMembers: mapPublishTargetValueToMembers(version.publish_target_value),
 		skillsLibraryReview: deriveMarketReviewProgress(version),
 	}
@@ -213,6 +214,7 @@ function deriveMarketReviewProgress(version: AgentVersionItem): PublishReviewPro
 			submit: "done",
 			review: "done",
 			published: "failed",
+			...(version.review_remark ? { failureReason: version.review_remark } : {}),
 		}
 	}
 

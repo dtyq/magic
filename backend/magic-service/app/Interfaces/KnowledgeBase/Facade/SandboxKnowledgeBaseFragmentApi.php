@@ -12,7 +12,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 #[ApiResponse(version: 'low_code')]
 class SandboxKnowledgeBaseFragmentApi extends AbstractKnowledgeBaseApi
 {
-    public function similarityByAgent(string $agentCode): array
+    public function similarityByAgent(string $agentCode)
     {
         $agentCode = trim($agentCode);
         $query = trim((string) $this->request->query('query', ''));

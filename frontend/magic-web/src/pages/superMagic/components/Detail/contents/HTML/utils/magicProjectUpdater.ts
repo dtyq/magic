@@ -1,6 +1,7 @@
 import { SuperMagicApi } from "@/apis"
 import { flattenAttachments, findMatchingFile } from "./index"
 import { getFileContentById } from "@/pages/superMagic/utils/api"
+import { parseMagicProjectConfigContent } from "@/pages/superMagic/utils/magicProjectConfigParser"
 import { logger } from "@/utils/log"
 import { t } from "i18next"
 import { AttachmentItem } from "../../../../TopicFilesButton/hooks/types"
@@ -139,33 +140,16 @@ export function parseMagicProjectJs(content: string): { slides: string[]; config
 		return null
 	}
 
-	try {
-		// Create a temporary window object with mock magicProjectConfigure function
-		const tempWindow: { magicProjectConfig?: any; magicProjectConfigure?: any } = {
-			magicProjectConfigure: () => {
-				// Mock function to prevent execution errors
-			},
-		}
-
-		// Use Function constructor to execute the code
-		const func = new Function("window", content)
-		func(tempWindow)
-
-		// Extract magicProjectConfig
-		const config = tempWindow.magicProjectConfig
-
-		if (!config || typeof config !== "object") {
-			return null
-		}
-
-		// Extract slides array from config
-		const slides = config.slides || []
-
-		return { slides, config }
-	} catch (error) {
-		console.error("Failed to parse magic.project.js content:", error)
+	const config = parseMagicProjectConfigContent(content)
+	if (!config) {
 		return null
 	}
+
+	const slides = Array.isArray(config.slides)
+		? config.slides.filter((slide): slide is string => typeof slide === "string")
+		: []
+
+	return { slides, config }
 }
 
 /**
@@ -314,7 +298,7 @@ export async function insertSlide(params: {
 		// Use a specific error code that can be mapped to i18n message
 		if (!correctParentId) {
 			const error = new Error("Invalid PPT folder structure")
-				; (error as { code?: string }).code = "INVALID_FOLDER_STRUCTURE"
+			;(error as { code?: string }).code = "INVALID_FOLDER_STRUCTURE"
 
 			// Log error with context
 			pptLogger.error("Failed to determine parent directory for new slide", error, {

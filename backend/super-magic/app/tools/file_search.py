@@ -1,7 +1,7 @@
 from app.i18n import i18n
 import fnmatch
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import Field
 
@@ -9,6 +9,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from agentlang.utils.schema import FileInfo
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_try_count_text_lines
@@ -44,14 +45,24 @@ class FileSearch(WorkspaceTool[FileSearchParams]):
         Returns:
             ToolResult: 包含搜索结果
         """
-        # 调用_run方法获取结果
-        result = await self._run(params.query)
+        result, matches = await self._search(params.query)
 
-        # 返回ToolResult
-        return ToolResult(content=result)
+        return ToolResult(
+            content=result,
+            extra_info={
+                "query": params.query,
+                "matches": matches,
+                "match_count": len(matches),
+            },
+        )
 
     async def _run(self, query: str) -> str:
         """运行工具并返回搜索结果"""
+        result, _ = await self._search(query)
+        return result
+
+    async def _search(self, query: str) -> Tuple[str, List[Dict[str, Any]]]:
+        """搜索文件并同时返回模型可读文本和前端展示数据"""
         try:
             # 获取所有文件路径
             all_files = self._get_all_files(self.base_dir)
@@ -63,10 +74,11 @@ class FileSearch(WorkspaceTool[FileSearchParams]):
             matches = matches[:10]
 
             if not matches:
-                return "未找到匹配的文件"
+                return "未找到匹配的文件", []
 
             # 格式化输出
             output = ["找到以下匹配的文件：\n"]
+            match_infos: List[Dict[str, Any]] = []
             for file_path in matches:
                 stat = file_path.stat()
                 rel_path = str(file_path.relative_to(self.base_dir))
@@ -87,12 +99,20 @@ class FileSearch(WorkspaceTool[FileSearchParams]):
                 size_str = self._format_size(file_info.size)
                 line_str = f", {file_info.line_count} lines" if file_info.line_count is not None else ""
                 output.append(f"{file_info.path} ({size_str}{line_str}) - {file_info.format_time()}")
+                match_infos.append({
+                    "path": file_info.path,
+                    "name": file_info.name,
+                    "size": file_info.size,
+                    "size_text": size_str,
+                    "line_count": file_info.line_count,
+                    "updated_at": file_info.format_time(),
+                })
 
-            return "\n".join(output)
+            return "\n".join(output), match_infos
 
         except Exception as e:
             logger.error(f"执行文件搜索时出错: {e}", exc_info=True)
-            return f"执行文件搜索时出错: {e!s}"
+            return f"执行文件搜索时出错: {e!s}", []
 
     def _get_all_files(self, directory: Path) -> List[Path]:
         """递归获取目录下的所有文件"""
@@ -139,17 +159,78 @@ class FileSearch(WorkspaceTool[FileSearchParams]):
         """获取备注内容"""
         return arguments.get("query", "") if arguments else ""
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        query = arguments.get("query", "") if arguments else ""
+        return {
+            "tool_name": tool_name,
+            "action": i18n.translate("file_search", category="tool.actions"),
+            "remark": i18n.translate("file_search.searching", category="tool.messages", query=query),
+        }
+
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: Dict[str, Any] = None,
+    ) -> Optional[ToolDetail]:
+        if not result.ok or not result.extra_info:
+            return None
+
+        query = result.extra_info.get("query") or (arguments or {}).get("query", "")
+        matches = result.extra_info.get("matches") or []
+        match_count = result.extra_info.get("match_count", len(matches))
+
+        lines = [
+            f"# {i18n.translate('file_search.detail_title', category='tool.messages')}",
+            "",
+            f"- {i18n.translate('file_search.detail_query', category='tool.messages')}: `{query}`",
+            f"- {i18n.translate('file_search.detail_search_dir', category='tool.messages')}: `{self.base_dir}`",
+            f"- {i18n.translate('file_search.detail_count', category='tool.messages')}: {match_count}",
+            "",
+        ]
+        if matches:
+            lines.append(f"## {i18n.translate('file_search.detail_matches', category='tool.messages')}")
+            lines.append("")
+            for item in matches:
+                line_count = item.get("line_count")
+                line_text = f", {line_count} lines" if line_count is not None else ""
+                lines.append(f"- `{item.get('path', '')}` ({item.get('size_text', '')}{line_text})")
+        else:
+            lines.append(i18n.translate("search.no_results", category="tool.messages"))
+
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(file_name="file_search_results.md", content="\n".join(lines)),
+        )
+
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """
         获取工具调用后的友好动作和备注
         """
+        query = arguments.get("query", "") if arguments else ""
         if not result.ok:
             return {
+                "tool_name": tool_name,
                 "action": i18n.translate("file_search", category="tool.actions"),
                 "remark": i18n.translate("search.error", category="tool.messages", error=result.content)
             }
 
+        match_count = 0
+        if result.extra_info:
+            match_count = result.extra_info.get("match_count", 0)
+
         return {
+            "tool_name": tool_name,
             "action": i18n.translate("file_search", category="tool.actions"),
-            "remark": self._get_remark_content(result, arguments)
+            "remark": i18n.translate(
+                "file_search.searched",
+                category="tool.messages",
+                query=query,
+                count=match_count,
+            )
         }

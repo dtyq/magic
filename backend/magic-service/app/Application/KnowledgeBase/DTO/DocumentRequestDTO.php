@@ -61,14 +61,6 @@ readonly class DocumentRequestDTO
         return new self(dataIsolation: $dataIsolation, code: $code, knowledgeBaseCode: $knowledgeBaseCode);
     }
 
-    public static function forOriginalFileLink(
-        string $code,
-        string $knowledgeBaseCode,
-        DataIsolationDTO $dataIsolation,
-    ): self {
-        return new self(dataIsolation: $dataIsolation, code: $code, knowledgeBaseCode: $knowledgeBaseCode);
-    }
-
     public static function forList(array $query, DataIsolationDTO $dataIsolation): self
     {
         return new self(dataIsolation: $dataIsolation, query: $query);

@@ -24,6 +24,9 @@ class ImageGenerateRequest
     // 宽高比，格式如 "16:9", "1:1", "3:4" 等
     protected string $ratio = '1:1';
 
+    // 分辨率档位，格式如 "1K", "2K", "4K"
+    protected ?string $resolution = null;
+
     // 提示词（用户输入的图片生成描述）
     protected string $prompt;
 
@@ -207,6 +210,16 @@ class ImageGenerateRequest
     public function setRatio(string $ratio): void
     {
         $this->ratio = $ratio;
+    }
+
+    public function getResolution(): ?string
+    {
+        return $this->resolution;
+    }
+
+    public function setResolution(?string $resolution): void
+    {
+        $this->resolution = $resolution;
     }
 
     public function getOutputFormat(): string

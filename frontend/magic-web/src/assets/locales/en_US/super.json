@@ -579,12 +579,15 @@
 				"untitledPost": "Untitled post"
 			},
 			"edit": {
+				"addArticleFileToChat": "Add article file to input",
 				"addCurrentPageToChat": "Add this card to chat",
 				"addPostFolderToCurrentChat": "Add this post to chat",
 				"cancel": "Cancel",
 				"discard": "Discard",
+				"goToArticleEdit": "Edit article",
 				"goToEdit": "Edit this card",
 				"noCards": "No cards in current post",
+				"refreshArticle": "Refresh article",
 				"refreshCard": "Refresh card",
 				"refreshConfirmDescription": "The current editor has unsaved changes. Save now or discard changes before refreshing.",
 				"refreshConfirmTitle": "Handle unsaved changes first",
@@ -772,6 +775,11 @@
 		"uploadFailed": "Upload failed",
 		"uploadFailedPrefix": "Upload failed: ",
 		"uploadedAttachments": "Uploaded Attachments ({{count}})"
+	},
+	"htmlEditor": {
+		"dropOverlay": {
+			"hint": "Release to insert image"
+		}
 	},
 	"fileViewer": {
 		"addNewSlide": "New Slide",
@@ -1214,6 +1222,8 @@
 		"modeNotAvailableMessage": "Current mode is not available, please create a \"New Topic\" and select an available mode to continue",
 		"modelSwitch": {
 			"autoModelDescription": "Auto mode automatically selects the most efficient AI model for the current task, suitable for handling most regular tasks with moderate credit consumption.",
+			"collapseDescription": "Collapse model description",
+			"expandDescription": "Expand model description",
 			"headerTitle": "Model Selection",
 			"imageModel": "Image",
 			"languageModel": "Text",
@@ -1415,6 +1425,8 @@
 	"modeToggle": {
 		"cannotSwitchModeMessage": "Current crew cannot be switched. Create a new topic to enable \"<strong>{{modeName}}</strong>\".",
 		"createNewTopic": "Create New Topic",
+		"emptySearchResult": "No matching crew found",
+		"searchPlaceholder": "Search crew",
 		"selectCrew": "Select Crew",
 		"selectMode": "Select Mode"
 	},
@@ -1788,16 +1800,31 @@
 		},
 		"message": {
 			"completing": "Completing summary...",
+			"continueSummary": "Continue summary",
+			"continuingSummaryAfterAudioCheck": "Continuing the summary...",
 			"generatingSummary": "Generating summary...",
 			"migratingImages": "Migrating images...",
 			"missingRequiredParams": "Missing required parameters, please reselect project and model",
+			"placeholderUploadCancel": "Cancel",
+			"placeholderUploadCancelled": "Audio preparation was cancelled",
+			"placeholderUploadProgress": "Preparing audio: {{percent}}% ready, {{remaining}} remaining",
+			"placeholderUploadProgressTitle": "Preparing audio",
+			"placeholderUploadTimeout": "Audio preparation is taking longer than expected. Please try again later",
+			"placeholderUploadTooManyFailed": "{{count}} audio segments need preparation. Please choose “Try again” first to keep the recording as complete as possible.",
 			"processingProject": "Processing project info...",
+			"retryUploadChunks": "Try again",
+			"retryingAudioChunks": "Preparing the audio again, please wait...",
 			"starting": "Starting summary...",
 			"stoppingRecording": "Stopping recording...",
 			"summaryComplete": "Summary complete",
 			"summaryFailed": "Summary failed, please retry",
 			"summaryGenerationFailed": "Failed to generate summary, please try again later",
-			"uploadChunksFailed": "Failed to upload audio chunks, please check network and retry",
+			"uploadChunksCompletingError": "Audio preparation ran into a problem. Please try again later",
+			"uploadChunksPreparingError": "The audio is not fully ready yet. Please try again shortly",
+			"uploadFailureDecisionContent": "{{failed}}/{{total}} audio segments are not fully ready yet. We recommend trying again first to keep the recording as complete as possible. You can also continue the summary now; the result will be generated from the audio that is already ready, and unfinished time ranges may not be included.",
+			"uploadFailureDecisionTitle": "A little audio still needs confirmation",
+			"uploadProgress": "Preparing audio: {{percent}}% ready, {{pending}} remaining",
+			"uploadProgressNeedsDecision": "Preparing audio: {{percent}}% ready",
 			"uploadingChunks": "Uploading audio chunks..."
 		},
 		"messageListFallback": {
@@ -1816,6 +1843,9 @@
 				"takeNotes": "Take Notes"
 			},
 			"title": "Recording"
+		},
+		"chunkProduction": {
+			"failed": "Recording error: No audio data detected"
 		},
 		"network": {
 			"max_retries_reached": "Some audio chunks failed to upload. Please check your network connection and retry",
@@ -2322,6 +2352,7 @@
 		"shareMessageDashboard": "I've shared a data analytics dashboard with you:",
 		"shareMessageDesign": "I've shared a canvas with you:",
 		"shareMessageMultipleFiles": "I've shared some files with you ({{count}} files in total):",
+		"shareMessageMultipleFilesFile": "📄 File: {{shareName}}",
 		"shareMessageMultipleFilesLink": "🔗 Access link: {{shareUrl}}",
 		"shareMessageMultipleFilesTip": "💡 Click the link to view the files directly.",
 		"shareMessageProject": "I've shared a project with you:",
@@ -2655,7 +2686,7 @@
 		"insertImage": "Insert Image",
 		"inspector": {
 			"agentPromptPlaceholder": "Describe the problem here",
-			"agentPromptSuffix": "Please describe the problem you encountered:",
+			"agentPromptSuffix": "Please handle the selected element:",
 			"agentPromptTitle": "[HTML Element Inspection] I selected an element on the page. Here are its details:",
 			"computedStyles": "Computed Styles",
 			"copySelector": "Copy Selector",
@@ -2860,6 +2891,8 @@
 	},
 	"topicFiles": {
 		"AIOptimization": "AI Edit",
+		"aiPick": "AI Pick",
+		"aiPickTooltip": "Click to select a page element and let AI modify it",
 		"addFile": "Add File",
 		"addFolder": "Add Folder",
 		"batchExportingPdf": "Batch Exporting PDF...",
@@ -3195,8 +3228,12 @@
 		"aiGeneratedTip": "AI-generated content. Please verify.",
 		"attachments": "Attachments({{count}})",
 		"collapseUserMessage": "Collapse",
+		"consumptionPoints": "Used {{points}} points this round",
 		"consumptionPoints1": "This round used",
 		"consumptionPoints2": "points",
+		"usedModel": "Model：",
+		"usedImageModel": "Image Model: ",
+		"usedVideoModel": "Video Model: ",
 		"copyTopic": "Create a new topic from here",
 		"deleteProjectConfirm": "Are you sure to delete project: \"{{name}}\"?",
 		"deleteTopicConfirm": "Are you sure to delete topic: \"{{name}}\"?",

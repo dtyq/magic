@@ -22,6 +22,7 @@ import (
 	"magic/internal/domain/knowledge/shared"
 	"magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/infrastructure/logging"
+	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/thirdplatform"
 	"magic/internal/pkg/tokenizer"
 )
@@ -65,6 +66,7 @@ func (s *previewProjectFileAccessorStub) GetLink(ctx context.Context, projectFil
 type previewTestParser struct {
 	mu                  sync.Mutex
 	lastOptions         *documentdomain.ParseOptions
+	lastBusinessParams  *ctxmeta.BusinessParams
 	parseDocumentResult *parseddocument.ParsedDocument
 }
 
@@ -109,6 +111,12 @@ func (p *previewTestParser) ParseDocumentWithOptions(
 	cloned := options
 	p.mu.Lock()
 	p.lastOptions = &cloned
+	if businessParams, ok := ctxmeta.BusinessParamsFromContext(ctx); ok {
+		clonedBusinessParams := *businessParams
+		p.lastBusinessParams = &clonedBusinessParams
+	} else {
+		p.lastBusinessParams = nil
+	}
 	p.mu.Unlock()
 	return p.ParseDocument(ctx, fileURL, file, fileType)
 }
@@ -123,6 +131,19 @@ func (p *previewTestParser) snapshotLastOptions() *documentdomain.ParseOptions {
 		return nil
 	}
 	cloned := *p.lastOptions
+	return &cloned
+}
+
+func (p *previewTestParser) snapshotLastBusinessParams() *ctxmeta.BusinessParams {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.lastBusinessParams == nil {
+		return nil
+	}
+	cloned := *p.lastBusinessParams
 	return &cloned
 }
 
@@ -234,6 +255,21 @@ func TestBuildPreviewRequestKeyForTest_NormalizesEquivalentDefaults(t *testing.T
 	}
 }
 
+func TestBuildPreviewRequestKeyForTest_IncludesOrganizationCode(t *testing.T) {
+	t.Parallel()
+
+	orgA := previewInputWithStrategyConfig(500)
+	orgA.OrganizationCode = "ORG-A"
+	orgB := previewInputWithStrategyConfig(500)
+	orgB.OrganizationCode = "ORG-B"
+
+	keyA := appservice.BuildPreviewRequestKeyForTest(orgA)
+	keyB := appservice.BuildPreviewRequestKeyForTest(orgB)
+	if keyA == keyB {
+		t.Fatalf("expected different preview keys for different organizations, got %s", keyA)
+	}
+}
+
 func TestFragmentAppServicePreview_DeduplicatesConcurrentIdenticalRequests(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
@@ -281,6 +317,37 @@ func TestFragmentAppServicePreview_DeduplicatesConcurrentIdenticalRequests(t *te
 			t.Fatalf("expected 1 fetch call, got %d", got)
 		}
 	})
+}
+
+func TestFragmentAppServicePreviewV2WritesBusinessParams(t *testing.T) {
+	t.Parallel()
+
+	parser := &previewTestParser{}
+	parseSvc := documentdomain.NewParseServiceWithParsers(&previewTestFetcher{
+		fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+			return io.NopCloser(strings.NewReader("第一段\n\n第二段")), nil
+		},
+	}, logging.New(), parser)
+	svc := appservice.NewFragmentAppService(nil, nil, nil, appservice.AppDeps{
+		ParseService:          parseSvc,
+		PreviewSplitter:       previewSplitterStub{},
+		Tokenizer:             tokenizer.NewService(),
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	}, logging.New())
+	input := previewInput(500)
+	input.OrganizationCode = "TGosRaFhvb"
+	input.UserID = "usi_test"
+
+	if _, err := svc.PreviewV2(context.Background(), input); err != nil {
+		t.Fatalf("preview v2: %v", err)
+	}
+	businessParams := parser.snapshotLastBusinessParams()
+	if businessParams == nil {
+		t.Fatal("expected business params in preview parse context")
+	}
+	if businessParams.OrganizationCode != "TGosRaFhvb" || businessParams.UserID != "usi_test" {
+		t.Fatalf("unexpected business params: %#v", businessParams)
+	}
 }
 
 func TestFragmentAppServicePreviewV2ReturnsHierarchyDocumentNodes(t *testing.T) {

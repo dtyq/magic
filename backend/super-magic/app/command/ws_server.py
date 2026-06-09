@@ -42,6 +42,33 @@ logger = get_logger(__name__)
 # 存储服务器实例和全局变量
 ws_server = None
 _app = None  # 存储FastAPI应用实例的内部变量
+_LOCAL_IM_AUTO_CONNECT_ENV = "ENABLE_LOCAL_IM_CHANNEL_AUTO_CONNECT"
+_TRUE_ENV_VALUES = {"true", "1", "yes", "on"}
+
+
+async def maybe_auto_connect_im_channels_for_local_dev() -> None:
+    """本地开发开关：ws-server 启动后立即触发一次 IM 渠道自动连接。"""
+    enabled = os.getenv(_LOCAL_IM_AUTO_CONNECT_ENV, "").strip().lower() in _TRUE_ENV_VALUES
+    if not enabled:
+        return
+
+    try:
+        from agentlang.environment import Environment
+
+        if not Environment.is_local():
+            logger.warning(
+                f"{_LOCAL_IM_AUTO_CONNECT_ENV}=true 仅允许本地开发环境使用，"
+                "当前非 local 环境，跳过 IM 渠道自动连接"
+            )
+            return
+
+        from app.channel.startup import auto_connect_channels_for_current_sandbox
+
+        await auto_connect_channels_for_current_sandbox()
+        logger.info(f"{_LOCAL_IM_AUTO_CONNECT_ENV}=true，已触发本地 IM 渠道自动连接")
+    except Exception as e:
+        logger.warning(f"本地 IM 渠道自动连接失败，不影响 ws-server 启动: {e}")
+
 
 async def cleanup_stale_files_on_startup():
     """启动时残留文件清理检查，用于清理上次运行遗留的临时文件"""
@@ -88,6 +115,17 @@ async def lifespan(app: FastAPI):
         logger.info("工具定义初始化流程完成")
     except Exception as e:
         logger.error(f"工具定义缓存初始化出现未预期异常: {e}")
+
+    # 初始化模型配置管理器（阶段一：加载 config.yaml 静态配置）
+    # MagicServiceProvider 在客户端 init 完成后由 agent_dispatcher 触发加载（阶段二）
+    try:
+        from agentlang.config.models.model_config_manager import model_config_manager
+        from agentlang.config.models.providers.config_yaml_provider import ConfigYamlProvider
+        from app.core.model_providers.model_filter import should_skip_model
+        await model_config_manager.initialize([ConfigYamlProvider(model_filter=should_skip_model)])
+        logger.info("模型配置管理器初始化完成")
+    except Exception as e:
+        logger.error(f"模型配置管理器初始化失败: {e}")
 
     # 执行启动时残留文件清理检查
     await cleanup_stale_files_on_startup()
@@ -349,6 +387,7 @@ def start_ws_server():
             ws_task = asyncio.create_task(ws_server.serve(sockets=[ws_socket]))
 
             logger.info("✅ 主API服务已启动 (0.0.0.0:8002)，静态文件服务将按需启动")
+            await maybe_auto_connect_im_channels_for_local_dev()
 
             # 等待关闭事件
             await shutdown_event.wait()

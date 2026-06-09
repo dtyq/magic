@@ -99,8 +99,19 @@ type KnowledgeBaseDocumentListingReader interface {
 		sourceBindingIDs []int64,
 	) ([]*docentity.KnowledgeBaseDocument, error)
 
+	// ListByOrganizationKnowledgeBasesAndCodes 按组织、知识库集合和文档编码集合批量列出文档。
+	ListByOrganizationKnowledgeBasesAndCodes(
+		ctx context.Context,
+		organizationCode string,
+		knowledgeBaseCodes []string,
+		documentCodes []string,
+	) ([]*docentity.KnowledgeBaseDocument, error)
+
 	// CountByKnowledgeBaseCodes 按知识库批量统计文档数量
 	CountByKnowledgeBaseCodes(ctx context.Context, organizationCode string, knowledgeBaseCodes []string) (map[string]int64, error)
+
+	// SumWordCountByKnowledgeBase 统计单个知识库下所有文档的正文词数。
+	SumWordCountByKnowledgeBase(ctx context.Context, organizationCode, knowledgeBaseCode string) (int64, error)
 }
 
 // KnowledgeBaseDocumentSourceCallbackReader 定义来源回调热路径读取能力。

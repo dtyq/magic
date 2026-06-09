@@ -1,0 +1,199 @@
+.x-markdown-light {
+  --font-size: 14px;
+  --primary-color: #1677ff;
+  --primary-color-hover: #4096ff;
+  --heading-color: #000000;
+  --text-color: rgba(0, 0, 0, 0.85);
+  --border-color: rgba(240, 240, 240, 1);
+  --line-color: rgba(5, 5, 5, 0.06);
+  --light-bg: rgba(0, 0, 0, 0.04);
+  --table-head-bg: rgba(250, 250, 250, 1);
+  --table-body-bg: rgba(255, 255, 255, 1);
+  --cite-bg: rgba(0, 0, 0, 0.1);
+  --cite-hover-bg: rgba(0, 0, 0, 0.2);
+  --border-radius-middle: 6px;
+  --border-radius-small: 4px;
+  --td-th-padding: 10px 12px;
+  --border-font-weight: 600;
+  --margin-block: 0 0 16px 0;
+  --padding-ul-ol: 0 0 0 16px;
+  --margin-ul-ol: 0 0 16px 28px;
+  --margin-li: 0 0 14px 0;
+  --hr-margin: 24px 0;
+  --table-margin: 0 0 24px 0;
+  --margin-pre: 0 0 16px 0;
+  --padding-code: 16px;
+  --xmd-tail-color: var(--text-color);
+}
+
+.x-markdown-light h1,
+.x-markdown-light h2,
+.x-markdown-light h3,
+.x-markdown-light h4 {
+  color: var(--heading-color);
+  font-weight: var(--border-font-weight);
+  margin: var(--margin-block);
+}
+
+.x-markdown-light h1 {
+  font-size: 24px;
+  line-height: 36px;
+}
+
+.x-markdown-light h2 {
+  font-size: 20px;
+  line-height: 32px;
+}
+
+.x-markdown-light h3 {
+  font-size: 18px;
+  /* 18px */
+  line-height: 30px;
+}
+
+.x-markdown-light h4 {
+  font-size: 16px;
+}
+
+.x-markdown-light p,
+.x-markdown-light li {
+  color: var(--text-color);
+  margin: var(--margin-block);
+}
+
+/* 列表项通用样式 */
+.x-markdown-light li {
+  position: relative;
+}
+
+.x-markdown-light li::marker {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+  color: var(--heading-color);
+}
+
+.x-markdown-light ul > li ul > li,
+.x-markdown-light ul > li ol > li {
+  list-style: circle;
+}
+
+.x-markdown-light ul > li ul > li ul > li,
+.x-markdown-light ul > li ul > li ol > li,
+.x-markdown-light ul > li ol > li ul > li,
+.x-markdown-light ul > li ol > li ol > li {
+  list-style: square;
+}
+
+.x-markdown-light ol > li ol > li,
+.x-markdown-light ol > li ul > li {
+  list-style: lower-alpha;
+}
+
+.x-markdown-light ol > li ol > li ol > li,
+.x-markdown-light ol > li ol > li ul > li,
+.x-markdown-light ol > li ul > li ol > li,
+.x-markdown-light ol > li ul > li ul > li {
+  list-style: lower-roman;
+}
+
+.x-markdown-light hr {
+  border: 0;
+  border-top: 1px solid var(--line-color);
+  margin: var(--hr-margin);
+}
+
+.x-markdown-light table {
+  border-collapse: collapse;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  margin: var(--table-margin);
+}
+
+.x-markdown-light thead {
+  background-color: var(--table-head-bg);
+}
+
+.x-markdown-light tbody {
+  background-color: var(--table-body-bg);
+}
+
+.x-markdown-light tbody tr {
+  background-color: var(--table-body-bg);
+  transition: background-color 200ms linear;
+
+  &:hover {
+    background-color: var(--table-head-bg);
+  }
+}
+
+.x-markdown-light th,
+.x-markdown-light td {
+  padding: var(--td-th-padding);
+  border: 1px solid var(--border-color);
+}
+
+.x-markdown-light th {
+  color: var(--heading-color);
+}
+
+.x-markdown-light td {
+  color: var(--text-color);
+}
+
+.x-markdown-light blockquote {
+  border-left: 4px solid var(--border-color);
+  padding: 4px 12px;
+  margin: 16px 0;
+  background-color: var(--cite-bg);
+  border-radius: 0 var(--border-radius-middle) var(--border-radius-middle) 0;
+  transition: background-color 0.2s ease;
+}
+
+.x-markdown-light blockquote:hover {
+  background-color: var(--cite-hover-bg);
+}
+
+.x-markdown-light pre code:not([class$="-highlightCode-code"] pre code) {
+  display: block;
+  background: var(--light-bg) !important;
+  padding: var(--padding-code);
+  color: var(--text-color) !important;
+  line-height: 1.3;
+  font-size: var(--font-size);
+  border-radius: var(--border-radius-middle);
+  margin: var(--margin-pre);
+}
+
+.x-markdown-light code:not([class$="-highlightCode-code"] code):not(pre code) {
+  background-color: var(--light-bg) !important;
+  color: var(--text-color) !important;
+  border-radius: var(--border-radius-small);
+  padding: 2px 6px;
+  margin-inline: 3px;
+  font-size: var(--font-size);
+  border: 1px solid var(--border-color);
+}
+
+.x-markdown-light img {
+  max-width: 100%;
+}
+
+.x-markdown-light a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  position: relative;
+}
+
+.x-markdown-light a:hover {
+  color: var(--primary-color-hover);
+  text-decoration: underline;
+}
+
+.x-markdown-light a::after {
+  content: "↗";
+  margin-left: 4px;
+  vertical-align: super;
+  opacity: 0.7;
+}

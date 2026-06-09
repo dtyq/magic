@@ -1,5 +1,6 @@
-import { useState } from "react"
-import { DownloadIcon, Trash2Icon } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { CheckIcon, CopyIcon, DownloadIcon, Trash2Icon } from "lucide-react"
 import {
 	Table,
 	TableBody,
@@ -22,7 +23,13 @@ import {
 } from "@/components/shadcn-ui/alert-dialog"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn-ui/empty"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
-import type { StoredSessionHistory } from "@/services/recordSummary/RecordingSessionHistoryDB"
+import { Spinner } from "@/components/shadcn-ui/spinner"
+import {
+	RECORDING_HISTORY_RETENTION_DAYS,
+	type StoredSessionHistory,
+} from "@/services/recordSummary/RecordingSessionHistoryDB"
+import { clipboard } from "@/utils/clipboard-helpers"
+import magicToast from "@/components/base/MagicToaster/utils"
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -31,6 +38,8 @@ interface SessionHistoryTableProps {
 	loading: boolean
 	onExport: (session: StoredSessionHistory) => void
 	onDelete: (session: StoredSessionHistory) => void
+	exportingSessionId?: string | null
+	exportDisabled?: boolean
 }
 
 // Format ms to hh:mm:ss
@@ -64,15 +73,66 @@ function getStatusVariant(status: string): BadgeVariant {
 	}
 }
 
-function SessionHistoryTable({ sessions, loading, onExport, onDelete }: SessionHistoryTableProps) {
+export function buildSessionKeyInfo(session: StoredSessionHistory): string {
+	return [
+		`Session ID: ${session.id || "-"}`,
+		`Topic ID: ${session.topic?.id || session.chatTopic?.id || "-"}`,
+		`Status: ${session.status || "-"}`,
+		`Start Time: ${formatDate(session.startTime)}`,
+		`Last Activity Time: ${formatDate(session.lastActivityTime)}`,
+		`Duration: ${formatDuration(session.totalDuration)}`,
+		`Current Chunk Index: ${session.currentChunkIndex ?? "-"}`,
+	].join("\n")
+}
+
+function SessionHistoryTable({
+	sessions,
+	loading,
+	onExport,
+	onDelete,
+	exportingSessionId,
+	exportDisabled = false,
+}: SessionHistoryTableProps) {
+	const { t } = useTranslation("accountSetting")
 	const [pendingDelete, setPendingDelete] = useState<StoredSessionHistory | null>(null)
+	const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null)
+	const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+	useEffect(() => {
+		return () => {
+			if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
+		}
+	}, [])
+
+	const handleCopyKeyInfo = async (session: StoredSessionHistory) => {
+		try {
+			await clipboard.writeText(buildSessionKeyInfo(session))
+			setCopiedSessionId(session.id)
+			if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
+			copyResetTimerRef.current = setTimeout(() => {
+				setCopiedSessionId(null)
+				copyResetTimerRef.current = null
+			}, 2000)
+			magicToast.success({
+				content: t("recordingHistoryPanel.toastCopySuccess"),
+				key: `recording-history-copy-info-${session.id}`,
+			})
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : String(error)
+			magicToast.error(t("recordingHistoryPanel.toastCopyFailed", { reason }))
+		}
+	}
 
 	if (!loading && sessions.length === 0) {
 		return (
 			<Empty className="h-[52vh]">
 				<EmptyHeader>
-					<EmptyTitle>暂无历史会话</EmptyTitle>
-					<EmptyDescription>30 天内没有发起过录音会话，或数据已被清理。</EmptyDescription>
+					<EmptyTitle>{t("recordingHistoryPanel.emptyTitle")}</EmptyTitle>
+					<EmptyDescription>
+						{t("recordingHistoryPanel.emptyDescription", {
+							days: RECORDING_HISTORY_RETENTION_DAYS,
+						})}
+					</EmptyDescription>
 				</EmptyHeader>
 			</Empty>
 		)
@@ -84,17 +144,31 @@ function SessionHistoryTable({ sessions, loading, onExport, onDelete }: SessionH
 				<Table>
 					<TableHeader className="sticky top-0 z-10 bg-card">
 						<TableRow>
-							<TableHead className="w-[170px]">开始时间</TableHead>
-							<TableHead className="w-[110px]">时长</TableHead>
-							<TableHead className="w-[90px]">状态</TableHead>
-							<TableHead>工作区 / 项目 / 主题</TableHead>
-							<TableHead className="w-[80px] text-right">文本</TableHead>
-							<TableHead className="w-[80px] text-right">笔记</TableHead>
-							<TableHead className="w-[160px] text-right">操作</TableHead>
+							<TableHead className="w-[170px]">
+								{t("recordingHistoryPanel.table.startTime")}
+							</TableHead>
+							<TableHead className="w-[110px]">
+								{t("recordingHistoryPanel.table.duration")}
+							</TableHead>
+							<TableHead className="w-[90px]">
+								{t("recordingHistoryPanel.table.status")}
+							</TableHead>
+							<TableHead>{t("recordingHistoryPanel.table.scope")}</TableHead>
+							<TableHead className="w-[80px] text-right">
+								{t("recordingHistoryPanel.table.text")}
+							</TableHead>
+							<TableHead className="w-[80px] text-right">
+								{t("recordingHistoryPanel.table.note")}
+							</TableHead>
+							<TableHead className="w-[220px] text-right">
+								{t("recordingHistoryPanel.table.actions")}
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{sessions.map((session) => {
+							const exporting = exportingSessionId === session.id
+							const copied = copiedSessionId === session.id
 							const noteLength = session.note?.content?.length ?? 0
 							const textCount = session.textContent?.length ?? 0
 							const scope =
@@ -137,10 +211,39 @@ function SessionHistoryTable({ sessions, loading, onExport, onDelete }: SessionH
 												variant="outline"
 												size="sm"
 												onClick={() => onExport(session)}
+												disabled={exporting || exportDisabled}
 												data-testid="recording-history-export"
 											>
-												<DownloadIcon className="h-3.5 w-3.5" />
-												导出
+												{exporting ? (
+													<Spinner className="h-3.5 w-3.5" />
+												) : (
+													<DownloadIcon className="h-3.5 w-3.5" />
+												)}
+												{exporting
+													? t("recordingHistoryPanel.exporting")
+													: t("recordingHistoryPanel.export")}
+											</Button>
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												onClick={() => void handleCopyKeyInfo(session)}
+												aria-label={
+													copied
+														? t("recordingHistoryPanel.copiedKeyInfo")
+														: t("recordingHistoryPanel.copyKeyInfo")
+												}
+												title={
+													copied
+														? t("recordingHistoryPanel.copied")
+														: t("recordingHistoryPanel.copyKeyInfo")
+												}
+												data-testid="recording-history-copy-info"
+											>
+												{copied ? (
+													<CheckIcon className="h-3.5 w-3.5" />
+												) : (
+													<CopyIcon className="h-3.5 w-3.5" />
+												)}
 											</Button>
 											<Button
 												variant="ghost"
@@ -167,20 +270,22 @@ function SessionHistoryTable({ sessions, loading, onExport, onDelete }: SessionH
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>删除该条历史会话？</AlertDialogTitle>
+						<AlertDialogTitle>
+							{t("recordingHistoryPanel.deleteTitle")}
+						</AlertDialogTitle>
 						<AlertDialogDescription>
-							该操作不可撤销。已上传的音频分片与服务端数据不受影响。
+							{t("recordingHistoryPanel.deleteDescription")}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>取消</AlertDialogCancel>
+						<AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={() => {
 								if (pendingDelete) onDelete(pendingDelete)
 								setPendingDelete(null)
 							}}
 						>
-							确认删除
+							{t("recordingHistoryPanel.confirmDelete")}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

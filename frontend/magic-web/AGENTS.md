@@ -21,12 +21,12 @@ Guidance for autonomous or semi-autonomous coding agents contributing to the Mag
 
 ## Architecture Snapshot
 - **Framework**: React 18 + TypeScript compiled by Vite.
-- **Styling**: 
+- **Styling**:
   - **New components**: Use shadcn/ui + Tailwind CSS (configured in `components.json`)
   - **Existing components**: antd-style CSS-in-JS (frozen, maintenance only)
   - Never mix both styling systems in a single component
   - Never add Less, CSS modules, or `styled-components`
-- **Icons**: 
+- **Icons**:
   - **Primary**: Use `lucide-react` (preferred icon library)
   - **Fallback**: Use `@tabler/icons-react` only if icon not available in lucide-react
   - Always use 16px size for consistent visual alignment
@@ -68,7 +68,7 @@ Guidance for autonomous or semi-autonomous coding agents contributing to the Mag
 - Keep coverage stable; when adding significant logic, include regression tests.
 
 ## Task Playbooks
-- **UI Adjustments**: 
+- **UI Adjustments**:
   - For new components: Use shadcn/ui + Tailwind CSS, ensure props are typed, update i18n keys
   - For existing components: Mirror component structure, extend styles via `createStyles`, maintain consistency
   - Never convert existing antd-style components to Tailwind unless explicitly requested

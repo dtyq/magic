@@ -634,6 +634,28 @@ export class UploadTokenManager {
 	}
 
 	/**
+	 * Restore directories to cache from persisted session data
+	 * 从持久化的会话数据恢复目录信息到缓存
+	 */
+	restoreDirectories(sessionId: string, directories: RecordingDirectories): void {
+		const cachedEntry = this.tokenCache.get(sessionId)
+
+		if (cachedEntry) {
+			cachedEntry.directories = directories
+			logger.log("更新现有缓存的目录信息", { sessionId })
+		} else {
+			this.tokenCache.set(sessionId, {
+				token: {} as SDKUploadConfig["customCredentials"],
+				expiresAt: 0,
+				refreshAt: 0,
+				isRefreshing: false,
+				directories,
+			})
+			logger.log("创建新缓存条目并恢复目录信息", { sessionId })
+		}
+	}
+
+	/**
 	 * Utility function for delays
 	 * 延迟工具函数
 	 */

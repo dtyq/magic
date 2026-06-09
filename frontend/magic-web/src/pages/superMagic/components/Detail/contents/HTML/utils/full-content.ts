@@ -10,6 +10,8 @@ import { getIframeRuntimeScript } from "../iframe-bridge/utils/iframe-script"
 import { configStore } from "@/models/config"
 import { normalizeLocale } from "@/utils/locale"
 
+type ServiceWorkerMockMode = "off" | "auto" | "on"
+
 // Cookie 模拟实现脚本
 const getCookieMockScript = () => {
 	return `
@@ -17,7 +19,7 @@ const getCookieMockScript = () => {
 		if (typeof memoryCookies === 'undefined') {
 			var memoryCookies = {};
 		}
-		
+
 		// 模拟实现 cookie (WebView 中 document.cookie 可能不可配置，需 try-catch)
 		function setupCookieMock() {
 			try {
@@ -25,14 +27,14 @@ const getCookieMockScript = () => {
 				function parseCookieString(cookieStr) {
 					const cookies = {};
 					if (!cookieStr) return cookies;
-					
+
 					cookieStr.split(';').forEach(pair => {
 						const [name, value] = pair.trim().split('=');
 						if (name) cookies[name] = decodeURIComponent(value || '');
 					});
 					return cookies;
 				}
-				
+
 				// 格式化cookie对象为字符串
 				function formatCookies() {
 					return Object.entries(memoryCookies)
@@ -46,7 +48,7 @@ const getCookieMockScript = () => {
 						.filter(Boolean)
 						.join('; ');
 				}
-				
+
 				// 覆盖document.cookie的getter和setter
 				// 钉钉/WebView 等环境中 document.cookie 可能为 non-configurable，会抛出异常
 				Object.defineProperty(document, 'cookie', {
@@ -56,16 +58,16 @@ const getCookieMockScript = () => {
 					set: function(cookieString) {
 						const [nameValuePair, ...options] = cookieString.split(';');
 						const [name, value] = nameValuePair.trim().split('=');
-						
+
 						if (!name) return;
-						
+
 						memoryCookies[name] = { value: decodeURIComponent(value || '') };
-						
+
 						// 处理cookie选项
 						options.forEach(option => {
 							const [optName, optValue] = option.trim().split('=');
 							const lowerOptName = optName.toLowerCase();
-							
+
 							if (lowerOptName === 'expires') {
 								memoryCookies[name].expires = optValue;
 							} else if (lowerOptName === 'max-age') {
@@ -78,7 +80,7 @@ const getCookieMockScript = () => {
 							}
 							// 在模拟环境中，我们忽略path, domain, secure等选项
 						});
-						
+
 						return cookieString;
 					},
 					configurable: true
@@ -88,7 +90,7 @@ const getCookieMockScript = () => {
 				console.warn('Cookie mock skipped:', e && e.message);
 			}
 		}
-		
+
 		// 立即执行cookie模拟设置
 		setupCookieMock();
 	`
@@ -106,23 +108,23 @@ const getStorageMockScript = (markerId?: string) => {
 			try {
 				const storageKey = "${storageKey}";
 				const globalStorageKey = "${globalStorageKey}";
-				
+
 				// 获取原始存储对象的引用
 				const originalLocalStorage = window.localStorage;
 				const originalSessionStorage = window.sessionStorage;
-			
+
 			// 获取标记存储数据
 			function getMarkerStorage(storageType) {
 				const storage = storageType === 'localStorage' ? originalLocalStorage : originalSessionStorage;
 				return JSON.parse(storage.getItem(storageKey) || '{}');
 			}
-			
+
 			// 保存标记存储数据
 			function saveMarkerStorage(storageType, markerData) {
 				const storage = storageType === 'localStorage' ? originalLocalStorage : originalSessionStorage;
 				storage.setItem(storageKey, JSON.stringify(markerData));
 			}
-			
+
 			// 创建存储对象的工厂函数
 			function createStorageProxy(storageType) {
 				return {
@@ -196,7 +198,7 @@ const getStorageMockScript = (markerId?: string) => {
 				writable: false,
 				configurable: true
 			});
-			
+
 			// 替换全局 localStorage
 			Object.defineProperty(window, 'localStorage', {
 				value: localStorageInjected,
@@ -208,7 +210,7 @@ const getStorageMockScript = (markerId?: string) => {
 				console.warn('Storage mock skipped:', e && e.message);
 			}
 		}
-		
+
 		// 立即执行存储模拟设置
 		setupStorageMocks();
 	`
@@ -224,7 +226,7 @@ const getIndexedDBMockScript = () => {
 				currentDb: null
 			};
 		}
-		
+
 		// 模拟 IndexedDB API (WebView 中可能不可配置，需 try-catch)
 		function setupIndexedDBMock() {
 			try {
@@ -305,14 +307,14 @@ const getIndexedDBMockScript = () => {
 				},
 				deleteDatabase: function(name) {
 					const request = new EventTarget();
-					
+
 					setTimeout(() => {
 						delete memoryIndexedDB.databases[name];
-						
+
 						const successEvent = new Event('success');
 						request.dispatchEvent(successEvent);
 					}, 0);
-					
+
 					return request;
 				}
 			};
@@ -328,18 +330,46 @@ const getIndexedDBMockScript = () => {
 				console.warn('IndexedDB mock skipped:', e && e.message);
 			}
 		}
-		
+
 		// 立即执行IndexedDB模拟设置
 		setupIndexedDBMock();
 	`
 }
 
 // ServiceWorker 模拟实现脚本
-const getServiceWorkerMockScript = () => {
+const getServiceWorkerMockScript = (mode: ServiceWorkerMockMode = "auto") => {
+	if (mode === "off") return ""
+
 	return `
 		// 模拟 ServiceWorker API (WebView 中可能不可配置，需 try-catch)
 		function setupServiceWorkerMock() {
+			var serviceWorkerMockMode = ${JSON.stringify(mode)};
+
+			function isTargetWebView() {
+				var ua = (navigator.userAgent || '').toLowerCase();
+				return (
+					ua.indexOf('dingtalk') !== -1 ||
+					ua.indexOf('aliapp(dingtalk') !== -1 ||
+					ua.indexOf('wxwork') !== -1 ||
+					ua.indexOf('wecom') !== -1 ||
+					ua.indexOf('feishu') !== -1 ||
+					ua.indexOf('lark') !== -1
+				);
+			}
+
+			function shouldEnableMock() {
+				if (serviceWorkerMockMode === 'on') return true;
+				if (serviceWorkerMockMode === 'off') return false;
+				return isTargetWebView();
+			}
+
 			try {
+			if (!shouldEnableMock()) return;
+
+			if ('serviceWorker' in navigator && navigator.serviceWorker) {
+				return;
+			}
+
 			// 创建模拟的 ServiceWorkerContainer
 			const mockServiceWorkerContainer = {
 				// 模拟注册服务工作线程
@@ -399,7 +429,7 @@ const getServiceWorkerMockScript = () => {
 				console.warn('ServiceWorker mock skipped:', e && e.message);
 			}
 		}
-		
+
 		// 立即执行ServiceWorker模拟设置
 		setupServiceWorkerMock();
 	`
@@ -488,7 +518,7 @@ const getDOMContentLoadedScript = (disableParentClickBridge = false) => {
 							// 保存原始尺寸信息
 							const originalWidth = this.style.width || this.getAttribute('width') || this.offsetWidth;
 							const originalHeight = this.style.height || this.getAttribute('height') || this.offsetHeight;
-							
+
 							// 保存原始src到data-src属性（仅当不是占位图时）
 							if (this.src && this.src !== emptyStateSvg && !this.hasAttribute('data-src')) {
 								this.setAttribute('data-src', stripMagicImgRetryFromSrc(this.src));
@@ -504,10 +534,10 @@ const getDOMContentLoadedScript = (disableParentClickBridge = false) => {
 								this.src = buildRetrySrc(originalSrc, retryCount);
 								return
 							}
-							
+
 							// 替换为占位图
 							this.src = emptyStateSvg;
-							
+
 							// 保持原始尺寸，如果有的话
 							if (originalWidth && originalWidth !== '0' && originalWidth !== 0) {
 								this.style.width = typeof originalWidth === 'number' ? originalWidth + 'px' : originalWidth;
@@ -515,16 +545,16 @@ const getDOMContentLoadedScript = (disableParentClickBridge = false) => {
 							if (originalHeight && originalHeight !== '0' && originalHeight !== 0) {
 								this.style.height = typeof originalHeight === 'number' ? originalHeight + 'px' : originalHeight;
 							}
-							
+
 							// 如果没有明确的尺寸，添加默认样式确保SVG能够合理显示
 							if ((!originalWidth || originalWidth === '0' || originalWidth === 0) &&
 							    (!originalHeight || originalHeight === '0' || originalHeight === 0)) {
-							
+
 							}
-							
+
 							// 确保SVG能够正确缩放
 							this.style.objectFit = 'contain';
-							
+
 							this.setAttribute("data-error-handled", "true");
 						});
 						img.setAttribute("data-listener-added", "true");
@@ -630,7 +660,7 @@ const getLinkHandlingScript = () => {
 					href = href.replace(currentOrigin, "");
 					e.preventDefault();
 				} else {
-					return 
+					return
 				}
 				try {
 					window.parent.postMessage({
@@ -651,7 +681,7 @@ const getLinkHandlingScript = () => {
 			document.addEventListener("click", function(event) {
 				// 检查点击的元素是否是 a 标签或其子元素
 				let linkElement = event.target.closest("a");
-				
+
 				if (linkElement && linkElement.href) {
 					const href = linkElement.getAttribute("href");
 
@@ -659,22 +689,22 @@ const getLinkHandlingScript = () => {
 					if (href && href.startsWith("#")) {
 						return;
 					}
-					
+
 					// 检查 href 是否不是以 http 或 https 开头
 					if (href && !href.startsWith("http://") && !href.startsWith("https://")) {
 						// 阻止默认行为
 						event.preventDefault();
 						event.stopPropagation();
-						
+
 						// 如果当前是编辑模式，不触发通信
 						if (window.slideSelector && window.slideSelector.isEditMode) {
 							console.log('编辑模式下不触发链接通信');
 							return;
 						}
-						
+
 						// 检查是否有 data-auto-edit 属性
 					const autoEdit = linkElement.getAttribute("data-auto-edit") === "true";
-					
+
 					// 通过 postMessage 通知主窗口
 					try {
 						console.log(href)
@@ -704,7 +734,7 @@ const getLinkHandlingScript = () => {
 						console.log('编辑模式下不触发 window.open 通信');
 						return null;
 					}
-					
+
 					// 阻止默认行为，不调用原始的 window.open
 					try {
 						console.log("劫持的 window.open:", url);
@@ -1497,6 +1527,7 @@ export const getFullContent = (
 	markerId?: string,
 	options: GetFullContentOptions = {},
 ) => {
+	const serviceWorkerMockMode = options.serviceWorkerMockMode ?? "auto"
 	const dynamicInterceptionOptions = options.dynamicInterception ?? {}
 	const postMessageTargetStrategy =
 		options.postMessageTargetStrategy ??
@@ -1554,7 +1585,7 @@ export const getFullContent = (
 		${getCookieMockScript()}
 		${getStorageMockScript(markerId)}
 		${getIndexedDBMockScript()}
-		${getServiceWorkerMockScript()}
+		${getServiceWorkerMockScript(serviceWorkerMockMode)}
 		${getDOMContentLoadedScript(options.disableParentClickBridge === true)}
 		${getLinkHandlingScript()}
 		${getNestedIframeInterceptorScript()}
@@ -1625,6 +1656,7 @@ interface DynamicResourceInterceptorOptions {
 }
 
 interface GetFullContentOptions {
+	serviceWorkerMockMode?: ServiceWorkerMockMode
 	dynamicInterception?: DynamicResourceInterceptorOptions
 	containOverscroll?: boolean
 	hideVerticalScroll?: boolean

@@ -16,10 +16,20 @@ const (
 	MethodKnowledgeBaseShow = "svc.knowledge.knowledgeBase.show"
 	// MethodKnowledgeBaseList 查询知识库列表
 	MethodKnowledgeBaseList = "svc.knowledge.knowledgeBase.queries"
+	// MethodKnowledgeBaseLinkAgentKnowledgeBases 关联数字员工知识库
+	MethodKnowledgeBaseLinkAgentKnowledgeBases = "svc.knowledge.knowledgeBase.linkAgentKnowledgeBases"
+	// MethodKnowledgeBaseUnlinkAgentKnowledgeBases 取消关联数字员工知识库
+	MethodKnowledgeBaseUnlinkAgentKnowledgeBases = "svc.knowledge.knowledgeBase.unlinkAgentKnowledgeBases"
+	// MethodKnowledgeBaseUpdateAgentKnowledgeBaseBinding 更新数字员工知识库绑定配置
+	MethodKnowledgeBaseUpdateAgentKnowledgeBaseBinding = "svc.knowledge.knowledgeBase.updateAgentKnowledgeBaseBinding"
 	// MethodKnowledgeBaseDestroy 删除知识库
 	MethodKnowledgeBaseDestroy = "svc.knowledge.knowledgeBase.destroy"
 	// MethodKnowledgeBaseRebuild 重建知识库向量
 	MethodKnowledgeBaseRebuild = "svc.knowledge.knowledgeBase.rebuild"
+	// MethodKnowledgeBaseRebuildStatus 查询知识库重建状态
+	MethodKnowledgeBaseRebuildStatus = "svc.knowledge.knowledgeBase.rebuildStatus"
+	// MethodKnowledgeBaseSwitchEmbeddingModelMeta 切换知识库嵌入模型元数据
+	MethodKnowledgeBaseSwitchEmbeddingModelMeta = "svc.knowledge.knowledgeBase.switchEmbeddingModelMeta"
 	// MethodKnowledgeBaseRepairSourceBindings 修复历史来源绑定
 	MethodKnowledgeBaseRepairSourceBindings = "svc.knowledge.knowledgeBase.repairThirdFileMappings"
 	// MethodKnowledgeBaseRebuildCleanup 清理重建残留集合
@@ -44,6 +54,8 @@ const (
 	MethodKnowledgeBasePermissionCheckOfficialOrganizationMember = "svc.knowledge.knowledgeBasePermission.checkOfficialOrganizationMember"
 	// MethodKnowledgeBaseRebuildPermissions 补齐知识库权限
 	MethodKnowledgeBaseRebuildPermissions = "svc.knowledge.knowledgeBase.rebuildPermissions"
+	// MethodSocketIORedisCleanup 异步清理允许的 Socket.IO Redis key 前缀
+	MethodSocketIORedisCleanup = "svc.socketio.redis.cleanup"
 
 	// MethodFragmentCreate 创建片段
 	MethodFragmentCreate = "svc.knowledge.fragment.create"
@@ -65,6 +77,8 @@ const (
 	MethodFragmentRuntimeSimilarity = "svc.knowledge.fragment.runtimeSimilarity"
 	// MethodFragmentSimilarityByAgent 数字员工维度片段相似度搜索
 	MethodFragmentSimilarityByAgent = "svc.knowledge.fragment.similarityByAgent"
+	// MethodFragmentFlowVectorSimilarityByUser 用户维度 flow 知识库相似度搜索
+	MethodFragmentFlowVectorSimilarityByUser = "svc.knowledge.fragment.flowVectorSimilarityByUser"
 	// MethodFragmentRuntimeCreate flow/teamshare runtime 片段写入
 	MethodFragmentRuntimeCreate = "svc.knowledge.fragment.runtimeCreate"
 	// MethodFragmentRuntimeDestroyByBusinessID flow/teamshare runtime 按 business_id 删片段
@@ -88,6 +102,12 @@ const (
 	MethodModelGatewayEmbeddingProvidersList = "svc.modelGateway.embedding.providers.list"
 	// MethodModelGatewayAccessTokenGet 回调 PHP 获取 access token
 	MethodModelGatewayAccessTokenGet = "svc.modelGateway.accessToken.get"
+	// MethodModelGatewayModelConfigGet 回调 PHP 获取模型调用配置
+	MethodModelGatewayModelConfigGet = "svc.modelGateway.model.config.get"
+	// MethodAIAbilityConfigGet 回调 PHP 获取 AI 能力配置
+	MethodAIAbilityConfigGet = "svc.aiAbility.config.get"
+	// MethodAuthWebAuthAuthenticate 回调 PHP 校验 Web 登录态
+	MethodAuthWebAuthAuthenticate = "svc.auth.webAuth.authenticate"
 
 	// MethodKnowledgeThirdPlatformDocumentResolve 回调 PHP 解析第三方文档内容
 	MethodKnowledgeThirdPlatformDocumentResolve = "svc.knowledge.thirdPlatformDocument.resolve"
@@ -127,6 +147,8 @@ const (
 	MethodFileGetLink = "svc.file.getLink"
 	// MethodFileStat 回调 PHP 文件服务检查对象是否存在
 	MethodFileStat = "svc.file.stat"
+	// MethodMagicFSFileAuthorizeFileViewer 回调 PHP 校验 MagicFS 文件 viewer 访问权限
+	MethodMagicFSFileAuthorizeFileViewer = "svc.magicfs.file.authorizeFileViewer"
 
 	// MethodDocumentCreate 创建文档
 	MethodDocumentCreate = "svc.knowledge.document.create"

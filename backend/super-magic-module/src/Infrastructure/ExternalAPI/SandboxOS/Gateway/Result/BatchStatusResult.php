@@ -63,6 +63,25 @@ class BatchStatusResult extends GatewayResult
     }
 
     /**
+     * Map of sandbox_id => status for every entry the gateway returned.
+     * Absent ids simply won't be present in the map, which callers treat as
+     * "inconclusive" rather than "gone".
+     *
+     * @return array<string, null|string>
+     */
+    public function getStatusMap(): array
+    {
+        $map = [];
+        foreach ($this->getSandboxStatuses() as $sandbox) {
+            if (isset($sandbox['sandbox_id'])) {
+                $map[$sandbox['sandbox_id']] = $sandbox['status'] ?? null;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
      * 检查指定沙箱是否运行中.
      */
     public function isSandboxRunning(string $sandboxId): bool

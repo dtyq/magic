@@ -6,23 +6,9 @@ describe("MagicFilesApi", () => {
 	let api: MagicFilesApi
 
 	beforeEach(() => {
-		;(window as any).Magic = undefined
+		; (window as any).Magic = undefined
 		// mockImplementation prevents jsdom from echoing postMessage back to the same window
-		postMessageSpy = vi.spyOn(window.parent, "postMessage").mockImplementation(() => {})
-		// Mock FileReader to fire onload as microtask (predictable in tests)
-		vi.stubGlobal(
-			"FileReader",
-			class MockFileReader {
-				result: string | null = "data:text/plain;base64,bW9jaw=="
-				onload: ((e: Event) => void) | null = null
-				onerror: ((e: Event) => void) | null = null
-				readAsDataURL(_file: File) {
-					queueMicrotask(() => {
-						if (this.onload) this.onload(new Event("load"))
-					})
-				}
-			},
-		)
+		postMessageSpy = vi.spyOn(window.parent, "postMessage").mockImplementation(() => { })
 		api = new MagicFilesApi()
 		api.install()
 	})
@@ -30,7 +16,7 @@ describe("MagicFilesApi", () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
 		vi.unstubAllGlobals()
-		;(window as any).Magic = undefined
+			; (window as any).Magic = undefined
 	})
 
 	function simulateResponse(data: Record<string, unknown>) {
@@ -88,13 +74,13 @@ describe("MagicFilesApi", () => {
 			).rejects.toThrow("filename must be a string")
 		})
 
-		it("合法输入通过 FileReader 读取后发送 MAGIC_UPLOAD_FILES_REQUEST", async () => {
+		it("合法输入直接发送 File 对象到 MAGIC_UPLOAD_FILES_REQUEST", async () => {
 			const file = makeFile("hello content", "hello.txt")
 			const promise = (window as any).Magic.uploadFiles([
 				{ file, path: "./hello.txt", filename: "hello.txt" },
 			])
 
-			// Wait for microtask (FileReader mock) + Promise.all to complete
+			// Synchronous — no FileReader needed, postMessage fires immediately
 			await new Promise((r) => setTimeout(r, 0))
 
 			expect(postMessageSpy).toHaveBeenCalledOnce()
@@ -103,6 +89,8 @@ describe("MagicFilesApi", () => {
 			expect(Array.isArray(req.files)).toBe(true)
 			expect(req.files[0].filename).toBe("hello.txt")
 			expect(req.files[0].path).toBe("./hello.txt")
+			expect(req.files[0].file).toBeInstanceOf(File)
+			expect(req.files[0].fileSize).toBe(file.size)
 			expect(origin).toBe("*")
 
 			simulateResponse({
@@ -163,7 +151,7 @@ describe("MagicFilesApi", () => {
 		})
 
 		it("合法 filePaths 发送 MAGIC_ADD_FILES_TO_MESSAGE_REQUEST", () => {
-			;(window as any).Magic.addFilesToMessage(["./output.csv"])
+			; (window as any).Magic.addFilesToMessage(["./output.csv"])
 			expect(postMessageSpy).toHaveBeenCalledOnce()
 			const [req] = postMessageSpy.mock.calls[0]
 			expect(req.type).toBe("MAGIC_ADD_FILES_TO_MESSAGE_REQUEST")
@@ -171,7 +159,7 @@ describe("MagicFilesApi", () => {
 		})
 
 		it("传入 agentMode 时消息包含 agentMode 字段", () => {
-			;(window as any).Magic.addFilesToMessage(["./a.csv"], "super_magic")
+			; (window as any).Magic.addFilesToMessage(["./a.csv"], "super_magic")
 			const [req] = postMessageSpy.mock.calls[0]
 			expect(req.agentMode).toBe("super_magic")
 		})
@@ -228,7 +216,7 @@ describe("MagicFilesApi", () => {
 		})
 
 		it("合法 filePaths 发送 MAGIC_DOWNLOAD_FILES_REQUEST", () => {
-			;(window as any).Magic.downloadFiles(["./report.pdf"])
+			; (window as any).Magic.downloadFiles(["./report.pdf"])
 			expect(postMessageSpy).toHaveBeenCalledOnce()
 			const [req] = postMessageSpy.mock.calls[0]
 			expect(req.type).toBe("MAGIC_DOWNLOAD_FILES_REQUEST")
@@ -271,7 +259,7 @@ describe("MagicFilesApi", () => {
 				.then(() => {
 					resolved = true
 				})
-				.catch(() => {})
+				.catch(() => { })
 
 			simulateResponse({
 				type: "WRONG_TYPE",

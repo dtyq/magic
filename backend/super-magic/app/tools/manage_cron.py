@@ -300,13 +300,14 @@ CRITICAL CONSTRAINTS:
 
         agent_ctx = tool_context.get_extension("agent_context")
 
-        model_id = None
-        if agent_ctx and hasattr(agent_ctx, "get_real_model_id"):
-            model_id = agent_ctx.get_real_model_id() or None
-
-        image_model_id = None
-        if agent_ctx and hasattr(agent_ctx, "get_dynamic_image_model_id"):
-            image_model_id = agent_ctx.get_dynamic_image_model_id() or None
+        model_id: Optional[str] = None
+        image_model_id: Optional[str] = None
+        video_model_id: Optional[str] = None
+        if agent_ctx and hasattr(agent_ctx, "model_context"):
+            model_context = agent_ctx.model_context
+            model_id = model_context.current_text_model_id or None
+            image_model_id = model_context.image_model_id
+            video_model_id = model_context.video_model_id
 
         user_timezone = None
         if agent_ctx and hasattr(agent_ctx, "get_user_timezone"):
@@ -324,6 +325,7 @@ CRITICAL CONSTRAINTS:
             agent_name=agent_name,
             model_id=model_id,
             image_model_id=image_model_id,
+            video_model_id=video_model_id,
             timeout_seconds=params.timeout_seconds,
             enabled=True if params.enabled is None else params.enabled,
             name=params.name,
@@ -349,6 +351,7 @@ CRITICAL CONSTRAINTS:
             agent_name=None,  # agent_name 不允许通过 update 修改，创建时已绑定当前 agent
             model_id=None,
             image_model_id=None,
+            video_model_id=None,
             timeout_seconds=params.timeout_seconds,
             enabled=params.enabled,
             body=params.message,
@@ -459,4 +462,3 @@ CRITICAL CONSTRAINTS:
         }
         remark = remark_map.get(action, base_action)
         return {"action": base_action, "remark": remark}
-

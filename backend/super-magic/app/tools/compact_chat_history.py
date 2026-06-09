@@ -1,9 +1,10 @@
 from app.i18n import i18n
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.core import BaseTool, BaseToolParams, tool
 from agentlang.logger import get_logger
 from app.core.context.agent_context import AgentContext
@@ -35,6 +36,42 @@ Compress the current chat history when the conversation becomes too long, DO NOT
             extra_info={
                 "summary": params.summary
             },
+        )
+
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: Dict[str, Any] = None,
+    ) -> Optional[ToolDetail]:
+        """Return frontend-facing compaction detail."""
+        if not result.ok:
+            return None
+
+        summary = (result.extra_info or {}).get("summary")
+        if not isinstance(summary, str) and arguments:
+            summary = arguments.get("summary")
+        summary_length = len(summary) if isinstance(summary, str) else 0
+
+        lines = [
+            f"# {i18n.translate('compact_chat_history.detail_title', category='tool.messages')}",
+            "",
+            i18n.translate("compact_chat_history.detail_description", category="tool.messages"),
+        ]
+        if summary_length > 0:
+            lines.extend([
+                "",
+                f"- {i18n.translate('compact_chat_history.detail_summary_length', category='tool.messages')}: "
+                f"{i18n.translate('compact_chat_history.detail_chars', category='tool.messages', count=summary_length)}",
+                "",
+                f"## {i18n.translate('compact_chat_history.detail_summary_title', category='tool.messages')}",
+                "",
+                summary,
+            ])
+
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(file_name="compact_chat_history.md", content="\n".join(lines)),
         )
 
     async def get_after_tool_call_friendly_action_and_remark(

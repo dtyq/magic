@@ -635,6 +635,49 @@ describe("MessageList Markdown HTML preview", () => {
 		expect(screen.getByTestId("isolated-html-renderer")).toHaveTextContent(/FragmentOnly/)
 	})
 
+	it("renders preview for html fences that initialize echarts on sized mount containers", () => {
+		render(
+			<MarkdownComponent
+				content={[
+					"```html",
+					"<!DOCTYPE html>",
+					"<html><body>",
+					'<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js"></script>',
+					'<div id="chart1" style="width:100%;height:380px;"></div>',
+					'<script>echarts.init(document.getElementById("chart1"));</script>',
+					"</body></html>",
+					"```",
+				].join("\n")}
+			/>,
+		)
+
+		expect(screen.getByTestId("html-code-block-preview")).toBeInTheDocument()
+		expect(screen.getByTestId("html-code-block-preview-tab-phone")).toBeInTheDocument()
+		expect(screen.getByTestId("html-code-block-preview-fullscreen-button")).toBeInTheDocument()
+	})
+
+	it("keeps script-only html fences in code mode when no render root exists", () => {
+		render(
+			<MarkdownComponent
+				content={[
+					"```html",
+					"<!DOCTYPE html>",
+					"<html><body>",
+					"<script>window.answer = 42;</script>",
+					"</body></html>",
+					"```",
+				].join("\n")}
+			/>,
+		)
+
+		expect(screen.getByTestId("html-code-block-preview")).toBeInTheDocument()
+		expect(screen.queryByTestId("html-code-block-preview-tab-phone")).not.toBeInTheDocument()
+		expect(
+			screen.queryByTestId("html-code-block-preview-fullscreen-button"),
+		).not.toBeInTheDocument()
+		expect(screen.getByText(/window.answer = 42/)).toBeInTheDocument()
+	})
+
 	it("keeps non-html fenced code blocks unchanged", () => {
 		render(<MarkdownComponent content={"```javascript\nconsole.log('hi')\n```"} />)
 

@@ -16,8 +16,8 @@ enum AiAbilityCode: string
     case Ocr = 'ocr';                                      // OCR 识别
     case WebSearch = 'web_search';                         // 互联网搜索
     case ImageSearch = 'image_search';                     // 图片搜索
-
-    //    case RealtimeSpeechRecognition = 'realtime_speech_recognition';  // 实时语音识别
+    case KnowledgeBaseEmbeddingModel = 'knowledge_base_embedding_model'; // 知识库嵌入模型
+    case KnowledgeBaseVisualUnderstanding = 'knowledge_base_visual_understanding'; // 知识库视觉理解能力
     case AudioFileRecognition = 'audio_file_recognition';  // 音频文件识别
     case AutoCompletion = 'auto_completion';               // 自动补全
     case ContentSummary = 'content_summary';               // 内容总结
@@ -32,6 +32,7 @@ enum AiAbilityCode: string
     case Compact = 'super_magic_compact';                  // 上下文压缩 (超级麦吉)
     case AnalysisAudio = 'super_magic_analysis_audio';     // 音频分析 (超级麦吉)
     case WebScrape = 'web_scrape';                         // 网页爬取
+    case WeatherForecast = 'weather_forecast';             // 天气查询
     case ImageConvertHigh = 'image_convert_high';          // 图片转高清
     case ImageRemoveBackground = 'image_remove_background'; // 去背景
     case ImageEraser = 'image_eraser';                     // 橡皮擦
@@ -46,7 +47,8 @@ enum AiAbilityCode: string
             self::Ocr => 'OCR 识别',
             self::WebSearch => '互联网搜索',
             self::ImageSearch => '图片搜索',
-            //            self::RealtimeSpeechRecognition => '实时语音识别',
+            self::KnowledgeBaseEmbeddingModel => '知识库嵌入模型',
+            self::KnowledgeBaseVisualUnderstanding => '知识库视觉理解能力',
             self::AudioFileRecognition => '音频文件识别',
             self::AutoCompletion => '自动补全',
             self::ContentSummary => '内容总结',
@@ -61,6 +63,7 @@ enum AiAbilityCode: string
             self::Compact => '超级麦吉 - 上下文压缩',
             self::AnalysisAudio => '超级麦吉 - 音频分析',
             self::WebScrape => '网页爬取',
+            self::WeatherForecast => '天气查询',
             self::ImageConvertHigh => '图片转高清',
             self::ImageRemoveBackground => '去背景',
             self::ImageEraser => '橡皮擦',
@@ -78,7 +81,8 @@ enum AiAbilityCode: string
             self::Ocr => '本能力覆盖平台所有 OCR 应用场景，精准捕捉并提取 PDF、扫描件及各类图片中的文字信息。',
             self::WebSearch => '本能力覆盖平台 AI 大模型的互联网搜索场景，精准获取并整合最新的新闻、事实和数据信息。',
             self::ImageSearch => '本能力覆盖平台 AI 大模型的图片搜索场景，精准检索互联网上的图片资源，支持多搜索引擎。',
-            //            self::RealtimeSpeechRecognition => '本能力覆盖平台所有语音转文字的应用场景，实时监听音频流并逐步输出准确的文字内容。',
+            self::KnowledgeBaseEmbeddingModel => '本能力覆盖平台所有知识库向量化、重建与检索场景，用于统一初始化或切换知识库嵌入模型。',
+            self::KnowledgeBaseVisualUnderstanding => '开启后使用配置的多模态模型识别知识库图片与 PDF 中的可见文字；关闭时使用 OCR 识别。',
             self::AudioFileRecognition => '本能力覆盖平台所有音频文件转文字的应用场景，精准识别说话人、音频文字等信息。',
             self::AutoCompletion => '本能力覆盖平台所有输入内容自动补全的应用场景，根据理解上下文为用户自动补全内容，由用户选择是否采纳。',
             self::ContentSummary => '本能力覆盖平台所有内容总结的应用场景，对长篇文档、报告或网页文章进行深度分析。',
@@ -93,6 +97,7 @@ enum AiAbilityCode: string
             self::Compact => '本能力覆盖超级麦吉所有上下文压缩的应用场景，当对话历史过长时自动压缩，生成结构化摘要以恢复工作上下文。',
             self::AnalysisAudio => '本能力覆盖超级麦吉所有音频项目分析的应用场景，对音频内容进行深度分析，包括场景识别、主题提炼、摘要生成等。',
             self::WebScrape => '本能力覆盖平台所有网页内容爬取的应用场景，精准抓取并解析网页内容，支持多种格式输出。',
+            self::WeatherForecast => '本能力覆盖平台天气数据查询的应用场景，提供精准的天气预报信息，支持多城市、多天数查询。',
             self::ImageConvertHigh => '本能力覆盖平台所有图片转高清的应用场景，通过AI技术将低分辨率图片转换为高清图片，提升图片质量和清晰度。',
             self::ImageRemoveBackground => '本能力覆盖平台所有图片去背景的应用场景，通过AI技术自动识别主体并去除图片背景，保留主体完整边缘。',
             self::ImageEraser => '本能力覆盖平台所有图片橡皮擦的应用场景，通过AI技术根据标记区域擦除图片内容，并以自然背景无缝填充。',
@@ -113,7 +118,9 @@ enum AiAbilityCode: string
             self::ImageSearch => ['api_key'],
             self::ImageRemoveBackground => ['api_key'],
             self::Ocr => ['access_key', 'secret_key'],
-            self::AudioFileRecognition => ['app_key', 'access_key', 'cluster'],
+            self::AudioFileRecognition => ['app_key', 'access_key', 'cluster', 'api_key', 'authorization'],
+            self::KnowledgeBaseEmbeddingModel => [],
+            self::KnowledgeBaseVisualUnderstanding => [],
             default => [],
         };
     }

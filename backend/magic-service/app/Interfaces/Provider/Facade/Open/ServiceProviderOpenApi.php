@@ -34,7 +34,7 @@ class ServiceProviderOpenApi extends AbstractApi
      * @param RequestInterface $request 请求对象
      * @return array 服务商列表
      */
-    public function getProvidersByCategory(RequestInterface $request): array
+    public function getProvidersByCategory(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
@@ -56,7 +56,7 @@ class ServiceProviderOpenApi extends AbstractApi
      * @param RequestInterface $request 请求对象
      * @return ProviderModelItemDTO[] 模型列表
      */
-    public function getAvailableModels(RequestInterface $request): array
+    public function getAvailableModels(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
@@ -79,7 +79,7 @@ class ServiceProviderOpenApi extends AbstractApi
     /**
      * 按分类查询服务商模板列表.
      */
-    public function queriesServiceProviderTemplates(RequestInterface $request): array
+    public function queriesServiceProviderTemplates(RequestInterface $request)
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
@@ -98,7 +98,7 @@ class ServiceProviderOpenApi extends AbstractApi
      * @param RequestInterface $request 请求对象
      * @return null|array 返回匹配到的模型记录，如果没有匹配到则返回 null
      */
-    public function matchModelByName(RequestInterface $request): ?array
+    public function matchModelByName(RequestInterface $request)
     {
         $name = $request->input('name');
         $minScore = (int) $request->input('min_score', 50);

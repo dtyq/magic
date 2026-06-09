@@ -23,9 +23,19 @@ interface KnowledgeBaseGateway
 
     public function nodes(KnowledgeBaseRequestDTO $request): array;
 
+    public function linkAgentKnowledgeBases(KnowledgeBaseRequestDTO $request): array;
+
+    public function unlinkAgentKnowledgeBases(KnowledgeBaseRequestDTO $request): array;
+
+    public function updateAgentKnowledgeBaseBinding(KnowledgeBaseRequestDTO $request): array;
+
     public function destroy(KnowledgeBaseRequestDTO $request): void;
 
     public function rebuild(KnowledgeBaseRequestDTO $request): array;
+
+    public function rebuildStatus(KnowledgeBaseRequestDTO $request): array;
+
+    public function switchEmbeddingModelMeta(KnowledgeBaseRequestDTO $request): array;
 
     public function rebuildPermissions(KnowledgeBaseRequestDTO $request): array;
 

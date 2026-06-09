@@ -359,8 +359,28 @@ class VoiceToTextService {
 		}
 
 		if (this.isRecording) {
-			logger.warn(this.createLogContext("开始录音：已在录音中，忽略重复请求"))
-			return
+			// If a new recordingId is provided and differs from the current one,
+			// stop the current recording and start a new one (session takeover).
+			// This prevents stale sessions from blocking new recording attempts.
+			if (options?.recordingId && options.recordingId !== this.currentRecordingId) {
+				logger.warn(
+					this.createLogContext("开始录音：检测到新会话，停止当前录音并切换", {
+						currentRecordingId: this.currentRecordingId,
+						newRecordingId: options.recordingId,
+					}),
+				)
+				// Force stop the current recording without waiting for queue drain
+				this.audioProcessor?.stop()
+				this.isRecording = false
+				this.updateStatus("idle")
+				// Disconnect and reconnect with new session
+				this.voiceClient?.disconnect()
+				this.isConnected = false
+				this.resetRecordingId()
+			} else {
+				logger.warn(this.createLogContext("开始录音：已在录音中，忽略重复请求"))
+				return
+			}
 		}
 
 		this.updateStatus("connecting")

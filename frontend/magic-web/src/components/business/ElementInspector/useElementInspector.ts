@@ -94,6 +94,21 @@ export function useElementInspector({
 		return () => window.removeEventListener("keydown", handleKeyDown)
 	}, [stop])
 
+	// Click outside iframe to cancel inspector
+	useEffect(() => {
+		const handleClick = (e: MouseEvent) => {
+			if (!activeRef.current) return
+			const iframe = iframeRef.current
+			if (!iframe) return
+			// If the click target is not the iframe element itself, it's "outside"
+			if (e.target !== iframe && !iframe.contains(e.target as Node)) {
+				stop()
+			}
+		}
+		document.addEventListener("mousedown", handleClick, true)
+		return () => document.removeEventListener("mousedown", handleClick, true)
+	}, [iframeRef, stop])
+
 	// Listen for messages from iframe
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {

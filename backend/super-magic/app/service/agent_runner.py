@@ -7,6 +7,9 @@ import asyncio
 from typing import Optional, TYPE_CHECKING
 
 from agentlang.logger import get_logger
+from agentlang.chat_history.session_config import SessionConfig
+from app.core.models.media_model import ImageModelSpec, JsonObject, VideoModelSpec
+from app.core.models.model_selection_policy import ModelSelectionInput, ModelSelectionPolicy
 from app.path_manager import PathManager
 from app.tools.subagent_runtime_models import SubagentSessionState, SubagentStatus, utc_now
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
@@ -17,6 +20,111 @@ if TYPE_CHECKING:
     from app.magic.agent import Agent
 
 logger = get_logger(__name__)
+
+
+def apply_isolated_agent_model_selection(
+    agent: "Agent",
+    parent_context: Optional["AgentContext"] = None,
+    model_id: Optional[str] = None,
+    image_model_id: Optional[str] = None,
+    video_model_id: Optional[str] = None,
+    video_generation_config: Optional[JsonObject] = None,
+) -> None:
+    current_session_config = agent.chat_history.get_current_session_config()
+    last_session_config = agent.chat_history.get_last_session_config()
+    parent_model_context = parent_context.model_context if parent_context is not None else None
+
+    request_image_model = ImageModelSpec.from_values(model_id=image_model_id)
+    request_video_model = VideoModelSpec.from_values(
+        model_id=video_model_id,
+        video_generation_config=video_generation_config,
+    )
+
+    selection = ModelSelectionPolicy.resolve(ModelSelectionInput(
+        configured_text_model_id=agent.llm_id,
+        request_text_model_id=model_id,
+        session_text_model_id=(
+            parent_model_context.current_text_model_id
+            if parent_model_context is not None
+            else current_session_config.model_id or last_session_config.model_id
+        ),
+        request_image_model=request_image_model,
+        session_image_model=(
+            parent_model_context.image
+            if parent_model_context is not None
+            else _session_image_model(current_session_config, last_session_config)
+        ),
+        request_video_model=request_video_model,
+        session_video_model=(
+            parent_model_context.video
+            if parent_model_context is not None
+            else _session_video_model(current_session_config, last_session_config)
+        ),
+    ))
+    agent.agent_context.model_context.apply_selection(selection)
+    logger.info(
+        "已为隔离 Agent 应用模型选择: "
+        f"agent={agent.agent_name}, text={selection.text_model_id}, "
+        f"image={selection.image_model_id or '-'}, video={selection.video_model_id or '-'}"
+    )
+
+
+async def run_isolated_agent(
+    agent_name: str,
+    agent_id: str,
+    prompt: str,
+    parent_context: Optional["AgentContext"] = None,
+    model_id: Optional[str] = None,
+    image_model_id: Optional[str] = None,
+    video_model_id: Optional[str] = None,
+    video_generation_config: Optional[JsonObject] = None,
+) -> Optional[str]:
+    """
+    运行一个隔离 sub-agent，等待完成并返回结果。
+    不依赖 ToolContext，可直接由内部服务调用。
+
+    parent_context 为 None 时（cron 等系统级调用场景），
+    内部创建独立的 root context，从全局配置读取必要参数，
+    不继承任何运行时父 context。
+    """
+    from app.core.context.agent_context import AgentContext
+    from app.magic.agent import Agent
+
+    new_context = AgentContext(isolated=True)
+    if parent_context is not None:
+        _inherit_parent_context(new_context, parent_context, depth=parent_context.get_subagent_depth() + 1)
+    else:
+        _init_root_context(new_context)
+
+    new_context.set_chat_history_dir(str(PathManager.get_subagents_chat_history_dir()))
+
+    agent: Optional["Agent"] = None
+    task: Optional[asyncio.Task] = None
+    try:
+        agent = Agent(agent_name, agent_id=agent_id, agent_context=new_context)
+        apply_isolated_agent_model_selection(
+            agent=agent,
+            parent_context=parent_context,
+            model_id=model_id,
+            image_model_id=image_model_id,
+            video_model_id=video_model_id,
+            video_generation_config=video_generation_config,
+        )
+        handle = await subagent_session_manager.get_handle(agent_name, agent_id)
+
+        async with handle.lock:
+            task = asyncio.create_task(
+                _run_subagent_task(agent=agent, prompt=prompt, handle=handle)
+            )
+            handle.task = task
+            handle.agent_context = new_context
+            state = await task
+    except Exception:
+        if agent is not None and task is None:
+            agent.close()
+        raise
+
+    return state.last_result
 
 
 def _inherit_parent_context(
@@ -46,6 +154,25 @@ def _init_root_context(context: "AgentContext") -> None:
     if sandbox_id:
         context.set_sandbox_id(sandbox_id)
     context.set_subagent_depth(0)
+
+
+def _session_image_model(current: SessionConfig, last: SessionConfig) -> ImageModelSpec:
+    model_id = current.image_model_id or last.image_model_id
+    sizes = current.image_model_sizes if current.image_model_sizes is not None else last.image_model_sizes
+    return ImageModelSpec.from_values(model_id=model_id, sizes=sizes)
+
+
+def _session_video_model(current: SessionConfig, last: SessionConfig) -> VideoModelSpec:
+    model_id = current.video_model_id or last.video_model_id
+    video_generation_config = (
+        current.video_generation_config
+        if current.video_generation_config is not None
+        else last.video_generation_config
+    )
+    return VideoModelSpec.from_values(
+        model_id=model_id,
+        video_generation_config=video_generation_config,
+    )
 
 
 async def _run_subagent_task(
@@ -109,58 +236,3 @@ def _mark_running(state: SubagentSessionState) -> None:
     state.started_at = state.started_at or utc_now()
     state.interrupt_requested = False
     state.interrupt_reason = None
-
-
-async def run_isolated_agent(
-    agent_name: str,
-    agent_id: str,
-    prompt: str,
-    parent_context: Optional["AgentContext"] = None,
-    model_id: Optional[str] = None,
-    image_model_id: Optional[str] = None,
-) -> Optional[str]:
-    """
-    运行一个隔离 sub-agent，等待完成并返回结果。
-    不依赖 ToolContext，可直接由内部服务调用。
-
-    parent_context 为 None 时（cron 等系统级调用场景），
-    内部创建独立的 root context，从全局配置读取必要参数，
-    不继承任何运行时父 context。
-    """
-    from app.core.context.agent_context import AgentContext
-    from app.magic.agent import Agent
-
-    new_context = AgentContext(isolated=True)
-    if parent_context is not None:
-        _inherit_parent_context(new_context, parent_context, depth=parent_context.get_subagent_depth() + 1)
-    else:
-        _init_root_context(new_context)
-
-    new_context.set_chat_history_dir(str(PathManager.get_subagents_chat_history_dir()))
-    if model_id:
-        new_context.set_dynamic_model_id(model_id)
-    elif parent_context is not None and parent_context.has_dynamic_model_id():
-        # 未指定模型时，继承父 Agent 的动态模型 ID
-        new_context.set_dynamic_model_id(parent_context.get_dynamic_model_id())
-    if image_model_id:
-        new_context.set_dynamic_image_model_id(image_model_id)
-
-    agent: Optional["Agent"] = None
-    task: Optional[asyncio.Task] = None
-    try:
-        agent = Agent(agent_name, agent_id=agent_id, agent_context=new_context)
-        handle = await subagent_session_manager.get_handle(agent_name, agent_id)
-
-        async with handle.lock:
-            task = asyncio.create_task(
-                _run_subagent_task(agent=agent, prompt=prompt, handle=handle)
-            )
-            handle.task = task
-            handle.agent_context = new_context
-            state = await task
-    except Exception:
-        if agent is not None and task is None:
-            agent.close()
-        raise
-
-    return state.last_result

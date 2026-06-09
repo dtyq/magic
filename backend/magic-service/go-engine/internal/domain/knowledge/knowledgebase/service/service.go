@@ -23,8 +23,13 @@ var (
 	// ErrVectorSizeMismatch 表示向量维度与预期不匹配。
 	ErrVectorSizeMismatch = errors.New("vector size mismatch")
 	// ErrCollectionAliasTargetEmpty 表示共享 collection alias 未指向物理 collection。
-	ErrCollectionAliasTargetEmpty = errors.New("collection alias target is empty")
+	ErrCollectionAliasTargetEmpty         = errors.New("collection alias target is empty")
+	errWordCountRefreshRepositoryRequired = errors.New("knowledge base word count refresh repository is required")
 )
+
+type wordCountRefreshRepository interface {
+	RefreshWordCountByDocumentSum(ctx context.Context, organizationCode, knowledgeBaseCode, updatedUID string) error
+}
 
 // DomainService 知识库领域服务。
 type DomainService struct {
@@ -431,6 +436,31 @@ func (s *DomainService) UpdateSyncStatus(ctx context.Context, kb *kbentity.Knowl
 func (s *DomainService) UpdateProgress(ctx context.Context, kb *kbentity.KnowledgeBase) error {
 	if err := s.repo.UpdateProgress(ctx, kb.ID, kb.ExpectedNum, kb.CompletedNum); err != nil {
 		return fmt.Errorf("failed to update progress: %w", err)
+	}
+	return nil
+}
+
+// UpdateWordCount 更新知识库聚合词数。
+func (s *DomainService) UpdateWordCount(ctx context.Context, kb *kbentity.KnowledgeBase) error {
+	if err := s.repo.UpdateWordCount(ctx, kb.ID, kb.WordCount); err != nil {
+		return fmt.Errorf("failed to update word count: %w", err)
+	}
+	return nil
+}
+
+// RefreshWordCountByDocumentSum 基于文档表在数据库内原子刷新知识库聚合词数。
+func (s *DomainService) RefreshWordCountByDocumentSum(
+	ctx context.Context,
+	organizationCode string,
+	knowledgeBaseCode string,
+	updatedUID string,
+) error {
+	repo, ok := s.repo.(wordCountRefreshRepository)
+	if !ok {
+		return errWordCountRefreshRepositoryRequired
+	}
+	if err := repo.RefreshWordCountByDocumentSum(ctx, organizationCode, knowledgeBaseCode, updatedUID); err != nil {
+		return fmt.Errorf("failed to refresh word count by document sum: %w", err)
 	}
 	return nil
 }

@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
+use App\Application\MCP\SupperMagicMCP\ProjectMcpConfigService;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentSkillInterface;
 use App\Domain\Chat\DTO\Message\ChatMessage\UserToolCallMessage;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -65,8 +65,6 @@ class HandleUserMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
-
     private ?SupperMagicAgentSkillInterface $supperMagicAgentSkill = null;
 
     public function __construct(
@@ -78,13 +76,11 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly ProjectMcpConfigService $projectMcpConfigService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
-        if (container()->has(SupperMagicAgentMCPInterface::class)) {
-            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
-        }
         if (container()->has(SupperMagicAgentSkillInterface::class)) {
             $this->supperMagicAgentSkill = container()->get(SupperMagicAgentSkillInterface::class);
         }
@@ -328,7 +324,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 $dataIsolation->getCurrentUserId()
             );
-            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
+            $mcpConfig = $this->projectMcpConfigService->buildForTask($mcpDataIsolation, $taskContext);
             $taskContext = $taskContext->setMcpConfig($mcpConfig);
 
             // Write agent_code into dynamicConfig independently (always pass through, regardless of skills)
@@ -520,12 +516,15 @@ class HandleUserMessageAppService extends AbstractAppService
         );
 
         // 使用 ensureSandboxInitialized 确保沙箱已初始化（带锁保护，防止并发）
+        // 不要在这里把 topic_id 当成 sandbox_id 传进去：那样会触发 tryWarmPoolFastPath 的
+        // "已有 sandbox_id 跳过 warm 池" 守卫，导致 chat 永远走冷创建。传话题已绑定的
+        // sandbox_id（未绑定则为空），由 Domain 内部决定走 warm 还是 cold 路径。
         $agentContext = $this->agentDomainService->buildInitAgentContext(
             dataIsolation: $dataIsolation,
             projectEntity: $projectEntity,
             topicEntity: $topicEntity,
             taskEntity: $taskContext->getTask(),
-            sandboxId: (string) $topicEntity->getId(),
+            sandboxId: (string) $topicEntity->getSandboxId(),
             memories: $memories
         );
         $sandboxId = $this->agentDomainService->ensureSandboxInitialized($dataIsolation, $agentContext);
@@ -540,6 +539,8 @@ class HandleUserMessageAppService extends AbstractAppService
             'task_id' => $taskContext->getTask()->getId(),
         ]);
 
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         // 发送消息到 agent
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 

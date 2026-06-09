@@ -11,6 +11,14 @@
         "zh_CN": "已读取 {{main_file}} 等{{count}}个文件",
         "en_US": "Successfully read {{main_file}} and {{count}} other files"
     },
+    "read_file.multiple_success_with_ranges": {
+        "zh_CN": "{{summary}}（{{ranges}}）",
+        "en_US": "{{summary}} ({{ranges}})"
+    },
+    "read_file.more_ranges": {
+        "zh_CN": "另有 {{count}} 个范围",
+        "en_US": "{{count}} more ranges"
+    },
     "read_file.multiple_title": {
         "zh_CN": "{{main_file}} 等{{count}}个文件",
         "en_US": "{{main_file}} and {{count}} other files"
@@ -19,6 +27,14 @@
         "zh_CN": "已读取 {{file_name}}",
         "en_US": "Successfully read {{file_name}}"
     },
+    "read_file.single_success_with_range": {
+        "zh_CN": "已读取 {{file_name}}（{{range}}）",
+        "en_US": "Successfully read {{file_name}} ({{range}})"
+    },
+    "read_file.line_range": {
+        "zh_CN": "第 {{start}}-{{end}} 行",
+        "en_US": "lines {{start}}-{{end}}"
+    },
     "read_file.summary": {
         "zh_CN": "共读取 {{total}} 个文件，成功: {{success}}，失败: {{failed}}{{truncation}}",
         "en_US": "Read {{total}} files, success: {{success}}, failed: {{failed}}{{truncation}}"
@@ -26,10 +42,6 @@
     "read_file.error": {
         "zh_CN": "读取文件 {{file_path}} 时出错",
         "en_US": "Error reading file {{file_path}}"
-    },
-    "read_file.error_conversion_failed": {
-        "zh_CN": "文件 {{file_name}} 转换失败",
-        "en_US": "Failed to convert file {{file_name}}"
     },
     "read_file.error_detail": {
         "zh_CN": "读取失败",
@@ -46,6 +58,10 @@
     "read_file.error_unexpected": {
         "zh_CN": "读取文件 {{file_name}} 遇到问题",
         "en_US": "Ran into an issue while reading file {{file_name}}"
+    },
+    "read_file.error_unsupported_document": {
+        "zh_CN": "{{file_name}} 需要使用 document-converter 解析",
+        "en_US": "{{file_name}} needs document-converter parsing"
     },
     "read_file.failed": {
         "zh_CN": "读取文件失败",
@@ -91,9 +107,9 @@
         "zh_CN": "路径是文件夹",
         "en_US": "Path is a directory"
     },
-    "read_file.detail_reason_conversion_failed": {
-        "zh_CN": "格式转换失败",
-        "en_US": "Format conversion failed"
+    "read_file.detail_reason_unsupported_document": {
+        "zh_CN": "需要使用 document-converter",
+        "en_US": "Use document-converter"
     },
     "read_file.detail_reason_unexpected": {
         "zh_CN": "读取异常",
@@ -103,37 +119,245 @@
         "zh_CN": "未知错误",
         "en_US": "Unknown error"
     },
-    "read_file.conversion_strategy_balanced": {
-        "zh_CN": "平衡模式",
-        "en_US": "Balanced"
-    },
-    "read_file.conversion_strategy_performance": {
-        "zh_CN": "性能优先",
-        "en_US": "Performance"
-    },
-    "read_file.conversion_strategy_quality": {
-        "zh_CN": "质量优先",
-        "en_US": "Quality"
-    },
-    "read_file.converted": {
-        "zh_CN": "已转换",
-        "en_US": "Converted"
-    },
-    "read_file.converted_and_read": {
-        "zh_CN": "转换并读取",
-        "en_US": "Converted & Read"
-    },
-    "read_file.converted_and_read_with_strategy": {
-        "zh_CN": "已使用 {{strategy}} 转换并读取",
-        "en_US": "Converted & Read ({{strategy}})"
-    },
-    "read_file.converted_with_strategy": {
-        "zh_CN": "已使用 {{strategy}} 转换",
-        "en_US": "Converted ({{strategy}})"
-    },
     "read_file.default_file_label": {
         "zh_CN": "文件",
         "en_US": "File"
+    },
+    "inspect_document.before": {
+        "zh_CN": "正在探测 {{file_name}}",
+        "en_US": "Inspecting {{file_name}}"
+    },
+    "inspect_document.after_success": {
+        "zh_CN": "已探测 {{file_name}}",
+        "en_US": "Inspected {{file_name}}"
+    },
+    "inspect_document.after_failed": {
+        "zh_CN": "{{file_name}} 探测失败",
+        "en_US": "Failed to inspect {{file_name}}"
+    },
+    "inspect_document.detail_title": {
+        "zh_CN": "文档探测结果",
+        "en_US": "Document Inspection"
+    },
+    "extract_document_content.before": {
+        "zh_CN": "正在提取 {{file_name}}",
+        "en_US": "Extracting {{file_name}}"
+    },
+    "extract_document_content.after_success": {
+        "zh_CN": "已提取 {{file_name}}",
+        "en_US": "Extracted {{file_name}}"
+    },
+    "extract_document_content.after_failed": {
+        "zh_CN": "{{file_name}} 提取失败",
+        "en_US": "Failed to extract {{file_name}}"
+    },
+    "extract_document_content.detail_title": {
+        "zh_CN": "文档内容提取",
+        "en_US": "Document Extraction"
+    },
+    "build_document_index.before": {
+        "zh_CN": "正在建立 {{file_name}} 的文档索引",
+        "en_US": "Building document index for {{file_name}}"
+    },
+    "build_document_index.after_success": {
+        "zh_CN": "已建立 {{file_name}} 的文档索引",
+        "en_US": "Built document index for {{file_name}}"
+    },
+    "build_document_index.after_failed": {
+        "zh_CN": "{{file_name}} 建索引失败",
+        "en_US": "Failed to build document index for {{file_name}}"
+    },
+    "build_document_index.detail_title": {
+        "zh_CN": "文档索引",
+        "en_US": "Document Index"
+    },
+    "summarize_document.before": {
+        "zh_CN": "正在总结 {{file_name}}",
+        "en_US": "Summarizing {{file_name}}"
+    },
+    "summarize_document.after_success": {
+        "zh_CN": "已生成 {{file_name}} 的文档摘要",
+        "en_US": "Generated document summary for {{file_name}}"
+    },
+    "summarize_document.after_failed": {
+        "zh_CN": "{{file_name}} 摘要生成失败",
+        "en_US": "Failed to summarize {{file_name}}"
+    },
+    "summarize_document.detail_title": {
+        "zh_CN": "文档摘要",
+        "en_US": "Document Summary"
+    },
+    "convert_document_format.before": {
+        "zh_CN": "正在转换 {{file_name}}",
+        "en_US": "Converting {{file_name}}"
+    },
+    "convert_document_format.after_success": {
+        "zh_CN": "已转换 {{file_name}}",
+        "en_US": "Converted {{file_name}}"
+    },
+    "convert_document_format.after_failed": {
+        "zh_CN": "{{file_name}} 转换失败",
+        "en_US": "Failed to convert {{file_name}}"
+    },
+    "convert_document_format.detail_title": {
+        "zh_CN": "文档格式转换",
+        "en_US": "Document Format Conversion"
+    },
+    "export_document_markdown.before": {
+        "zh_CN": "正在导出 {{file_name}}",
+        "en_US": "Exporting {{file_name}}"
+    },
+    "export_document_markdown.after_success": {
+        "zh_CN": "已导出 {{file_name}}",
+        "en_US": "Exported {{file_name}}"
+    },
+    "export_document_markdown.after_failed": {
+        "zh_CN": "{{file_name}} 导出失败",
+        "en_US": "Failed to export {{file_name}}"
+    },
+    "export_document_markdown.detail_title": {
+        "zh_CN": "Markdown 导出",
+        "en_US": "Markdown Export"
+    },
+    "sample_document_content.before": {
+        "zh_CN": "正在抽样阅读 {{file_name}}",
+        "en_US": "Sampling {{file_name}}"
+    },
+    "sample_document_content.after_success": {
+        "zh_CN": "已完成 {{file_name}} 的抽样阅读",
+        "en_US": "Sampled {{file_name}}"
+    },
+    "sample_document_content.after_failed": {
+        "zh_CN": "{{file_name}} 抽样阅读失败",
+        "en_US": "Failed to sample {{file_name}}"
+    },
+    "sample_document_content.detail_title": {
+        "zh_CN": "文档抽样阅读",
+        "en_US": "Document Sample"
+    },
+    "plan_document_reading.before": {
+        "zh_CN": "正在规划 {{file_name}} 的阅读步骤",
+        "en_US": "Planning document reading for {{file_name}}"
+    },
+    "plan_document_reading.after_success": {
+        "zh_CN": "已规划 {{file_name}} 的阅读步骤",
+        "en_US": "Planned document reading for {{file_name}}"
+    },
+    "plan_document_reading.after_failed": {
+        "zh_CN": "{{file_name}} 阅读规划失败",
+        "en_US": "Failed to plan document reading for {{file_name}}"
+    },
+    "plan_document_reading.detail_title": {
+        "zh_CN": "文档阅读规划",
+        "en_US": "Document Reading Plan"
+    },
+    "understand_document_images.before": {
+        "zh_CN": "正在理解 {{file_name}} 中的文档图片",
+        "en_US": "Understanding document images in {{file_name}}"
+    },
+    "understand_document_images.after_success": {
+        "zh_CN": "已完成 {{file_name}} 中的文档图片理解",
+        "en_US": "Understood document images in {{file_name}}"
+    },
+    "understand_document_images.after_failed": {
+        "zh_CN": "{{file_name}} 文档图片理解失败",
+        "en_US": "Failed to understand document images in {{file_name}}"
+    },
+    "understand_document_images.detail_title": {
+        "zh_CN": "文档图片理解",
+        "en_US": "Document Image Understanding"
+    },
+    "document_parse.detail_type": {
+        "zh_CN": "类型",
+        "en_US": "Type"
+    },
+    "document_parse.detail_unit_type": {
+        "zh_CN": "结构单位",
+        "en_US": "Structure unit"
+    },
+    "document_parse.detail_total_units": {
+        "zh_CN": "单位数量",
+        "en_US": "Unit count"
+    },
+    "document_parse.detail_strategy": {
+        "zh_CN": "推荐策略",
+        "en_US": "Recommended strategy"
+    },
+    "document_parse.detail_output_dir": {
+        "zh_CN": "输出目录",
+        "en_US": "Output directory"
+    },
+    "document_parse.detail_index_file": {
+        "zh_CN": "索引文件",
+        "en_US": "Index file"
+    },
+    "document_parse.detail_outline_file": {
+        "zh_CN": "目录文件",
+        "en_US": "Outline file"
+    },
+    "document_parse.detail_node_count": {
+        "zh_CN": "节点数量",
+        "en_US": "Node count"
+    },
+    "document_parse.detail_chunk_count": {
+        "zh_CN": "Chunk 数量",
+        "en_US": "Chunk count"
+    },
+    "document_parse.detail_summary_file": {
+        "zh_CN": "摘要文件",
+        "en_US": "Summary file"
+    },
+    "document_parse.detail_combined_file": {
+        "zh_CN": "合并文件",
+        "en_US": "Combined file"
+    },
+    "document_parse.detail_sample_file": {
+        "zh_CN": "抽样文件",
+        "en_US": "Sample file"
+    },
+    "document_parse.detail_sample_range": {
+        "zh_CN": "抽样范围",
+        "en_US": "Sample range"
+    },
+    "document_parse.detail_recommended_action": {
+        "zh_CN": "推荐动作",
+        "en_US": "Recommended action"
+    },
+    "document_parse.detail_recommended_range": {
+        "zh_CN": "推荐范围",
+        "en_US": "Recommended range"
+    },
+    "document_parse.detail_processed_images": {
+        "zh_CN": "处理图片数",
+        "en_US": "Processed images"
+    },
+    "document_parse.detail_extension": {
+        "zh_CN": "文件扩展名",
+        "en_US": "File extension"
+    },
+    "document_parse.detail_file_size": {
+        "zh_CN": "文件大小",
+        "en_US": "File size"
+    },
+    "document_parse.detail_format_check": {
+        "zh_CN": "格式检查",
+        "en_US": "Format check"
+    },
+    "document_parse.detail_error_title": {
+        "zh_CN": "document-converter 工具失败",
+        "en_US": "document-converter Tool Failed"
+    },
+    "document_parse.detail_error_tool": {
+        "zh_CN": "工具",
+        "en_US": "Tool"
+    },
+    "document_parse.detail_error_inputs": {
+        "zh_CN": "输入参数",
+        "en_US": "Inputs"
+    },
+    "document_parse.detail_error_message": {
+        "zh_CN": "错误信息",
+        "en_US": "Error"
     },
     "write_file.error": {
         "zh_CN": "写入文件 {{file_path}} 时出错",
@@ -174,10 +398,6 @@
     "edit_file.error_file_not_exist": {
         "zh_CN": "抱歉，找不到这个文件",
         "en_US": "Sorry, couldn't find this file"
-    },
-    "convert_to_markdown.process_error": {
-        "zh_CN": " (转换过程中遇到问题)",
-        "en_US": " (error occurred during conversion)"
     },
     "shell_exec.error": {
         "zh_CN": "Shell命令执行失败: {{error}}",
@@ -1123,6 +1343,26 @@
         "zh_CN": "当前对话内容过长，「{{agent_name}}」将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响「{{agent_name}}」的工作效率",
         "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency."
     },
+    "compact_chat_history.detail_title": {
+        "zh_CN": "对话内容已整理",
+        "en_US": "Conversation context compacted"
+    },
+    "compact_chat_history.detail_description": {
+        "zh_CN": "较长的历史对话已整理为上下文摘要，后续会基于压缩后的上下文继续处理任务；部分早期细节可能不会完整保留。",
+        "en_US": "Long conversation history has been compacted into a context summary. The task will continue with the compacted context, and some earlier details may not be fully retained."
+    },
+    "compact_chat_history.detail_summary_length": {
+        "zh_CN": "摘要长度",
+        "en_US": "Summary length"
+    },
+    "compact_chat_history.detail_summary_title": {
+        "zh_CN": "压缩摘要",
+        "en_US": "Compacted summary"
+    },
+    "compact_chat_history.detail_chars": {
+        "zh_CN": "{{count}} 字符",
+        "en_US": "{{count}} chars"
+    },
     "read_skills.success": {
         "zh_CN": "技能装备成功",
         "en_US": "Skill equipped"
@@ -1326,6 +1566,38 @@
     "search.no_results": {
         "zh_CN": "未找到匹配的结果",
         "en_US": "No matching results found"
+    },
+    "grep_search.searched": {
+        "zh_CN": "已搜索：{{pattern}}，命中 {{count}} 个文件",
+        "en_US": "Searched: {{pattern}}, matched {{count}} files"
+    },
+    "file_search.searching": {
+        "zh_CN": "正在搜索文件：{{query}}",
+        "en_US": "Searching files: {{query}}"
+    },
+    "file_search.searched": {
+        "zh_CN": "已搜索文件：{{query}}，找到 {{count}} 个匹配",
+        "en_US": "Searched files: {{query}}, found {{count}} matches"
+    },
+    "file_search.detail_title": {
+        "zh_CN": "文件搜索结果",
+        "en_US": "File Search Results"
+    },
+    "file_search.detail_query": {
+        "zh_CN": "搜索关键词",
+        "en_US": "Query"
+    },
+    "file_search.detail_search_dir": {
+        "zh_CN": "搜索目录",
+        "en_US": "Search Directory"
+    },
+    "file_search.detail_count": {
+        "zh_CN": "匹配数量",
+        "en_US": "Matches"
+    },
+    "file_search.detail_matches": {
+        "zh_CN": "匹配文件",
+        "en_US": "Matched Files"
     },
     "get_user_info.success": {
         "zh_CN": "已获取用户信息",
@@ -1630,5 +1902,269 @@
     "search_knowledge.error": {
         "zh_CN": "检索失败：{{query}}",
         "en_US": "Search failed: {{query}}"
+    },
+    "search_knowledge.detail_title": {
+        "zh_CN": "知识检索结果",
+        "en_US": "Knowledge Search Results"
+    },
+    "search_knowledge.detail_query": {
+        "zh_CN": "查询",
+        "en_US": "Query"
+    },
+    "search_knowledge.detail_hit_count": {
+        "zh_CN": "命中片段",
+        "en_US": "Matched snippets"
+    },
+    "search_knowledge.detail_related_documents": {
+        "zh_CN": "相关文档",
+        "en_US": "Related Documents"
+    },
+    "search_knowledge.detail_no_results": {
+        "zh_CN": "没有检索到相关知识上下文。",
+        "en_US": "No relevant knowledge context was found."
+    },
+    "search_knowledge.detail_unknown_document": {
+        "zh_CN": "未命名文档",
+        "en_US": "Untitled document"
+    },
+    "search_knowledge.detail_snippet": {
+        "zh_CN": "片段 {{index}}",
+        "en_US": "Snippet {{index}}"
+    },
+    "search_knowledge.detail_error_title": {
+        "zh_CN": "知识检索失败",
+        "en_US": "Knowledge Search Failed"
+    },
+    "search_knowledge.detail_error_summary": {
+        "zh_CN": "这次没有成功获取知识检索结果，可以稍后重试，或先基于当前上下文继续处理。",
+        "en_US": "Knowledge search results could not be retrieved this time. Try again later, or continue with the current context."
+    },
+    "mcp.list_servers.listing": {
+        "zh_CN": "正在查看有哪些服务可以用",
+        "en_US": "Checking available services"
+    },
+    "mcp.list_servers.listed": {
+        "zh_CN": "已查看服务列表",
+        "en_US": "Service list ready"
+    },
+    "mcp.list_tools.listing": {
+        "zh_CN": "正在查看有哪些工具可以用",
+        "en_US": "Checking available tools"
+    },
+    "mcp.list_tools.listing_server": {
+        "zh_CN": "正在查看「{{server_name}}」提供了哪些能力",
+        "en_US": "Checking what \"{{server_name}}\" can do"
+    },
+    "mcp.list_tools.listed": {
+        "zh_CN": "已查看工具列表",
+        "en_US": "Tool list ready"
+    },
+    "mcp.list_tools.listed_server": {
+        "zh_CN": "已查看「{{server_name}}」工具列表",
+        "en_US": "Tool list of \"{{server_name}}\" ready"
+    },
+    "mcp.connect_server.connecting": {
+        "zh_CN": "正在连接「{{server_name}}」",
+        "en_US": "Connecting to \"{{server_name}}\""
+    },
+    "mcp.connect_server.connected": {
+        "zh_CN": "「{{server_name}}」已连接就绪",
+        "en_US": "\"{{server_name}}\" is ready"
+    },
+    "mcp.connect_server.failed": {
+        "zh_CN": "连接「{{server_name}}」失败",
+        "en_US": "Failed to connect \"{{server_name}}\""
+    },
+    "mcp.get_tool_schema.querying": {
+        "zh_CN": "正在了解 {{tool_name}} 的使用方式",
+        "en_US": "Learning how to use {{tool_name}}"
+    },
+    "mcp.get_tool_schema.resolved": {
+        "zh_CN": "已了解 {{tool_name}} 的用法",
+        "en_US": "Learned how to use {{tool_name}}"
+    },
+    "mcp.call_tool.calling": {
+        "zh_CN": "正在使用「{{server_name}}」的 {{tool_name}}",
+        "en_US": "Using {{tool_name}} from \"{{server_name}}\""
+    },
+    "mcp.call_tool.called": {
+        "zh_CN": "已完成「{{server_name}}」的 {{tool_name}} 调用",
+        "en_US": "Done using {{tool_name}} from \"{{server_name}}\""
+    },
+    "mcp.call_tool.failed": {
+        "zh_CN": "「{{server_name}}」的 {{tool_name}} 调用失败",
+        "en_US": "Failed to use {{tool_name}} from \"{{server_name}}\""
+    },
+    "mcp.add_server.adding": {
+        "zh_CN": "正在添加新服务「{{name}}」",
+        "en_US": "Adding new service \"{{name}}\""
+    },
+    "mcp.add_server.added": {
+        "zh_CN": "新服务「{{name}}」已添加",
+        "en_US": "New service \"{{name}}\" added"
+    },
+    "mcp.remove_server.removing": {
+        "zh_CN": "正在移除服务「{{server_name}}」",
+        "en_US": "Removing service \"{{server_name}}\""
+    },
+    "mcp.remove_server.removed": {
+        "zh_CN": "服务「{{server_name}}」已移除",
+        "en_US": "Service \"{{server_name}}\" removed"
+    },
+    "env_manager.scope.personal": {
+        "zh_CN": "个人 env",
+        "en_US": "personal env"
+    },
+    "env_manager.scope.workspace": {
+        "zh_CN": "工作区 env",
+        "en_US": "workspace env"
+    },
+    "env_manager.scope.all": {
+        "zh_CN": "最终生效 env",
+        "en_US": "effective env"
+    },
+    "env_manager.set.before": {
+        "zh_CN": "正在保存 {{key}} 到{{scope_label}}",
+        "en_US": "Saving {{key}} to {{scope_label}}"
+    },
+    "env_manager.set.after_success": {
+        "zh_CN": "已保存 {{key}} 到{{scope_label}}",
+        "en_US": "Saved {{key}} to {{scope_label}}"
+    },
+    "env_manager.set.after_failed": {
+        "zh_CN": "保存 {{key}} 失败：{{error}}",
+        "en_US": "Failed to save {{key}}: {{error}}"
+    },
+    "env_manager.unset.before": {
+        "zh_CN": "正在删除 {{key}}（{{scope_label}}）",
+        "en_US": "Deleting {{key}} from {{scope_label}}"
+    },
+    "env_manager.unset.after_success": {
+        "zh_CN": "已删除 {{key}}（{{scope_label}}）",
+        "en_US": "Deleted {{key}} from {{scope_label}}"
+    },
+    "env_manager.unset.after_failed": {
+        "zh_CN": "删除 {{key}} 失败：{{error}}",
+        "en_US": "Failed to delete {{key}}: {{error}}"
+    },
+    "env_manager.list.before": {
+        "zh_CN": "正在查看{{scope_label}}",
+        "en_US": "Listing {{scope_label}}"
+    },
+    "env_manager.list.after_success": {
+        "zh_CN": "读取到 {{count}} 个变量（{{scope_label}}）",
+        "en_US": "Found {{count}} variable(s) in {{scope_label}}"
+    },
+    "env_manager.list.after_failed": {
+        "zh_CN": "查看{{scope_label}}失败：{{error}}",
+        "en_US": "Failed to list {{scope_label}}: {{error}}"
+    },
+    "env_manager.error.key_required": {
+        "zh_CN": "环境变量名不能为空",
+        "en_US": "Environment variable name is required"
+    },
+    "env_manager.error.invalid_key": {
+        "zh_CN": "环境变量名格式不合法：{{key}}",
+        "en_US": "Invalid environment variable name: {{key}}"
+    },
+    "env_manager.error.value_required": {
+        "zh_CN": "环境变量值不能为空",
+        "en_US": "Environment variable value is required"
+    },
+    "env_manager.error.invalid_value": {
+        "zh_CN": "环境变量值包含不支持的空字节",
+        "en_US": "Environment variable value contains an unsupported null byte"
+    },
+    "env_manager.error.key_not_found": {
+        "zh_CN": "未找到环境变量：{{key}}",
+        "en_US": "Environment variable not found: {{key}}"
+    },
+    "env_manager.error.invalid_scope": {
+        "zh_CN": "env scope 不合法：{{scope}}。可用值：{{allowed}}",
+        "en_US": "Invalid env scope: {{scope}}. Allowed values: {{allowed}}"
+    },
+    "env_manager.error.unknown": {
+        "zh_CN": "环境变量操作失败",
+        "en_US": "Environment variable operation failed"
+    },
+    "env_manager.detail.set_success_title": {
+        "zh_CN": "环境变量已保存",
+        "en_US": "Environment Variable Saved"
+    },
+    "env_manager.detail.set_failed_title": {
+        "zh_CN": "环境变量保存失败",
+        "en_US": "Environment Variable Save Failed"
+    },
+    "env_manager.detail.unset_success_title": {
+        "zh_CN": "环境变量已删除",
+        "en_US": "Environment Variable Deleted"
+    },
+    "env_manager.detail.unset_failed_title": {
+        "zh_CN": "环境变量删除失败",
+        "en_US": "Environment Variable Delete Failed"
+    },
+    "env_manager.detail.list_success_title": {
+        "zh_CN": "环境变量列表",
+        "en_US": "Environment Variables"
+    },
+    "env_manager.detail.list_failed_title": {
+        "zh_CN": "环境变量读取失败",
+        "en_US": "Environment Variable List Failed"
+    },
+    "env_manager.detail.key": {
+        "zh_CN": "变量名",
+        "en_US": "Key"
+    },
+    "env_manager.detail.scope": {
+        "zh_CN": "范围",
+        "en_US": "Scope"
+    },
+    "env_manager.detail.target": {
+        "zh_CN": "目标",
+        "en_US": "Target"
+    },
+    "env_manager.detail.value": {
+        "zh_CN": "变量值",
+        "en_US": "Value"
+    },
+    "env_manager.detail.error": {
+        "zh_CN": "错误",
+        "en_US": "Error"
+    },
+    "env_manager.detail.count": {
+        "zh_CN": "变量数量",
+        "en_US": "Count"
+    },
+    "env_manager.detail.key_header": {
+        "zh_CN": "变量名",
+        "en_US": "Key"
+    },
+    "env_manager.detail.value_header": {
+        "zh_CN": "变量值",
+        "en_US": "Value"
+    },
+    "call_simple_tool.calling": {
+        "zh_CN": "正在调用工具流",
+        "en_US": "Calling tool flow"
+    },
+    "call_simple_tool.called": {
+        "zh_CN": "工具流调用完成",
+        "en_US": "Tool flow call completed"
+    },
+    "call_simple_tool.failed": {
+        "zh_CN": "工具流调用失败",
+        "en_US": "Tool flow call failed"
+    },
+    "call_simple_agent.calling": {
+        "zh_CN": "正在调用助理",
+        "en_US": "Consulting agent"
+    },
+    "call_simple_agent.called": {
+        "zh_CN": "已收到助理回复",
+        "en_US": "Agent reply received"
+    },
+    "call_simple_agent.failed": {
+        "zh_CN": "助理调用失败",
+        "en_US": "Agent consultation failed"
     }
 }

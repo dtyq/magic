@@ -15,14 +15,31 @@ import (
 // ErrDocumentPermissionDenied 表示当前用户无知识库文档权限。
 var ErrDocumentPermissionDenied = errors.New("document permission denied")
 
+type documentKnowledgeAccessDeps struct {
+	permissionReader    kbaccess.PermissionReader
+	thirdPlatformAccess SourceFileThirdPlatformAccess
+	knowledgeBaseReader SourceFileKnowledgeBaseReader
+}
+
 func (s *DocumentAppService) knowledgeAccessService() *kbaccess.Service {
-	if s == nil || s.permissionReader == nil {
+	if s == nil {
+		return nil
+	}
+	return newDocumentKnowledgeAccessService(documentKnowledgeAccessDeps{
+		permissionReader:    s.permissionReader,
+		thirdPlatformAccess: s.thirdPlatformAccess,
+		knowledgeBaseReader: s.kbService,
+	})
+}
+
+func newDocumentKnowledgeAccessService(deps documentKnowledgeAccessDeps) *kbaccess.Service {
+	if deps.permissionReader == nil {
 		return nil
 	}
 	return kbaccess.NewService(
-		s.permissionReader,
+		deps.permissionReader,
 		nil,
-		&documentExternalAccessReader{support: s},
+		&documentExternalAccessReader{deps: deps},
 		nil,
 	)
 }
@@ -73,7 +90,7 @@ func resolveDocumentAccessActor(ctx context.Context, organizationCode, userID st
 }
 
 type documentExternalAccessReader struct {
-	support *DocumentAppService
+	deps documentKnowledgeAccessDeps
 }
 
 func (r *documentExternalAccessReader) ListOperations(
@@ -81,11 +98,11 @@ func (r *documentExternalAccessReader) ListOperations(
 	actor kbaccess.Actor,
 	knowledgeBaseCodes []string,
 ) (map[string]kbaccess.Operation, error) {
-	if r == nil || r.support == nil || r.support.thirdPlatformAccess == nil {
+	if r == nil || r.deps.thirdPlatformAccess == nil || r.deps.knowledgeBaseReader == nil {
 		return map[string]kbaccess.Operation{}, nil
 	}
 
-	items, err := r.support.thirdPlatformAccess.ListKnowledgeBases(ctx, thirdplatform.KnowledgeBaseListInput{
+	items, err := r.deps.thirdPlatformAccess.ListKnowledgeBases(ctx, thirdplatform.KnowledgeBaseListInput{
 		OrganizationCode:              actor.OrganizationCode,
 		UserID:                        actor.UserID,
 		ThirdPlatformUserID:           actor.ThirdPlatformUserID,
@@ -113,7 +130,7 @@ func (r *documentExternalAccessReader) ListOperations(
 		return map[string]kbaccess.Operation{}, nil
 	}
 
-	knowledgeBases, _, err := r.support.kbService.List(ctx, &kbrepository.Query{
+	knowledgeBases, _, err := r.deps.knowledgeBaseReader.List(ctx, &kbrepository.Query{
 		OrganizationCode: actor.OrganizationCode,
 		BusinessIDs:      businessIDs,
 		Offset:           0,

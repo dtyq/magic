@@ -295,6 +295,25 @@ func (s *DomainService) ListByKnowledgeBaseAndSourceBindingIDs(
 	return docs, nil
 }
 
+// ListByOrganizationKnowledgeBasesAndCodes 按组织、知识库集合和文档编码集合批量列出文档。
+func (s *DomainService) ListByOrganizationKnowledgeBasesAndCodes(
+	ctx context.Context,
+	organizationCode string,
+	knowledgeBaseCodes []string,
+	documentCodes []string,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	docs, err := s.repo.ListByOrganizationKnowledgeBasesAndCodes(
+		ctx,
+		organizationCode,
+		knowledgeBaseCodes,
+		documentCodes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list documents by organization knowledge bases and codes: %w", err)
+	}
+	return docs, nil
+}
+
 // ResolveThirdFileDocumentPlan 解析第三方文件重向量化所需的文档集合与 seed。
 func (s *DomainService) ResolveThirdFileDocumentPlan(
 	ctx context.Context,
@@ -398,6 +417,15 @@ func (s *DomainService) CountByKnowledgeBaseCodes(ctx context.Context, organizat
 		return nil, fmt.Errorf("failed to count documents by knowledge base codes: %w", err)
 	}
 	return counts, nil
+}
+
+// SumWordCountByKnowledgeBase 统计单个知识库下所有文档正文词数。
+func (s *DomainService) SumWordCountByKnowledgeBase(ctx context.Context, organizationCode, knowledgeBaseCode string) (int64, error) {
+	wordCount, err := s.repo.SumWordCountByKnowledgeBase(ctx, organizationCode, knowledgeBaseCode)
+	if err != nil {
+		return 0, fmt.Errorf("failed to sum document word count by knowledge base: %w", err)
+	}
+	return wordCount, nil
 }
 
 // UpdateSyncStatus 更新同步状态

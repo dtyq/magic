@@ -1,7 +1,6 @@
 ---
 llm: main_llm
 tools:
-  - convert_to_markdown
   - list_dir
   - read_file
   - read_files

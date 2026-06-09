@@ -3,7 +3,7 @@ import { recordingLogger } from "../utils/RecordingLogger"
 
 const logger = recordingLogger.namespace("Storage:DB")
 
-export type UploadStatus = "pending" | "uploaded"
+export type UploadStatus = "pending" | "uploaded" | "failed"
 
 export interface StoredAudioChunk {
 	id: string // 唯一标识：${sessionId}_${index}
@@ -12,6 +12,7 @@ export interface StoredAudioChunk {
 	index: number // 分片索引
 	timestamp: number // 创建时间戳
 	size: number // 分片大小
+	mimeType?: string // 音频 MIME 类型（如 audio/wav, audio/webm）
 	createdAt?: number
 	updatedAt?: number
 	// Upload related fields
@@ -76,20 +77,39 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 	}
 
 	/**
-	 * Delete all chunks for a session
-	 * 删除会话的所有分片
+	 * Delete only pending (not yet uploaded) chunks for a session
+	 * 仅删除会话中待上传的分片，保留已上传分片供导出使用
 	 */
-	async deleteSessionChunks(sessionId: string): Promise<void> {
-		const chunks = await this.getSessionChunks(sessionId)
+	async deletePendingSessionChunks(sessionId: string): Promise<void> {
+		const chunks = await this.getChunksByUploadStatus(sessionId, "pending")
 
-		// Delete chunks one by one using their IDs
 		for (const chunk of chunks) {
 			await this.delete(chunk.id)
 		}
 
-		logger.report("删除会话所有分片", {
-			deletedCount: chunks.length,
-		})
+		if (chunks.length > 0) {
+			logger.report("删除会话待上传分片", {
+				deletedCount: chunks.length,
+			})
+		}
+	}
+
+	/**
+	 * Delete all chunks for a session (including uploaded)
+	 * 删除会话的所有分片（含已上传），用于会话历史清理
+	 */
+	async deleteAllSessionChunks(sessionId: string): Promise<void> {
+		const chunks = await this.getSessionChunks(sessionId)
+
+		for (const chunk of chunks) {
+			await this.delete(chunk.id)
+		}
+
+		if (chunks.length > 0) {
+			logger.report("删除会话所有分片", {
+				deletedCount: chunks.length,
+			})
+		}
 	}
 
 	/**
@@ -179,6 +199,8 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 		total: number
 		pending: number
 		uploaded: number
+		failed: number
+		settled: boolean
 		completed: boolean
 	}> {
 		const chunks = await this.getSessionChunks(sessionId)
@@ -187,6 +209,8 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 			total: chunks.length,
 			pending: 0,
 			uploaded: 0,
+			failed: 0,
+			settled: false,
 			completed: false,
 		}
 
@@ -198,9 +222,14 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 				case "uploaded":
 					progress.uploaded++
 					break
+				case "failed":
+					progress.failed++
+					break
 			}
 		}
 
+		progress.settled =
+			progress.pending === 0 && progress.uploaded + progress.failed === progress.total
 		progress.completed = progress.uploaded === progress.total
 
 		// Sampling: log progress every 10 chunks
@@ -209,6 +238,7 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 				total: progress.total,
 				uploaded: progress.uploaded,
 				pending: progress.pending,
+				failed: progress.failed,
 				progress: Math.round((progress.uploaded / progress.total) * 100) + "%",
 			})
 		}
@@ -220,7 +250,7 @@ export class AudioChunkDB extends GlobalBaseRepository<StoredAudioChunk> {
 	 * Clean up chunks older than specified days
 	 * 清理指定天数之前的分片
 	 */
-	async cleanupOldChunks(days: number = 7): Promise<number> {
+	async cleanupOldChunks(days: number = 30): Promise<number> {
 		const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000
 		const allChunks = await this.getAll()
 

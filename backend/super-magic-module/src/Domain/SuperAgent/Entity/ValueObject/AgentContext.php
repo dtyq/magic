@@ -19,7 +19,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 class AgentContext
 {
     /**
-     * @param string $sandboxId Sandbox ID
+     * @param string $sandboxId Sandbox ID (mutable: may be cleared/rebound mid-flow when the previously cached pod is gone)
      * @param string $authToken Authorization token
      * @param ProjectEntity $projectEntity Project entity
      * @param TopicEntity $topicEntity Topic entity
@@ -27,7 +27,7 @@ class AgentContext
      * @param ?AgentInitContext $initContext Agent initialization context (optional)
      */
     public function __construct(
-        private readonly string $sandboxId,
+        private string $sandboxId,
         private readonly string $authToken,
         private readonly ProjectEntity $projectEntity,
         private readonly TopicEntity $topicEntity,
@@ -42,6 +42,18 @@ class AgentContext
     public function getSandboxId(): string
     {
         return $this->sandboxId;
+    }
+
+    /**
+     * Set sandbox ID.
+     *
+     * Used by AgentDomainService::ensureSandboxInitialized to clear a stale
+     * sandbox id (e.g. the pod was destroyed) so that the warm-pool fast
+     * path's "empty sandbox id" guard can let the request through.
+     */
+    public function setSandboxId(string $sandboxId): void
+    {
+        $this->sandboxId = $sandboxId;
     }
 
     /**

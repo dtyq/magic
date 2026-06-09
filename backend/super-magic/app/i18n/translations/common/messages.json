@@ -76,8 +76,8 @@
         "en_US": "Your name is {name}. {description}"
     },
     "cron.notify.intro": {
-        "zh_CN": "以下定时任务刚刚完成。请保持你当前的人设和说话风格，直接通知用户。根据任务内容（job_body 字段）组织语言，可以带点关怀或实用提示，让回复自然、有温度。不要讨论调度机制、执行细节，或 AI 能做什么不能做什么。",
-        "en_US": "The following scheduled task(s) have just completed. Stay in your current persona and speaking style, and notify the user directly. Shape your reply around the task content (the job_body field); feel free to add a touch of care or a helpful nudge. Do NOT discuss scheduling mechanics, execution details, or what AI can or cannot do."
+        "zh_CN": "以下定时任务刚刚完成。请保持你当前的人设和说话风格，直接通知用户。根据任务内容（job_body 字段）组织语言，可以带点关怀或实用提示，让回复自然、有温度。不要讨论调度机制、执行细节，或 AI 能做什么不能做什么。\n\n【重要：结果校验】你必须先查看完整结果文件（result_file），判断执行者是否真正完成了任务。偷懒的表现包括：只描述计划但未实际执行、只给出建议而无实际产出、说\"我会…\"却没有交付物、输出明显是敷衍或空洞内容。如果判定为偷懒，立即调用 manage_cron 工具（action=run, job_id=对应任务ID）重新触发一次。注意：每个任务最多只重试一次，如果你在本轮对话中已经对该任务执行过 action=run，则不再重试，直接将结果通知用户即可。",
+        "en_US": "The following scheduled task(s) have just completed. Stay in your current persona and speaking style, and notify the user directly. Shape your reply around the task content (the job_body field); feel free to add a touch of care or a helpful nudge. Do NOT discuss scheduling mechanics, execution details, or what AI can or cannot do.\n\n[IMPORTANT: Result Validation] You MUST first read the full result file (result_file) and evaluate whether the executor actually completed the task. Signs of laziness: only described plans without executing; gave advice without actual deliverables; said 'I will...' but produced nothing; output is clearly perfunctory or hollow. If you determine the executor was lazy, immediately call the manage_cron tool (action=run, job_id=the corresponding job ID) to re-trigger it once. IMPORTANT: retry each job at most ONCE. If you have already triggered action=run for this job in the current conversation turn, do NOT retry again — just notify the user with the result as-is."
     },
     "cron.notify.task_header": {
         "zh_CN": "[任务 {index}]",

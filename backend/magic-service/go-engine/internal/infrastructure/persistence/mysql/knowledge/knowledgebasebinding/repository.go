@@ -10,6 +10,7 @@ import (
 	"time"
 
 	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kshared "magic/internal/domain/knowledge/shared"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 )
@@ -120,6 +121,86 @@ func (r *Repository) ReplaceBindingsWithTx(
 		}
 	}
 	return normalized, nil
+}
+
+// LinkAgentKnowledgeBases 幂等地新增数字员工与 flow 向量知识库的关联。
+func (r *Repository) LinkAgentKnowledgeBases(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	agentCode string,
+	knowledgeBaseCodes []string,
+) ([]string, error) {
+	if r == nil || r.client == nil {
+		return nil, errNilKnowledgeBaseBindingRepository
+	}
+	normalizedCodes := normalizeKnowledgeBaseBindingCodes(knowledgeBaseCodes)
+	if len(normalizedCodes) == 0 {
+		return []string{}, nil
+	}
+
+	tx, err := r.client.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin link agent knowledge bases tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	now := time.Now()
+	queries := r.queries.WithTx(tx)
+	for _, code := range normalizedCodes {
+		err = queries.UpsertKnowledgeBaseBinding(ctx, mysqlsqlc.UpsertKnowledgeBaseBindingParams{
+			KnowledgeBaseCode: code,
+			BindType:          string(kbentity.BindingTypeSuperMagicAgent),
+			BindID:            kbentity.NormalizeBindID(agentCode),
+			OrganizationCode:  strings.TrimSpace(organizationCode),
+			CreatedUid:        strings.TrimSpace(userID),
+			UpdatedUid:        strings.TrimSpace(userID),
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("upsert knowledge base binding: %w", err)
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit link agent knowledge bases tx: %w", err)
+	}
+	return normalizedCodes, nil
+}
+
+// UnlinkAgentKnowledgeBases 移除数字员工与指定 flow 向量知识库的关联。
+func (r *Repository) UnlinkAgentKnowledgeBases(
+	ctx context.Context,
+	organizationCode string,
+	_ string,
+	agentCode string,
+	knowledgeBaseCodes []string,
+) ([]string, error) {
+	if r == nil || r.queries == nil {
+		return nil, errNilKnowledgeBaseBindingRepository
+	}
+	normalizedCodes := normalizeKnowledgeBaseBindingCodes(knowledgeBaseCodes)
+	if len(normalizedCodes) == 0 {
+		return []string{}, nil
+	}
+	if _, err := r.queries.DeleteFlowKnowledgeBaseBindingsByBindIDAndCodes(
+		ctx,
+		mysqlsqlc.DeleteFlowKnowledgeBaseBindingsByBindIDAndCodesParams{
+			OrganizationCode:   strings.TrimSpace(organizationCode),
+			BindType:           string(kbentity.BindingTypeSuperMagicAgent),
+			BindID:             kbentity.NormalizeBindID(agentCode),
+			KnowledgeBaseCodes: normalizedCodes,
+			KnowledgeBaseType:  string(kbentity.KnowledgeBaseTypeFlowVector),
+		},
+	); err != nil {
+		return nil, fmt.Errorf("delete flow knowledge base bindings by agent: %w", err)
+	}
+	return normalizedCodes, nil
 }
 
 // ListBindIDsByKnowledgeBase 查询单个知识库下指定类型的绑定对象。
@@ -247,6 +328,169 @@ func (r *Repository) ListKnowledgeBaseCodesByBindID(
 	return result, nil
 }
 
+// ListKnowledgeBaseBindingsByBindID 反向查询指定绑定对象下的知识库绑定列表。
+func (r *Repository) ListKnowledgeBaseBindingsByBindID(
+	ctx context.Context,
+	bindType kbentity.BindingType,
+	bindID string,
+	organizationCode string,
+) ([]kbentity.AgentKnowledgeBaseBinding, error) {
+	rows, err := r.queries.ListKnowledgeBaseBindingsByBindID(ctx, mysqlsqlc.ListKnowledgeBaseBindingsByBindIDParams{
+		BindType:         string(bindType),
+		BindID:           kbentity.NormalizeBindID(bindID),
+		OrganizationCode: strings.TrimSpace(organizationCode),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query knowledge base bindings by bind id: %w", err)
+	}
+
+	result := make([]kbentity.AgentKnowledgeBaseBinding, 0, len(rows))
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		code := strings.TrimSpace(row.KnowledgeBaseCode)
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		result = append(result, kbentity.AgentKnowledgeBaseBinding{
+			KnowledgeBaseCode: code,
+			Metadata:          kbentity.DecodeAgentKnowledgeBaseBindingMetadata(row.Metadata),
+		})
+	}
+	return result, nil
+}
+
+// ListKnowledgeBaseBindingsByBindIDs 批量反向查询指定绑定对象下的知识库绑定列表。
+func (r *Repository) ListKnowledgeBaseBindingsByBindIDs(
+	ctx context.Context,
+	bindType kbentity.BindingType,
+	bindIDs []string,
+	organizationCode string,
+) ([]kbentity.AgentKnowledgeBaseBinding, error) {
+	normalizedBindIDs := normalizeKnowledgeBaseBindingBindIDs(bindIDs)
+	if len(normalizedBindIDs) == 0 {
+		return []kbentity.AgentKnowledgeBaseBinding{}, nil
+	}
+	rows, err := r.queries.ListKnowledgeBaseBindingsByBindIDs(ctx, mysqlsqlc.ListKnowledgeBaseBindingsByBindIDsParams{
+		BindType:         string(bindType),
+		BindIds:          normalizedBindIDs,
+		OrganizationCode: strings.TrimSpace(organizationCode),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("batch query knowledge base bindings by bind ids: %w", err)
+	}
+
+	result := make([]kbentity.AgentKnowledgeBaseBinding, 0, len(rows))
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		code := strings.TrimSpace(row.KnowledgeBaseCode)
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		result = append(result, kbentity.AgentKnowledgeBaseBinding{
+			KnowledgeBaseCode: code,
+			Metadata:          kbentity.DecodeAgentKnowledgeBaseBindingMetadata(row.Metadata),
+		})
+	}
+	return result, nil
+}
+
+// UpdateAgentKnowledgeBaseBindingMetadata 更新数字员工下某个 flow 知识库绑定的关联级配置。
+func (r *Repository) UpdateAgentKnowledgeBaseBindingMetadata(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	agentCode string,
+	knowledgeBaseCode string,
+	patch kbentity.AgentKnowledgeBaseBindingMetadataPatch,
+) (*kbentity.AgentKnowledgeBaseBinding, error) {
+	if r == nil || r.client == nil {
+		return nil, errNilKnowledgeBaseBindingRepository
+	}
+	normalizedOrg := strings.TrimSpace(organizationCode)
+	normalizedAgentCode := kbentity.NormalizeBindID(agentCode)
+	normalizedKnowledgeBaseCode := strings.TrimSpace(knowledgeBaseCode)
+
+	tx, err := r.client.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin update knowledge base binding metadata tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	queries := r.queries.WithTx(tx)
+	row, err := queries.GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdate(
+		ctx,
+		mysqlsqlc.GetFlowKnowledgeBaseBindingByBindIDAndCodeForUpdateParams{
+			OrganizationCode:  normalizedOrg,
+			BindType:          string(kbentity.BindingTypeSuperMagicAgent),
+			BindID:            normalizedAgentCode,
+			KnowledgeBaseCode: normalizedKnowledgeBaseCode,
+			KnowledgeBaseType: string(kbentity.KnowledgeBaseTypeFlowVector),
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %s", kshared.ErrKnowledgeBaseNotFound, normalizedKnowledgeBaseCode)
+		}
+		return nil, fmt.Errorf("query flow knowledge base binding: %w", err)
+	}
+
+	metadata := kbentity.DecodeAgentKnowledgeBaseBindingMetadata(row.Metadata).ApplyPatch(patch)
+	affected, err := queries.UpdateKnowledgeBaseBindingMetadataByBindIDAndCode(
+		ctx,
+		mysqlsqlc.UpdateKnowledgeBaseBindingMetadataByBindIDAndCodeParams{
+			Metadata:          metadata.JSONBytes(),
+			UpdatedUid:        strings.TrimSpace(userID),
+			UpdatedAt:         time.Now(),
+			OrganizationCode:  normalizedOrg,
+			BindType:          string(kbentity.BindingTypeSuperMagicAgent),
+			BindID:            normalizedAgentCode,
+			KnowledgeBaseCode: normalizedKnowledgeBaseCode,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update knowledge base binding metadata: %w", err)
+	}
+	if affected == 0 {
+		return nil, fmt.Errorf("%w: %s", kshared.ErrKnowledgeBaseNotFound, normalizedKnowledgeBaseCode)
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit update knowledge base binding metadata tx: %w", err)
+	}
+	return &kbentity.AgentKnowledgeBaseBinding{
+		KnowledgeBaseCode: strings.TrimSpace(row.KnowledgeBaseCode),
+		Metadata:          metadata,
+	}, nil
+}
+
+func normalizeKnowledgeBaseBindingBindIDs(bindIDs []string) []string {
+	normalized := make([]string, 0, len(bindIDs))
+	seen := make(map[string]struct{}, len(bindIDs))
+	for _, bindID := range bindIDs {
+		trimmed := kbentity.NormalizeBindID(bindID)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
+}
+
 func (r *Repository) deleteBindingsByKnowledgeBaseAndType(
 	ctx context.Context,
 	tx *sql.Tx,
@@ -260,4 +504,21 @@ func (r *Repository) deleteBindingsByKnowledgeBaseAndType(
 		return fmt.Errorf("delete knowledge base bindings: %w", err)
 	}
 	return nil
+}
+
+func normalizeKnowledgeBaseBindingCodes(codes []string) []string {
+	result := make([]string, 0, len(codes))
+	seen := make(map[string]struct{}, len(codes))
+	for _, code := range codes {
+		trimmed := strings.TrimSpace(code)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
 }

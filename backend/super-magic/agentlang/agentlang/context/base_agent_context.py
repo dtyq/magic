@@ -41,7 +41,6 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
         self.agent_name = "base_agent"  # 默认代理名称
         self.is_main_agent = False  # 是否为主代理
         self.stream_mode = False  # 流模式开关
-        self.llm = None  # 当前使用的LLM模型
         self.use_dynamic_prompt = True  # 动态提示词开关
         self.chat_history_dir = ""  # 聊天历史目录
 
@@ -56,8 +55,6 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
 
         self.shared_context.register_fields({
             "event_dispatcher": (EventDispatcher(), EventDispatcherInterface),
-            "dynamic_model_id": (None, Optional[str]),       # 动态 LLM 模型 ID
-            "dynamic_image_model_id": (None, Optional[str]), # 动态图片生成模型 ID
             "non_human_options": (None, Optional[Any]),      # 非人类限流配置
             "user_timezone": (None, Optional[str]),          # 用户时区（IANA 名称），None 时回落系统时区
         })
@@ -113,30 +110,6 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
     def is_stream_mode(self) -> bool:
         """获取流式输出模式"""
         return self.stream_mode
-
-    def set_llm(self, model: str) -> None:
-        """设置LLM模型
-
-        Args:
-            model: 模型名称
-        """
-        self.llm = model
-        logger.debug(f"设置LLM模型: {model}")
-
-    def get_llm(self) -> str:
-        """获取LLM模型"""
-        return self.llm
-
-    def get_real_model_id(self) -> Optional[str]:
-        """获取实际使用的模型ID（优先级：dynamic_model_id > llm）
-
-        Returns:
-            Optional[str]: 实际使用的模型ID，如果都未设置则返回 None
-        """
-        return (
-            (self.get_dynamic_model_id() if self.has_dynamic_model_id() else None)
-            or self.llm
-        )
 
     def set_use_dynamic_prompt(self, enabled: bool) -> None:
         """设置是否使用动态提示词
@@ -255,66 +228,6 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
         继承自BaseContext，返回所有元数据
         """
         return {**self._metadata}
-
-    # 实现动态模型ID管理接口（使用shared_context）
-    def set_dynamic_model_id(self, model_id: str) -> None:
-        """设置动态模型ID（会覆盖Agent默认模型选择）
-
-        Args:
-            model_id: 动态指定的模型ID
-        """
-        self.shared_context.update_field("dynamic_model_id", model_id)
-        logger.info(f"已设置动态模型ID: {model_id}")
-
-    def get_dynamic_model_id(self) -> Optional[str]:
-        """获取动态模型ID
-
-        Returns:
-            Optional[str]: 动态模型ID，如果未设置则返回None
-        """
-        return self.shared_context.get_field("dynamic_model_id")
-
-    def has_dynamic_model_id(self) -> bool:
-        """检查是否设置了动态模型ID
-
-        Returns:
-            bool: 是否设置了动态模型ID
-        """
-        model_id = self.shared_context.get_field("dynamic_model_id")
-        return model_id is not None and model_id.strip() != ""
-
-    def clear_dynamic_model_id(self) -> None:
-        """清除动态模型ID设置"""
-        self.shared_context.update_field("dynamic_model_id", None)
-        logger.debug("已清除动态模型ID设置")
-
-    def set_dynamic_image_model_id(self, model_id: str) -> None:
-        """设置动态图片模型ID（生图工具优先使用此值，覆盖 dynamic_config.yaml 的配置）"""
-        self.shared_context.update_field("dynamic_image_model_id", model_id)
-        logger.info(f"已设置动态图片模型ID: {model_id}")
-
-    def get_dynamic_image_model_id(self) -> Optional[str]:
-        """获取图片生成模型ID。
-
-        优先返回通过 set_dynamic_image_model_id 设置的值；
-        未设置时回落到 dynamic_config.yaml 的 image_model.model_id；
-        均未配置时返回 None。
-        """
-        model_id = self.shared_context.get_field("dynamic_image_model_id")
-        if model_id and isinstance(model_id, str) and model_id.strip():
-            return model_id.strip()
-        try:
-            from agentlang.config.dynamic_config import dynamic_config
-            config_data = dynamic_config.read_dynamic_config()
-            if config_data:
-                image_model_config = config_data.get("image_model", {})
-                if isinstance(image_model_config, dict):
-                    cfg_id = image_model_config.get("model_id")
-                    if cfg_id and isinstance(cfg_id, str) and cfg_id.strip():
-                        return cfg_id.strip()
-        except Exception:
-            pass
-        return None
 
     # 非人类限流配置管理接口（使用shared_context）
     def set_non_human_options(self, options: Any) -> None:

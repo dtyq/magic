@@ -12,6 +12,7 @@ import (
 var ProviderSet = wire.NewSet(
 	ProvideEmbeddingDefaultModel,
 	ProvideQdrantConfig,
+	ProvideMagicFSFileVersionService,
 	ProvideEmbeddingCacheCleanupService,
 	diknowledge.ProvideEmbeddingDomainService,
 	diknowledge.ProvideKnowledgeBaseDomainConfig,
@@ -39,5 +40,6 @@ var ProviderSet = wire.NewSet(
 	diknowledge.ProvideDocumentAppRuntimeDeps,
 	diknowledge.ProvideKnowledgeRevectorizeProgressStore,
 	diknowledge.ProvideDocumentAppService,
+	diknowledge.ProvideKnowledgeSourceFileLinkService,
 	diknowledge.ProvideKnowledgeRevectorizeAppService,
 )

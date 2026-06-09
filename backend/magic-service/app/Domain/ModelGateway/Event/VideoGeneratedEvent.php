@@ -29,6 +29,8 @@ class VideoGeneratedEvent extends AbstractEvent
 
     protected ?int $height = null;
 
+    protected bool $hasAudioOutput = true;
+
     protected ?string $topicId = null;
 
     protected ?string $taskId = null;
@@ -148,6 +150,16 @@ class VideoGeneratedEvent extends AbstractEvent
     public function setHeight(?int $height): void
     {
         $this->height = $height;
+    }
+
+    public function hasAudioOutput(): bool
+    {
+        return $this->hasAudioOutput;
+    }
+
+    public function setHasAudioOutput(bool $hasAudioOutput): void
+    {
+        $this->hasAudioOutput = $hasAudioOutput;
     }
 
     public function getTopicId(): ?string

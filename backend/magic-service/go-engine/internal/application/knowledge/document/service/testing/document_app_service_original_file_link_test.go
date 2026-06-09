@@ -17,7 +17,10 @@ import (
 
 var errOriginalFileLinkBoom = errors.New("original file link boom")
 
-const testOriginalFileLinkTypeThirdPlatform = "third_platform"
+const (
+	testOriginalFileLinkTypeDownload      = "download"
+	testOriginalFileLinkTypeThirdPlatform = "third_platform"
+)
 
 type originalFileLinkProviderStub struct {
 	link       string
@@ -48,7 +51,7 @@ func TestDocumentAppServiceGetOriginalFileLink(t *testing.T) {
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
 		DocumentFile: &docentity.File{
-			Type: "external",
+			Type: testSourceFileTypeExternal,
 			Name: "doc.md",
 			URL:  "ORG1/path/doc.md",
 		},
@@ -66,8 +69,11 @@ func TestDocumentAppServiceGetOriginalFileLink(t *testing.T) {
 	if result == nil || !result.Available || result.URL != "https://example.com/doc.md" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
-	if result.Key != "ORG1/path/doc.md" || result.Type != "external" || result.Name != "doc.md" {
+	if result.Key != "ORG1/path/doc.md" || result.Type != testSourceFileTypeExternal || result.Name != "doc.md" {
 		t.Fatalf("unexpected metadata: %#v", result)
+	}
+	if result.LinkType != testOriginalFileLinkTypeDownload {
+		t.Fatalf("expected download link type, got %#v", result)
 	}
 	if provider.callCount != 1 || provider.lastPath != "ORG1/path/doc.md" || provider.lastMethod != http.MethodGet {
 		t.Fatalf("unexpected provider state: %#v", provider)
@@ -89,7 +95,7 @@ func TestDocumentAppServiceGetOriginalFileLinkUsesRenamedDocumentFileName(t *tes
 			parseddocument.MetaFileName: "门店数据.txt",
 		},
 		DocumentFile: &docentity.File{
-			Type:      "external",
+			Type:      testSourceFileTypeExternal,
 			Name:      "门店数据.txt",
 			URL:       "ORG1/path/doc.txt",
 			Extension: "txt",
@@ -114,6 +120,39 @@ func TestDocumentAppServiceGetOriginalFileLinkUsesRenamedDocumentFileName(t *tes
 	}
 }
 
+func TestDocumentAppServiceGetOriginalFileLinkPrefersDocumentFileKey(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              "DOC-FILE-KEY",
+		Name:              "doc-display.md",
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: "KB1",
+		DocumentFile: &docentity.File{
+			Type:    testSourceFileTypeExternal,
+			Name:    "doc.md",
+			FileKey: "ORG1/file-key/doc.md",
+			URL:     "ORG1/url/doc.md",
+		},
+	}
+	provider := &originalFileLinkProviderStub{link: "https://example.com/doc.md"}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		showByCodeAndKBResult: doc,
+	}, &knowledgeBaseReaderStub{}, nil)
+	svc.SetOriginalFileLinkProvider(provider)
+
+	result, err := svc.GetOriginalFileLink(context.Background(), "DOC-FILE-KEY", "KB1", "ORG1", "USER1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil || result.Key != "ORG1/file-key/doc.md" {
+		t.Fatalf("expected document_file.file_key to be returned, got %#v", result)
+	}
+	if provider.lastPath != "ORG1/file-key/doc.md" {
+		t.Fatalf("expected provider to use document_file.file_key, got %q", provider.lastPath)
+	}
+}
+
 func TestDocumentAppServiceGetOriginalFileLinkProjectFile(t *testing.T) {
 	t.Parallel()
 
@@ -124,7 +163,7 @@ func TestDocumentAppServiceGetOriginalFileLinkProjectFile(t *testing.T) {
 		KnowledgeBaseCode: "KB1",
 		ProjectFileID:     501,
 		DocumentFile: &docentity.File{
-			Type:       "project_file",
+			Type:       testSourceFileTypeProjectFile,
 			Name:       "录音功能优化讨论.md",
 			FileKey:    "ORG1/project/录音功能优化讨论.md",
 			SourceType: "project",
@@ -149,8 +188,11 @@ func TestDocumentAppServiceGetOriginalFileLinkProjectFile(t *testing.T) {
 	if result.URL != "https://example.com/project-file.md?signature=get-only" {
 		t.Fatalf("unexpected project file link: %#v", result)
 	}
-	if result.Key != "ORG1/project/录音功能优化讨论.md" || result.Type != "project_file" || result.Name != "录音功能优化讨论.md" {
+	if result.Key != "ORG1/project/录音功能优化讨论.md" || result.Type != testSourceFileTypeProjectFile || result.Name != "录音功能优化讨论.md" {
 		t.Fatalf("unexpected project file metadata: %#v", result)
+	}
+	if result.SourceType != "project" || result.LinkType != testOriginalFileLinkTypeDownload {
+		t.Fatalf("unexpected project source metadata: %#v", result)
 	}
 }
 
@@ -164,7 +206,7 @@ func TestDocumentAppServiceGetOriginalFileLinkProjectFileUnavailable(t *testing.
 		KnowledgeBaseCode: "KB1",
 		ProjectFileID:     501,
 		DocumentFile: &docentity.File{
-			Type:       "project_file",
+			Type:       testSourceFileTypeProjectFile,
 			Name:       "deleted.md",
 			FileKey:    "ORG1/project/deleted.md",
 			SourceType: "project",
@@ -186,7 +228,7 @@ func TestDocumentAppServiceGetOriginalFileLinkProjectFileUnavailable(t *testing.
 	if result == nil || result.Available {
 		t.Fatalf("expected unavailable project file link, got %#v", result)
 	}
-	if result.Key != "ORG1/project/deleted.md" || result.Type != "project_file" || result.Name != "deleted.md" {
+	if result.Key != "ORG1/project/deleted.md" || result.Type != testSourceFileTypeProjectFile || result.Name != "deleted.md" {
 		t.Fatalf("unexpected project file metadata: %#v", result)
 	}
 }
@@ -235,8 +277,99 @@ func TestDocumentAppServiceGetOriginalFileLinkThirdPlatformDownloadURL(t *testin
 	if result.URL != "https://example.com/teamshare/file.docx?token=1" {
 		t.Fatalf("unexpected third-platform url: %#v", result)
 	}
-	if result.Key != "https://example.com/teamshare/file.docx?token=1" || result.Type != testOriginalFileLinkTypeThirdPlatform || result.Name != "测试向量化.docx" {
+	if result.Key != "third_platform/teamshare/FILE-1" || result.Type != testOriginalFileLinkTypeThirdPlatform || result.Name != "测试向量化.docx" {
 		t.Fatalf("unexpected third-platform metadata: %#v", result)
+	}
+	if result.SourceType != "teamshare" || result.LinkType != testOriginalFileLinkTypeDownload {
+		t.Fatalf("unexpected third-platform source metadata: %#v", result)
+	}
+}
+
+func TestDocumentAppServiceGetOriginalFileLinkThirdPlatformRequiresStableKey(t *testing.T) {
+	t.Parallel()
+
+	downloadURL := "https://example.com/teamshare/file.docx?token=temporary"
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              "DOC-THIRD-NO-KEY",
+		Name:              "临时链接文档",
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: "KB1",
+		DocumentFile: &docentity.File{
+			Type: testOriginalFileLinkTypeThirdPlatform,
+			Name: "临时链接文档",
+		},
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		showByCodeAndKBResult: doc,
+	}, &knowledgeBaseReaderStub{}, nil)
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
+		result: &thirdplatform.DocumentResolveResult{
+			SourceKind:  thirdplatform.DocumentSourceKindDownloadURL,
+			DownloadURL: downloadURL,
+			DocumentFile: map[string]any{
+				"type":      testOriginalFileLinkTypeThirdPlatform,
+				"name":      "临时链接文档.docx",
+				"url":       downloadURL,
+				"extension": "docx",
+			},
+		},
+	})
+
+	result, err := svc.GetOriginalFileLink(context.Background(), "DOC-THIRD-NO-KEY", "KB1", "ORG1", "USER1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil || result.Available || result.URL != "" || result.Key != "" {
+		t.Fatalf("expected unavailable third-platform link without stable key, got %#v", result)
+	}
+}
+
+func TestDocumentAppServiceGetOriginalFileLinkThirdPlatformWebURL(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              "DOC-THIRD-WEB",
+		Name:              "External source document",
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: "KB1",
+		ThirdPlatformType: "external_docs",
+		ThirdFileID:       "DOC-1",
+		DocumentFile: &docentity.File{
+			Type:       testOriginalFileLinkTypeThirdPlatform,
+			Name:       "External source document",
+			URL:        "https://docs.example.com/main/openflow?docid=DOC-1",
+			ThirdID:    "DOC-1",
+			SourceType: "external_docs",
+		},
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		showByCodeAndKBResult: doc,
+	}, &knowledgeBaseReaderStub{}, nil)
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
+		result: &thirdplatform.DocumentResolveResult{
+			SourceKind: thirdplatform.DocumentSourceKindRawContent,
+			DocumentFile: map[string]any{
+				"type":          testOriginalFileLinkTypeThirdPlatform,
+				"name":          "External source document",
+				"url":           "https://docs.example.com/main/openflow?docid=DOC-1",
+				"third_file_id": "DOC-1",
+				"source_type":   "external_docs",
+			},
+		},
+	})
+
+	result, err := svc.GetOriginalFileLink(context.Background(), "DOC-THIRD-WEB", "KB1", "ORG1", "USER1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil || !result.Available {
+		t.Fatalf("expected available third-platform web link, got %#v", result)
+	}
+	if result.URL != "https://docs.example.com/main/openflow?docid=DOC-1" {
+		t.Fatalf("unexpected third-platform web url: %#v", result)
+	}
+	if result.Key != "third_platform/external_docs/DOC-1" || result.SourceType != "external_docs" || result.LinkType != "web" {
+		t.Fatalf("unexpected third-platform web metadata: %#v", result)
 	}
 }
 
@@ -289,7 +422,7 @@ func TestDocumentAppServiceGetOriginalFileLinkThirdPlatformDownloadURLsPreferSna
 	if result.URL != "https://example.com/teamshare/.xlsx?token=2" {
 		t.Fatalf("unexpected third-platform url: %#v", result)
 	}
-	if result.Key != "https://example.com/teamshare/.xlsx?token=2" {
+	if result.Key != "third_platform/teamshare/FILE-1" {
 		t.Fatalf("unexpected third-platform key: %#v", result)
 	}
 }
@@ -303,7 +436,7 @@ func TestDocumentAppServiceGetOriginalFileLinkUnsupportedAndErrors(t *testing.T)
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
 		DocumentFile: &docentity.File{
-			Type: "external",
+			Type: testSourceFileTypeExternal,
 			Name: "doc.md",
 			URL:  "ORG1/path/doc.md",
 		},
@@ -341,7 +474,7 @@ func TestDocumentAppServiceGetOriginalFileLinkUnsupportedAndErrors(t *testing.T)
 			Code:              "DOC3",
 			OrganizationCode:  "ORG2",
 			KnowledgeBaseCode: "KB1",
-			DocumentFile:      &docentity.File{Type: "external", URL: "ORG2/doc.md"},
+			DocumentFile:      &docentity.File{Type: testSourceFileTypeExternal, URL: "ORG2/doc.md"},
 		},
 	}, &knowledgeBaseReaderStub{}, nil)
 	if _, err := mismatchSvc.GetOriginalFileLink(context.Background(), "DOC3", "KB1", "ORG1", "USER1"); !errors.Is(err, appservice.ErrDocumentOrgMismatch) {

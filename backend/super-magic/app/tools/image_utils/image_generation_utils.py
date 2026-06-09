@@ -21,18 +21,11 @@ logger = get_logger(__name__)
 
 async def resolve_image_model(tool_context: Optional[ToolContext]) -> str:
     """
-    获取图片生成模型 ID，来源：agent_context.get_dynamic_image_model_id()
-    （内部已包含 dynamic_config.yaml 读取）。未配置时抛出异常。
+    获取图片生成模型 ID，来源于 AgentContext.model_context。未配置时抛出异常。
     """
-    from app.core.context.agent_context import AgentContext
-
-    agent_context = (
-        tool_context.get_extension_typed("agent_context", AgentContext)
-        if tool_context
-        else None
-    )
+    agent_context = tool_context.get_extension("agent_context") if tool_context else None
     if agent_context:
-        resolved = agent_context.get_dynamic_image_model_id()
+        resolved = agent_context.model_context.image_model_id
         if resolved:
             logger.info(f"从 agent_context 获取图片模型: {resolved}")
             return resolved

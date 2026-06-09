@@ -33,12 +33,14 @@ _MIME_TYPES = {
     "avif": "image/avif",
 }
 
+_PROJECT_ROOT_ENV_VARS = ("SUPER_MAGIC_PROJECT_ROOT", "PROJECT_ROOT")
+
 
 def _find_project_root() -> Path:
-    """从当前工作目录向上查找项目根目录。
+    """查找项目根目录。
 
-    判断依据：目录下存在 .credentials/ 子目录。
-    与 agentlang PathManager 的逻辑一致，仅使用 stdlib。
+    优先使用运行时显式注入的项目根目录环境变量；未配置或无效时，再从
+    当前工作目录向上查找包含 .credentials/ 的目录。
 
     Returns:
         项目根目录路径
@@ -46,12 +48,34 @@ def _find_project_root() -> Path:
     Raises:
         RuntimeError: 找不到包含 .credentials/ 的目录时抛出
     """
+    env_candidates = []
+    for env_name in _PROJECT_ROOT_ENV_VARS:
+        env_value = os.getenv(env_name)
+        if not env_value:
+            continue
+
+        candidate = Path(env_value).expanduser().resolve()
+        credentials_dir = candidate / ".credentials"
+        if credentials_dir.is_dir():
+            return candidate
+
+        env_candidates.append(
+            f"{env_name}={env_value} -> {candidate}（未找到 .credentials/）"
+        )
+
     current = Path.cwd()
     for directory in [current, *current.parents]:
         if (directory / ".credentials").is_dir():
             return directory
+
+    env_detail = (
+        "；环境变量候选: " + "；".join(env_candidates)
+        if env_candidates
+        else "；未设置项目根目录环境变量"
+    )
     raise RuntimeError(
         f"无法定位项目根目录：从 {current} 向上遍历未找到包含 .credentials/ 的目录"
+        f"{env_detail}"
     )
 
 

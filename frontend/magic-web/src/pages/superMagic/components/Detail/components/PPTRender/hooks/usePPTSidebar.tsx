@@ -284,8 +284,17 @@ export function usePPTSidebar({
 
 				// Load the new slide content and generate screenshot
 				try {
-					await store.loadSlideContent(newFileUrl, targetSlideIndex)
-					await store.generateSlideScreenshot(targetSlideIndex)
+					await store.loadSlideContentByFileId(result.newFileId, {
+						path: result.newFilePath,
+						url: newFileUrl,
+						indexHint: targetSlideIndex,
+					})
+					const screenshotIndex = store.slides.findIndex(
+						(slide) => store.getFileIdByPath(slide.path) === result.newFileId,
+					)
+					await store.ensureSlideScreenshot(
+						screenshotIndex === -1 ? targetSlideIndex : screenshotIndex,
+					)
 
 					// Validate that we have the required file information
 					if (!result.newFileId) {

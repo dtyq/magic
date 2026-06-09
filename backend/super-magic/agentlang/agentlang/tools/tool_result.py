@@ -66,7 +66,7 @@ class ToolResult(BaseModel):
         extra = "forbid"
 
     def __bool__(self) -> bool:
-        return any(getattr(self, field) for field in self.model_fields)
+        return any(getattr(self, field) for field in type(self).model_fields)
 
     def __add__(self, other: "ToolResult") -> "ToolResult":
         def combine(a: Optional[str], b: Optional[str], concat: bool = True) -> str:

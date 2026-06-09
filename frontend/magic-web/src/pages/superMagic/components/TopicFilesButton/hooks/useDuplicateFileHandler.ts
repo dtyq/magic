@@ -7,6 +7,7 @@ import {
 	extractCommonFolderPath,
 } from "../utils/duplicateFileHandler"
 import { UserChoice, type UserChoiceType } from "./duplicateFileConstants"
+import { uploadLogger } from "../utils/uploadLogger"
 
 interface UseDuplicateFileHandlerOptions {
 	attachments: AttachmentItem[]
@@ -37,9 +38,24 @@ export function useDuplicateFileHandler({ attachments }: UseDuplicateFileHandler
 	const handleUserChoice = useCallback(
 		async (choice: UserChoiceType, applyToAll: boolean) => {
 			setModalVisible(false)
+			uploadLogger.log("duplicateUserChoice", {
+				choice,
+				applyToAll,
+				currentIndex,
+				duplicatesCount: duplicateFiles.size,
+				originalUploadPath,
+				targetPath,
+				folderPath,
+			})
 
 			// 用户取消
 			if (choice === UserChoice.CANCEL) {
+				uploadLogger.finishSession({
+					status: "cancelled",
+					reason: "duplicateUserChoiceCancel",
+					originalUploadPath,
+					targetPath,
+				})
 				// 清空状态
 				setPendingFiles([])
 				setOriginalUploadPath("")
@@ -88,6 +104,15 @@ export function useDuplicateFileHandler({ attachments }: UseDuplicateFileHandler
 			const processAllFiles = async (currentRenameMap: Map<string, string>) => {
 				// 应用重命名
 				const finalFiles = renameFilesForUpload(pendingFiles, currentRenameMap)
+
+				uploadLogger.log("duplicateProcessAllFiles", {
+					originalUploadPath,
+					targetPath,
+					folderPath,
+					filesCount: finalFiles.length,
+					renameCount: currentRenameMap.size,
+					renamedFiles: Array.from(currentRenameMap.entries()),
+				})
 
 				console.log("📤 [processAllFiles] 准备上传文件:")
 				console.log("  ↳ originalUploadPath:", originalUploadPath)
@@ -184,6 +209,11 @@ export function useDuplicateFileHandler({ attachments }: UseDuplicateFileHandler
 			onFilesProcessed: (files: File[], targetPath: string) => Promise<void>,
 		) => {
 			console.log("🔍 [DuplicateHandler] 开始检测同名文件", { originalPath: path })
+			uploadLogger.log("duplicateCheckStart", {
+				originalPath: path,
+				fileCount: files.length,
+				fileNames: files.map((file) => file.name),
+			})
 
 			// 保存上传回调到 ref
 			onFilesProcessedRef.current = onFilesProcessed
@@ -204,6 +234,11 @@ export function useDuplicateFileHandler({ attachments }: UseDuplicateFileHandler
 				extractedFolderPath: folderPath,
 				actualTargetPath,
 			})
+			uploadLogger.log("duplicatePathResolved", {
+				originalPath: path,
+				extractedFolderPath: folderPath,
+				actualTargetPath,
+			})
 
 			// 在实际的目标路径下检测同名文件
 			const duplicates = detectDuplicateFiles(files, actualTargetPath, attachments)
@@ -212,10 +247,18 @@ export function useDuplicateFileHandler({ attachments }: UseDuplicateFileHandler
 				duplicatesCount: duplicates.size,
 				duplicateNames: Array.from(duplicates.keys()),
 			})
+			uploadLogger.log("duplicateCheckResult", {
+				duplicatesCount: duplicates.size,
+				duplicateNames: Array.from(duplicates.keys()),
+			})
 
 			// 如果没有同名文件，直接上传
 			if (duplicates.size === 0) {
 				console.log("✅ [DuplicateHandler] 无同名文件，直接上传")
+				uploadLogger.log("duplicateCheckBypass", {
+					reason: "noDuplicates",
+					uploadPath: path,
+				})
 				await onFilesProcessed(files, path)
 				return
 			}
@@ -242,6 +285,12 @@ export function useDuplicateFileHandler({ attachments }: UseDuplicateFileHandler
 			console.log("📱 [DuplicateHandler] Modal 状态已设置:", {
 				fileName: displayFileName,
 				shouldShowModal: true,
+			})
+			uploadLogger.log("duplicateModalOpen", {
+				fileName: displayFileName,
+				duplicatesCount: duplicates.size,
+				originalPath: path,
+				actualTargetPath,
 			})
 		},
 		[attachments],

@@ -309,23 +309,27 @@ export function DevConsolePanel({
 	return (
 		<div
 			ref={panelRef}
-			className="absolute inset-x-0 bottom-0 z-50 flex flex-shrink-0 flex-col border-t bg-background/95 backdrop-blur-sm"
+			className="relative flex w-full min-w-0 flex-shrink-0 flex-col overflow-hidden border-t bg-background/95 backdrop-blur-sm"
 			style={{ height: collapsed ? 36 : height }}
 		>
 			{/* Resize handle — uses pointer capture for smooth, iframe-safe drag */}
 			{!collapsed && (
 				<div
 					ref={dragHandleRef}
-					className="absolute inset-x-0 -top-1 h-2 cursor-row-resize touch-none"
+					className="absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none"
 					onPointerDown={handleDragStart}
 				/>
 			)}
 
 			{/* Header bar */}
-			<div className="flex h-9 flex-shrink-0 items-center justify-between border-b px-2">
-				<div className="flex items-center gap-1">
-					<Tabs value={activeTab} onValueChange={(v) => onTabChange(v as DevConsoleTab)}>
-						<TabsList className="h-7 bg-transparent p-0">
+			<div className="flex h-9 min-w-0 flex-shrink-0 items-center justify-between border-b px-2">
+				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none">
+					<Tabs
+						value={activeTab}
+						onValueChange={(v) => onTabChange(v as DevConsoleTab)}
+						className="min-w-0"
+					>
+						<TabsList className="h-7 flex-nowrap whitespace-nowrap bg-transparent p-0">
 							{visibleTabs.map((tabId, index) => {
 								const isDropTarget =
 									dragOverIdx === index &&

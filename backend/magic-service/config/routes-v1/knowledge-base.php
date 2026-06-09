@@ -18,8 +18,11 @@ Router::addGroup('/api/v1/knowledge-bases', static function () {
     Router::addGroup('', function () {
         Router::get('/source-bindings/nodes', [KnowledgeBaseApi::class, 'sourceBindingNodes']);
         Router::post('', [KnowledgeBaseApi::class, 'create']);
-        Router::put('/{code}', [KnowledgeBaseApi::class, 'update']);
         Router::post('/queries', [KnowledgeBaseApi::class, 'queries']);
+        Router::post('/agent-bindings/link', [KnowledgeBaseApi::class, 'linkAgentKnowledgeBases']);
+        Router::post('/agent-bindings/unlink', [KnowledgeBaseApi::class, 'unlinkAgentKnowledgeBases']);
+        Router::put('/agent-bindings/agents/{agentCode}/knowledge-bases/{knowledgeBaseCode}', [KnowledgeBaseApi::class, 'updateAgentKnowledgeBaseBinding']);
+        Router::put('/{code}', [KnowledgeBaseApi::class, 'update']);
         Router::post('/rebuild', [KnowledgeBaseApi::class, 'rebuild']);
         Router::post('/repair-third-file-mappings', [KnowledgeBaseApi::class, 'repairThirdFileMappings']);
         Router::post('/rebuild-cleanup', [KnowledgeBaseApi::class, 'rebuildCleanup']);
@@ -33,7 +36,6 @@ Router::addGroup('/api/v1/knowledge-bases', static function () {
         Router::put('/{code}', [KnowledgeBaseDocumentApi::class, 'update']);
         Router::post('/queries', [KnowledgeBaseDocumentApi::class, 'queries']);
         Router::get('/{code}', [KnowledgeBaseDocumentApi::class, 'show']);
-        Router::get('/{code}/original-file-link', [KnowledgeBaseDocumentApi::class, 'originalFileLink']);
         Router::delete('/{code}', [KnowledgeBaseDocumentApi::class, 'destroy']);
         Router::post('/{code}/re-vectorized', [KnowledgeBaseDocumentApi::class, 'reVectorized']);
     });

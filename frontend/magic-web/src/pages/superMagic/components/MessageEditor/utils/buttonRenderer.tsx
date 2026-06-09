@@ -23,6 +23,8 @@ import { VoiceInputRef } from "@/components/business/VoiceInput"
 import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { ProjectListItem, Topic } from "../../../pages/Workspace/types"
 import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import { superMagicStore } from "@/pages/superMagic/stores"
+import type { TokenUsage } from "@/pages/superMagic/stores/types"
 import { getButtonPaddingClass } from "../constants/BUTTON_PADDING_CLASS_MAP"
 import { MagicTooltip } from "@/components/base"
 import ModelSwitchContainer from "../components/ModelSwitch/ModelSwitchContainer"
@@ -30,6 +32,7 @@ import { Spinner } from "@/components/shadcn-ui/spinner"
 import type { DraftStore } from "../stores"
 import type { FileUploadStore } from "../stores/FileUploadStore"
 import type { FileData } from "../types"
+import { isNil } from "lodash-es"
 
 interface MCPButtonRenderConfig {
 	enabled: boolean
@@ -261,11 +264,31 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 	[ToolbarButton.DIVIDER]: () => <div className="mx-2 h-4 w-px bg-border" />,
 
 	[ToolbarButton.TOKEN_USAGE]: (ctx) => {
-		const tokenUsed = ctx.selectedTopic?.token_used
-		if (tokenUsed == null || ctx.size === "mobile") return null
+		if (ctx.size === "mobile") return null
+		const topicId = ctx.selectedTopic?.chat_topic_id
+		if (!topicId) return null
+
+		const messages = superMagicStore.messages.get(topicId)
+		if (!messages || messages.length === 0) return null
+
+		// 从后往前找到最后一条有 token_usage 数据的消息
+		let tokenUsage: TokenUsage | undefined
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const tu = (messages[i].debug as Record<string, unknown>)?.token_usage as
+				| TokenUsage
+				| undefined
+			if (tu && typeof tu.total_tokens === "number") {
+				tokenUsage = tu
+				break
+			}
+		}
+
+		if (isNil(tokenUsage?.total_tokens) && isNil(ctx.selectedTopic?.token_used)) return null
+
 		return (
 			<TokenUsageButton
-				tokenUsed={tokenUsed}
+				tokenUsed={Number(tokenUsage?.total_tokens || ctx.selectedTopic?.token_used)}
+				maxContextTokens={tokenUsage?.max_context_tokens}
 				iconSize={ctx.topBarIconSize}
 				size={ctx.size}
 				onCompressContext={ctx.handleCompressContext}

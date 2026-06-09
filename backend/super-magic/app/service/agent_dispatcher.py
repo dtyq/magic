@@ -2,6 +2,7 @@ from app.i18n import i18n
 import asyncio
 import os
 import json
+from collections.abc import Mapping
 from typing import Dict, Optional, Union
 import importlib
 import importlib.metadata
@@ -9,6 +10,9 @@ import inspect
 
 from app.core.context.agent_context import AgentContext
 from app.core.entity.final_task_state import FinalTaskStateCode, build_final_task_state
+from app.core.models.media_model import ImageModelSpec, VideoModelSpec
+from app.core.models.model_selection_policy import ModelSelectionInput, ModelSelectionPolicy
+from agentlang.chat_history.session_config import SessionConfig
 from agentlang.event.data import ErrorEventData
 from agentlang.event.event import EventType
 from app.core.stream.http_subscription_stream import HTTPSubscriptionStream
@@ -29,6 +33,7 @@ from app.path_manager import PathManager
 from app.service.agent_event.user_tool_call_listener_service import UserToolCallListenerService
 from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
+from app.service.home_persistence_service import HomePersistenceService
 from agentlang.logger import get_logger
 from app.core.base_service import Base
 
@@ -170,10 +175,26 @@ class AgentDispatcher(Base):
         """初始化工作区"""
         logger.info("开始工作区初始化流程")
 
+        await HomePersistenceService.initialize_from_environment()
+        try:
+            from app.service.cli_status import CliStatusFactory
+
+            CliStatusFactory.schedule_initial_detection(self.agent_context)
+        except Exception as e:
+            logger.warning(f"CLI 状态后台检测启动失败，继续初始化流程: {e}")
+
         # ========== 配置更新阶段 - 每次都执行 ==========
         # 保存初始化消息到文件
         from app.utils.init_client_message_util import InitClientMessageUtil
         await InitClientMessageUtil.save_init_client_message(init_message)
+
+        # 阶段二：init_client_message.json 已就绪，触发 magic-service 模型列表加载
+        try:
+            from agentlang.config.models.model_config_manager import model_config_manager
+            from app.core.model_providers.magic_service_provider import MagicServiceProvider
+            await model_config_manager.refresh_provider(MagicServiceProvider())
+        except Exception as e:
+            logger.error(f"MagicServiceProvider refresh failed, continuing without it: {e}")
 
         # 从 init_message.metadata 提取并设置关键字段
         if init_message.metadata:
@@ -500,15 +521,14 @@ class AgentDispatcher(Base):
         last = await self.get_last_dispatch_message() or {}
         if not last:
             return
-        # model_id：当前未携带时从 last 取，确保第三方 IM 消息延续上次选择的模型
-        if not message.model_id and last.get("model_id"):
-            message.model_id = last["model_id"]
         # agent_mode：当前未显式携带（None）时从 last 取
         if message.agent_mode is None and last.get("agent_mode"):
             message.agent_mode = last["agent_mode"]
         # dynamic_config：以 last 为基础，当前消息显式携带的字段优先，
-        # 其余字段（image_model / video_model / message_version 等）从 last 补全
-        last_dc = last.get("dynamic_config") or {}
+        # 模型字段不从 last_dispatch_message 补全，统一交给 session_config + ModelSelectionPolicy。
+        last_dc = dict(last.get("dynamic_config") or {})
+        last_dc.pop("image_model", None)
+        last_dc.pop("video_model", None)
         current_dc = message.dynamic_config or {}
         if last_dc:
             message.dynamic_config = {**last_dc, **current_dc}
@@ -523,12 +543,13 @@ class AgentDispatcher(Base):
     async def _save_last_dispatch_message(self, message: ChatClientMessage) -> None:
         """保存本次 dispatch 的完整消息快照到文件（.chat_history/last_dispatch_message.json）。"""
         from app.utils.async_file_utils import async_write_json
-        new_data = message.model_dump(mode="json")
+        new_data = self._remove_model_selection_fields(message.model_dump(mode="json"))
         # 合并策略：以上次快照为基础，新值非 None 才覆盖，防止空值抹掉已存的有效配置
-        existing = await self.get_last_dispatch_message() or {}
+        existing = self._remove_model_selection_fields(await self.get_last_dispatch_message() or {})
         merged = {**existing, **{k: v for k, v in new_data.items() if v is not None}}
         # dynamic_config 做深合并：第三方 IM 消息只携带 agent_code 等部分字段，
-        # 避免整个 key 覆盖导致 image_model / video_model 等配置丢失
+        # 避免整个 key 覆盖导致 message_version / agent_code 等配置丢失。
+        # 模型续传不依赖此快照，统一由 session_config + ModelSelectionPolicy 处理。
         existing_dc = existing.get("dynamic_config") or {}
         new_dc = new_data.get("dynamic_config") or {}
         if existing_dc or new_dc:
@@ -537,6 +558,24 @@ class AgentDispatcher(Base):
             await async_write_json(self._last_dispatch_message_file(), merged, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"[AgentDispatcher] 保存 dispatch 消息快照失败，忽略: {e}")
+
+    @staticmethod
+    def _remove_model_selection_fields(snapshot: Dict) -> Dict:
+        """移除 dispatch 快照中的模型选择字段，模型续传统一由 session_config 负责。"""
+        cleaned = dict(snapshot)
+        cleaned.pop("model_id", None)
+
+        dynamic_config = cleaned.get("dynamic_config")
+        if isinstance(dynamic_config, dict):
+            cleaned_dynamic_config = dict(dynamic_config)
+            cleaned_dynamic_config.pop("image_model", None)
+            cleaned_dynamic_config.pop("video_model", None)
+            if cleaned_dynamic_config:
+                cleaned["dynamic_config"] = cleaned_dynamic_config
+            else:
+                cleaned.pop("dynamic_config", None)
+
+        return cleaned
 
     async def submit_message(self, message: ChatClientMessage) -> None:
         """
@@ -655,25 +694,22 @@ class AgentDispatcher(Base):
                 )
                 return
 
+        # 确保 magic-service 模型列表已加载（兜底：防止未经 initialize_workspace 路径就发起 chat）
+        # 若已加载则跳过；未加载则同步触发一次，之后按 RefreshPolicy 策略在后台定期刷新。
+        try:
+            from agentlang.config.models.model_config_manager import model_config_manager
+            from app.core.model_providers.magic_service_provider import MagicServiceProvider
+            provider = MagicServiceProvider()
+            await model_config_manager.ensure_provider_loaded(provider)
+            model_config_manager.maybe_refresh_in_background(provider.provider_type)
+        except Exception as e:
+            logger.warning(f"dispatch_message: model provider check failed, continuing: {e}")
 
         await self._fill_from_last_dispatch_message(message)
 
         # fill 后仍为 None 说明历史快照也没有，归一化为默认模式
         if message.agent_mode is None:
             message.agent_mode = AgentMode.GENERAL
-
-        # 如果 agent_context 还没有 dynamic_model_id（前端消息已在 messages.py 里 set），
-        # 且消息携带了 model_id（可能来自前端或 fill 补全），则在此设置，确保第三方 IM 消息也能使用正确模型
-        if message.model_id and not self.agent_context.has_dynamic_model_id():
-            self.agent_context.set_dynamic_model_id(message.model_id)
-            logger.info(f"[AgentDispatcher] 从消息 model_id 设置动态模型: {message.model_id}")
-        # image_model_id：从 dynamic_config.image_model.model_id 读取并 set 进 context
-        image_model_config = (message.dynamic_config or {}).get("image_model")
-        if image_model_config and isinstance(image_model_config, dict):
-            image_model_id = image_model_config.get("model_id")
-            if image_model_id:
-                self.agent_context.set_dynamic_image_model_id(image_model_id)
-                logger.info(f"[AgentDispatcher] 从消息 dynamic_config 设置图片模型: {image_model_id}")
 
         self.agent_context.set_chat_client_message(message)
 
@@ -696,13 +732,14 @@ class AgentDispatcher(Base):
 
         # 使用 agent_mode 进行 agent 选择
         agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)
+        self._apply_model_selection(message, agent)
 
-        # 初始化 MCP 配置
-        logger.info("正在初始化 MCP 配置...")
-        await MCPService.initialize_from_config(message.mcp_config, self.agent_context)
+        # 摄取客户端 MCP 配置：增量持久化到 ChatMcpStore，有变更时通过 horizon 通知模型
+        logger.info("正在摄取客户端 MCP 配置...")
+        await MCPService.ingest_from_message(message.mcp_config, self.agent_context)
 
-        # 保存当前模型配置（在 MCP 初始化之后，以便保存正确的 MCP 服务器信息）
-        self._save_session_config(message, agent)
+        # 保存当前模型配置
+        await self._save_session_config(message, agent)
 
         await self.run_agent(agent=agent)
 
@@ -725,7 +762,58 @@ class AgentDispatcher(Base):
         """
         return self.init_event_dispatched
 
-    def _save_session_config(self, message: ChatClientMessage, agent: Agent):
+    @staticmethod
+    def _dynamic_image_model(dynamic_config: Optional[Mapping[str, object]]) -> ImageModelSpec:
+        if not isinstance(dynamic_config, Mapping):
+            return ImageModelSpec.empty()
+        return ImageModelSpec.from_raw(dynamic_config.get("image_model"))
+
+    @staticmethod
+    def _dynamic_video_model(dynamic_config: Optional[Mapping[str, object]]) -> VideoModelSpec:
+        if not isinstance(dynamic_config, Mapping):
+            return VideoModelSpec.empty()
+        return VideoModelSpec.from_raw(dynamic_config.get("video_model"))
+
+    @staticmethod
+    def _session_image_model(current: SessionConfig, last: SessionConfig) -> ImageModelSpec:
+        model_id = current.image_model_id or last.image_model_id
+        sizes = current.image_model_sizes if current.image_model_sizes is not None else last.image_model_sizes
+        return ImageModelSpec.from_values(model_id=model_id, sizes=sizes)
+
+    @staticmethod
+    def _session_video_model(current: SessionConfig, last: SessionConfig) -> VideoModelSpec:
+        model_id = current.video_model_id or last.video_model_id
+        video_generation_config = (
+            current.video_generation_config
+            if current.video_generation_config is not None
+            else last.video_generation_config
+        )
+        return VideoModelSpec.from_values(
+            model_id=model_id,
+            video_generation_config=video_generation_config,
+        )
+
+    def _apply_model_selection(self, message: ChatClientMessage, agent: Agent) -> None:
+        current_session_config = agent.chat_history.get_current_session_config()
+        last_session_config = agent.chat_history.get_last_session_config()
+        selection = ModelSelectionPolicy.resolve(ModelSelectionInput(
+            configured_text_model_id=agent.llm_id,
+            request_text_model_id=message.model_id,
+            session_text_model_id=current_session_config.model_id or last_session_config.model_id,
+            request_image_model=self._dynamic_image_model(message.dynamic_config),
+            session_image_model=self._session_image_model(current_session_config, last_session_config),
+            request_video_model=self._dynamic_video_model(message.dynamic_config),
+            session_video_model=self._session_video_model(current_session_config, last_session_config),
+        ))
+        agent.agent_context.model_context.apply_selection(selection)
+        logger.info(
+            "[AgentDispatcher] 已应用模型选择: "
+            f"text={selection.text_model_id}, "
+            f"image={selection.image_model_id or '-'}, "
+            f"video={selection.video_model_id or '-'}"
+        )
+
+    async def _save_session_config(self, message: ChatClientMessage, agent: Agent):
         """
         保存当前会话配置到聊天历史中（包括模型、图片模型、MCP服务器等）
 
@@ -738,34 +826,13 @@ class AgentDispatcher(Base):
             if not message.update_session:
                 return
 
-            current_model_id = message.model_id or agent.llm_id
-            current_image_model_id = None
-            current_image_model_sizes = None
-            current_video_model_id = None
-            current_video_generation_config = None
-            current_mcp_servers = None
-
-            if message.dynamic_config:
-                image_model_config = message.dynamic_config.get("image_model")
-                if image_model_config and isinstance(image_model_config, dict):
-                    current_image_model_id = image_model_config.get("model_id")
-                    current_image_model_sizes = image_model_config.get("sizes")
-
-                video_model_config = message.dynamic_config.get("video_model")
-                if video_model_config and isinstance(video_model_config, dict):
-                    current_video_model_id = video_model_config.get("model_id")
-                    current_video_generation_config = video_model_config.get("video_generation_config")
-
-            # 获取当前 MCP 服务器信息（仅在加载了 using-mcp skill 时）
             agent_context = agent.agent_context
-            if agent_context and agent_context.has_skill("using-mcp"):
-                from app.mcp.manager import get_global_mcp_manager
-                manager = get_global_mcp_manager()
-                if manager:
-                    current_mcp_servers = {}
-                    for server_name in manager.get_connected_servers():
-                        tools = manager.get_server_tools(server_name)
-                        current_mcp_servers[server_name] = tools
+            model_context = agent_context.model_context
+            current_model_id = model_context.current_text_model_id or agent.llm_id
+            current_image_model_id = model_context.image_model_id
+            current_image_model_sizes = model_context.image.sizes_payload()
+            current_video_model_id = model_context.video_model_id
+            current_video_generation_config = model_context.video.video_generation_config
 
             current_agent_mode = None
             msg_agent_mode = message.agent_mode
@@ -790,7 +857,6 @@ class AgentDispatcher(Base):
                 current_image_model_sizes,
                 current_video_model_id,
                 current_video_generation_config,
-                current_mcp_servers,
                 message_version=agent_context.get_message_version() if agent_context else None,
                 agent_mode=current_agent_mode,
                 agent_code=current_agent_code,

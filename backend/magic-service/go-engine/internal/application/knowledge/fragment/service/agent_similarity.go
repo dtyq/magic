@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	fragdto "magic/internal/application/knowledge/fragment/dto"
+	kbaccess "magic/internal/domain/knowledge/access/service"
 	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	kshared "magic/internal/domain/knowledge/shared"
@@ -51,6 +52,7 @@ func (s *FragmentAppService) SimilarityByAgent(
 	knowledgeBases, err := s.listBoundKnowledgeBasesByAgent(
 		ctx,
 		normalizedInput.organizationCode,
+		normalizedInput.userID,
 		normalizedInput.agentCode,
 	)
 	if err != nil {
@@ -163,9 +165,10 @@ func (s *FragmentAppService) ensureAgentAccessible(
 func (s *FragmentAppService) listBoundKnowledgeBasesByAgent(
 	ctx context.Context,
 	organizationCode string,
+	userID string,
 	agentCode string,
 ) ([]*kbentity.KnowledgeBase, error) {
-	knowledgeBaseCodes, err := s.knowledgeBaseBindingRepo.ListKnowledgeBaseCodesByBindID(
+	bindings, err := s.knowledgeBaseBindingRepo.ListKnowledgeBaseBindingsByBindID(
 		ctx,
 		kbentity.BindingTypeSuperMagicAgent,
 		agentCode,
@@ -174,10 +177,67 @@ func (s *FragmentAppService) listBoundKnowledgeBasesByAgent(
 	if err != nil {
 		return nil, fmt.Errorf("list knowledge bases by agent code: %w", err)
 	}
+	knowledgeBaseCodes := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		if binding.KnowledgeBaseCode == "" || !binding.Metadata.IsEnabled() {
+			continue
+		}
+		knowledgeBaseCodes = append(knowledgeBaseCodes, binding.KnowledgeBaseCode)
+	}
 	if len(knowledgeBaseCodes) == 0 {
 		return nil, nil
 	}
-	return s.listDigitalEmployeeKnowledgeBases(ctx, organizationCode, knowledgeBaseCodes)
+	knowledgeBases, err := s.listAgentBoundEnabledKnowledgeBases(ctx, organizationCode, knowledgeBaseCodes)
+	if err != nil {
+		return nil, err
+	}
+	return s.filterAgentSimilarityKnowledgeBasesByRead(ctx, organizationCode, userID, knowledgeBases)
+}
+
+func (s *FragmentAppService) filterAgentSimilarityKnowledgeBasesByRead(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	knowledgeBases []*kbentity.KnowledgeBase,
+) ([]*kbentity.KnowledgeBase, error) {
+	if len(knowledgeBases) == 0 {
+		return nil, nil
+	}
+	flowCodes := make([]string, 0, len(knowledgeBases))
+	for _, kb := range knowledgeBases {
+		if kb != nil && kb.KnowledgeBaseType == kbentity.KnowledgeBaseTypeFlowVector {
+			flowCodes = append(flowCodes, kb.Code)
+		}
+	}
+	operations := map[string]kbaccess.Operation{}
+	if len(flowCodes) > 0 {
+		if accessService := s.knowledgeAccessService(); accessService != nil {
+			var err error
+			operations, err = accessService.BatchOperations(
+				ctx,
+				resolveFragmentAccessActor(ctx, organizationCode, userID),
+				flowCodes,
+			)
+			if err != nil {
+				operations = map[string]kbaccess.Operation{}
+			}
+		}
+	}
+
+	filtered := make([]*kbentity.KnowledgeBase, 0, len(knowledgeBases))
+	for _, kb := range knowledgeBases {
+		if kb == nil {
+			continue
+		}
+		// Linked flow_vector KBs keep their original KB permission boundary:
+		// agent visibility only allows entering the agent, not reading linked flow KB data.
+		// digital_employee KBs still use agent visibility as their access boundary.
+		if kb.KnowledgeBaseType == kbentity.KnowledgeBaseTypeFlowVector && !operations[kb.Code].CanRead() {
+			continue
+		}
+		filtered = append(filtered, kb)
+	}
+	return filtered, nil
 }
 
 func (s *FragmentAppService) collectAgentSimilarityHits(
@@ -207,25 +267,21 @@ func (s *FragmentAppService) collectAgentSimilarityHits(
 	return hits, nil
 }
 
-func (s *FragmentAppService) listDigitalEmployeeKnowledgeBases(
+func (s *FragmentAppService) listAgentBoundEnabledKnowledgeBases(
 	ctx context.Context,
 	organizationCode string,
 	codes []string,
 ) ([]*kbentity.KnowledgeBase, error) {
-	// 数字员工相似度只按 knowledge_base_type=digital_employee 取知识库；
-	// source_type 只在该产品线内部解释，不能用来兜底筛产品线。
-	kbType := kbentity.KnowledgeBaseTypeDigitalEmployee
 	enabled := true
 	items, _, err := s.kbService.List(ctx, &kbrepository.Query{
-		OrganizationCode:  organizationCode,
-		KnowledgeBaseType: &kbType,
-		Enabled:           &enabled,
-		Codes:             append([]string(nil), codes...),
-		Offset:            0,
-		Limit:             len(codes),
+		OrganizationCode: organizationCode,
+		Enabled:          &enabled,
+		Codes:            append([]string(nil), codes...),
+		Offset:           0,
+		Limit:            len(codes),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list digital employee knowledge bases: %w", err)
+		return nil, fmt.Errorf("list agent bound knowledge bases: %w", err)
 	}
 	return items, nil
 }

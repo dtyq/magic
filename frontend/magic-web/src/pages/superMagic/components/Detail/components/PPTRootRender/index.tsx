@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import { Flex } from "antd"
 import PPTRender from "../PPTRender"
@@ -10,6 +10,26 @@ import { createParentMessageHandler } from "../../contents/HTML/utils/fetchInter
 import type { PPTRootRenderProps } from "./types"
 import { flattenAttachments } from "../../contents/HTML/utils"
 import { cn } from "@/lib/utils"
+import { getFileContentById } from "@/pages/superMagic/utils/api"
+
+const MAGIC_PROJECT_FILE_NAME = "magic.project.js"
+
+interface PendingLocalSlidePaths {
+	slidePaths: string[]
+}
+
+function normalizeFolderPath(relativePath?: string, fileName?: string): string {
+	if (!relativePath || !fileName) return ""
+	return relativePath.replace(fileName, "")
+}
+
+function getAttachmentFileName(item: any): string {
+	return item?.file_name || item?.name || item?.filename || item?.display_filename || ""
+}
+
+function getSlidesSignature(slides: string[] | undefined): string {
+	return JSON.stringify(slides || [])
+}
 
 /**
  * PPTRootRender Component
@@ -36,6 +56,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 		allowEdit,
 		saveEditContent,
 		className,
+		updatedAt,
 		displayConfig,
 		openFileTab,
 		selectedProject,
@@ -55,12 +76,56 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 	const [renderKey] = useState(0)
 	const [entryFileData, setEntryFileData] = useState<any>({})
 	const [currentAttachmentList, setCurrentAttachmentList] = useState<any>([])
+	const [magicProjectContent, setMagicProjectContent] = useState<string>()
+	const [magicProjectLoading, setMagicProjectLoading] = useState(false)
+	const pendingLocalSlidePathsRef = useRef<PendingLocalSlidePaths | null>(null)
 	// 标记是否至少完成过一次内容解析，避免路径计算中误展示空态
 	const [hasProcessedContent, setHasProcessedContent] = useState(false)
+	const processAttachments = attachments || attachmentList || []
+	const allAttachmentFiles = (() => {
+		const merged = [
+			...flattenAttachments((attachments || []) as any[]),
+			...flattenAttachments((attachmentList || []) as any[]),
+		]
+		const seen = new Set<string>()
+		return merged.filter((item: any) => {
+			const key =
+				item?.file_id ||
+				item?.relative_file_path ||
+				`${getAttachmentFileName(item)}-${item?.parent_id || ""}`
+			if (!key) return true
+			if (seen.has(key)) return false
+			seen.add(key)
+			return true
+		})
+	})()
+	const magicProjectFile = (() => {
+		if (!displayData?.file_id || allAttachmentFiles.length === 0) return undefined
 
-	// 同步派生 slidePaths：优先使用 displayConfig.slides（无需等待 async processContent）
-	// 这消除了 displayConfig 变化到 slidePaths 更新之间的异步延迟
+		const entryFile = allAttachmentFiles.find(
+			(item: any) => item?.file_id === displayData.file_id,
+		)
+		const entryFolderPath = normalizeFolderPath(
+			entryFile?.relative_file_path,
+			getAttachmentFileName(entryFile),
+		)
+		const targetPath = entryFolderPath
+			? `${entryFolderPath}${MAGIC_PROJECT_FILE_NAME}`
+			: undefined
+
+		return allAttachmentFiles.find((item: any) => {
+			if (getAttachmentFileName(item) !== MAGIC_PROJECT_FILE_NAME) return false
+			if (entryFile?.parent_id && item?.parent_id === entryFile.parent_id) return true
+			return Boolean(targetPath && item?.relative_file_path === targetPath)
+		})
+	})()
+
+	// 同步派生 slidePaths：解析完成前先用 displayConfig.slides 快速首屏；
+	// 一旦 magic.project.js 内容解析完成，就以文件内容为准，避免旧 displayConfig 盖住新 slides。
 	const derivedSlidePaths = useMemo(() => {
+		if (hasProcessedContent && (magicProjectFile?.file_id || originalSlidesPaths.length > 0)) {
+			return originalSlidesPaths
+		}
 		if (
 			displayConfig?.slides &&
 			Array.isArray(displayConfig.slides) &&
@@ -69,16 +134,52 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 			return displayConfig.slides
 		}
 		return originalSlidesPaths
-	}, [displayConfig?.slides, originalSlidesPaths])
+	}, [displayConfig?.slides, hasProcessedContent, magicProjectFile?.file_id, originalSlidesPaths])
 
 	const { fileData: htmlFileData, loading } = useFileData({
 		file_id: displayData?.file_id || "",
 		isEditing: false,
+		updatedAt,
 		activeFileId,
 		isFromNode,
 		content: displayData?.content || "",
 		disabledUrlCache: isPlaybackMode,
 	})
+
+	useEffect(() => {
+		pendingLocalSlidePathsRef.current = null
+	}, [displayData?.file_id, magicProjectFile?.file_id])
+
+	useEffect(() => {
+		const fileId = magicProjectFile?.file_id
+		if (!fileId) {
+			setMagicProjectContent(undefined)
+			setMagicProjectLoading(false)
+			return
+		}
+
+		let cancelled = false
+		setMagicProjectLoading(true)
+
+		getFileContentById(fileId, { responseType: "text" })
+			.then((content) => {
+				if (cancelled) return
+				const nextContent = typeof content === "string" ? content : ""
+				setMagicProjectContent((prev) => (prev === nextContent ? prev : nextContent))
+			})
+			.catch((error) => {
+				if (cancelled) return
+				console.error("Failed to load magic.project.js content:", error)
+				setMagicProjectContent(undefined)
+			})
+			.finally(() => {
+				if (!cancelled) setMagicProjectLoading(false)
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [magicProjectFile?.file_id, magicProjectFile?.updated_at])
 
 	/** Update HTML file data content */
 	const updateDataContent = useMemoizedFn((fileData: any) => {
@@ -122,17 +223,33 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 
 	const processContent = useMemoizedFn(async () => {
 		try {
-			const content = entryFileData?.content
+			const shouldUseMagicProject = Boolean(
+				magicProjectFile?.file_id && magicProjectContent !== undefined,
+			)
+			const content = shouldUseMagicProject ? magicProjectContent : entryFileData?.content
 			const result = await processHtmlContent({
 				content,
-				attachments,
-				fileId: displayData?.file_id,
-				fileName: entryFileData?.file_name,
+				attachments: processAttachments,
+				fileId: shouldUseMagicProject ? magicProjectFile?.file_id : displayData?.file_id,
+				fileName: shouldUseMagicProject
+					? getAttachmentFileName(magicProjectFile)
+					: entryFileData?.file_name,
 				attachmentList,
 				displayConfig,
 			})
 
-			console.log("PPTRootRender processContent result", result)
+			if (shouldUseMagicProject && pendingLocalSlidePathsRef.current) {
+				const pendingLocalSlidePaths = pendingLocalSlidePathsRef.current
+				const isMagicProjectCaughtUp =
+					getSlidesSignature(result.originalSlidesPaths) ===
+					getSlidesSignature(pendingLocalSlidePaths.slidePaths)
+
+				if (!isMagicProjectCaughtUp) {
+					return
+				}
+
+				pendingLocalSlidePathsRef.current = null
+			}
 
 			setFilePathMapping(result.filePathMapping)
 			setOriginalSlidesPaths(result.originalSlidesPaths)
@@ -147,7 +264,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 	useDeepCompareEffect(() => {
 		// attachmentList 先到时不立即解析，等待 entryFileData.content 就绪
 		if (
-			entryFileData?.content &&
+			(entryFileData?.content || magicProjectContent !== undefined) &&
 			currentAttachmentList.length === 0 &&
 			attachmentList &&
 			attachmentList.length > 0
@@ -155,17 +272,26 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 			setCurrentAttachmentList(attachmentList)
 			processContent()
 		}
-	}, [attachmentList, currentAttachmentList, entryFileData?.content])
+	}, [attachmentList, currentAttachmentList, entryFileData?.content, magicProjectContent])
 
 	useDeepCompareEffect(() => {
-		if (!entryFileData?.content) return
+		if (!entryFileData?.content && magicProjectContent === undefined) return
 		// 首次由 attachmentList 分支接管，避免首轮重复解析
 		if (currentAttachmentList.length === 0 && attachmentList?.length) return
 		processContent()
-	}, [entryFileData, displayConfig, currentAttachmentList.length, attachmentList?.length])
+	}, [
+		entryFileData,
+		magicProjectContent,
+		displayConfig,
+		currentAttachmentList.length,
+		attachmentList?.length,
+	])
 
 	// Handle sort panel save
 	const handleSortSave = useCallback((newSlidesPaths: string[]) => {
+		pendingLocalSlidePathsRef.current = {
+			slidePaths: newSlidesPaths,
+		}
 		setOriginalSlidesPaths(newSlidesPaths)
 	}, [])
 
@@ -208,14 +334,19 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 		[attachmentList, openFileTab],
 	)
 
-	// 仅在“文件加载完成 + 内容解析完成（或确实无内容可解析）”后渲染 PPTRender
-	// 当 displayConfig.slides 已就绪时，可以立即渲染（无需等待异步 processContent）
+	// 仅在首次没有任何可渲染 slides 时阻塞；后续 magic.project.js 更新走后台拉取，
+	// 保持 PPTRender 常驻，让 slidePaths 变化进入 store 的增量同步链路。
 	const hasSlidesFromConfig = displayConfig?.slides?.length > 0
+	const hasResolvedSlides = hasProcessedContent || originalSlidesPaths.length > 0
+	const canRenderFromExistingState =
+		hasSlidesFromConfig ||
+		hasResolvedSlides ||
+		(!attachmentList?.length && !entryFileData?.content && magicProjectContent === undefined)
+	const isInitialEntryLoading = loading && !canRenderFromExistingState
+	const isInitialMagicProjectLoading =
+		Boolean(magicProjectFile?.file_id && magicProjectLoading) && !canRenderFromExistingState
 	const isReadyToRender =
-		!loading &&
-		(hasSlidesFromConfig ||
-			hasProcessedContent ||
-			(!attachmentList?.length && !entryFileData?.content))
+		!isInitialEntryLoading && !isInitialMagicProjectLoading && canRenderFromExistingState
 
 	return (
 		<div className={cn("h-full w-full", className)}>

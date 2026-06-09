@@ -62,14 +62,15 @@ async def start_rollback(request: RollbackRequestDTO):
     try:
         logger.info(f"开始执行回滚操作，目标checkpoint: {request.target_message_id}")
 
-        await rollback_service.start_rollback(request.target_message_id)
+        affected_files = await rollback_service.start_rollback(request.target_message_id)
 
         return create_success_response(
             message=f"开始回滚到checkpoint {request.target_message_id} 执行成功",
             data={
                 "target_message_id": request.target_message_id,
                 "status": "started",
-                "next_step": "调用 /rollback/commit 完成回滚"
+                "next_step": "调用 /rollback/commit 完成回滚",
+                "affected_files": affected_files,
             }
         )
 
@@ -146,13 +147,14 @@ async def undo_rollback():
     try:
         logger.info("开始执行撤回回滚操作")
 
-        await rollback_service.undo_rollback()
+        affected_files = await rollback_service.undo_rollback()
 
         return create_success_response(
             message="撤回回滚操作执行成功",
             data={
                 "status": "completed",
-                "message": "系统已恢复到最新checkpoint状态"
+                "message": "系统已恢复到最新checkpoint状态",
+                "affected_files": affected_files,
             }
         )
 

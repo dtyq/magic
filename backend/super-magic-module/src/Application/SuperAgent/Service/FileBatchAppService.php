@@ -31,6 +31,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Request\FileConverterRequest;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckBatchDownloadResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateBatchDownloadResponseDTO;
@@ -117,7 +118,7 @@ class FileBatchAppService extends AbstractAppService
             return $cachedResponse;
         }
 
-        $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
+        $targetName = $this->buildBatchDownloadTargetName($projectEntity->getProjectName());
         $organizationCode = $projectEntity->getUserOrganizationCode();
         $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
 
@@ -246,7 +247,7 @@ class FileBatchAppService extends AbstractAppService
             return $cachedResponse;
         }
 
-        $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
+        $targetName = $this->buildBatchDownloadTargetName($projectEntity->getProjectName());
         $organizationCode = $projectEntity->getUserOrganizationCode();
         $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
 
@@ -404,6 +405,16 @@ class FileBatchAppService extends AbstractAppService
         sort($fileIds);
         $data = implode(',', $fileIds) . '|' . $userId . '|' . $projectId . '|' . $pathMode;
         return 'batch_' . md5($data);
+    }
+
+    private function buildBatchDownloadTargetName(string $projectName): string
+    {
+        $timestamp = date('YmdHi');
+
+        return WorkFileUtil::sanitizeFileName(
+            sprintf('%s_%s.zip', $projectName, $timestamp),
+            sprintf('batch_download_%s.zip', $timestamp)
+        );
     }
 
     /**

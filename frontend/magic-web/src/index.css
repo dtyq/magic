@@ -106,6 +106,7 @@
 		*/
 		--z-index-detail-fullscreen: 999;
 		--z-index-popup: 1000;
+		--z-index-context-menu: var(--z-index-popup);
 		--z-index-dialog: var(--z-index-popup);
 		--z-index-dropdown: var(--z-index-popup);
 		--z-index-drawer: var(--z-index-popup);

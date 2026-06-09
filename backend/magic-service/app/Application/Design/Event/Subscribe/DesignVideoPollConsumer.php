@@ -243,7 +243,6 @@ class DesignVideoPollConsumer extends ConsumerMessage
 
         // Derive upload path and file keys from directory entity's actual file_key
         $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
-        $dirFileKey = rtrim($taskFileDir->getFileKey(), '/');
         $outputPayload = [
             'relative_file_path' => $fileDirExists ? $this->buildRelativeFilePath($relativeFileDir, $fileName) : '',
             'relative_poster_path' => ($fileDirExists && $posterFileName !== '') ? $this->buildRelativeFilePath($relativeFileDir, $posterFileName) : '',
@@ -253,6 +252,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
             'duration_seconds' => $output['duration_seconds'] ?? null,
             'resolution' => (string) ($output['resolution'] ?? ''),
             'fps' => $output['fps'] ?? null,
+            'has_audio_output' => (bool) ($output['has_audio_output'] ?? true),
             // 保存目录 ID 和跳过原因，后续排查目录丢失导致未归档时有明确上下文。
             'file_dir_id' => $taskFileDir?->getFileId() ?? $entity->getOutputDirectoryFileId(),
             'archive_skipped_reason' => $fileDirExists ? '' : 'file_dir_missing',

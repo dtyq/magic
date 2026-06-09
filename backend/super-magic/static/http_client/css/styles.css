@@ -1843,6 +1843,31 @@ textarea:focus {
     white-space: nowrap;
 }
 
+.client-context-footer-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.client-context-count {
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(60, 60, 67, 0.08);
+    color: var(--wechat-text-gray);
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.client-context-footer-btn.has-manual-context .client-context-count {
+    background: rgba(0, 122, 255, 0.12);
+    color: #006fe6;
+}
+
+.client-context-clear-btn {
+    color: #d93025;
+}
+
 .secondary-toggle-group {
     display: inline-flex;
     align-items: center;
@@ -2131,6 +2156,100 @@ textarea:focus {
 
 .history-btn.delete {
     color: #d70015;
+}
+
+.client-context-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(245, 245, 247, 0.30);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.client-context-modal-dialog {
+    width: min(760px, calc(100vw - 40px));
+    max-height: min(620px, calc(100vh - 56px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+}
+
+.client-context-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(60, 60, 67, 0.10);
+    background: rgba(250, 250, 252, 0.94);
+}
+
+.client-context-modal-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+}
+
+.client-context-modal-title strong {
+    font-family: monospace;
+    font-size: 14px;
+    color: var(--wechat-text-dark);
+}
+
+.client-context-modal-title span {
+    color: var(--wechat-text-gray);
+    font-size: 12px;
+}
+
+.client-context-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.client-context-modal-clear-btn,
+.client-context-modal-close-btn {
+    height: 30px;
+    padding: 4px 12px;
+    border: 1px solid rgba(60, 60, 67, 0.12);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--wechat-text-dark);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.client-context-modal-clear-btn {
+    color: #d93025;
+}
+
+.client-context-modal-clear-btn:hover,
+.client-context-modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.client-context-modal-textarea {
+    width: 100%;
+    min-height: 320px;
+    padding: 14px 16px;
+    border: none;
+    background: #fff;
+    color: var(--wechat-text-dark);
+    resize: vertical;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.55;
 }
 
 .edit-container {

@@ -30,6 +30,12 @@ class MoveProjectRequestDTO extends AbstractRequestDTO
     public string $targetWorkspaceId = '';
 
     /**
+     * Target project name.
+     * Null means keep the current project name.
+     */
+    public ?string $targetProjectName = null;
+
+    /**
      * Get source project ID.
      */
     public function getSourceProjectId(): int
@@ -64,6 +70,18 @@ class MoveProjectRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Get target project name.
+     */
+    public function getTargetProjectName(): ?string
+    {
+        if ($this->targetProjectName === '') {
+            return null;
+        }
+
+        return $this->targetProjectName;
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -71,6 +89,7 @@ class MoveProjectRequestDTO extends AbstractRequestDTO
         return [
             'source_project_id' => 'required|numeric',
             'target_workspace_id' => 'present|string|max:64',
+            'target_project_name' => 'nullable|string|max:100',
         ];
     }
 
@@ -85,6 +104,8 @@ class MoveProjectRequestDTO extends AbstractRequestDTO
             'target_workspace_id.present' => 'Target workspace ID field is required',
             'target_workspace_id.string' => 'Target workspace ID must be a string',
             'target_workspace_id.max' => 'Target workspace ID cannot exceed 64 characters',
+            'target_project_name.string' => 'Target project name must be a string',
+            'target_project_name.max' => 'Target project name cannot exceed 100 characters',
         ];
     }
 }

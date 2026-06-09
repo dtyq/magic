@@ -29,20 +29,20 @@ var (
 )
 
 type embeddedImageOCRHelper struct {
-	ocrClient documentdomain.OCRClient
-	budget    *documentdomain.EmbeddedImageOCRBudget
-	stats     documentdomain.EmbeddedImageOCRStats
-	overload  bool
+	visualExtractor documentdomain.VisualTextExtractor
+	budget          *documentdomain.EmbeddedImageOCRBudget
+	stats           documentdomain.EmbeddedImageOCRStats
+	overload        bool
 }
 
 func newEmbeddedImageOCRHelper(
-	ocrClient documentdomain.OCRClient,
+	visualExtractor documentdomain.VisualTextExtractor,
 	maxOCRPerFile int,
 ) *embeddedImageOCRHelper {
 	budget := documentdomain.NewEmbeddedImageOCRBudget(maxOCRPerFile)
 	return &embeddedImageOCRHelper{
-		ocrClient: ocrClient,
-		budget:    budget,
+		visualExtractor: visualExtractor,
+		budget:          budget,
 		stats: documentdomain.EmbeddedImageOCRStats{
 			Limit: budget.Limit(),
 		},
@@ -54,7 +54,7 @@ func (h *embeddedImageOCRHelper) recognizeBytes(ctx context.Context, data []byte
 		return ""
 	}
 	h.stats.Total++
-	if h.ocrClient == nil || len(data) == 0 {
+	if h.visualExtractor == nil || len(data) == 0 {
 		h.stats.Failed++
 		return ""
 	}
@@ -67,7 +67,7 @@ func (h *embeddedImageOCRHelper) recognizeBytes(ctx context.Context, data []byte
 		return ""
 	}
 
-	text, err := h.ocrClient.OCRBytes(ctx, data, normalizeEmbeddedOCRFormat(format))
+	text, err := h.visualExtractor.RecognizeBytes(ctx, data, normalizeEmbeddedOCRFormat(format))
 	if err != nil {
 		if documentdomain.IsOCROverloaded(err) {
 			h.overload = true
@@ -95,7 +95,7 @@ func (h *embeddedImageOCRHelper) recognizeDocumentBySourceDetailed(
 		return "", nil
 	}
 	h.stats.Total++
-	if h.ocrClient == nil || strings.TrimSpace(fileURL) == "" || file == nil {
+	if h.visualExtractor == nil || strings.TrimSpace(fileURL) == "" || file == nil {
 		h.stats.Failed++
 		return "", errEmbeddedOCRSourceUnavailable
 	}
@@ -104,11 +104,7 @@ func (h *embeddedImageOCRHelper) recognizeDocumentBySourceDetailed(
 		return "", errEmbeddedOCRBudgetExceeded
 	}
 
-	sourceOCR, ok := h.ocrClient.(documentdomain.OCRSourceClient)
-	if !ok {
-		return h.recognizeDocumentByURLAfterBudget(ctx, fileURL, fileType)
-	}
-	text, err := sourceOCR.OCRSource(ctx, fileURL, file, fileType)
+	text, err := h.visualExtractor.RecognizeSource(ctx, fileURL, file, fileType)
 	if err != nil {
 		if documentdomain.IsOCROverloaded(err) {
 			h.overload = true
@@ -153,22 +149,6 @@ func (h *embeddedImageOCRHelper) overloadError() error {
 		"%w",
 		documentdomain.NewOCROverloadedError(documentdomain.OCRProviderVolcengine, errEmbeddedOCROverloaded),
 	)
-}
-
-func (h *embeddedImageOCRHelper) recognizeDocumentByURLAfterBudget(
-	ctx context.Context,
-	fileURL string,
-	fileType string,
-) (string, error) {
-	text, err := h.ocrClient.OCR(ctx, fileURL, fileType)
-	if err != nil {
-		if documentdomain.IsOCROverloaded(err) {
-			h.overload = true
-		}
-		h.stats.Failed++
-		return "", fmt.Errorf("document OCR failed: %w", err)
-	}
-	return h.recordDocumentOCRText(text)
 }
 
 func (h *embeddedImageOCRHelper) recordDocumentOCRText(text string) (string, error) {

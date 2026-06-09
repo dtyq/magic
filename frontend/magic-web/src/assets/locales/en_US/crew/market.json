@@ -330,6 +330,7 @@
 				"noContent": "No content",
 				"reason": "Reason",
 				"reviewFailed": "Review Failed",
+				"reviewRemark": "Review Remark",
 				"skillsLibrary": {
 					"steps": {
 						"published": "Published to Skills Library",
@@ -349,6 +350,7 @@
 					"publishTo": "Publish to",
 					"publishedDate": "Published Date",
 					"publisher": "Publisher",
+					"reviewRemark": "Review Remark",
 					"status": "Status",
 					"version": "Version"
 				},

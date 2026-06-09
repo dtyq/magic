@@ -1,8 +1,7 @@
 server:
-  # HTTP server host and port
-  enabled: ${SERVER_ENABLED:=false}
-  host: ${SERVER_HOST:=localhost}
-  port: ${SERVER_PORT:=81}
+  # HTTP server port and external path prefix
+  port: ${GO_SERVER_PORT:=81}
+  stripPathPrefix: ${SERVER_STRIP_PATH_PREFIX:-}
   # mode is optional: debug|release|test; if omitted, Gin uses debug only when APP_ENV=local
   mode: ${SERVER_MODE:-}
   # env is optional: dev|staging|production; defaults to production if omitted
@@ -67,6 +66,10 @@ redis:
   connMaxIdleTime: 300      # Maximum idle time for connections (seconds)
   connMaxLifetime: 3600     # Maximum lifetime for connections (seconds)
   poolTimeout: 4            # Timeout for acquiring connection from pool (seconds)
+  socketioCleanupCountMax: ${SOCKETIO_REDIS_CLEANUP_COUNT_MAX:=5000}
+  socketioCleanupHeartbeatSeconds: ${SOCKETIO_REDIS_CLEANUP_HEARTBEAT_SECONDS:=5}
+  socketioCleanupStaleSeconds: ${SOCKETIO_REDIS_CLEANUP_STALE_SECONDS:=20}
+  socketioCleanupStateTTLSeconds: ${SOCKETIO_REDIS_CLEANUP_STATE_TTL_SECONDS:=3600}
 
 events:
   workerCount: 0            # Number of workers for async event processing (0 to disable)

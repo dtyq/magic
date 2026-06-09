@@ -1,6 +1,7 @@
 package document
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -9,7 +10,8 @@ import (
 )
 
 const (
-	docFileTypeExternal = "external"
+	docFileTypeExternal       = "external"
+	thirdPlatformFileKeyScope = "third_platform"
 )
 
 // NormalizeDocumentFileType 统一文档文件类型。
@@ -80,6 +82,31 @@ func FileFromPayload(payload map[string]any) (*docentity.File, bool) {
 	return file, true
 }
 
+// ResolveDocumentSourceFileKey 返回可用于知识库源文件下载校验的稳定文件键。
+func ResolveDocumentSourceFileKey(file *docentity.File, fallbackSourceType, fallbackThirdID string) string {
+	if file == nil {
+		return ""
+	}
+	if fileKey := strings.TrimSpace(file.FileKey); fileKey != "" {
+		return fileKey
+	}
+
+	sourceURL := strings.TrimSpace(file.URL)
+	if sourceURL != "" && !looksLikeExternalURL(sourceURL) {
+		return sourceURL
+	}
+
+	if NormalizeDocumentFileType(file.Type) != docFileTypeThirdParty {
+		return ""
+	}
+	sourceType := firstNonEmptyString(file.SourceType, fallbackSourceType)
+	thirdID := firstNonEmptyString(file.ThirdID, fallbackThirdID)
+	if sourceType == "" || thirdID == "" {
+		return ""
+	}
+	return thirdPlatformFileKeyScope + "/" + url.PathEscape(sourceType) + "/" + url.PathEscape(thirdID)
+}
+
 // CloneDocumentFilePayload 深拷贝 document_file payload。
 func CloneDocumentFilePayload(payload map[string]any) map[string]any {
 	return cloneDocumentFilePayload(payload)
@@ -103,4 +130,9 @@ func InferDocumentFileExtensionLight(file *docentity.File) string {
 		return ext
 	}
 	return ""
+}
+
+func looksLikeExternalURL(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(normalized, "://") || strings.HasPrefix(normalized, "//")
 }

@@ -1,4 +1,5 @@
 import { SuperMagicApi } from "@/apis"
+import { SuperMagicApiErrorCode } from "@/pages/superMagic/constants/apiErrorCodes"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import { normalizePath } from "../utils/utils"
 
@@ -88,7 +89,7 @@ export async function resolveDesignImagesFileDirWithSlash(
 					updateAttachments()
 				} catch (error: unknown) {
 					const errorObj = error as { code?: number; message?: string }
-					if (errorObj.code === 51168) {
+					if (errorObj.code === SuperMagicApiErrorCode.DuplicateFile) {
 						updateAttachments()
 					} else {
 						//

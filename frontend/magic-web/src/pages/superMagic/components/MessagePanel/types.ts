@@ -16,10 +16,10 @@ export interface SendMessageOptions {
 			mentions: MentionListItem[]
 			chat_mode: "normal"
 			topic_pattern?: TopicMode
-			model?: { model_id: string }
+			model?: { model_id: string; model_name?: string; model_icon?: string }
 			enable_web_search?: boolean
-			image_model?: { model_id: string }
-			video_model?: { model_id: string }
+			image_model?: { model_id: string; model_name?: string; model_icon?: string }
+			video_model?: { model_id: string; model_name?: string; model_icon?: string }
 			queue_id?: string
 			agent_code?: string
 			dynamic_params?: Record<string, unknown>

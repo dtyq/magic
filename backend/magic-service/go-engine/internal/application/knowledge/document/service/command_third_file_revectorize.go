@@ -87,7 +87,7 @@ func (s *ThirdFileRevectorizeAppService) RunThirdFileRevectorize(
 		return shared.ErrDocumentNotFound
 	}
 	release, acquired := s.support.acquireSourceCallbackLock(ctx, sourcebindingrepository.SourceCallbackSingleflightKey{
-		Provider:         sourcebindingdomain.ProviderTeamshare,
+		Provider:         task.ThirdPlatformType,
 		OrganizationCode: task.OrganizationCode,
 		FileID:           task.ThirdFileID,
 	})

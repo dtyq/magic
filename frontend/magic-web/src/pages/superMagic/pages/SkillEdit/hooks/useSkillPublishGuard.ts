@@ -23,6 +23,7 @@ export function useSkillPublishGuard({ store, t, onPublishReady }: UseSkillPubli
 				projectId: store.project?.id,
 				getWorkspaceFilesList: () => store.projectFilesStore.workspaceFilesList,
 				getWorkspaceFileTree: () => store.projectFilesStore.workspaceFileTree,
+				getSkillName: () => store.skill?.name,
 				t,
 			})
 			if (!ensured) return

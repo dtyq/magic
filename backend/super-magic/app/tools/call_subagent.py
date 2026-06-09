@@ -10,7 +10,7 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.i18n import i18n
 from app.path_manager import PathManager
-from app.service.agent_runner import _inherit_parent_context
+from app.service.agent_runner import _inherit_parent_context, apply_isolated_agent_model_selection
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.base_tool import BaseTool
 from app.tools.subagent_runtime_models import (
@@ -133,16 +133,15 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                 _inherit_parent_context(new_agent_context, parent, depth=current_depth + 1)
                 new_agent_context.set_chat_history_dir(str(PathManager.get_subagents_chat_history_dir()))
 
-                if params.model_id:
-                    new_agent_context.set_dynamic_model_id(params.model_id)
-                elif parent and parent.has_dynamic_model_id():
-                    # 未指定模型时，继承调用方 Agent 的动态模型 ID
-                    new_agent_context.set_dynamic_model_id(parent.get_dynamic_model_id())
-
                 agent = Agent(
                     params.agent_name,
                     agent_id=params.agent_id,
                     agent_context=new_agent_context,
+                )
+                apply_isolated_agent_model_selection(
+                    agent=agent,
+                    parent_context=parent,
+                    model_id=params.model_id,
                 )
 
                 _prepare_state_for_dispatch(
@@ -248,7 +247,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
         agent_id = args.get("agent_id", "")
         prompt = args.get("prompt", "")
         background = args.get("background", False)
-        model_id = args.get("model_id")
+        model_id = _resolve_subagent_display_model_id(tool_context, args.get("model_id"))
 
         if not prompt:
             return None
@@ -384,6 +383,15 @@ def _mode_from_background(background: bool) -> SubagentExecutionMode:
 
 def _digest_prompt(prompt: str) -> str:
     return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+
+
+def _resolve_subagent_display_model_id(tool_context: ToolContext, explicit_model_id: Optional[str]) -> Optional[str]:
+    if isinstance(explicit_model_id, str) and explicit_model_id.strip():
+        return explicit_model_id.strip()
+    parent: Optional["AgentContext"] = tool_context.get_extension("agent_context") if tool_context else None
+    if parent is None:
+        return None
+    return parent.model_context.current_text_model_id
 
 
 def _mark_missing_running_as_interrupted(state: SubagentSessionState) -> None:

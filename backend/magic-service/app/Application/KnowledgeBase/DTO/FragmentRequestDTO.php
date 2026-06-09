@@ -30,6 +30,7 @@ readonly class FragmentRequestDTO
         public array $metadataFilter = [],
         public string $businessId = '',
         public string $acceptEncoding = '',
+        public string $magicUserId = '',
     ) {
     }
 
@@ -216,6 +217,24 @@ readonly class FragmentRequestDTO
             dataIsolation: $dataIsolation,
             agentCode: $agentCode,
             queryText: $queryText,
+        );
+    }
+
+    public static function forFlowVectorSimilarityByUser(
+        string $magicUserId,
+        string $queryText,
+        int $topK,
+        float $scoreThreshold,
+        DataIsolationDTO $dataIsolation,
+        BusinessParamsDTO $businessParams,
+    ): self {
+        return new self(
+            dataIsolation: $dataIsolation,
+            queryText: $queryText,
+            topK: $topK,
+            scoreThreshold: $scoreThreshold,
+            businessParams: $businessParams,
+            magicUserId: $magicUserId,
         );
     }
 }

@@ -60,6 +60,21 @@ func TestNewKnowledgeBaseResponseProjectsFlowDefaultAutoToLegacyGenericMode(t *t
 	}
 }
 
+func TestNewKnowledgeBaseResponsePreservesKnowledgeBaseType(t *testing.T) {
+	t.Parallel()
+
+	resp := dto.NewKnowledgeBaseResponse(&kbdto.KnowledgeBaseDTO{
+		Code:              "KB-1",
+		KnowledgeBaseType: testKnowledgeBaseTypeFlowVector,
+	}, 0)
+	if resp == nil {
+		t.Fatal("expected response")
+	}
+	if resp.KnowledgeBaseType != testKnowledgeBaseTypeFlowVector {
+		t.Fatalf("expected knowledge_base_type=%q, got %q", testKnowledgeBaseTypeFlowVector, resp.KnowledgeBaseType)
+	}
+}
+
 func TestNewKnowledgeBaseResponseProjectsDigitalEmployeeDefaultAuto(t *testing.T) {
 	t.Parallel()
 
@@ -593,10 +608,14 @@ func TestNewSimilarityResponseKeepsScoreNearContentAndMetadata(t *testing.T) {
 		DocumentCode:      "DOC-1",
 		DocumentName:      "退款文档",
 		DocumentType:      5,
+		FileKey:           "ORG/files/refund.md",
 		DocType:           5,
 	})
 	if resp == nil {
 		t.Fatal("expected response")
+	}
+	if resp.FileKey != "ORG/files/refund.md" {
+		t.Fatalf("expected file key projection, got %#v", resp)
 	}
 
 	payload, err := json.Marshal(resp)

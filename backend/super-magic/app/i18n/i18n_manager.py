@@ -91,8 +91,15 @@ class I18nManager:
     def _load_all_catalogs(self) -> None:
         translations_dir = PathManager.get_translations_dir()
         if not translations_dir.exists():
-            logger.warning(f"翻译目录不存在: {translations_dir}")
-            return
+            module_translations_dir = Path(__file__).resolve().parent / "translations"
+            if module_translations_dir.exists():
+                logger.warning(
+                    f"翻译目录不存在: {translations_dir}，回退到源码目录: {module_translations_dir}"
+                )
+                translations_dir = module_translations_dir
+            else:
+                logger.warning(f"翻译目录不存在: {translations_dir}")
+                return
         for json_file in translations_dir.rglob("*.json"):
             relative = json_file.relative_to(translations_dir)
             category = str(relative.with_suffix("")).replace("/", ".")

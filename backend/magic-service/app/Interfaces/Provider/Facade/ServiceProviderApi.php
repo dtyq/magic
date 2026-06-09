@@ -14,9 +14,14 @@ use App\Application\Provider\DTO\SuperMagicModelDTO;
 use App\Application\Provider\Service\AdminOriginModelAppService;
 use App\Application\Provider\Service\AdminProviderAppService;
 use app\Application\Provider\Service\ProviderAppService;
+use App\Application\Provider\Service\ProviderModelPricingTemplateAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
+use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
+use App\Domain\Provider\Support\BillingTierFlatPriceCompatibility;
+use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -43,6 +48,9 @@ class ServiceProviderApi extends AbstractApi
 
     #[Inject]
     protected ProviderAppService $providerAppService;
+
+    #[Inject]
+    protected ProviderModelPricingTemplateAppService $providerModelPricingTemplateAppService;
 
     #[Inject]
     protected LLMTestAppService $llmTestAppService;
@@ -88,7 +96,7 @@ class ServiceProviderApi extends AbstractApi
         $authenticatable = $this->getAuthorization();
         $providerConfigAggregateDTO = $this->adminProviderAppService->getProviderModelsByConfigId($authenticatable, $serviceProviderConfigId);
         // 将新格式数据转换为旧格式以保持向后兼容性
-        return $this->convertToLegacyFormat($providerConfigAggregateDTO);
+        return $this->normalizeLegacyProviderModelsResponse($this->convertToLegacyFormat($providerConfigAggregateDTO));
     }
 
     // 更新服务商
@@ -121,7 +129,7 @@ class ServiceProviderApi extends AbstractApi
     }
 
     // 获取当前组织是否是官方组织
-    public function isCurrentOrganizationOfficial(): array
+    public function isCurrentOrganizationOfficial()
     {
         $organizationCode = $this->getAuthorization()->getOrganizationCode();
         return [
@@ -139,7 +147,9 @@ class ServiceProviderApi extends AbstractApi
     public function saveModelToServiceProvider(RequestInterface $request)
     {
         $authenticatable = $this->getAuthorization();
-        $saveProviderModelDTO = new SaveProviderModelDTO($request->all());
+        $saveProviderModelDTO = new SaveProviderModelDTO(
+            BillingTierFlatPriceCompatibility::normalizeSavePayload($request->all())
+        );
         return $this->adminProviderAppService->saveModel($authenticatable, $saveProviderModelDTO);
     }
 
@@ -274,6 +284,37 @@ class ServiceProviderApi extends AbstractApi
         return $this->adminProviderAppService->queriesServiceProviderTemplates($category, $authenticatable->getOrganizationCode());
     }
 
+    #[CheckProviderModelPermission(
+        CheckProviderModelPermission::SCOPE_PLATFORM,
+        CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
+        MagicOperationEnum::QUERY
+    )]
+    public function queriesProviderModelPricingTemplates(RequestInterface $request): array
+    {
+        $category = Category::tryFrom((string) $request->input('category'));
+        if ($category === null) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'common.invalid', ['label' => 'category']);
+        }
+
+        $providerCode = ProviderCode::tryFrom((string) $request->input('provider_code'));
+        if ($providerCode === null) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'common.invalid', ['label' => 'provider_code']);
+        }
+
+        $modelId = trim((string) $request->input('model_id', ''));
+        if ($modelId === '') {
+            $modelId = trim((string) $request->input('model_version', ''));
+        }
+        $includeOfficialPricing = filter_var($request->input('include_official_pricing', false), FILTER_VALIDATE_BOOLEAN);
+
+        return $this->providerModelPricingTemplateAppService->queries(
+            $category,
+            $providerCode,
+            $modelId === '' ? null : $modelId,
+            $includeOfficialPricing
+        );
+    }
+
     /**
      * 获取所有可用的LLM服务商列表（包括官方服务商）.
      */
@@ -289,7 +330,7 @@ class ServiceProviderApi extends AbstractApi
      * Get super magic display models and Magic provider models visible to current organization.
      * @return SuperMagicModelDTO[]
      */
-    public function getSuperMagicDisplayModels(): array
+    public function getSuperMagicDisplayModels()
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
@@ -302,7 +343,7 @@ class ServiceProviderApi extends AbstractApi
         CheckProviderModelPermission::SOURCE_REQUEST_CATEGORY,
         MagicOperationEnum::QUERY
     )]
-    public function queriesModels(RequestInterface $request): array
+    public function queriesModels(RequestInterface $request)
     {
         $authenticatable = $this->getAuthorization();
         $providerModelQuery = new ProviderModelQuery($request->all());
@@ -318,7 +359,9 @@ class ServiceProviderApi extends AbstractApi
     public function getModelDetail(string $modelId)
     {
         $authenticatable = $this->getAuthorization();
-        return $this->adminProviderAppService->getModelDetail($authenticatable, $modelId);
+        return $this->normalizeModelDetailDTO(
+            $this->adminProviderAppService->getModelDetail($authenticatable, $modelId)
+        );
     }
 
     /**
@@ -381,5 +424,32 @@ class ServiceProviderApi extends AbstractApi
             'alias' => $data['provider_config']['translate']['alias']['zh_CN'] ?? '',
             'models' => $data['models'] ?? [],
         ]);
+    }
+
+    private function normalizeLegacyProviderModelsResponse(array $data): array
+    {
+        if (! isset($data['models']) || ! is_array($data['models'])) {
+            return $data;
+        }
+
+        foreach ($data['models'] as $index => $model) {
+            if (! is_array($model) || ! isset($model['config']) || ! is_array($model['config'])) {
+                continue;
+            }
+
+            $data['models'][$index]['config'] = BillingTierFlatPriceCompatibility::deriveFlatFields($model['config']);
+        }
+
+        return $data;
+    }
+
+    private function normalizeModelDetailDTO(ProviderModelDetailDTO $modelDetailDTO): ProviderModelDetailDTO
+    {
+        $data = $modelDetailDTO->toArray();
+        if (isset($data['config']) && is_array($data['config'])) {
+            $data['config'] = BillingTierFlatPriceCompatibility::deriveFlatFields($data['config']);
+        }
+
+        return new ProviderModelDetailDTO($data);
     }
 }

@@ -141,15 +141,12 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
         await self._update_file_timestamps(tool_context, search_result.matched_files)
 
         # 准备 extra_info 用于前端展示
-        extra_info = {}
-        # 只要有实际内容（不是简单的 NO_MATCHES_MSG），就设置 extra_info
-        if search_result.content and search_result.content != NO_MATCHES_MSG:
-            extra_info.update({
-                "search_query": params.pattern,
-                "search_content": search_result.content,
-                "matched_files_count": len(search_result.matched_files),
-                "context_lines": 3  # Fixed context lines
-            })
+        extra_info = {
+            "search_query": params.pattern,
+            "search_content": search_result.content,
+            "matched_files_count": len(search_result.matched_files),
+            "context_lines": 3,  # Fixed context lines
+        }
 
         # 返回ToolResult
         return ToolResult(
@@ -774,17 +771,19 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
         if not result.ok:
             return None
 
-        if not result.extra_info or "search_content" not in result.extra_info:
-            return None
+        if not result.extra_info:
+            search_query = (arguments or {}).get("pattern", "")
+            search_content = result.content or NO_MATCHES_MSG
+            matched_files_count = 0
+            context_lines = 3
+        else:
+            search_query = result.extra_info.get("search_query", "")
+            search_content = result.extra_info.get("search_content", result.content or NO_MATCHES_MSG)
+            matched_files_count = result.extra_info.get("matched_files_count", 0)
+            context_lines = result.extra_info.get("context_lines", 3)
 
-        search_content = result.extra_info.get("search_content", "")
-        if not search_content or search_content == NO_MATCHES_MSG:
-            return None
-
-        # Get search details
-        search_query = result.extra_info.get("search_query", "")
-        matched_files_count = result.extra_info.get("matched_files_count", 0)
-        context_lines = result.extra_info.get("context_lines", 3)
+        if not search_content:
+            search_content = NO_MATCHES_MSG
 
         # Format search results as markdown with syntax highlighting
         markdown_content = f"## Search Results: '{search_query}'\n\n"
@@ -822,7 +821,17 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
                 "remark": i18n.translate("search.error", category="tool.messages", error=result.content)
             }
 
+        pattern = arguments.get("pattern", "") if arguments else ""
+        matched_files_count = 0
+        if result.extra_info:
+            matched_files_count = result.extra_info.get("matched_files_count", 0)
+
         return {
             "action": i18n.translate("grep_search", category="tool.actions"),
-            "remark": arguments.get("pattern", "") if arguments else ""
+            "remark": i18n.translate(
+                "grep_search.searched",
+                category="tool.messages",
+                pattern=pattern,
+                count=matched_files_count,
+            )
         }

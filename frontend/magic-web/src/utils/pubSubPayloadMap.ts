@@ -38,7 +38,10 @@ import type {
 	SuperMagicStreamMessageArgs,
 	SuperMagicSyncMarkersToChatPayload,
 } from "@/pages/superMagic/events/message"
-import type { SuperMagicOpenFileTabPayload } from "@/pages/superMagic/events/openFileTab"
+import type {
+	SuperMagicOpenFileTabPayload,
+	SuperMagicOpenFileTabByPathPayload,
+} from "@/pages/superMagic/events/openFileTab"
 import type { SuperMagicOpenPlaybackTabPayload } from "@/pages/superMagic/events/openPlaybackTab"
 import type {
 	SuperMagicAddTopicArgs,
@@ -114,6 +117,8 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Re_Edit_Message]: SuperMagicReEditMessageArgs
 	/** 打开文件 tab：传入标准文件打开 payload。 */
 	[PubSubEvents.Open_File_Tab]: SuperMagicOpenFileTabPayload
+	/** 通过文件相对路径打开文件 tab：订阅方在附件树中查找后再打开。 */
+	[PubSubEvents.Open_File_Tab_By_Path]: SuperMagicOpenFileTabByPathPayload
 	/** 打开 playback tab：当前保留历史透传 payload。 */
 	[PubSubEvents.Open_Playback_Tab]: SuperMagicOpenPlaybackTabPayload
 	/** 消息队列消费完成：传入可选消息数据。 */
@@ -170,8 +175,8 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Refresh_Share_List]: SuperMagicRefreshShareListArgs
 	/** 详情页刷新：无参数。 */
 	[PubSubEvents.Super_Magic_Detail_Refresh]: []
-	/** 追加建议文本到输入框末尾：传入建议文本。 */
-	[PubSubEvents.Append_Suggestion_To_Editor]: [text: string]
+	/** 追加建议内容到输入框末尾：传入文本字符串或 JSONContent。 */
+	[PubSubEvents.Append_Suggestion_To_Editor]: [content: string | import("@tiptap/core").JSONContent]
 	/** 幻灯片添加后设置编辑器内容。 */
 	[PubSubEvents.Set_Content_When_Slide_Added]: SuperMagicSetContentWhenSlideAddedArgs
 	/** 设置 demo 文本到输入框：传入字符串文本。 */

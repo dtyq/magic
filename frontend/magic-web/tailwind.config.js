@@ -28,6 +28,7 @@ const config = {
 		},
 		extend: {
 			zIndex: {
+				"context-menu": "var(--z-index-context-menu)",
 				"detail-fullscreen": "var(--z-index-detail-fullscreen)",
 				popup: "var(--z-index-popup)",
 				dialog: "var(--z-index-dialog)",

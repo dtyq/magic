@@ -23,6 +23,8 @@ MAGIC_PAYMENT_METHOD: ""
 MAGIC_SERVICE_KEEWOOD_BASE_URL: ""
 MAGIC_COPYRIGHT: ""
 MAGIC_TEAMSHARE_WEB_URL: ""
+MAGIC_HTML_SANDBOX_URL: ""
+MAGIC_SW_MODE: ""
 ```
 
 
@@ -151,6 +153,99 @@ MAGIC_ICP_CODE = ""
 ```text
 // 示例
 MAGIC_CDNHOST = "https://cdn.magic.cn"
+
+// 国内SaaS 示例
+MAGIC_CDNHOST = "https://cdn.letsmagic.cn/__assets__/packages"
+```
+
+### App Service Worker 开关 MAGIC_SW_MODE
+
+用于控制 Web 是否注册 App Service Worker，以及是否进入应急退场模式。
+
+支持取值：
+
+| 变量值 | 说明 | 是否注册 SW |
+|:---:|:---|:---:|
+| `on` | 显式开启 App Service Worker 缓存能力，使用构建产物中的正常 `/sw.js` | 是 |
+| `none` | 显式关闭，不注册 App Service Worker；若浏览器中已有旧的 app SW，会在页面启动时主动注销 | 否 |
+| `off` | 显式退场，不注册新的 SW；若浏览器中已有旧的 app SW，会在页面启动时主动注销（不清理缓存桶） | 否 |
+| `kill` | 注册一个用于清理缓存并注销的 SW；需配合 `MAGIC_SW_CLEAR_CACHES`，缺失时自动降级为 `off` | 是 |
+| 空值/不配置/其他值 | 默认行为，等同 `none`。仅在特定环境显式配置 `on` 时才开启缓存能力 | 否 |
+
+配置建议：
+
+- 默认保持空值或设置为 `none`，表示不注册 SW。
+- 只有需要启用缓存能力的环境，才显式配置 `MAGIC_SW_MODE=on`。
+- 需要应急退场时使用 `off` 或 `kill`；其中 `kill` 如果漏配 `MAGIC_SW_CLEAR_CACHES`，会按 `off` 处理，优先关闭缓存能力。
+
+```text
+// 默认：不注册 SW
+MAGIC_SW_MODE = ""
+
+// 显式开启 SW 缓存能力
+MAGIC_SW_MODE = "on"
+
+// 显式关闭且不注册 SW
+MAGIC_SW_MODE = "none"
+
+// 应急注销，不清缓存
+MAGIC_SW_MODE = "off"
+
+// 应急清缓存并注销
+MAGIC_SW_MODE = "kill"
+MAGIC_SW_CLEAR_CACHES = "ALL"
+```
+
+### API 缓存总开关 MAGIC_ENABLE_API_CACHE
+
+用于控制 Service Worker 的 API 缓存策略总开关。该变量只影响走 SW API 缓存链路的请求，不影响静态资源缓存或 SW 注册行为。
+
+支持取值：
+
+| 变量值 | 说明 |
+|:---:|:---|
+| `false` | 显式关闭 API 缓存，不再命中 SW 的 API 缓存白名单逻辑 |
+| `true` / 空值 / 不配置 / 其他值 | 默认开启 API 缓存；命中白名单的接口请求可进入 SW 缓存策略 |
+
+配置建议：
+
+- 默认可不配置，保持 API 缓存开启。
+- 本地 `MAGIC_MOCK=true` 调试或排查缓存干扰问题时，建议显式设置 `MAGIC_ENABLE_API_CACHE=false`。
+
+```text
+// 默认：开启 API 缓存
+MAGIC_ENABLE_API_CACHE = ""
+
+// 显式开启 API 缓存
+MAGIC_ENABLE_API_CACHE = "true"
+
+// 显式关闭 API 缓存
+MAGIC_ENABLE_API_CACHE = "false"
+```
+
+### iframe HTML 渲染站（跨域沙箱）MAGIC_HTML_SANDBOX_URL
+
+用于 HTML 内容跨域 iframe 渲染（html-shabox）。配置后主应用将 iframe 的 `src` 指向渲染站地址，通过 postMessage 注入 HTML 与编辑运行时；不配置则使用同域模式（srcdoc/messenger）。
+
+配置注意：
+
+- 线上/预发渲染站可设置为：`MAGIC_HTML_SANDBOX_URL=https://husky.pages.letsmagic.space/index.html`
+- 本地调试渲染站时，需要同时满足：
+  - `MAGIC_HTML_SANDBOX_URL=http://localhost:4173/index.html`
+  - `MAGIC_CDNHOST=""`（置空，否则可能导致样式资源加载异常）
+
+| 变量名 | 说明 | 备注 |
+|:---:|:---|:---|
+| MAGIC_HTML_SANDBOX_URL | iframe 加载的 HTML 渲染站根地址 | 即 html-shabox 服务对外 URL，主应用 iframe src 指向该地址。开发示例：`http://localhost:4173` 或 `https://localhost:4173` |
+
+
+```text
+// 线上/预发示例
+MAGIC_HTML_SANDBOX_URL = "https://husky.pages.letsmagic.space/index.html"
+
+// 本地调试示例（与 pnpm dev 启动的 html-shabox 配合）
+MAGIC_HTML_SANDBOX_URL = "http://localhost:4173/index.html"
+MAGIC_CDNHOST = ""
 ```
 
 ### 高德地图 API Key MAGIC_AMAP_KEY

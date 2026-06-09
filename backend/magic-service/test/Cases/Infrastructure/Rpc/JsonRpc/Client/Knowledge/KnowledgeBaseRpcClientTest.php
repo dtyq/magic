@@ -238,4 +238,38 @@ class KnowledgeBaseRpcClientTest extends TestCase
 
         $this->assertSame('KB1', $result['code']);
     }
+
+    public function testSwitchEmbeddingModelMetaUsesExpectedMethodAndPayload(): void
+    {
+        $manager = $this->createMock(RpcClientManager::class);
+        $manager->expects($this->once())
+            ->method('call')
+            ->with(
+                SvcMethods::SERVICE_KNOWLEDGE_KNOWLEDGE_BASE . '.' . SvcMethods::METHOD_SWITCH_EMBEDDING_MODEL_META,
+                $this->callback(static function (array $params): bool {
+                    return $params['target_model'] === 'test-embed'
+                        && $params['target_dimension'] === 42
+                        && $params['data_isolation']['organization_code'] === 'DT001'
+                        && $params['data_isolation']['user_id'] === 'U1'
+                        && ! array_key_exists('mode', $params)
+                        && ! array_key_exists('scope', $params);
+                })
+            )
+            ->willReturn([
+                'model' => 'test-embed',
+                'vector_dimension' => 42,
+            ]);
+
+        $client = new KnowledgeBaseRpcClient($manager);
+        $result = $client->switchEmbeddingModelMeta(KnowledgeBaseRequestDTO::forSwitchEmbeddingModelMeta(
+            [
+                'target_model' => 'test-embed',
+                'target_dimension' => 42,
+            ],
+            new DataIsolationDTO('DT001', 'U1')
+        ));
+
+        $this->assertSame('test-embed', $result['model']);
+        $this->assertSame(42, $result['vector_dimension']);
+    }
 }

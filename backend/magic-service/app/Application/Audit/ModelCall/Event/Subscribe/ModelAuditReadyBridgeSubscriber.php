@@ -273,6 +273,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
         $usage = [
             'count' => 1,
             'duration_seconds' => $event->getDurationSeconds(),
+            'has_audio_output' => $event->hasAudioOutput(),
         ];
         $completionTokens = $event->getCompletionTokens();
         $totalTokens = $event->getTotalTokens();

@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Interfaces\MCP\Facade\HttpTransportHandler;
 
-use App\Application\MCP\BuiltInMCP\SuperMagicChat\SuperMagicChatBuiltInMCPServer;
 use App\Application\MCP\Service\MCPServerStreamableAppService;
 use Dtyq\PhpMcp\Server\Transports\Http\Event\HttpTransportAuthenticatedEvent;
 use Dtyq\PhpMcp\Shared\Exceptions\AuthenticationError;
@@ -51,7 +50,7 @@ class HttpTransportInitTransportMetadataListener implements ListenerInterface
         }
 
         // Skip database lookup for model-admin, tools are registered via annotations
-        if (Str::startsWith($serverCode, 'MCP-') || SuperMagicChatBuiltInMCPServer::match($serverCode)) {
+        if (Str::startsWith($serverCode, 'MCP-')) {
             $tools = $this->container->get(MCPServerStreamableAppService::class)->getTools($authorization, $serverCode);
             foreach ($tools as $tool) {
                 $transportMetadata->getToolManager()->register($tool);

@@ -4,7 +4,7 @@
 该模块对齐 generate_image 的组织方式：
 1. 通用视频生成能力统一封装在这里
 2. 设计场景只做画布编排，不直接调用 magic-service
-3. 默认模型优先从 dynamic_config.video_model 读取，而不是走沙箱 init 顶层字段
+3. 未显式指定模型时，从 AgentContext.model_context 读取当前运行时视频模型
 """
 
 from __future__ import annotations
@@ -18,14 +18,13 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import aiofiles
 import aiohttp
 from pydantic import Field, field_validator
 
-from agentlang.config.dynamic_config import dynamic_config
 from agentlang.context.tool_context import ToolContext
 from agentlang.event import EventPairType, get_correlation_manager
 from agentlang.event.data import PendingToolCallEventData
@@ -35,6 +34,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.file import generate_safe_filename
 from agentlang.utils.metadata import MetadataUtil
 from app.core.entity.tool.tool_result import VideoToolResult
+from app.core.models.media_model import JsonObject
 from app.i18n import i18n
 from app.infrastructure.magic_service.config import MagicServiceConfig, MagicServiceConfigLoader
 from app.service.file_service import FileService, WorkspaceFileURLError
@@ -52,13 +52,15 @@ from app.utils.video_logger import get_video_logger
 
 logger = get_video_logger(__name__)
 
+if TYPE_CHECKING:
+    from app.core.models.agent_model_context import AgentModelContext
+
 # 视频生成涉及异步轮询，注册最小超时供 run_sdk_snippet 自动提升
 SdkSnippetTimeoutRegistry.register(
     ["generate_video", "generate_canvas_videos", "query_video_generation"],
     min_timeout=3600,
 )
 
-DEFAULT_VIDEO_MODEL = "veo-3.1-fast-generate-preview"
 DEFAULT_VIDEO_OUTPUT_DIR = "videos"
 DEFAULT_POLL_INTERVAL_SECONDS = 10
 DEFAULT_POLL_TIMEOUT_SECONDS = 3600
@@ -199,10 +201,8 @@ Video generation prompt. Clearly describe the subject, motion, camera language, 
     )
     model_id: str = Field(
         "",
-        description=f"""<!--zh: 视频模型。若为空，则按以下顺序确定：1. dynamic_config.video_model.model_id；2. 默认模型 {DEFAULT_VIDEO_MODEL}。
-注意：这里刻意对齐 generate_image 的真实模型链路，不使用沙箱 init 顶层字段。-->
-Video model. If empty, use: 1. dynamic_config.video_model.model_id; 2. default model {DEFAULT_VIDEO_MODEL}.
-This intentionally follows the same runtime model path as generate_image instead of sandbox init top-level fields."""
+        description="""<!--zh: 可选视频模型 ID。只有用户明确指定某个视频模型时才填写；否则留空使用当前会话的视频模型；如果没有可用视频模型，工具会报错。-->
+Optional video model ID. Set it only when the user explicitly asks for a specific video model; otherwise leave it empty to use the current session's video model. If no video model is available, the tool returns an error."""
     )
     input_mode: str = Field(
         "",
@@ -392,8 +392,8 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                     "视频轮询超时应用内部缓冲: "
                     f"requested={params.poll_timeout_seconds} effective={effective_poll_timeout_seconds}"
                 )
-            model_id = self._resolve_model(params.model_id)
-            video_generation_config = self._resolve_video_generation_config(model_id)
+            model_id = self._resolve_model(params.model_id, tool_context)
+            video_generation_config = self._resolve_video_generation_config(model_id, tool_context)
             if video_generation_config is None:
                 logger.info(f"视频模型 {model_id} 缺少 featured 能力配置，继续按现有兜底逻辑执行")
 
@@ -533,60 +533,52 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             raise ValueError(missing_size_error)
 
     @staticmethod
-    def _resolve_model(requested_model: str) -> str:
+    def _resolve_model(requested_model: str, tool_context: Optional[ToolContext] = None) -> str:
         """解析实际使用的视频模型。
 
         视频模型故意与图片模型保持同一运行时语义：
         - 优先用户显式传入
-        - 其次读取 dynamic_config.video_model.model_id
-        - 最后使用默认值
-        这样 super-magic-module 只需把 video_model_id 桥接到 dynamic_config，
-        无需额外扩展沙箱 init 协议。
+        - 其次读取 AgentContext.model_context.video_model_id
+        - 未找到模型时直接报错
         """
         if requested_model and requested_model.strip():
             return requested_model.strip()
 
-        try:
-            config_data = dynamic_config.read_dynamic_config()
-            if config_data:
-                video_model = config_data.get("video_model", {})
-                if isinstance(video_model, dict):
-                    model_id = video_model.get("model_id")
-                    if isinstance(model_id, str) and model_id.strip():
-                        model = model_id.strip()
-                        logger.info(f"从 dynamic_config.video_model.model_id 获取视频模型: {model}")
-                        return model
-        except Exception as e:
-            logger.debug(f"读取 dynamic_config.video_model 失败，使用默认模型: {e}")
+        model_context = GenerateVideo._get_agent_model_context(tool_context)
+        if model_context is not None and model_context.video_model_id:
+            logger.info(f"从 AgentContext.model_context 获取视频模型: {model_context.video_model_id}")
+            return model_context.video_model_id
 
-        logger.info(f"未指定视频模型，使用默认模型: {DEFAULT_VIDEO_MODEL}")
-        return DEFAULT_VIDEO_MODEL
+        raise ValueError("未指定视频模型，且当前会话没有可用的视频模型")
 
     @staticmethod
-    def _resolve_video_generation_config(model_id: str) -> Optional[Dict[str, Any]]:
-        try:
-            config_data = dynamic_config.read_dynamic_config()
-            if not isinstance(config_data, dict):
-                return None
+    def _resolve_video_generation_config(
+        model_id: str,
+        tool_context: Optional[ToolContext] = None,
+    ) -> Optional[JsonObject]:
+        model_context = GenerateVideo._get_agent_model_context(tool_context)
+        if model_context is None:
+            return None
 
-            video_model = config_data.get("video_model")
-            if not isinstance(video_model, dict):
-                return None
+        context_model_id = model_context.video_model_id
+        if context_model_id and context_model_id != model_id:
+            logger.warning(
+                f"AgentContext.model_context.video_model_id={context_model_id} 与当前视频模型 {model_id} 不一致，忽略其 featured 配置"
+            )
+            return None
 
-            config_model_id = video_model.get("model_id")
-            if isinstance(config_model_id, str) and config_model_id.strip() and config_model_id.strip() != model_id:
-                logger.warning(
-                    f"dynamic_config.video_model.model_id={config_model_id.strip()} 与当前视频模型 {model_id} 不一致，忽略其 featured 配置"
-                )
-                return None
-
-            video_generation_config = video_model.get("video_generation_config")
-            if isinstance(video_generation_config, dict) and video_generation_config:
-                return video_generation_config
-        except Exception as e:
-            logger.debug(f"读取 dynamic_config.video_model.video_generation_config 失败: {e}")
+        video_generation_config = model_context.video.video_generation_config
+        if isinstance(video_generation_config, dict) and video_generation_config:
+            return dict(video_generation_config)
 
         return None
+
+    @staticmethod
+    def _get_agent_model_context(tool_context: Optional[ToolContext]) -> Optional["AgentModelContext"]:
+        if tool_context is None:
+            return None
+        agent_context = tool_context.get_extension("agent_context")
+        return getattr(agent_context, "model_context", None) if agent_context else None
 
     async def _build_create_payload(
         self,
@@ -894,7 +886,15 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     @staticmethod
     def _resolve_progress_correlation_id(tool_context: ToolContext) -> str:
         correlation_manager = get_correlation_manager()
-        correlation_id = correlation_manager.get_active_correlation_id(EventPairType.TOOL_CALL)
+        scope_id = None
+        try:
+            from app.core.context.agent_context import AgentContext
+
+            agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
+            scope_id = agent_context.context_id
+        except Exception:
+            scope_id = None
+        correlation_id = correlation_manager.get_active_correlation_id(EventPairType.TOOL_CALL, scope_id)
         if correlation_id:
             return correlation_id
         return tool_context.tool_call_id or str(uuid.uuid4())

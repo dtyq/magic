@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -156,6 +157,7 @@ type ManagedDocument struct {
 	ProjectFileID     int64
 	SyncStatus        shared.SyncStatus
 	DocumentFile      *docentity.File
+	ThirdFileID       string
 }
 
 // CreateManagedDocumentInput 表示知识库创建托管文档时的最小输入。
@@ -238,6 +240,40 @@ type knowledgeBaseBindingRepository interface {
 		knowledgeBaseCodes []string,
 		bindType kbentity.BindingType,
 	) (map[string][]string, error)
+	LinkAgentKnowledgeBases(
+		ctx context.Context,
+		organizationCode string,
+		userID string,
+		agentCode string,
+		knowledgeBaseCodes []string,
+	) ([]string, error)
+	UnlinkAgentKnowledgeBases(
+		ctx context.Context,
+		organizationCode string,
+		userID string,
+		agentCode string,
+		knowledgeBaseCodes []string,
+	) ([]string, error)
+	ListKnowledgeBaseBindingsByBindID(
+		ctx context.Context,
+		bindType kbentity.BindingType,
+		bindID string,
+		organizationCode string,
+	) ([]kbentity.AgentKnowledgeBaseBinding, error)
+	ListKnowledgeBaseBindingsByBindIDs(
+		ctx context.Context,
+		bindType kbentity.BindingType,
+		bindIDs []string,
+		organizationCode string,
+	) ([]kbentity.AgentKnowledgeBaseBinding, error)
+	UpdateAgentKnowledgeBaseBindingMetadata(
+		ctx context.Context,
+		organizationCode string,
+		userID string,
+		agentCode string,
+		knowledgeBaseCode string,
+		patch kbentity.AgentKnowledgeBaseBindingMetadataPatch,
+	) (*kbentity.AgentKnowledgeBaseBinding, error)
 }
 
 type superMagicAgentReader interface {
@@ -246,6 +282,12 @@ type superMagicAgentReader interface {
 
 type superMagicAgentAccessChecker interface {
 	ListManageableCodes(
+		ctx context.Context,
+		organizationCode string,
+		userID string,
+		codes []string,
+	) (map[string]struct{}, error)
+	ListAccessibleCodes(
 		ctx context.Context,
 		organizationCode string,
 		userID string,
@@ -352,6 +394,7 @@ type writeCoordinator interface {
 // KnowledgeBaseAppService 知识库应用层服务
 type KnowledgeBaseAppService struct {
 	domainService                knowledgeBaseDomainService
+	embeddingModelMetaSwitcher   embeddingModelMetaSwitcher
 	documentFlow                 *KnowledgeBaseDocumentFlowApp
 	sourceBindingRepo            sourceBindingRepository
 	destroyCoordinator           destroyCoordinator
@@ -402,6 +445,7 @@ func NewKnowledgeBaseAppService(
 
 	return &KnowledgeBaseAppService{
 		domainService:                domainService,
+		embeddingModelMetaSwitcher:   domainService,
 		fragmentCounter:              fragmentCounter,
 		fragmentRepair:               fragmentRepair,
 		sourceBindingTreeRootLocator: newSourceBindingTreeRootLocator(),
@@ -775,6 +819,7 @@ func collectProjectRootIDs(bindings []sourcebindingdomain.Binding) []int64 {
 		seen[projectID] = struct{}{}
 		projectIDs = append(projectIDs, projectID)
 	}
+	slices.Sort(projectIDs)
 	return projectIDs
 }
 

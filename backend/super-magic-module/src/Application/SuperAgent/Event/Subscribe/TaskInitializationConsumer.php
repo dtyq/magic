@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
+use App\Application\MCP\SupperMagicMCP\ProjectMcpConfigService;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
 use App\Domain\Chat\Entity\MagicConversationEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
@@ -18,6 +18,7 @@ use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskInitializationMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ClientMessageAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TaskContextMentionsResolver;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\VideoModelConfigResolver;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
@@ -35,8 +36,6 @@ use Hyperf\Amqp\Result;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Redis\Redis;
 use PhpAmqpLib\Message\AMQPMessage;
-use Psr\Container\ContainerExceptionInterface;
-use Psr\Container\NotFoundExceptionInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -55,8 +54,6 @@ class TaskInitializationConsumer extends ConsumerMessage
 {
     protected LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
-
     public function __construct(
         private readonly AgentDomainService $agentDomainService,
         private readonly TaskDomainService $taskDomainService,
@@ -65,17 +62,11 @@ class TaskInitializationConsumer extends ConsumerMessage
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly MagicConversationDomainService $magicConversationDomainService,
+        private readonly ProjectMcpConfigService $projectMcpConfigService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
-
-        if (container()->has(SupperMagicAgentMCPInterface::class)) {
-            try {
-                $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
-            } catch (ContainerExceptionInterface|NotFoundExceptionInterface) {
-            }
-        }
     }
 
     public function consumeMessage($data, AMQPMessage $message): Result
@@ -254,10 +245,7 @@ class TaskInitializationConsumer extends ConsumerMessage
             $dataIsolation->getCurrentOrganizationCode(),
             $dataIsolation->getCurrentUserId()
         );
-        $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig(
-            $mcpDataIsolation,
-            $taskContext
-        ) ?? [];
+        $mcpConfig = $this->projectMcpConfigService->buildForTask($mcpDataIsolation, $taskContext);
         $taskContext = $taskContext->setMcpConfig($mcpConfig);
 
         // Create and initialize sandbox with interrupt support
@@ -314,12 +302,14 @@ class TaskInitializationConsumer extends ConsumerMessage
             (string) $projectEntity->getId(),
         );
 
+        // 传话题已绑定的 sandbox_id（未绑定则为空），让 Domain 在没有绑定时能走 warm pool。
+        // 不要传 topic_id，否则会跳过 warm 池守卫。
         $agentContext = $this->agentDomainService->buildInitAgentContext(
             dataIsolation: $dataIsolation,
             projectEntity: $projectEntity,
             topicEntity: $topicEntity,
             taskEntity: $taskContext->getTask(),
-            sandboxId: (string) $topicEntity->getId(),
+            sandboxId: (string) $topicEntity->getSandboxId(),
             memories: $memories
         );
         if ($agentContext->getInitContext() !== null && $taskContext->getAgentMode() !== '') {
@@ -345,6 +335,8 @@ class TaskInitializationConsumer extends ConsumerMessage
             return $sandboxId;
         }
 
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
         $this->logger->info('[Sandbox][Consumer] Message sent to agent successfully', [

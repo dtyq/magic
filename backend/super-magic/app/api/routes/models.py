@@ -1,8 +1,11 @@
 """
-Models route
+Models route.
 
-Proxies the magic service models list using credentials from init_client_message.json.
+Proxies the magic service models list and appends local text models from the
+in-memory model registry for the static debug panel.
 """
+from typing import Any, Dict, List, Set
+
 import httpx
 from fastapi import APIRouter
 
@@ -12,6 +15,7 @@ from app.api.http_dto.response import (
     create_error_response,
 )
 from app.utils.init_client_message_util import InitClientMessageUtil, InitializationError
+from agentlang.config.models.model_config import ModelConfig
 from agentlang.logger import get_logger
 
 router = APIRouter(prefix="/v1/models", tags=["模型列表"])
@@ -56,5 +60,65 @@ async def list_models() -> BaseResponse:
 
     return create_success_response(
         message="获取模型列表成功",
-        data={"models": payload.get("data", [])},
+        data={"models": _append_local_text_models(payload.get("data", []))},
     )
+
+
+def _append_local_text_models(remote_models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """追加本地注册中心中远端没有返回的文本模型，不暴露调用凭据。"""
+    if not isinstance(remote_models, list):
+        remote_models = []
+
+    result = list(remote_models)
+    existing_ids = _collect_model_ids(result)
+
+    try:
+        from agentlang.config.models.model_config_manager import model_config_manager
+
+        local_models = model_config_manager.list_all()
+    except Exception as e:
+        logger.warning(f"读取本地模型注册中心失败，将只返回 magic service 模型: {e}")
+        return result
+
+    appended = 0
+    for model_config in local_models:
+        if model_config.type != "llm" or model_config.model_id in existing_ids:
+            continue
+        result.append(_to_debug_panel_model(model_config))
+        existing_ids.add(model_config.model_id)
+        appended += 1
+
+    if appended:
+        logger.info(f"已追加 {appended} 个本地模型到调试面板模型列表")
+    return result
+
+
+def _collect_model_ids(models: List[Dict[str, Any]]) -> Set[str]:
+    model_ids: Set[str] = set()
+    for item in models:
+        if isinstance(item, dict) and item.get("id"):
+            model_ids.add(str(item["id"]))
+    return model_ids
+
+
+def _to_debug_panel_model(model_config: ModelConfig) -> Dict[str, Any]:
+    resolved_model_id = model_config.resolved_model_id or model_config.model_id
+    return {
+        "id": model_config.model_id,
+        "object": "model",
+        "name": model_config.name,
+        "info": {
+            "options": {
+                "chat": True,
+                "function_call": model_config.supports_tool_use,
+                "max_tokens": model_config.max_context_tokens,
+                "max_output_tokens": model_config.max_output_tokens,
+                "default_temperature": model_config.temperature,
+            },
+            "attributes": {
+                "label": model_config.metadata.get("label") or model_config.name,
+                "resolved_model_id": resolved_model_id,
+                "provider_source": model_config.provider_source,
+            },
+        },
+    }

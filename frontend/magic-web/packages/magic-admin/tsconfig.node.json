@@ -1,0 +1,35 @@
+{
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"baseUrl": ".",
+		"isolatedModules": true,
+		"lib": ["ES2023"],
+		"module": "ESNext",
+		"moduleDetection": "force",
+		/* Bundler mode */
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedSideEffectImports": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"paths": {
+			"@/*": ["./src/*"],
+			"components": ["./components/index.ts"]
+		},
+		"skipLibCheck": true,
+
+		/* Linting */
+		"strict": true,
+		"target": "ES2022",
+		"tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
+	},
+	"include": [
+		"vite.config.ts",
+		"vite/**/*.ts",
+		".eslintrc.cjs",
+		".prettierrc.cjs",
+		".stylelintrc.cjs",
+		"commitlint.config.cjs"
+	]
+}

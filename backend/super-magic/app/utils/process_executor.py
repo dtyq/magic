@@ -24,8 +24,9 @@ from dotenv import dotenv_values
 from agentlang.logger import get_logger
 from app.core.entity.tool.tool_result_types import TerminalToolResult
 from app.path_manager import PathManager
-from app.tools.shell_exec_utils.bg_task_models import BackgroundStartResult, PROMPT_QUIET_SECS, PROMPT_QUIET_SECS_SYNC
+from app.service.env_manager import EnvFileStore, EnvIdentityResolver
 from app.tools.shell_exec_utils.bg_prompt_detector import extract_last_line, looks_like_prompt, scan_chunk_for_prompt
+from app.tools.shell_exec_utils.bg_task_models import BackgroundStartResult, PROMPT_QUIET_SECS, PROMPT_QUIET_SECS_SYNC
 
 logger = get_logger(__name__)
 
@@ -102,10 +103,19 @@ class ProcessExecutor:
 
         # 按优先级从低到高叠加用户持久化环境变量，后者覆盖前者
         try:
+            env_store = EnvFileStore()
+            identity_resolver = EnvIdentityResolver()
+            personal_env_path = PathManager.get_personal_env_file()
             for env_path in PathManager.get_process_env_paths():
                 if env_path.exists():
-                    user_env = dotenv_values(dotenv_path=str(env_path))
-                    env_vars.update({k: v for k, v in user_env.items() if v is not None})
+                    identity = (
+                        identity_resolver.resolve_personal()
+                        if env_path == personal_env_path
+                        else identity_resolver.resolve_workspace()
+                    )
+                    # 进程环境只注入可用值，损坏或身份不匹配的密文由 EnvFileStore 跳过。
+                    user_env = env_store.read_values_sync(env_path, identity)
+                    env_vars.update(user_env)
                     logger.debug(f"已加载用户持久化环境变量，共 {len(user_env)} 个: {env_path}")
         except Exception as e:
             logger.warning(f"加载用户持久化环境变量失败: {e}")

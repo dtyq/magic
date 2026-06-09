@@ -17,11 +17,6 @@ const RecordSummaryServiceListenerModal = lazy(
 		import("@/components/business/RecordingSummary/components/RecordSummaryServiceListenerModal"),
 )
 
-const RecordingHistoryPanelMount = lazy(
-	() =>
-		import("@/components/business/RecordingSummary/components/RecordingHistoryPanel/RecordingHistoryPanelMount"),
-)
-
 const logger = Logger.createLogger("MagicPlatformLayout")
 
 function MagicPlatformLayoutContent() {
@@ -51,9 +46,6 @@ function MagicPlatformLayoutContent() {
 			<Outlet />
 			<Suspense fallback={null}>
 				<RecordSummaryServiceListenerModal />
-			</Suspense>
-			<Suspense fallback={null}>
-				<RecordingHistoryPanelMount />
 			</Suspense>
 			<LowResolutionScaleTip />
 		</SwitchingOrganizationLoading>

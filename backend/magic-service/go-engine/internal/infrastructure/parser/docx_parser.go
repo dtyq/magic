@@ -26,9 +26,9 @@ import (
 
 // DocxParser Word 解析器
 type DocxParser struct {
-	ocrClient     documentdomain.OCRClient
-	maxOCRPerFile int
-	limits        documentdomain.ResourceLimits
+	visualExtractor documentdomain.VisualTextExtractor
+	maxOCRPerFile   int
+	limits          documentdomain.ResourceLimits
 }
 
 type docxEmbeddedImageAsset struct {
@@ -65,14 +65,23 @@ func NewDocxParserWithLimit(
 	maxOCRPerFile int,
 	resourceLimits ...documentdomain.ResourceLimits,
 ) *DocxParser {
+	return NewDocxParserWithVisualLimit(newVisualTextExtractorFromOCR(ocrClient), maxOCRPerFile, resourceLimits...)
+}
+
+// NewDocxParserWithVisualLimit 创建带单文件视觉转文字限额的 Word 解析器。
+func NewDocxParserWithVisualLimit(
+	visualExtractor documentdomain.VisualTextExtractor,
+	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
+) *DocxParser {
 	limits := documentdomain.DefaultResourceLimits()
 	if len(resourceLimits) > 0 {
 		limits = resourceLimits[0]
 	}
 	return &DocxParser{
-		ocrClient:     ocrClient,
-		maxOCRPerFile: documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
-		limits:        documentdomain.NormalizeResourceLimits(limits),
+		visualExtractor: visualExtractor,
+		maxOCRPerFile:   documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:          documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -155,7 +164,7 @@ func (p *DocxParser) ParseDocumentWithOptions(
 
 	var ocrHelper *embeddedImageOCRHelper
 	if options.ImageExtraction && options.ImageOCR {
-		ocrHelper = newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
+		ocrHelper = newEmbeddedImageOCRHelper(p.visualExtractor, p.maxOCRPerFile)
 	}
 	lines := p.extractDocxLines(ctx, doc, imageAssetByRelID, ocrHelper, options.TableExtraction)
 	parsed := documentdomain.NewPlainTextParsedDocument(fileType, strings.Join(lines, "\n\n"))

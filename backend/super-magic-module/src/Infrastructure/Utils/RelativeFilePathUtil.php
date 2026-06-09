@@ -44,6 +44,28 @@ class RelativeFilePathUtil
     }
 
     /**
+     * @param TaskFileEntity[] $entities
+     * @return TaskFileEntity[]
+     */
+    public static function filterByValidParentChain(array $entities): array
+    {
+        if (empty($entities)) {
+            return [];
+        }
+
+        $fileMap = self::indexByFileId($entities);
+        $filtered = [];
+
+        foreach ($entities as $entity) {
+            if (self::hasValidParentChain($entity, $fileMap)) {
+                $filtered[] = $entity;
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
      * @param array<int, TaskFileEntity> $fileMap
      */
     public static function buildPathByParentChain(TaskFileEntity $entity, array $fileMap): string
@@ -77,5 +99,33 @@ class RelativeFilePathUtil
         }
 
         return '/' . implode('/', array_reverse($segments));
+    }
+
+    /**
+     * @param array<int, TaskFileEntity> $fileMap
+     */
+    private static function hasValidParentChain(TaskFileEntity $entity, array $fileMap): bool
+    {
+        $visited = [];
+        $current = $entity;
+
+        while (true) {
+            $currentId = $current->getFileId();
+            if (isset($visited[$currentId])) {
+                return false;
+            }
+            $visited[$currentId] = true;
+
+            $parentId = $current->getParentId();
+            if ($parentId === null || $parentId <= 0) {
+                return true;
+            }
+
+            if (! isset($fileMap[$parentId])) {
+                return false;
+            }
+
+            $current = $fileMap[$parentId];
+        }
     }
 }

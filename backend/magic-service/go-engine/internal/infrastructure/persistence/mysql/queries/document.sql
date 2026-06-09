@@ -191,12 +191,28 @@ WHERE deleted_at IS NULL
   AND knowledge_base_code IN (sqlc.slice(knowledge_base_codes))
 GROUP BY knowledge_base_code;
 
+-- name: SumDocumentWordCountByKnowledgeBase :one
+SELECT CAST(COALESCE(SUM(word_count), 0) AS UNSIGNED) AS word_count
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code = ?;
+
 -- name: ListDocumentFilesByKnowledgeBaseCodes :many
 SELECT knowledge_base_code, document_file
 FROM knowledge_base_documents
 WHERE deleted_at IS NULL
   AND organization_code = ?
   AND knowledge_base_code IN (sqlc.slice(knowledge_base_codes));
+
+-- name: ListDocumentsByOrganizationKnowledgeBasesAndCodes :many
+SELECT *
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = sqlc.arg(organization_code)
+  AND knowledge_base_code IN (sqlc.slice(knowledge_base_codes))
+  AND code IN (sqlc.slice(codes))
+ORDER BY id DESC;
 
 -- name: FindDocumentIncludingDeleted :one
 SELECT *

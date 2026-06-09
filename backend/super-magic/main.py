@@ -15,6 +15,7 @@ PROGRAM_START_TIME = time.time()
 
 # 获取项目根目录，使用文件所在位置的父目录
 project_root = Path(__file__).resolve().parent
+os.environ.setdefault("SUPER_MAGIC_PROJECT_ROOT", str(project_root))
 
 # 添加项目根目录到 Python 路径
 sys.path.append(str(project_root))

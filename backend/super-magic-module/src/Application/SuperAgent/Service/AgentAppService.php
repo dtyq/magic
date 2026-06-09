@@ -9,7 +9,9 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\CheckpointRollbackFilesChangedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxVersionDomainService;
@@ -20,6 +22,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchSta
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -38,6 +41,7 @@ readonly class AgentAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly SandboxVersionDomainService $sandboxVersionDomainService,
+        private readonly EventDispatcherInterface $eventDispatcher,
     ) {
         $this->logger = $this->loggerFactory->get('sandbox');
     }
@@ -181,6 +185,8 @@ readonly class AgentAppService
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
     }
 
@@ -250,7 +256,17 @@ readonly class AgentAppService
         // init task
         $taskEntity = $this->taskDomainService->initDefaultTask($dataIsolation, $topicEntity);
 
-        $agentContext = $this->agentDomainService->buildInitAgentContext($dataIsolation, $projectEntity, $topicEntity, $taskEntity, skipInitMessage: $skipInitMessages);
+        // 传话题已绑定的 sandbox_id（未绑定则为空），让 Domain 在没有绑定时能走 warm pool。
+        // 不要漏传让其默认回退成 topic_id，否则温池话题会用 topic_id 探测 workspace 失败、
+        // 误判沙箱不存在，进而重复新建一个沙箱。
+        $agentContext = $this->agentDomainService->buildInitAgentContext(
+            dataIsolation: $dataIsolation,
+            projectEntity: $projectEntity,
+            topicEntity: $topicEntity,
+            taskEntity: $taskEntity,
+            sandboxId: (string) $topicEntity->getSandboxId(),
+            skipInitMessage: $skipInitMessages
+        );
 
         // Delegate to domain service
         return $this->agentDomainService->ensureSandboxInitialized(
@@ -354,6 +370,12 @@ readonly class AgentAppService
 
         // 沙箱操作成功后，执行消息状态标记
         $this->topicDomainService->rollbackMessagesStart($targetMessageId);
+        $this->dispatchRollbackAffectedFileChanges(
+            $topicEntity,
+            $dataIsolation,
+            $sandboxResponse,
+            'checkpoint_rollback_start'
+        );
 
         $this->logger->info('[Sandbox][App] Message rollback start completed successfully', [
             'topic_id' => $topicId,
@@ -461,6 +483,12 @@ readonly class AgentAppService
 
         // 沙箱操作成功后，执行消息撤回撤销操作（恢复为正常状态）
         $this->topicDomainService->rollbackMessagesUndo($topicId, $dataIsolation->getCurrentUserId());
+        $this->dispatchRollbackAffectedFileChanges(
+            $topicEntity,
+            $dataIsolation,
+            $sandboxResponse,
+            'checkpoint_rollback_undo'
+        );
 
         $this->logger->info('[Sandbox][App] Message rollback undo completed successfully', [
             'topic_id' => $topicId,
@@ -527,5 +555,64 @@ readonly class AgentAppService
         }
 
         return $response;
+    }
+
+    private function dispatchRollbackAffectedFileChanges(
+        TopicEntity $topicEntity,
+        DataIsolation $dataIsolation,
+        AgentResponse $sandboxResponse,
+        string $reason
+    ): void {
+        $projectId = $topicEntity->getProjectId();
+        if ($projectId <= 0) {
+            $this->logger->warning('[Sandbox][App] Skip rollback file change event because topic has no project', [
+                'topic_id' => $topicEntity->getId(),
+                'reason' => $reason,
+            ]);
+            return;
+        }
+
+        $fileChanges = $this->getRollbackAffectedFiles($sandboxResponse->getData());
+        if (empty($fileChanges)) {
+            $this->logger->info('[Sandbox][App] No rollback affected files returned by sandbox', [
+                'topic_id' => $topicEntity->getId(),
+                'project_id' => $projectId,
+                'reason' => $reason,
+            ]);
+            return;
+        }
+
+        try {
+            $this->eventDispatcher->dispatch(new CheckpointRollbackFilesChangedEvent(
+                $fileChanges,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $projectId,
+                $topicEntity->getId()
+            ));
+
+            $this->logger->info('[Sandbox][App] Rollback file change event dispatched', [
+                'topic_id' => $topicEntity->getId(),
+                'project_id' => $projectId,
+                'file_count' => count($fileChanges),
+                'reason' => $reason,
+            ]);
+        } catch (Throwable $throwable) {
+            $this->logger->warning('[Sandbox][App] Failed to dispatch rollback file change event', [
+                'topic_id' => $topicEntity->getId(),
+                'project_id' => $projectId,
+                'reason' => $reason,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * @return array<int, array{file_id: int|string, file_path: string, operation: string}>
+     */
+    private function getRollbackAffectedFiles(array $responseData): array
+    {
+        $affectedFiles = array_is_list($responseData) ? $responseData : ($responseData['affected_files'] ?? []);
+        return is_array($affectedFiles) ? $affectedFiles : [];
     }
 }

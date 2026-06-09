@@ -129,6 +129,28 @@ class ProjectMemberDomainService
     }
 
     /**
+     * Batch count participated projects by workspace.
+     *
+     * The count uses the same semantics as participated projects with show_collaboration=1:
+     * owned projects in the workspace plus collaboration projects bound to the workspace.
+     *
+     * @return array<int, int> [workspace_id => count]
+     */
+    public function countCooperateProjectsByWorkspaceIds(
+        string $userId,
+        array $workspaceIds,
+        ?array $organizationCodes = null,
+        bool $showHidden = false
+    ): array {
+        return $this->projectMemberRepository->countCooperateProjectsByWorkspaceIds(
+            $userId,
+            $workspaceIds,
+            $organizationCodes,
+            $showHidden
+        );
+    }
+
+    /**
      * Batch get project IDs that have effective collaborators.
      *
      * Effective collaborators are ACTIVE members in MANAGE/EDITOR/VIEWER roles
