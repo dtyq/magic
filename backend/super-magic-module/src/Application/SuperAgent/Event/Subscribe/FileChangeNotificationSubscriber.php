@@ -10,9 +10,12 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\ProjectFileRpcClient;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\CheckpointRollbackFilesChangedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
@@ -68,6 +71,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             FileBatchMoveEvent::class,
             FileContentSavedEvent::class,
             FileReplacedEvent::class,
+            CheckpointRollbackFilesChangedEvent::class,
         ];
     }
 
@@ -87,6 +91,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                 $event instanceof FileBatchMoveEvent => $this->handleBatchMoved($event),
                 $event instanceof FileContentSavedEvent => $this->handleFileContentSaved($event),
                 $event instanceof FileReplacedEvent => $this->handleFileReplaced($event),
+                $event instanceof CheckpointRollbackFilesChangedEvent => $this->handleCheckpointRollbackFilesChanged($event),
                 default => null,
             };
         } catch (Throwable $e) {
@@ -117,7 +122,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         $pushData = $this->buildPushData(
             operation: 'add',
             projectId: (string) $fileEntity->getProjectId(),
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             fileEntity: $fileEntity,
             workDir: $projectEntity->getWorkDir(),
             organizationCode: $event->getOrganizationCode(),
@@ -144,7 +149,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         $pushData = $this->buildPushData(
             operation: 'delete',
             projectId: (string) $fileEntity->getProjectId(),
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             fileEntity: $fileEntity,
             workDir: $projectEntity->getWorkDir(),
             organizationCode: $event->getOrganizationCode(),
@@ -174,7 +179,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         $pushData = $this->buildPushData(
             operation: 'update',
             projectId: (string) $fileEntity->getProjectId(),
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             fileEntity: $fileEntity,
             workDir: $projectEntity->getWorkDir(),
             organizationCode: $event->getOrganizationCode(),
@@ -202,7 +207,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         $pushData = $this->buildPushData(
             operation: 'delete',
             projectId: (string) $fileEntity->getProjectId(),
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             fileEntity: $fileEntity,
             workDir: $projectEntity->getWorkDir(),
             organizationCode: $userAuthorization->getOrganizationCode(),
@@ -240,7 +245,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
 
         $pushData = $this->buildBatchPushData(
             projectId: (string) $projectId,
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             changes: $changes,
             organizationCode: $userAuthorization->getOrganizationCode(),
             topicId: ''
@@ -268,7 +273,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         $pushData = $this->buildPushData(
             operation: 'update',
             projectId: (string) $fileEntity->getProjectId(),
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             fileEntity: $fileEntity,
             workDir: $projectEntity->getWorkDir(),
             organizationCode: $userAuthorization->getOrganizationCode(),
@@ -296,7 +301,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         $pushData = $this->buildPushData(
             operation: 'update',
             projectId: (string) $fileEntity->getProjectId(),
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             fileEntity: $fileEntity,
             workDir: $projectEntity->getWorkDir(),
             organizationCode: $userAuthorization->getOrganizationCode(),
@@ -354,7 +359,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
 
         $pushData = $this->buildBatchPushData(
             projectId: (string) $projectId,
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             changes: $changes,
             organizationCode: $event->getOrganizationCode(),
             topicId: $topicId
@@ -385,7 +390,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         $pushData = $this->buildPushData(
             operation: 'update',
             projectId: (string) $fileEntity->getProjectId(),
-            workspaceId: $projectEntity->getWorkDir(),
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
             fileEntity: $fileEntity,
             workDir: $projectEntity->getWorkDir(),
             organizationCode: $userAuthorization->getOrganizationCode(),
@@ -394,6 +399,87 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+    }
+
+    /**
+     * Handle checkpoint rollback files changed event.
+     */
+    private function handleCheckpointRollbackFilesChanged(CheckpointRollbackFilesChangedEvent $event): void
+    {
+        $projectId = $event->getProjectId();
+        $fileChanges = $event->getFileChanges();
+        if (empty($fileChanges)) {
+            return;
+        }
+        $fileChanges = array_slice($fileChanges, 0, 500);
+
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+        if (! $projectEntity) {
+            return;
+        }
+
+        $fileIds = [];
+        foreach ($fileChanges as $fileChange) {
+            $fileId = (int) ($fileChange['file_id'] ?? 0);
+            if ($fileId > 0) {
+                $fileIds[$fileId] = $fileId;
+            }
+        }
+        if (empty($fileIds)) {
+            return;
+        }
+
+        $fileEntities = $this->taskFileDomainService->getFilesByIds(array_values($fileIds), $projectId);
+        $fileEntitiesById = [];
+        foreach ($fileEntities as $fileEntity) {
+            $fileEntitiesById[$fileEntity->getFileId()] = $fileEntity;
+        }
+
+        $relativeFilePathMap = $this->buildRelativeFilePathsForEntities($fileEntities, $projectId);
+        $changes = [];
+        foreach ($fileChanges as $fileChange) {
+            $fileId = (int) ($fileChange['file_id'] ?? 0);
+            $fileEntity = $fileEntitiesById[$fileId] ?? null;
+            if (! $fileEntity) {
+                continue;
+            }
+
+            $operation = $this->normalizeFileChangeOperation($fileChange['operation'] ?? '');
+            $change = [
+                'operation' => $operation,
+                'file_id' => (string) $fileEntity->getFileId(),
+            ];
+            if ($operation !== 'delete') {
+                $fileDto = TaskFileItemDTO::fromEntity(
+                    $fileEntity,
+                    $projectEntity->getWorkDir(),
+                    $relativeFilePathMap[$fileEntity->getFileId()] ?? null
+                );
+                $change['file'] = $fileDto->toArray();
+            }
+            $changes[] = $change;
+        }
+        if (empty($changes)) {
+            return;
+        }
+
+        $pushData = $this->buildBatchPushData(
+            projectId: (string) $projectId,
+            workspaceId: $this->getProjectWorkspaceId($projectEntity),
+            changes: $changes,
+            organizationCode: $event->getOrganizationCode(),
+            topicId: $event->getTopicId() > 0 ? (string) $event->getTopicId() : ''
+        );
+
+        $this->pushNotification($event->getUserId(), $pushData);
+        foreach ($fileEntities as $fileEntity) {
+            $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
+        }
+    }
+
+    private function normalizeFileChangeOperation(mixed $operation): string
+    {
+        return in_array($operation, ['add', 'update', 'delete'], true) ? $operation : 'update';
     }
 
     /**
@@ -446,7 +532,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             'type' => 'seq',
             'seq' => [
                 'magic_id' => '',
-                'seq_id' => '',
+                'seq_id' => (string) IdGenerator::getSnowId(),
                 'message_id' => '',
                 'refer_message_id' => '',
                 'sender_message_id' => '',
@@ -492,6 +578,46 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         }
     }
 
+    /**
+     * @param TaskFileEntity[] $fileEntities
+     * @return array<int, string>
+     */
+    private function buildRelativeFilePathsForEntities(array $fileEntities, int $projectId): array
+    {
+        if (empty($fileEntities)) {
+            return [];
+        }
+
+        try {
+            $parentIds = [];
+            foreach ($fileEntities as $fileEntity) {
+                $parentId = $fileEntity->getParentId();
+                if ($parentId > 0) {
+                    $parentIds[$parentId] = $parentId;
+                }
+            }
+
+            $filesWithParents = empty($parentIds)
+                ? []
+                : $this->taskFileDomainService->getFilesWithParentsByIds(array_values($parentIds), $projectId);
+
+            $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+            foreach ($fileEntities as $fileEntity) {
+                $fileMap[$fileEntity->getFileId()] = $fileEntity;
+            }
+
+            return RelativeFilePathUtil::buildPathMapByParentChain($fileEntities, $fileMap);
+        } catch (Throwable $throwable) {
+            $this->logger->warning('Failed to build relative file paths for batch notification', [
+                'project_id' => $projectId,
+                'file_count' => count($fileEntities),
+                'error' => $throwable->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
     private function notifyKnowledgeProjectFileChange(int $projectFileId): void
     {
         if ($projectFileId <= 0) {
@@ -506,6 +632,12 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                 'error' => $throwable->getMessage(),
             ]);
         }
+    }
+
+    private function getProjectWorkspaceId(ProjectEntity $projectEntity): string
+    {
+        $workspaceId = $projectEntity->getWorkspaceId();
+        return $workspaceId === null ? '' : (string) $workspaceId;
     }
 
     /**

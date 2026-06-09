@@ -27,9 +27,6 @@ class VertexAIClient extends AbstractGoogleGeminiClient
     /** @var string Vertex AI Platform 默认主机地址（全局区域） */
     protected const DEFAULT_AI_PLATFORM_HOST = 'https://aiplatform.googleapis.com';
 
-    /** @var string Vertex AI Platform 区域化主机地址模板，%s 为区域名称 */
-    protected const REGIONAL_HOST_TEMPLATE = 'https://%s-aiplatform.googleapis.com';
-
     // ========== OAuth2 认证配置 ==========
     /** @var string OAuth2 认证范围 */
     protected const OAUTH_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
@@ -123,21 +120,12 @@ class VertexAIClient extends AbstractGoogleGeminiClient
     {
         $location = $this->config['location'] ?? '';
         $projectId = $this->config['project_id'];
+        $host = $this->resolveAiPlatformHost();
 
         if (empty($location)) {
-            $host = self::DEFAULT_AI_PLATFORM_HOST;
             $path = sprintf('/v1/projects/%s/locations/global/publishers/google/models/%s:%s', $projectId, $this->modelId, $endpoint);
         } else {
-            $host = sprintf(self::REGIONAL_HOST_TEMPLATE, trim($location));
             $path = sprintf('/v1/projects/%s/locations/%s/publishers/google/models/%s:%s', $projectId, $location, $this->modelId, $endpoint);
-        }
-
-        if (! empty($this->config['url']) && str_contains($this->config['url'], 'aiplatform.googleapis.com')) {
-            $host = rtrim($this->config['url'], '/');
-            $parsed = parse_url($host);
-            if (isset($parsed['scheme'], $parsed['host'])) {
-                $host = $parsed['scheme'] . '://' . $parsed['host'];
-            }
         }
 
         return $host . $path;
@@ -175,11 +163,11 @@ class VertexAIClient extends AbstractGoogleGeminiClient
         // 2. private_key + private_key_id: 确保密钥轮换时缓存自动失效，使用新密钥生成 Token
         // 3. OAUTH_SCOPE: 确保权限范围变更时缓存隔离
         $keySource = ($this->config['project_id'] ?? '')
-                     . ($this->config['client_email'] ?? '')
-                     . ($this->config['private_key'] ?? '')
-                     . ($this->config['private_key_id'] ?? '')
-                     . ($this->config['client_id'] ?? '')
-                     . self::OAUTH_SCOPE;
+            . ($this->config['client_email'] ?? '')
+            . ($this->config['private_key'] ?? '')
+            . ($this->config['private_key_id'] ?? '')
+            . ($this->config['client_id'] ?? '')
+            . self::OAUTH_SCOPE;
 
         return 'google_sa_token_' . md5($keySource);
     }
@@ -236,5 +224,25 @@ class VertexAIClient extends AbstractGoogleGeminiClient
             $this->logger->error('Google Service Account 鉴权失败', ['error' => $e->getMessage()]);
             throw $e;
         }
+    }
+
+    private function resolveAiPlatformHost(): string
+    {
+        $configuredUrl = trim((string) ($this->config['url'] ?? ''));
+        if ($configuredUrl === '' || ! str_contains($configuredUrl, 'aiplatform.googleapis.com')) {
+            return self::DEFAULT_AI_PLATFORM_HOST;
+        }
+
+        $parsed = parse_url(rtrim($configuredUrl, '/'));
+        if (! isset($parsed['scheme'], $parsed['host'])) {
+            return self::DEFAULT_AI_PLATFORM_HOST;
+        }
+
+        $normalizedHost = strtolower($parsed['host']);
+        if (preg_match('/^[a-z0-9-]+-aiplatform\.googleapis\.com$/', $normalizedHost) === 1) {
+            return self::DEFAULT_AI_PLATFORM_HOST;
+        }
+
+        return $parsed['scheme'] . '://' . $parsed['host'];
     }
 }

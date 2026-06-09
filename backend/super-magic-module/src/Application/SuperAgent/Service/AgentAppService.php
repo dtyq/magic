@@ -9,7 +9,9 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\CheckpointRollbackFilesChangedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxVersionDomainService;
@@ -20,6 +22,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchSta
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -38,6 +41,7 @@ readonly class AgentAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly SandboxVersionDomainService $sandboxVersionDomainService,
+        private readonly EventDispatcherInterface $eventDispatcher,
     ) {
         $this->logger = $this->loggerFactory->get('sandbox');
     }
@@ -356,6 +360,12 @@ readonly class AgentAppService
 
         // 沙箱操作成功后，执行消息状态标记
         $this->topicDomainService->rollbackMessagesStart($targetMessageId);
+        $this->dispatchRollbackAffectedFileChanges(
+            $topicEntity,
+            $dataIsolation,
+            $sandboxResponse,
+            'checkpoint_rollback_start'
+        );
 
         $this->logger->info('[Sandbox][App] Message rollback start completed successfully', [
             'topic_id' => $topicId,
@@ -463,6 +473,12 @@ readonly class AgentAppService
 
         // 沙箱操作成功后，执行消息撤回撤销操作（恢复为正常状态）
         $this->topicDomainService->rollbackMessagesUndo($topicId, $dataIsolation->getCurrentUserId());
+        $this->dispatchRollbackAffectedFileChanges(
+            $topicEntity,
+            $dataIsolation,
+            $sandboxResponse,
+            'checkpoint_rollback_undo'
+        );
 
         $this->logger->info('[Sandbox][App] Message rollback undo completed successfully', [
             'topic_id' => $topicId,
@@ -529,5 +545,64 @@ readonly class AgentAppService
         }
 
         return $response;
+    }
+
+    private function dispatchRollbackAffectedFileChanges(
+        TopicEntity $topicEntity,
+        DataIsolation $dataIsolation,
+        AgentResponse $sandboxResponse,
+        string $reason
+    ): void {
+        $projectId = $topicEntity->getProjectId();
+        if ($projectId <= 0) {
+            $this->logger->warning('[Sandbox][App] Skip rollback file change event because topic has no project', [
+                'topic_id' => $topicEntity->getId(),
+                'reason' => $reason,
+            ]);
+            return;
+        }
+
+        $fileChanges = $this->getRollbackAffectedFiles($sandboxResponse->getData());
+        if (empty($fileChanges)) {
+            $this->logger->info('[Sandbox][App] No rollback affected files returned by sandbox', [
+                'topic_id' => $topicEntity->getId(),
+                'project_id' => $projectId,
+                'reason' => $reason,
+            ]);
+            return;
+        }
+
+        try {
+            $this->eventDispatcher->dispatch(new CheckpointRollbackFilesChangedEvent(
+                $fileChanges,
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                $projectId,
+                $topicEntity->getId()
+            ));
+
+            $this->logger->info('[Sandbox][App] Rollback file change event dispatched', [
+                'topic_id' => $topicEntity->getId(),
+                'project_id' => $projectId,
+                'file_count' => count($fileChanges),
+                'reason' => $reason,
+            ]);
+        } catch (Throwable $throwable) {
+            $this->logger->warning('[Sandbox][App] Failed to dispatch rollback file change event', [
+                'topic_id' => $topicEntity->getId(),
+                'project_id' => $projectId,
+                'reason' => $reason,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * @return array<int, array{file_id: int|string, file_path: string, operation: string}>
+     */
+    private function getRollbackAffectedFiles(array $responseData): array
+    {
+        $affectedFiles = array_is_list($responseData) ? $responseData : ($responseData['affected_files'] ?? []);
+        return is_array($affectedFiles) ? $affectedFiles : [];
     }
 }

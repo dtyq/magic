@@ -1387,9 +1387,8 @@ class TaskFileDomainService
         $shouldKeepBoth = in_array($sourceFileIdStr, $keepBothFileIds, true);
 
         if ($existingTargetFile !== null && $existingTargetFile->getFileId() === $fileEntity->getFileId()) {
-            // Copying to the same directory should not overwrite itself.
+            // Copying to the same directory should keep both and rename below.
             $shouldKeepBoth = true;
-            $existingTargetFile = null;
         }
 
         if ($existingTargetFile !== null && $shouldKeepBoth) {
