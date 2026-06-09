@@ -69,13 +69,6 @@ class AsrSandboxService extends AbstractAppService
         string $userId,
         string $organizationCode
     ): void {
-        // 生成沙箱ID
-        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId(
-            $taskStatus->projectId . '_asr_recording',
-            12
-        );
-        $taskStatus->sandboxId = $sandboxId;
-
         // 设置用户上下文
         $this->sandboxGateway->setUserContext($userId, $organizationCode);
 
@@ -84,10 +77,10 @@ class AsrSandboxService extends AbstractAppService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
 
-        // 创建沙箱并等待工作区可用
+        // 创建沙箱并等待工作区可用（沙箱 id 由隐藏话题绑定的 sandbox_id 决定，
+        // 未绑定则由 Domain 走 warm/cold 路径，与 chat 路径一致）
         $actualSandboxId = $this->ensureSandboxWorkspaceReady(
             $taskStatus,
-            $sandboxId,
             $taskStatus->projectId,
             $fullWorkdir,
             $userId,
@@ -96,7 +89,6 @@ class AsrSandboxService extends AbstractAppService
 
         $this->logger->info('startRecordingTask ASR 录音：沙箱已就绪', [
             'task_key' => $taskStatus->taskKey,
-            'requested_sandbox_id' => $sandboxId,
             'actual_sandbox_id' => $actualSandboxId,
             'full_workdir' => $fullWorkdir,
         ]);
@@ -202,15 +194,6 @@ class AsrSandboxService extends AbstractAppService
             'sandbox_id' => $taskStatus->sandboxId,
         ]);
 
-        // 准备沙箱ID
-        if (empty($taskStatus->sandboxId)) {
-            $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId(
-                $taskStatus->projectId . '_asr_recording',
-                12
-            );
-            $taskStatus->sandboxId = $sandboxId;
-        }
-
         // 设置用户上下文
         $this->sandboxGateway->setUserContext($taskStatus->userId, $organizationCode);
 
@@ -219,10 +202,10 @@ class AsrSandboxService extends AbstractAppService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
 
+        // 记录调用前的沙箱 id，用于判断沙箱是否在初始化过程中发生了重建
         $requestedSandboxId = $taskStatus->sandboxId;
         $actualSandboxId = $this->ensureSandboxWorkspaceReady(
             $taskStatus,
-            $requestedSandboxId,
             $taskStatus->projectId,
             $fullWorkdir,
             $taskStatus->userId,
@@ -492,19 +475,19 @@ class AsrSandboxService extends AbstractAppService
      * - 使用基于 topic_id 的分布式锁，防止并发创建
      * - 在锁内进行双重检查，避免重复初始化
      * - 使用 spinLock 机制，并发请求会等待（最多 60 秒）
+     *
+     * 与 chat 路径（HandleUserMessageAppService::createAndSendMessageToAgent）保持一致：
+     * 沙箱 id 完全由隐藏话题绑定的 sandbox_id 决定（未绑定则为空字符串），由 Domain 内部
+     * 决定走 warm 池还是冷创建。不要把上层自造的 sandbox_id 传进 buildInitAgentContext，
+     * 否则会触发 tryWarmPoolFastPath 的「已有 sandbox_id 跳过 warm 池」守卫。
      */
     private function ensureSandboxWorkspaceReady(
         AsrTaskStatusDTO $taskStatus,
-        string $requestedSandboxId,
         ?string $projectId,
         string $fullWorkdir,
         string $userId,
         string $organizationCode
     ): string {
-        if ($requestedSandboxId === '') {
-            ExceptionBuilder::throw(AsrErrorCode::SandboxIdNotExist);
-        }
-
         $projectIdString = (string) $projectId;
         if ($projectIdString === '') {
             ExceptionBuilder::throw(AsrErrorCode::SandboxTaskCreationFailed, '', ['message' => '项目ID为空，无法创建沙箱']);
@@ -551,10 +534,13 @@ class AsrSandboxService extends AbstractAppService
 
         // 7. 构建 InitializationMetadataDTO（ASR 场景设置 skipInitMessages = true）
 
+        // 话题已绑定的沙箱 id（未绑定则为空），作为 ensureSandboxInitialized 的探测/复用入口
+        $boundSandboxId = (string) $topicEntity->getSandboxId();
+
         $this->logger->info('[ASR][Sandbox] 准备使用 ensureSandboxInitialized（带锁版本）', [
             'task_key' => $taskStatus->taskKey,
             'sandbox_topic_id' => $sandboxTopicId,
-            'requested_sandbox_id' => $requestedSandboxId,
+            'bound_sandbox_id' => $boundSandboxId,
             'full_workdir' => $fullWorkdir,
             'task_id' => $taskEntity->getId(),
         ]);
@@ -562,12 +548,14 @@ class AsrSandboxService extends AbstractAppService
         // 8. 调用 AgentDomainService::ensureSandboxInitialized（自动使用分布式锁）
         // 此时 TopicEntity.current_task_id 已经有值，所以 super_magic_task_id 会正确传递
         try {
+            // 与 chat 路径一致：传话题已绑定的 sandbox_id（未绑定则为空），由 Domain 决定
+            // 走 warm 池还是冷创建。
             $agentContext = $this->agentDomainService->buildInitAgentContext(
                 dataIsolation: $dataIsolation,
                 projectEntity: $projectEntity,
                 topicEntity: $topicEntity,
                 taskEntity: $taskEntity,
-                sandboxId: $requestedSandboxId,
+                sandboxId: $boundSandboxId,
                 skipInitMessage: true
             );
 
@@ -575,7 +563,7 @@ class AsrSandboxService extends AbstractAppService
 
             $this->logger->info('[ASR][Sandbox] 沙箱初始化完成（带锁保护）', [
                 'task_key' => $taskStatus->taskKey,
-                'requested_sandbox_id' => $requestedSandboxId,
+                'bound_sandbox_id' => $boundSandboxId,
                 'actual_sandbox_id' => $actualSandboxId,
                 'task_id' => $taskEntity->getId(),
             ]);
@@ -609,7 +597,7 @@ class AsrSandboxService extends AbstractAppService
         } catch (Throwable $e) {
             $this->logger->error('[ASR][Sandbox] 沙箱初始化失败', [
                 'task_key' => $taskStatus->taskKey,
-                'sandbox_id' => $requestedSandboxId,
+                'sandbox_id' => $boundSandboxId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);

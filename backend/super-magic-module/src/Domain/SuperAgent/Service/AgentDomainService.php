@@ -148,7 +148,7 @@ class AgentDomainService
             agentUserId: $aiUserEntity->getUserId() ?? '',
             userId: $dataIsolation->getCurrentUserId(),
             organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-            chatConversationId: di(TopicDomainService::class)->getAgentChatConversationId($topicEntity->getChatTopicId(), $topicEntity->getChatConversationId()),
+            chatConversationId: $this->getTopicDomainService()->getAgentChatConversationId($topicEntity->getChatTopicId(), $topicEntity->getChatConversationId()),
             chatTopicId: $topicEntity->getChatTopicId(),
             topicId: (string) $topicEntity->getId(),
             instruction: ChatInstruction::Normal->value,
@@ -214,12 +214,26 @@ class AgentDomainService
     ): string {
         $topicEntity = $agentContext->getTopicEntity();
 
-        $sandboxId = $agentContext->getSandboxId() ?? (string) $topicEntity->getId();
+        // Resolution order for the sandbox id used by the pre-create workspace
+        // status check:
+        //   1) explicit id from the AgentContext (reconnect / pinned)
+        //   2) the topic's own persisted sandbox_id (set by an earlier
+        //      cold-create or warm-pool mount)
+        //   3) topic_id stringified — legacy fallback kept so callers that
+        //      pre-date the explicit binding still work
+        $contextSandboxId = $agentContext->getSandboxId();
+        $persistedSandboxId = (string) $topicEntity->getSandboxId();
+        $sandboxId = ! empty($contextSandboxId)
+            ? $contextSandboxId
+            : (! empty($persistedSandboxId)
+                ? $persistedSandboxId
+                : (string) $topicEntity->getId());
 
         $this->logger->info('[Sandbox][Domain] Ensuring sandbox is initialized', [
             'topic_id' => $topicEntity->getId(),
             'sandbox_id' => $sandboxId,
-            'is_custom_sandbox_id' => $agentContext->getSandboxId(),
+            'is_custom_sandbox_id' => $contextSandboxId,
+            'persisted_sandbox_id' => $persistedSandboxId,
             'has_interrupt_checker' => $interruptChecker !== null,
         ]);
 
@@ -251,7 +265,12 @@ class AgentDomainService
                 'lock_owner' => $lockOwner,
             ]);
 
-            // Step 1: Check workspace status (quick-returns if sandbox already ready)
+            // Step 1: Check workspace status (quick-returns if sandbox already ready).
+            //
+            // 如果探测发现 sandbox_id 对应的 pod 已经不存在 / 不在 Ready 状态，
+            // 把 agentContext 上残留的 sandboxId 抹空，让后续 Step 2.5 的 warm
+            // pool 守卫能够放行，避免「话题里残留的死 sandbox_id 把 warm pool
+            // 永久挡在外面、每次都走冷创建」的退化。
             try {
                 $response = $this->getWorkspaceStatus($sandboxId);
                 $status = $response->getDataValue('status');
@@ -268,6 +287,9 @@ class AgentDomainService
                     'sandbox_id' => $sandboxId,
                     'workspace_status' => $status,
                 ]);
+                // 之前缓存的 sandbox_id 已失效，允许 warm pool 接管。
+                $agentContext->setSandboxId('');
+                $sandboxId = '';
             } catch (SandboxOperationException $e) {
                 $isNotFound = $e->getCode() === ResponseCode::NOT_FOUND;
                 $logLevel = $isNotFound ? 'info' : 'warning';
@@ -276,6 +298,10 @@ class AgentDomainService
                     'error' => $e->getMessage(),
                     'is_not_found' => $isNotFound,
                 ]);
+                // NOT_FOUND 说明这个 sandbox_id 已经被销毁；其它异常也无法证明 pod 仍
+                // 在线。统一把残留 id 抹空，让 warm pool 守卫得以放行。
+                $agentContext->setSandboxId('');
+                $sandboxId = '';
             }
 
             // Step 2: Get root file IDs for sandbox initialization
@@ -306,16 +332,34 @@ class AgentDomainService
                 ]);
             }
 
-            // Step 3: Create sandbox container
-            $sandboxId = $this->createSandbox(
-                dataIsolation: $dataIsolation,
-                projectId: (string) $agentContext->getProjectEntity()->getId(),
-                sandboxID: $agentContext->getSandboxId(),
-                workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
-                projectSpaceRootFileId: $projectSpaceRootFileId,
-                userSpaceRootFileId: $userSpaceRootFileId,
-                topicId: $topicEntity->getId()
+            // Step 2.5: Warm pool fast path.
+            // Only attempt when the caller didn't ask for a specific sandbox id
+            // (those are typically reconnects to an existing pod) AND we have
+            // a project-space root file id to mount.  On any failure we fall
+            // through to the cold path so the user-facing call never breaks.
+            $warmSandboxId = $this->tryWarmPoolFastPath(
+                $dataIsolation,
+                $agentContext,
+                $projectSpaceRootFileId,
+                $userSpaceRootFileId
             );
+            if ($warmSandboxId !== null) {
+                $sandboxId = $warmSandboxId;
+            } else {
+                // Step 3: Create sandbox container (cold path)
+                // 冷启动一律使用 topic_id 作为 sandbox_id，让沙箱与话题一一对应，
+                // 便于排障与去重；调用方即便显式传了 sandbox_id 也以话题为准。
+                $sandboxId = $this->createSandbox(
+                    dataIsolation: $dataIsolation,
+                    projectId: (string) $agentContext->getProjectEntity()->getId(),
+                    sandboxID: (string) $topicEntity->getId(),
+                    workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
+                    projectSpaceRootFileId: $projectSpaceRootFileId,
+                    userSpaceRootFileId: $userSpaceRootFileId,
+                    topicId: $topicEntity->getId(),
+                    agentCode: $this->resolveAgentCodeLabel($topicEntity)
+                );
+            }
 
             if ($interruptChecker !== null && $interruptChecker()) {
                 $this->logger->info('[Sandbox][Domain] Interrupted after sandbox creation', [
@@ -375,7 +419,7 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null, ?string $agentCode = null): string
     {
         // 获取用户 authorization token，用于沙箱创建时的身份验证
         $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
@@ -390,7 +434,15 @@ class AgentDomainService
         ]);
 
         $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization);
+        // Stamp the topic id onto the pod labels so the sandbox can be
+        // correlated back to its topic (warm pool stamps it at mount time).
+        $labels = $topicId !== null ? ['topic-id' => (string) $topicId] : [];
+        // Also stamp agent code so both custom-agent and magic-claw sandboxes
+        // can be correlated back to the original agent identity.
+        if ($agentCode !== null && $agentCode !== '') {
+            $labels['agent-code'] = $agentCode;
+        }
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization, $labels);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->debug('[Sandbox][App] Gateway result analysis', [
@@ -612,7 +664,7 @@ class AgentDomainService
         $language = $dataIsolation->getLanguage() ?? 'zh_CN';
         $agentProfile = $this->buildAgentProfile($dataIsolation, $agentMode, $taskContext->getAgentCode(), $language);
 
-        $this->logger->debug('[Sandbox][App] Sending chat message to agent', [
+        $this->logger->info('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
             'prompt' => $taskContext->getTask()->getPrompt(),
@@ -852,6 +904,36 @@ class AgentDomainService
         $this->logger->debug('[Sandbox][App] Workspace status retrieved', [
             'sandbox_id' => $sandboxId,
             'status' => $result->getDataValue('status'),
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * 重置沙箱保活状态.
+     */
+    public function resetSandboxKeepAlive(string $sandboxId, string $source = 'special-project-crontab'): AgentResponse
+    {
+        $this->logger->debug('[Sandbox][App] Resetting sandbox keepalive', [
+            'sandbox_id' => $sandboxId,
+            'source' => $source,
+        ]);
+
+        $result = $this->agent->resetKeepAlive($sandboxId, $source);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][App] Failed to reset sandbox keepalive', [
+                'sandbox_id' => $sandboxId,
+                'source' => $source,
+                'error' => $result->getMessage(),
+                'code' => $result->getCode(),
+            ]);
+            throw new SandboxOperationException('Reset sandbox keepalive', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->info('[Sandbox][App] Sandbox keepalive reset successfully', [
+            'sandbox_id' => $sandboxId,
+            'source' => $source,
         ]);
 
         return $result;
@@ -1360,6 +1442,153 @@ class AgentDomainService
     }
 
     /**
+     * Try to fulfil the sandbox request from the warm pool. Returns the
+     * bound sandbox_id on success, or null when the warm path is not
+     * applicable / unavailable so the caller falls back to cold create.
+     *
+     * Topic side-effects (sandbox_id + agent_image columns) are persisted
+     * here so that the caller doesn't need to know whether the warm or
+     * cold path was taken.
+     */
+    private function tryWarmPoolFastPath(
+        DataIsolation $dataIsolation,
+        AgentContext $agentContext,
+        string $projectSpaceRootFileId,
+        string $userSpaceRootFileId
+    ): ?string {
+        $topicEntity = $agentContext->getTopicEntity();
+
+        // The warm path is opt-in via config until it has soaked in prod.
+        if (! (bool) config('super-magic.warm_pool.enabled', false)) {
+            return null;
+        }
+
+        // Optional per-user allowlist kill switch. When set (non-empty), only
+        // the listed user ids are routed through the warm pool; everyone else
+        // falls back to the cold create path. Empty list means no restriction.
+        $allowedUserIds = (array) config('super-magic.warm_pool.allowed_user_ids', []);
+        if (! empty($allowedUserIds)
+            && ! in_array($dataIsolation->getCurrentUserId(), $allowedUserIds, true)
+        ) {
+            $this->logger->info('[Sandbox][WarmPath] Skipping warm pool: user not in allowlist', [
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'topic_id' => $topicEntity->getId(),
+            ]);
+            return null;
+        }
+
+        // If the caller pinned a specific sandbox id (e.g. reconnect into an
+        // already-existing pod) we must respect that — the warm pool only
+        // serves the "create me anything that runs the latest image" case.
+        if (! empty($agentContext->getSandboxId())) {
+            return null;
+        }
+
+        // The warm sandbox mount endpoint requires a project-space root.
+        if ($projectSpaceRootFileId === '') {
+            $this->logger->info('[Sandbox][WarmPath] Skipping warm pool: missing project root_file_id', [
+                'topic_id' => $topicEntity->getId(),
+                'project_id' => $agentContext->getProjectEntity()->getId(),
+            ]);
+            return null;
+        }
+
+        $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+        if ($authorization === '') {
+            $this->logger->warning('[Sandbox][WarmPath] Skipping warm pool: no authorization for user', [
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'topic_id' => $topicEntity->getId(),
+            ]);
+            return null;
+        }
+
+        try {
+            $sandboxId = $this->getWarmPoolSandboxDomainService()->tryAcquireAndMount(
+                userId: $dataIsolation->getCurrentUserId(),
+                projectId: (string) $agentContext->getProjectEntity()->getId(),
+                projectSpaceRootFileId: $projectSpaceRootFileId,
+                userSpaceRootFileId: $userSpaceRootFileId,
+                authorization: $authorization,
+                labels: $this->buildSandboxLabels($topicEntity),
+                topicId: (string) $topicEntity->getId()
+            );
+        } catch (Throwable $e) {
+            // Fall back to the cold path on any unexpected error.
+            $this->logger->error('[Sandbox][WarmPath] Warm pool acquire/mount threw, falling back to cold path', [
+                'topic_id' => $topicEntity->getId(),
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+
+        if ($sandboxId === null) {
+            return null;
+        }
+
+        // Persist sandbox_id binding on the topic. The agent_image side is
+        // best-effort: we ask the gateway, but if it fails we don't roll
+        // back the bound sandbox.
+        try {
+            $topicDomainService = $this->getTopicDomainService();
+            $topicDomainService->updateTopicSandboxId(
+                $dataIsolation,
+                (int) $topicEntity->getId(),
+                $sandboxId
+            );
+            $latestImage = $this->gateway->getLatestAgentImage();
+            if ($latestImage !== '') {
+                $topicDomainService->updateTopicAgentImage(
+                    $dataIsolation,
+                    (int) $topicEntity->getId(),
+                    $latestImage
+                );
+            }
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][WarmPath] Failed to stamp topic with warm sandbox metadata', [
+                'topic_id' => $topicEntity->getId(),
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->logger->info('[Sandbox][WarmPath] Warm pool fast path succeeded', [
+            'topic_id' => $topicEntity->getId(),
+            'sandbox_id' => $sandboxId,
+        ]);
+
+        return $sandboxId;
+    }
+
+    /**
+     * Lazily resolve {@see WarmPoolSandboxDomainService} via the container
+     * instead of constructor-injecting it.
+     *
+     * - Avoids growing this already-large ctor dependency graph and any
+     *   construct-time cycle risk if the warm-pool service later picks up
+     *   a dep that transitively touches AgentDomainService.
+     * - Keeps warm-pool wiring fully unpaid when the feature flag is off
+     *   ({@see tryWarmPoolFastPath} early-returns before reaching here).
+     *
+     * The explicit return type also keeps PHPStan / IDE-level static
+     * analysis sharp on the resulting {@see ::tryAcquireAndMount()} call.
+     */
+    private function getWarmPoolSandboxDomainService(): WarmPoolSandboxDomainService
+    {
+        return di(WarmPoolSandboxDomainService::class);
+    }
+
+    /**
+     * Lazily resolve {@see TopicDomainService} via the container instead of
+     * constructor-injecting it. Same rationale as
+     * {@see getWarmPoolSandboxDomainService()} — avoids growing the ctor
+     * graph and keeps the dependency unpaid when the warm path is off.
+     */
+    private function getTopicDomainService(): TopicDomainService
+    {
+        return di(TopicDomainService::class);
+    }
+
+    /**
      * 构建消息元数据
      * 公共方法，用于 chat 消息复用.
      *
@@ -1404,6 +1633,75 @@ class AgentDomainService
             $userInfo,
             $initMetadata->getSkipInitMessages() ?? false
         );
+    }
+
+    /**
+     * Build the pod labels for a topic's sandbox.
+     * Always stamps topic-id; when topic.agent_code is present it also stamps
+     * agent-code so sandboxes can be correlated back to the original agent.
+     *
+     * @return array<string, string>
+     */
+    private function buildSandboxLabels(TopicEntity $topicEntity): array
+    {
+        $labels = ['topic-id' => (string) $topicEntity->getId()];
+
+        $agentCode = $this->resolveAgentCodeLabel($topicEntity);
+        if ($agentCode !== null) {
+            $labels['agent-code'] = $agentCode;
+        }
+
+        return $labels;
+    }
+
+    /**
+     * Resolve sanitized topic agent_code for pod labels, or null when absent.
+     *
+     * The raw code is sanitized to a valid k8s label value before being
+     * returned so that an out-of-spec code can never break sandbox creation.
+     */
+    private function resolveAgentCodeLabel(TopicEntity $topicEntity): ?string
+    {
+        $agentCode = $topicEntity->getAgentCode();
+        if ($agentCode === '') {
+            return null;
+        }
+
+        $sanitized = $this->sanitizeLabelValue($agentCode);
+        if ($sanitized === '') {
+            // Nothing salvageable — skip the label rather than fail the pod.
+            $this->logger->warning('[Sandbox][Domain] Agent code is not a valid k8s label value, skipping label', [
+                'topic_id' => $topicEntity->getId(),
+                'agent_code' => $agentCode,
+            ]);
+            return null;
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * Coerce an arbitrary string into a valid Kubernetes label value.
+     *
+     * k8s label values must be empty or match
+     * (([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]) and be at most 63 chars:
+     *   - allowed chars: alphanumerics, '-', '_', '.'
+     *   - must start and end with an alphanumeric
+     *   - max length 63
+     *
+     * Any disallowed character is replaced with '-'; the result is truncated
+     * to 63 chars and stripped of leading/trailing non-alphanumerics. Returns
+     * '' when nothing can be salvaged.
+     */
+    private function sanitizeLabelValue(string $value): string
+    {
+        // Replace any character outside the allowed set with '-'.
+        $value = preg_replace('/[^A-Za-z0-9\-_.]/', '-', $value) ?? '';
+        // Enforce the 63-char cap before trimming so a trailing separator
+        // introduced by truncation gets stripped below.
+        $value = substr($value, 0, 63);
+        // Must start and end with an alphanumeric.
+        return trim($value, '-_.');
     }
 
     /**

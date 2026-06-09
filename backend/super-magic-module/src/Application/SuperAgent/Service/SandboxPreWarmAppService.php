@@ -59,6 +59,23 @@ class SandboxPreWarmAppService extends AbstractAppService
      */
     public function preWarmForTopic(RequestContext $requestContext, int $topicId, ?string $language = null): array
     {
+        // Pre-warm has been disabled: it used to call ensureSandboxInitialized
+        // with sandboxId = topicId, which permanently bound the topic to a
+        // legacy "sandbox-{topicId}" pod and prevented the warm-pool fast
+        // path from ever being taken on the first real chat message.
+        // We now return a no-op response so the FE call stays compatible.
+        // The original implementation is kept commented out below so it can be
+        // re-enabled once the warm-pool path is fully trusted.
+        $this->logger->info(sprintf('话题内沙箱预启动已禁用, 直接返回, topicId=%d', $topicId));
+
+        return [
+            'topic_id' => (string) $topicId,
+            'sandbox_id' => '',
+            'status' => 'disabled',
+            'is_new' => false,
+        ];
+
+        /* @phpstan-ignore-next-line
         $this->logger->info(sprintf('开始话题内沙箱预启动, topicId=%d', $topicId));
 
         $userAuthorization = $requestContext->getUserAuthorization();
@@ -126,6 +143,7 @@ class SandboxPreWarmAppService extends AbstractAppService
             'status' => 'ready',
             'is_new' => ! $hadSandboxId,
         ];
+        */
     }
 
     /**
@@ -139,6 +157,20 @@ class SandboxPreWarmAppService extends AbstractAppService
      */
     public function preWarmForWorkspace(RequestContext $requestContext, int $workspaceId, ?string $language = null): array
     {
+        // Pre-warm has been disabled — see preWarmForTopic() for rationale.
+        // Original implementation kept commented out below for future re-enable.
+        $this->logger->info(sprintf('话题外沙箱预启动已禁用, 直接返回, workspaceId=%d', $workspaceId));
+
+        return [
+            'topic_id' => '',
+            'project_id' => '',
+            'sandbox_id' => '',
+            'status' => 'disabled',
+            'is_new' => false,
+            'is_hidden' => true,
+        ];
+
+        /* @phpstan-ignore-next-line
         $this->logger->info(sprintf('开始话题外沙箱预启动, workspaceId=%d', $workspaceId));
 
         $userAuthorization = $requestContext->getUserAuthorization();
@@ -255,6 +287,7 @@ class SandboxPreWarmAppService extends AbstractAppService
             'is_new' => ! $hadSandboxId,
             'is_hidden' => true,
         ];
+        */
     }
 
     /**
@@ -268,6 +301,20 @@ class SandboxPreWarmAppService extends AbstractAppService
      */
     public function preWarmForProject(RequestContext $requestContext, int $projectId, ?string $language = null): array
     {
+        // Pre-warm has been disabled — see preWarmForTopic() for rationale.
+        // Original implementation kept commented out below for future re-enable.
+        $this->logger->info(sprintf('项目沙箱预启动已禁用, 直接返回, projectId=%d', $projectId));
+
+        return [
+            'topic_id' => '',
+            'project_id' => (string) $projectId,
+            'sandbox_id' => '',
+            'status' => 'disabled',
+            'is_new' => false,
+            'is_hidden' => true,
+        ];
+
+        /* @phpstan-ignore-next-line
         $this->logger->info(sprintf('开始为项目预热沙箱, projectId=%d', $projectId));
 
         $userAuthorization = $requestContext->getUserAuthorization();
@@ -350,6 +397,7 @@ class SandboxPreWarmAppService extends AbstractAppService
             'is_new' => ! $hadSandboxId,
             'is_hidden' => true,
         ];
+        */
     }
 
     /**
@@ -359,7 +407,7 @@ class SandboxPreWarmAppService extends AbstractAppService
      * Errors during cleanup are swallowed so that the original exception is always propagated
      * to the caller without being replaced by a secondary failure.
      */
-    private function cleanOrphanedHiddenProject(ProjectEntity $project, string $userId): void
+    protected function cleanOrphanedHiddenProject(ProjectEntity $project, string $userId): void
     {
         try {
             $this->projectDomainService->deleteProject($project->getId(), $userId);
