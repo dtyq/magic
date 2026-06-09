@@ -14,6 +14,7 @@ from app.service.env_manager import (
     EnvValueCipher,
 )
 from app.tools.env_manager import service
+from app.tools.env_manager.get_env import GetEnv, GetEnvParams
 from app.tools.env_manager.list_env import ListEnv, ListEnvParams
 from app.tools.env_manager.set_env import SetEnv, SetEnvParams
 from app.tools.env_manager.unset_env import UnsetEnv, UnsetEnvParams
@@ -95,6 +96,7 @@ def _tamper_encrypted_value(encrypted_value):
 async def test_env_tools_are_code_mode_only_and_have_display_hooks():
     tools = [
         (SetEnv(), "set_env", {"key": "MOCK_API_KEY", "value": "mock-personal-secret-value"}),
+        (GetEnv(), "get_env", {"key": "MOCK_API_KEY"}),
         (UnsetEnv(), "unset_env", {"key": "MOCK_API_KEY"}),
         (ListEnv(), "list_env", {"scope": "personal"}),
     ]
@@ -102,17 +104,18 @@ async def test_env_tools_are_code_mode_only_and_have_display_hooks():
     for tool, tool_name, arguments in tools:
         assert tool.code_mode_only is True
         assert tool.get_effective_name() == tool_name
+        default_scope = "all" if tool_name == "get_env" else "personal"
         before = await tool.get_before_tool_call_friendly_action_and_remark(tool_name, None, arguments)
         after = await tool.get_after_tool_call_friendly_action_and_remark(
             tool_name,
             None,
-            ToolResult(content="ok", extra_info={"key": arguments.get("key", ""), "scope": arguments.get("scope", "personal")}),
+            ToolResult(content="ok", extra_info={"key": arguments.get("key", ""), "scope": arguments.get("scope", default_scope)}),
             0.1,
             arguments,
         )
         detail = await tool.get_tool_detail(
             None,
-            ToolResult(content="ok", extra_info={"key": arguments.get("key", ""), "scope": arguments.get("scope", "personal")}),
+            ToolResult(content="ok", extra_info={"key": arguments.get("key", ""), "scope": arguments.get("scope", default_scope)}),
             arguments,
         )
 
@@ -150,12 +153,27 @@ async def test_env_tool_action_and_remark_are_i18n():
         0.1,
         {"scope": "all"},
     )
+    get_before = await GetEnv().get_before_tool_call_friendly_action_and_remark(
+        "get_env",
+        None,
+        {"key": "MOCK_API_KEY"},
+    )
+    get_after = await GetEnv().get_after_tool_call_friendly_action_and_remark(
+        "get_env",
+        None,
+        ToolResult(content="ok", extra_info={"key": "MOCK_API_KEY", "scope": "all"}),
+        0.1,
+        {"key": "MOCK_API_KEY"},
+    )
 
     assert set_before["action"] == "Save environment variable"
     assert set_before["remark"] == "Saving MOCK_API_KEY to personal env"
     assert set_after["remark"] == "Saved MOCK_API_KEY to personal env"
     assert list_after["action"] == "List environment variables"
     assert list_after["remark"] == "Found 2 variable(s) in effective env"
+    assert get_before["action"] == "Query environment variable"
+    assert get_before["remark"] == "Querying MOCK_API_KEY in effective env"
+    assert get_after["remark"] == "Found MOCK_API_KEY in effective env"
 
     I18nManager.set_language("zh_CN")
     unset_before = await UnsetEnv().get_before_tool_call_friendly_action_and_remark(
@@ -282,6 +300,86 @@ async def test_list_env_detail_shows_masked_values_only(env_paths):
     assert "MOCK_TOKEN" in detail
     assert "mock-personal-secret-value" not in detail
     assert service.EnvManagerService.mask_value("mock-personal-secret-value") in detail
+
+
+@pytest.mark.asyncio
+async def test_get_env_defaults_to_effective_scope_and_only_returns_requested_key(env_paths):
+    env_paths["workspace_env"].parent.mkdir(parents=True, exist_ok=True)
+    env_paths["personal_env"].parent.mkdir(parents=True, exist_ok=True)
+    env_paths["workspace_env"].write_text(
+        "MOCK_SHARED=mock-workspace-secret-value\nMOCK_WORKSPACE_ONLY=mock-workspace-only-value\n",
+        encoding="utf-8",
+    )
+    env_paths["personal_env"].write_text(
+        "MOCK_SHARED=mock-personal-secret-value\nMOCK_PERSONAL_ONLY=mock-personal-only-value\n",
+        encoding="utf-8",
+    )
+    tool = GetEnv()
+
+    result = await tool.execute(None, GetEnvParams(key="MOCK_SHARED"))
+    detail = await _detail_content(tool, result, {"key": "MOCK_SHARED"})
+
+    assert result.ok is True
+    assert result.data == {
+        "operation": "get",
+        "key": "MOCK_SHARED",
+        "scope": "all",
+        "target": "effective env",
+        "value": service.EnvManagerService.mask_value("mock-personal-secret-value"),
+        "available": True,
+    }
+    assert "MOCK_SHARED" in result.content
+    assert "MOCK_PERSONAL_ONLY" not in result.content
+    assert "MOCK_WORKSPACE_ONLY" not in result.content
+    assert "mock-personal-secret-value" not in _serialized_result(result)
+    assert "mock-workspace-secret-value" not in _serialized_result(result)
+    assert "MOCK_PERSONAL_ONLY" not in detail
+    assert "MOCK_WORKSPACE_ONLY" not in detail
+
+
+@pytest.mark.asyncio
+async def test_get_env_can_query_workspace_scope(env_paths):
+    env_paths["workspace_env"].parent.mkdir(parents=True, exist_ok=True)
+    env_paths["personal_env"].parent.mkdir(parents=True, exist_ok=True)
+    env_paths["workspace_env"].write_text("MOCK_SHARED=mock-workspace-secret-value\n", encoding="utf-8")
+    env_paths["personal_env"].write_text("MOCK_SHARED=mock-personal-secret-value\n", encoding="utf-8")
+
+    result = await GetEnv().execute(None, GetEnvParams(key="MOCK_SHARED", scope="workspace"))
+
+    assert result.ok is True
+    assert result.data["scope"] == "workspace"
+    assert result.data["value"] == service.EnvManagerService.mask_value("mock-workspace-secret-value")
+    assert "mock-workspace-secret-value" not in _serialized_result(result)
+
+
+@pytest.mark.asyncio
+async def test_get_env_unavailable_value_is_visible(env_paths):
+    env_paths["personal_env"].parent.mkdir(parents=True, exist_ok=True)
+    env_paths["personal_env"].write_text("MOCK_BAD=smenc:v1:not-valid\n", encoding="utf-8")
+
+    result = await GetEnv().execute(_tool_context(user_id="mock-user-id"), GetEnvParams(key="MOCK_BAD"))
+
+    assert result.ok is True
+    assert result.data["value"] == CORRUPTED_ENV_VALUE_MESSAGE
+    assert result.data["available"] is False
+    assert f"MOCK_BAD: {CORRUPTED_ENV_VALUE_MESSAGE}" in result.content
+    assert "unavailable" in result.content
+
+
+@pytest.mark.asyncio
+async def test_get_env_missing_key_returns_stable_error(env_paths):
+    env_paths["personal_env"].parent.mkdir(parents=True, exist_ok=True)
+    env_paths["personal_env"].write_text("MOCK_OTHER=mock-other-secret-value\n", encoding="utf-8")
+
+    result = await GetEnv().execute(None, GetEnvParams(key="MOCK_MISSING"))
+
+    assert result.ok is False
+    assert result.content == "KEY 不存在: MOCK_MISSING"
+    assert result.extra_info["operation"] == "get"
+    assert result.extra_info["scope"] == "all"
+    assert result.extra_info["error_code"] == "key_not_found"
+    assert "MOCK_OTHER" not in _serialized_result(result)
+    assert "mock-other-secret-value" not in _serialized_result(result)
 
 
 @pytest.mark.asyncio

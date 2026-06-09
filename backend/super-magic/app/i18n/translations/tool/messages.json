@@ -2059,6 +2059,18 @@
         "zh_CN": "查看{{scope_label}}失败：{{error}}",
         "en_US": "Failed to list {{scope_label}}: {{error}}"
     },
+    "env_manager.get.before": {
+        "zh_CN": "正在查询 {{key}}（{{scope_label}}）",
+        "en_US": "Querying {{key}} in {{scope_label}}"
+    },
+    "env_manager.get.after_success": {
+        "zh_CN": "已查询到 {{key}}（{{scope_label}}）",
+        "en_US": "Found {{key}} in {{scope_label}}"
+    },
+    "env_manager.get.after_failed": {
+        "zh_CN": "查询 {{key}} 失败：{{error}}",
+        "en_US": "Failed to query {{key}}: {{error}}"
+    },
     "env_manager.error.key_required": {
         "zh_CN": "环境变量名不能为空",
         "en_US": "Environment variable name is required"
@@ -2111,6 +2123,14 @@
         "zh_CN": "环境变量读取失败",
         "en_US": "Environment Variable List Failed"
     },
+    "env_manager.detail.get_success_title": {
+        "zh_CN": "环境变量查询结果",
+        "en_US": "Environment Variable Query Result"
+    },
+    "env_manager.detail.get_failed_title": {
+        "zh_CN": "环境变量查询失败",
+        "en_US": "Environment Variable Query Failed"
+    },
     "env_manager.detail.key": {
         "zh_CN": "变量名",
         "en_US": "Key"
@@ -2126,6 +2146,14 @@
     "env_manager.detail.value": {
         "zh_CN": "变量值",
         "en_US": "Value"
+    },
+    "env_manager.detail.available": {
+        "zh_CN": "可用状态",
+        "en_US": "Availability"
+    },
+    "env_manager.detail.unavailable": {
+        "zh_CN": "不可用",
+        "en_US": "Unavailable"
     },
     "env_manager.detail.error": {
         "zh_CN": "错误",

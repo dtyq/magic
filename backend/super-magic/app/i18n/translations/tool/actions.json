@@ -479,6 +479,10 @@
         "zh_CN": "查看环境变量",
         "en_US": "List environment variables"
     },
+    "get_env": {
+        "zh_CN": "查询环境变量",
+        "en_US": "Query environment variable"
+    },
     "add_server": {
         "zh_CN": "添加新服务",
         "en_US": "Add New Service"

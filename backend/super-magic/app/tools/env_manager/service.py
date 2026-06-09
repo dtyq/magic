@@ -139,16 +139,29 @@ class EnvManagerService:
             "target": self.describe_scope(scope),
         }
 
+    async def get_env(self, key: str | None, scope: str = SCOPE_ALL) -> dict[str, Any]:
+        key = self.validate_key(key)
+        merged = await self._read_merged_records(scope)
+        record = merged.get(key)
+        if record is None:
+            raise EnvManagerError("key_not_found", f"KEY 不存在: {key}", key=key)
+
+        return {
+            "ok": True,
+            "key": key,
+            "scope": scope,
+            "target": self.describe_scope(scope),
+            "value": self._format_record_value(record),
+            "available": record.available,
+        }
+
     async def list_env(self, scope: str = SCOPE_PERSONAL) -> dict[str, Any]:
-        merged: dict[str, EnvValueRecord] = {}
-        for env_path, env_scope in self.get_env_path_specs(scope):
-            # list_env 保留不可用密文的占位记录，让用户能看到损坏变量。
-            merged.update(await self._store.read_records(env_path, self._resolve_identity(env_scope)))
+        merged = await self._read_merged_records(scope)
 
         keys = [
             {
                 "key": key,
-                "value": self.mask_value(merged[key].value) if merged[key].available and merged[key].value else merged[key].value,
+                "value": self._format_record_value(merged[key]),
                 "available": merged[key].available,
             }
             for key in sorted(merged)
@@ -177,3 +190,16 @@ class EnvManagerService:
         if scope == SCOPE_WORKSPACE:
             return self._identity_resolver.resolve_workspace()
         return None
+
+    async def _read_merged_records(self, scope: str) -> dict[str, EnvValueRecord]:
+        merged: dict[str, EnvValueRecord] = {}
+        for env_path, env_scope in self.get_env_path_specs(scope):
+            # 查询和列表都保留不可用密文的占位记录，让用户能看到损坏变量。
+            merged.update(await self._store.read_records(env_path, self._resolve_identity(env_scope)))
+        return merged
+
+    @classmethod
+    def _format_record_value(cls, record: EnvValueRecord) -> str:
+        if record.available and record.value:
+            return cls.mask_value(record.value)
+        return record.value

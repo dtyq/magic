@@ -68,7 +68,7 @@ from app.tools.document_parse import (
     SummarizeDocument,
     UnderstandDocumentImages,
 )
-from app.tools.env_manager import ListEnv, SetEnv, UnsetEnv
+from app.tools.env_manager import GetEnv, ListEnv, SetEnv, UnsetEnv
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
 from app.tools.video_understanding import VideoUnderstanding
@@ -175,6 +175,7 @@ __all__ = [
     "SampleDocumentContent",
     "SummarizeDocument",
     "UnderstandDocumentImages",
+    "GetEnv",
     "ListEnv",
     "SetEnv",
     "UnsetEnv",
