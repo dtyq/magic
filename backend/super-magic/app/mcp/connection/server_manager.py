@@ -15,7 +15,6 @@ from agentlang.tools.tool_result import ToolResult
 from ..config.env_resolver import MCPEnvResolutionError, MCPEnvVarResolver, redact_config_values
 from ..config.models import MCPServerConfig
 from ..tool.models import MCPServerResult, MCPToolInfo, UnavailableToolInfo
-from ..tool.schema_validator import validate_mcp_schema
 from .client import MCPClient
 
 logger = get_logger(__name__)
@@ -341,22 +340,12 @@ class MCPServerManager:
         for tool in tools:
             tool_name = tool["name"]
             input_schema = tool.get("inputSchema", {})
-            is_valid, error = validate_mcp_schema(input_schema, tool_name)
-            if not is_valid:
-                reason = error or "Schema validation failed"
-                logger.warning(f"跳过不可用的 MCP 工具: {config.name}/{tool_name} ({reason})")
-                unavailable.append(UnavailableToolInfo(
-                    name=tool_name,
-                    server_name=config.name,
-                    description=tool.get("description", ""),
-                    error=reason,
-                ))
-                continue
-
+            # MCP 工具现在只通过 Code Mode 调用，不再挂载到大模型 tools 列表；
+            # 因此这里保留上游原始 inputSchema，不再按 OpenAI function schema 规则过滤。
             tool_info = MCPToolInfo(
                 name=tool_name,
                 original_name=tool_name,
-                description=desc_prefix + tool["description"],
+                description=desc_prefix + tool.get("description", ""),
                 inputSchema=input_schema,
                 server_name=config.name,
                 server_options=config.server_options,

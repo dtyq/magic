@@ -35,7 +35,7 @@ class MCPToolInfo:
     name: str                              # 工具名称（原始名称）
     original_name: str                     # 原始工具名称
     description: str
-    inputSchema: Dict[str, Any]
+    inputSchema: Dict[str, Any]              # noqa: N815 - 保持 MCP 原始字段名
     server_name: str                       # 所属服务器名称
     server_options: Optional[Dict[str, Any]] = None
 
@@ -47,7 +47,7 @@ class MCPToolInfo:
 class UnavailableToolInfo:
     """不可用的 MCP 工具信息
 
-    记录因 schema 验证失败等原因无法注册的工具，
+    记录运行期被明确标记为不可用的工具，
     便于查询或调用时返回明确的错误信息。
     """
     name: str                # 工具原始名称

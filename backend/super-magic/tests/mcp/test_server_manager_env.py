@@ -86,3 +86,54 @@ async def test_connect_uses_resolved_config_and_keeps_template(isolated_env_path
     assert captured["config"].headers == {"x-api-key": "mock-header-secret"}
     assert manager.server_configs["mock-amap"].url == "https://mcp.example.test/sse?key=${MOCK_AMAP_KEY}"
     assert manager.server_configs["mock-amap"].headers == {"x-api-key": "${MOCK_HEADER_KEY}"}
+
+
+@pytest.mark.asyncio
+async def test_connect_keeps_code_mode_tools_with_non_openai_json_schema(isolated_env_paths, monkeypatch):
+    class FakeClient:
+        def __init__(self, config, max_retries=1, retry_delay=1.0):
+            self.config = config
+            self.last_error = None
+
+        async def connect(self):
+            return True
+
+        async def list_tools(self):
+            return [
+                {
+                    "name": "mock_invalid_for_openai",
+                    "description": "Mock tool with raw MCP schema",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "raw_columns": {"type": "object"},
+                        },
+                    },
+                },
+                {
+                    "name": "mock_valid",
+                    "description": "Mock valid tool",
+                    "inputSchema": {"type": "object", "properties": {}},
+                },
+            ]
+
+        async def disconnect(self):
+            pass
+
+    monkeypatch.setattr(server_manager_module, "MCPClient", FakeClient)
+    manager = MCPServerManager()
+    manager.server_configs["mock-code-mode"] = MCPServerConfig(
+        name="mock-code-mode",
+        type="http",
+        url="https://mcp.example.test/mcp",
+    )
+
+    result = await manager.ensure_server_connected("mock-code-mode")
+
+    assert result.status == "success"
+    assert result.tools == ["mock_invalid_for_openai", "mock_valid"]
+    assert [info.original_name for info in manager.get_server_tools("mock-code-mode")] == [
+        "mock_invalid_for_openai",
+        "mock_valid",
+    ]
+    assert manager.get_unavailable_tools("mock-code-mode") == []
