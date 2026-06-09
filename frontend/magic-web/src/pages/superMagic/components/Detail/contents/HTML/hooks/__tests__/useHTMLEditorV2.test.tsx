@@ -71,9 +71,11 @@ function createIframeRef() {
 
 interface TestHarnessProps {
 	isEditMode: boolean
+	contentInjected?: boolean
+	renderSiteUrl?: string
 }
 
-function TestHarness({ isEditMode }: TestHarnessProps) {
+function TestHarness({ isEditMode, contentInjected = true, renderSiteUrl }: TestHarnessProps) {
 	const iframeRef = useRef(createIframeRef().current)
 	const editorRef = useRef<HTMLEditorV2Ref>(null)
 
@@ -83,7 +85,9 @@ function TestHarness({ isEditMode }: TestHarnessProps) {
 		isEditMode,
 		sandboxType: "iframe",
 		iframeLoaded: true,
-		contentInjected: true,
+		contentInjected,
+		renderSiteUrl,
+		targetOrigin: "*",
 		filePathMapping: new Map(),
 	})
 
@@ -123,6 +127,57 @@ describe("useHTMLEditorV2 edit lifecycle", () => {
 		})
 
 		rerender(<TestHarness isEditMode />)
+
+		await waitFor(() => {
+			expect(bridgeState.requests).toEqual([
+				EditorMessageType.ENTER_EDIT_MODE,
+				EditorMessageType.ENTER_SELECTION_MODE,
+				EditorMessageType.EXIT_EDIT_MODE,
+				EditorMessageType.EXIT_SELECTION_MODE,
+				EditorMessageType.ENTER_EDIT_MODE,
+				EditorMessageType.ENTER_SELECTION_MODE,
+			])
+		})
+	})
+
+	it("keeps runtime ready when cross-domain ready arrives before content reinjection completes", async () => {
+		const { rerender } = render(<TestHarness isEditMode renderSiteUrl="https://render.test" />)
+
+		await waitFor(() => expect(bridgeState.instances).toHaveLength(1))
+		act(() => {
+			bridgeState.instances[0].emit("EDITOR_READY")
+		})
+
+		await waitFor(() => {
+			expect(bridgeState.requests).toEqual([
+				EditorMessageType.ENTER_EDIT_MODE,
+				EditorMessageType.ENTER_SELECTION_MODE,
+			])
+		})
+
+		rerender(
+			<TestHarness
+				isEditMode={false}
+				contentInjected={false}
+				renderSiteUrl="https://render.test"
+			/>,
+		)
+
+		await waitFor(() => {
+			expect(bridgeState.requests).toEqual([
+				EditorMessageType.ENTER_EDIT_MODE,
+				EditorMessageType.ENTER_SELECTION_MODE,
+				EditorMessageType.EXIT_EDIT_MODE,
+				EditorMessageType.EXIT_SELECTION_MODE,
+			])
+		})
+
+		act(() => {
+			bridgeState.instances[0].emit("EDITOR_READY")
+		})
+
+		rerender(<TestHarness isEditMode={false} renderSiteUrl="https://render.test" />)
+		rerender(<TestHarness isEditMode renderSiteUrl="https://render.test" />)
 
 		await waitFor(() => {
 			expect(bridgeState.requests).toEqual([
