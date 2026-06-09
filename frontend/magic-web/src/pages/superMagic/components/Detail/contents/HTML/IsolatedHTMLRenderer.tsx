@@ -45,6 +45,7 @@ import {
 	useElementInspector,
 	ElementInspectorOverlay,
 } from "@/components/business/ElementInspector"
+import type { CanonicalContentDimensions } from "./utils/slide-dimensions"
 export interface IsolatedHTMLRendererRef {
 	getIframeElement: () => HTMLIFrameElement | null
 	getEditorRef: () => React.RefObject<HTMLEditorV2Ref> | null
@@ -133,6 +134,7 @@ interface IsolatedHTMLRendererProps {
 	containIframeOverscroll?: boolean //控制HTML预览增强组件内部是否启用
 	hideVerticalScroll?: boolean
 	enableScalingHeightCalculation?: boolean
+	scaleContentDimensions?: CanonicalContentDimensions | null
 	waitForSettledContentMetrics?: boolean
 	autoFitScalePaddingFactor?: number
 	disableDynamicResourceInterception?: boolean
@@ -228,6 +230,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			containIframeOverscroll = false,
 			hideVerticalScroll = false,
 			enableScalingHeightCalculation = false,
+			scaleContentDimensions,
 			waitForSettledContentMetrics = false,
 			autoFitScalePaddingFactor = 1,
 			disableDynamicResourceInterception = false,
@@ -292,6 +295,8 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			contentHeight: number
 			phase?: "initial" | "settled"
 		} | null>(null)
+		const shouldWaitForSettledContentMetrics =
+			waitForSettledContentMetrics && !scaleContentDimensions
 
 		// 使用缩放控制 hook 处理 PPT 渲染模式
 		const {
@@ -314,8 +319,9 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			isEditMode,
 			selectedElementRect,
 			enableHeightCalculation: enableScalingHeightCalculation,
+			scaleContentDimensions,
 			contentMetricsOverride: scalingContentMetrics,
-			waitForSettledContentMetrics,
+			waitForSettledContentMetrics: shouldWaitForSettledContentMetrics,
 			autoFitScalePaddingFactor,
 		})
 
@@ -1195,7 +1201,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					// 页面完全加载完成（包括图片、样式表等）
 					notifyRenderReady()
 					// When sandbox doesn't support contentMetrics, unblock scaling after timeout
-					if (waitForSettledContentMetrics) {
+					if (shouldWaitForSettledContentMetrics) {
 						if (contentMetricsFallbackTimerRef.current) {
 							clearTimeout(contentMetricsFallbackTimerRef.current)
 						}
@@ -1237,17 +1243,19 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 							),
 						}
 
-						setScalingContentMetrics((prev) => {
-							if (prev?.phase === "settled" && metricsPhase !== "settled") {
-								return prev
-							}
+						if (!scaleContentDimensions) {
+							setScalingContentMetrics((prev) => {
+								if (prev?.phase === "settled" && metricsPhase !== "settled") {
+									return prev
+								}
 
-							return {
-								contentWidth,
-								contentHeight,
-								phase: metricsPhase,
-							}
-						})
+								return {
+									contentWidth,
+									contentHeight,
+									phase: metricsPhase,
+								}
+							})
+						}
 						onContentMetrics?.({
 							contentWidth,
 							contentHeight,

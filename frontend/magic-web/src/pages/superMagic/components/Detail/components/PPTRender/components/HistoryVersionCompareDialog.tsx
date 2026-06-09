@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next"
-import { useRef, useState, useEffect } from "react"
+import { useMemo, useRef, useState, useEffect } from "react"
 import { Check } from "lucide-react"
 import MagicModal from "@/components/base/MagicModal"
 import IsolatedHTMLRenderer, {
 	type IsolatedHTMLRendererRef,
 } from "../../../contents/HTML/IsolatedHTMLRenderer"
+import { resolvePptScaleContentDimensions } from "../../../contents/HTML/utils/slide-dimensions"
 import {
 	Select,
 	SelectContent,
@@ -75,6 +76,14 @@ function HistoryVersionCompareDialog({
 	const [selectedVersion, setSelectedVersion] = useState<"latest" | "history">("history")
 	// 当前选中的历史版本号
 	const [currentHistoryVersion, setCurrentHistoryVersion] = useState<number>(historyVersion)
+	const latestScaleContentDimensions = useMemo(
+		() => resolvePptScaleContentDimensions(latestContent),
+		[latestContent],
+	)
+	const historyScaleContentDimensions = useMemo(
+		() => resolvePptScaleContentDimensions(historyContent),
+		[historyContent],
+	)
 
 	// 当弹窗打开时重置状态
 	useEffect(() => {
@@ -124,19 +133,21 @@ function HistoryVersionCompareDialog({
 				<div className="flex h-[65vh] gap-4 overflow-hidden px-6">
 					{/* 左侧 - 最新版本 */}
 					<div
-						className={`flex min-w-0 flex-1 cursor-pointer flex-col gap-2 rounded-lg border-2 p-2 transition-all ${selectedVersion === "latest"
+						className={`flex min-w-0 flex-1 cursor-pointer flex-col gap-2 rounded-lg border-2 p-2 transition-all ${
+							selectedVersion === "latest"
 								? "border-primary bg-primary/5"
 								: "border-transparent hover:border-border"
-							}`}
+						}`}
 						onClick={() => setSelectedVersion("latest")}
 					>
 						<div className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-1.5">
 							<div className="flex items-center gap-2">
 								<div
-									className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-all ${selectedVersion === "latest"
+									className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-all ${
+										selectedVersion === "latest"
 											? "border-primary bg-primary"
 											: "border-muted-foreground/30"
-										}`}
+									}`}
 								>
 									{selectedVersion === "latest" && (
 										<Check className="h-3 w-3 text-primary-foreground" />
@@ -152,8 +163,10 @@ function HistoryVersionCompareDialog({
 								key={`latest-${open}`}
 								ref={latestVersionRendererRef}
 								content={latestContent}
+								rawSourceCode={latestContent}
 								sandboxType="iframe"
 								isPptRender={true}
+								scaleContentDimensions={latestScaleContentDimensions}
 								isEditMode={false}
 								filePathMapping={filePathMapping}
 								openNewTab={openNewTab}
@@ -167,19 +180,21 @@ function HistoryVersionCompareDialog({
 
 					{/* 右侧 - 历史版本 */}
 					<div
-						className={`flex min-w-0 flex-1 flex-col gap-2 rounded-lg border-2 p-2 transition-all ${selectedVersion === "history"
+						className={`flex min-w-0 flex-1 flex-col gap-2 rounded-lg border-2 p-2 transition-all ${
+							selectedVersion === "history"
 								? "border-primary bg-primary/5"
 								: "border-transparent hover:border-border"
-							}`}
+						}`}
 						onClick={() => setSelectedVersion("history")}
 					>
 						<div className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-1.5">
 							<div className="flex flex-1 cursor-pointer items-center gap-2">
 								<div
-									className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-all ${selectedVersion === "history"
+									className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-all ${
+										selectedVersion === "history"
 											? "border-primary bg-primary"
 											: "border-muted-foreground/30"
-										}`}
+									}`}
 								>
 									{selectedVersion === "history" && (
 										<Check className="h-3 w-3 text-primary-foreground" />
@@ -226,8 +241,10 @@ function HistoryVersionCompareDialog({
 								key={`history-${currentHistoryVersion}`}
 								ref={historyVersionRendererRef}
 								content={historyContent}
+								rawSourceCode={historyContent}
 								sandboxType="iframe"
 								isPptRender={true}
+								scaleContentDimensions={historyScaleContentDimensions}
 								isEditMode={false}
 								filePathMapping={filePathMapping}
 								openNewTab={openNewTab}

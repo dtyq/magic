@@ -1,10 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { SlideScreenshotService } from "../SlideScreenshotService"
+import { snapdom } from "@zumer/snapdom"
+
+const snapdomMocks = vi.hoisted(() => {
+	let counter = 0
+
+	return {
+		toWebp: vi.fn(async () => {
+			counter += 1
+			return { src: `blob:mock-url-${counter}` }
+		}),
+		resetCounter: () => {
+			counter = 0
+		},
+	}
+})
 
 // Mock snapdom
 vi.mock("@zumer/snapdom", () => ({
 	snapdom: vi.fn().mockResolvedValue({
-		toBlob: vi.fn().mockResolvedValue(new Blob(["mock-image"], { type: "image/png" })),
+		toWebp: snapdomMocks.toWebp,
 	}),
 }))
 
@@ -17,6 +32,7 @@ describe("SlideScreenshotService", () => {
 
 	beforeEach(() => {
 		service = new SlideScreenshotService()
+		snapdomMocks.resetCounter()
 		vi.clearAllMocks()
 	})
 
@@ -32,7 +48,36 @@ describe("SlideScreenshotService", () => {
 			const thumbnailUrl = await service.generateScreenshot(url, content)
 
 			expect(thumbnailUrl).toMatch(/^blob:mock-url-/)
-			expect(global.URL.createObjectURL).toHaveBeenCalled()
+			expect(snapdomMocks.toWebp).toHaveBeenCalledWith({
+				width: 1920 / 4,
+				height: 1080 / 4,
+				quality: 0.8,
+			})
+		})
+
+		it("captures the slide container with embedded fonts for visual parity", async () => {
+			const url = "https://example.com/philosophy.html"
+			const content = `
+				<html>
+					<body>
+						<div class="slide-container">
+							<h1 class="page-title">EVOLUTION PHILOSOPHY</h1>
+						</div>
+					</body>
+				</html>
+			`
+
+			await service.generateScreenshot(url, content)
+
+			expect(snapdom).toHaveBeenCalledTimes(1)
+			const [target, options] = vi.mocked(snapdom).mock.calls[0]
+			expect((target as HTMLElement).classList.contains("slide-container")).toBe(true)
+			expect(options).toMatchObject({
+				width: 1920,
+				height: 1080,
+				backgroundColor: "#ffffff",
+				embedFonts: true,
+			})
 		})
 
 		it("should throw error for empty content", async () => {

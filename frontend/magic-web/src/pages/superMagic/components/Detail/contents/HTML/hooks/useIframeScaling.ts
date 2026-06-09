@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useDebounceFn } from "ahooks"
+import type { CanonicalContentDimensions } from "../utils/slide-dimensions"
 
 export interface IframeScalingConfig {
 	containerRef: React.RefObject<HTMLDivElement>
@@ -11,6 +12,7 @@ export interface IframeScalingConfig {
 	enableHeightCalculation?: boolean
 	isVisible?: boolean
 	manualScale?: number // Manual scale factor (1.0 = 100%, null = auto)
+	scaleContentDimensions?: CanonicalContentDimensions | null
 	contentMetricsOverride?: {
 		contentWidth: number
 		contentHeight: number
@@ -35,6 +37,7 @@ export interface IframeScalingResult {
 }
 
 const CONTENT_BASE_WIDTH = 1920 // Base width for content scaling
+const DEFAULT_CONTENT_HEIGHT = 1080
 /**
  * Hook to manage iframe scaling and positioning for PPT render mode
  * Calculates scale ratio, offsets, and content dimensions based on container size and actual content height
@@ -50,6 +53,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		enableHeightCalculation = true,
 		isVisible = true,
 		manualScale,
+		scaleContentDimensions,
 		contentMetricsOverride,
 		waitForSettledContentMetrics = false,
 		autoFitScalePaddingFactor = 1,
@@ -60,12 +64,12 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 	const [internalHorizontalOffset, setInternalHorizontalOffset] = useState(0)
 	const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 })
 	const [contentWidth, setContentWidth] = useState(CONTENT_BASE_WIDTH)
-	const [contentHeight, setContentHeight] = useState(1080) // Default fallback height
+	const [contentHeight, setContentHeight] = useState(DEFAULT_CONTENT_HEIGHT)
 	const [hasSlideContainer, setHasSlideContainer] = useState(false)
 	const [isScaleReady, setIsScaleReady] = useState(false)
 	const [localManualScale, setLocalManualScale] = useState<number | null>(null)
 	const contentWidthRef = useRef(CONTENT_BASE_WIDTH)
-	const contentHeightRef = useRef(1080)
+	const contentHeightRef = useRef(DEFAULT_CONTENT_HEIGHT)
 	const slideCheckTimerRef = useRef<number | null>(null)
 	const heightMeasureTimerRef = useRef<number | null>(null)
 
@@ -122,9 +126,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 	}, [iframeRef])
 
 	const getActualContentHeight = useCallback((): number => {
-		if (!iframeRef.current?.contentDocument?.body) {
-			return 1080 // Fallback to default height
-		}
+		if (!iframeRef.current?.contentDocument?.body) return DEFAULT_CONTENT_HEIGHT
 
 		try {
 			const body = iframeRef.current.contentDocument.body
@@ -139,10 +141,10 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 				html.offsetHeight,
 			)
 
-			return height || 1080 // Fallback if height is 0
+			return height || DEFAULT_CONTENT_HEIGHT
 		} catch (error) {
 			console.error("Error getting iframe content height:", error)
-			return 1080
+			return DEFAULT_CONTENT_HEIGHT
 		}
 	}, [iframeRef])
 
@@ -168,11 +170,16 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 	const calculateScaleAndDimensionsSync = useCallback(
 		(nextContentWidth?: number, nextContentHeight?: number) => {
 			// Sync compute to avoid first-frame flicker
-			if (!containerRef.current || (!isPptRender && !hasSlideContainer) || !isVisible) {
+			if (
+				!containerRef.current ||
+				(!isPptRender && !hasSlideContainer && !scaleContentDimensions) ||
+				!isVisible
+			) {
 				return false
 			}
 			if (
 				waitForSettledContentMetrics &&
+				!scaleContentDimensions &&
 				(!contentMetricsOverride || contentMetricsOverride.phase !== "settled")
 			) {
 				return false
@@ -183,15 +190,18 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 
 			if (!containerWidth || !containerHeight) return false
 
-			const actualWidth =
-				contentMetricsOverride?.phase === "settled"
+			const actualWidth = scaleContentDimensions
+				? scaleContentDimensions.width
+				: contentMetricsOverride?.phase === "settled"
 					? contentMetricsOverride.contentWidth
 					: (nextContentWidth ?? contentWidthRef.current)
 			const actualHeight = enableHeightCalculation
-				? contentMetricsOverride?.phase === "settled"
-					? contentMetricsOverride.contentHeight
-					: (nextContentHeight ?? contentHeightRef.current)
-				: 1080
+				? scaleContentDimensions
+					? scaleContentDimensions.height
+					: contentMetricsOverride?.phase === "settled"
+						? contentMetricsOverride.contentHeight
+						: (nextContentHeight ?? contentHeightRef.current)
+				: (scaleContentDimensions?.height ?? DEFAULT_CONTENT_HEIGHT)
 
 			// Update container dimensions
 			updateContainerDimensions(containerWidth, containerHeight)
@@ -240,6 +250,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 			hasSlideContainer,
 			isPptRender,
 			isVisible,
+			scaleContentDimensions,
 			contentMetricsOverride,
 			waitForSettledContentMetrics,
 			autoFitScalePaddingFactor,
@@ -261,6 +272,10 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 	// Check for slide-container after content is injected
 	useEffect(() => {
 		if (!iframeLoaded || !contentInjected) return
+		if (scaleContentDimensions) {
+			setHasSlideContainer(false)
+			return
+		}
 		if (slideCheckTimerRef.current) {
 			window.clearTimeout(slideCheckTimerRef.current)
 		}
@@ -275,13 +290,22 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 				window.clearTimeout(slideCheckTimerRef.current)
 			}
 		}
-	}, [checkForSlideContainer, iframeLoaded, contentInjected])
+	}, [checkForSlideContainer, iframeLoaded, contentInjected, scaleContentDimensions])
 
 	// Measure content height after content is injected
 	useEffect(() => {
 		if (!enableHeightCalculation) return
 		if (!iframeLoaded || !contentInjected) return
 		if (!isVisible) return
+		if (scaleContentDimensions) {
+			updateContentWidth(scaleContentDimensions.width)
+			updateContentHeight(scaleContentDimensions.height)
+			calculateScaleAndDimensionsSync(
+				scaleContentDimensions.width,
+				scaleContentDimensions.height,
+			)
+			return
+		}
 
 		if (heightMeasureTimerRef.current) {
 			window.clearTimeout(heightMeasureTimerRef.current)
@@ -308,25 +332,30 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		getActualContentWidth,
 		getActualContentHeight,
 		isVisible,
+		scaleContentDimensions,
 		updateContentWidth,
 		updateContentHeight,
 	])
 
 	useEffect(() => {
 		if (enableHeightCalculation) return
-		updateContentWidth(CONTENT_BASE_WIDTH)
-		updateContentHeight(1080)
+		const nextWidth = scaleContentDimensions?.width ?? CONTENT_BASE_WIDTH
+		const nextHeight = scaleContentDimensions?.height ?? DEFAULT_CONTENT_HEIGHT
+		updateContentWidth(nextWidth)
+		updateContentHeight(nextHeight)
 		if (!isVisible) return
-		calculateScaleAndDimensionsSync(CONTENT_BASE_WIDTH, 1080)
+		calculateScaleAndDimensionsSync(nextWidth, nextHeight)
 	}, [
 		calculateScaleAndDimensionsSync,
 		enableHeightCalculation,
 		isVisible,
+		scaleContentDimensions,
 		updateContentHeight,
 		updateContentWidth,
 	])
 
 	useEffect(() => {
+		if (scaleContentDimensions) return
 		if (!contentMetricsOverride || contentMetricsOverride.phase !== "settled") return
 		updateContentWidth(contentMetricsOverride.contentWidth)
 		updateContentHeight(contentMetricsOverride.contentHeight)
@@ -337,6 +366,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 	}, [
 		calculateScaleAndDimensionsSync,
 		contentMetricsOverride,
+		scaleContentDimensions,
 		updateContentHeight,
 		updateContentWidth,
 	])
@@ -351,7 +381,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 	useEffect(() => {
 		if (!isVisible) return
 		if (!iframeLoaded || !contentInjected) return
-		if (!isPptRender && !hasSlideContainer) return
+		if (!isPptRender && !hasSlideContainer && !scaleContentDimensions) return
 		calculateScaleAndDimensions()
 	}, [
 		calculateScaleAndDimensions,
@@ -360,13 +390,24 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		iframeLoaded,
 		isPptRender,
 		isVisible,
+		scaleContentDimensions,
 	])
 
 	// Synchronous scale calculation to avoid flicker during paint
 	useLayoutEffect(() => {
 		if (!isVisible) return
 		if (!iframeLoaded || !contentInjected) return
-		if (!isPptRender && !hasSlideContainer) return
+		if (!isPptRender && !hasSlideContainer && !scaleContentDimensions) return
+
+		if (scaleContentDimensions) {
+			updateContentWidth(scaleContentDimensions.width)
+			updateContentHeight(scaleContentDimensions.height)
+			calculateScaleAndDimensionsSync(
+				scaleContentDimensions.width,
+				scaleContentDimensions.height,
+			)
+			return
+		}
 
 		if (enableHeightCalculation) {
 			const actualWidth = getActualContentWidth()
@@ -376,7 +417,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 			calculateScaleAndDimensionsSync(actualWidth, actualHeight)
 			return
 		}
-		calculateScaleAndDimensionsSync(CONTENT_BASE_WIDTH, 1080)
+		calculateScaleAndDimensionsSync(CONTENT_BASE_WIDTH, DEFAULT_CONTENT_HEIGHT)
 	}, [
 		calculateScaleAndDimensionsSync,
 		contentInjected,
@@ -388,6 +429,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		iframeRef,
 		isPptRender,
 		isVisible,
+		scaleContentDimensions,
 		updateContentWidth,
 		updateContentHeight,
 	])
@@ -395,20 +437,21 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 	// Recalculate after mode switches or fullscreen changes
 	useEffect(() => {
 		if (!iframeLoaded || !contentInjected) return
-		if (!isPptRender && !hasSlideContainer) return
+		if (!isPptRender && !hasSlideContainer && !scaleContentDimensions) return
 		calculateScaleAndDimensions()
 	}, [
 		calculateScaleAndDimensions,
 		isFullscreen,
 		isPptRender,
 		hasSlideContainer,
+		scaleContentDimensions,
 		iframeLoaded,
 		contentInjected,
 	])
 
 	// Listen to container resize events
 	useEffect(() => {
-		if (!isPptRender && !hasSlideContainer) return
+		if (!isPptRender && !hasSlideContainer && !scaleContentDimensions) return
 		// Use ResizeObserver to monitor container size changes
 		const container = containerRef.current
 		if (!container) return
@@ -422,7 +465,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		}
 		// containerRef is intentionally omitted from deps as ref objects don't trigger re-renders
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [calculateScaleAndDimensions, isPptRender, hasSlideContainer])
+	}, [calculateScaleAndDimensions, isPptRender, hasSlideContainer, scaleContentDimensions])
 
 	// Set manual scale function
 	const setManualScale = useCallback((scale: number | null) => {
@@ -449,7 +492,7 @@ export function useIframeScaling(config: IframeScalingConfig): IframeScalingResu
 		contentWidth,
 		contentHeight,
 		containerDimensions,
-		shouldApplyScaling: isPptRender || hasSlideContainer,
+		shouldApplyScaling: isPptRender || hasSlideContainer || Boolean(scaleContentDimensions),
 		isScaleReady,
 		setManualScale,
 		resetScale,

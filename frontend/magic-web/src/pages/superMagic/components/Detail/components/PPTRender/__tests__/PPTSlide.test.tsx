@@ -13,6 +13,7 @@ const mockState = vi.hoisted(() => ({
 	onManualSave: vi.fn(),
 	onDeactivate: vi.fn(),
 	saveEditContent: vi.fn(),
+	renderedIsolatedProps: vi.fn(),
 }))
 
 vi.mock("react-i18next", () => ({
@@ -106,9 +107,19 @@ vi.mock("../../../contents/HTML/IsolatedHTMLRenderer", async () => {
 	return {
 		__esModule: true,
 		default: React.forwardRef(function MockIsolatedHTMLRenderer(
-			{ onSaveReady }: { onSaveReady?: (triggerSave: () => Promise<unknown>) => void },
+			{
+				onSaveReady,
+				...props
+			}: {
+				onSaveReady?: (triggerSave: () => Promise<unknown>) => void
+				content?: string
+				rawSourceCode?: string
+				scaleContentDimensions?: unknown
+			},
 			ref,
 		) {
+			mockState.renderedIsolatedProps(props)
+
 			React.useImperativeHandle(ref, () => ({
 				updateContent: mockState.updateContent,
 				resetContent: mockState.resetContent,
@@ -349,6 +360,23 @@ describe("PPTSlide", () => {
 		mockState.saveEditContent.mockReset()
 		mockState.saveEditContent.mockResolvedValue(undefined)
 		mockState.onDeactivate.mockReset()
+		mockState.renderedIsolatedProps.mockReset()
+	})
+
+	it("向 HTML renderer 传入 PPT 固定缩放尺寸", () => {
+		renderPPTSlide({
+			content: '<div class="slide-container" data-width="1600" data-height="900"></div>',
+			rawContent: '<div class="slide-container" data-width="1920" data-height="1080"></div>',
+		})
+
+		expect(mockState.renderedIsolatedProps).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: '<div class="slide-container" data-width="1600" data-height="900"></div>',
+				rawSourceCode:
+					'<div class="slide-container" data-width="1920" data-height="1080"></div>',
+				scaleContentDimensions: { width: 1600, height: 900 },
+			}),
+		)
 	})
 
 	it("点击保存后保持编辑态", async () => {
