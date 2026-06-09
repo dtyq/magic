@@ -91,6 +91,7 @@
 		"@dtyq/timezone": "^0.0.2",
 		"@dtyq/upload-sdk": "~0.0.9",
 		"@dtyq/user-selector": "^0.1.10",
+		"@dtyq/x-markdown": "workspace:*",
 		"@emotion/css": "^11.11.2",
 		"@floating-ui/dom": "^1.6.0",
 		"@floating-ui/react": "^0.26.28",
