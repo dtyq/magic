@@ -652,8 +652,6 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 
 		// 退出编辑模式：发送退出请求并清理编辑态（但不销毁 bridge）
 		if (!nextIsEditMode) {
-			hasInjectedScriptRef.current = false
-			setIsRuntimeReady(false)
 			editLifecycleRef.current = "idle"
 
 			if (!wasEditMode) return
