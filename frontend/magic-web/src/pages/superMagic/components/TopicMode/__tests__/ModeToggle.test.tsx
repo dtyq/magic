@@ -204,6 +204,7 @@ import ModeToggle from "../ModeToggle"
 describe("ModeToggle", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		vi.useRealTimers()
 	})
 
 	it("keeps the popover open when toggling a mode description", () => {
@@ -276,5 +277,29 @@ describe("ModeToggle", () => {
 		expect(
 			screen.getByTestId("super-message-editor-mode-toggle-create-topic-button"),
 		).toHaveTextContent("Create New Chat")
+	})
+
+	it("publishes the requested mode when creating a new topic from a locked topic", () => {
+		vi.useFakeTimers()
+		const onModeChange = vi.fn()
+
+		render(
+			<ModeToggle
+				topicMode={"mode-a" as never}
+				allowChangeMode={false}
+				onModeChange={onModeChange}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("mock-popover-trigger"))
+
+		const modeItems = screen.getAllByTestId("super-message-editor-mode-toggle-item")
+		fireEvent.click(modeItems[1])
+		fireEvent.click(screen.getByTestId("super-message-editor-mode-toggle-create-topic-button"))
+
+		vi.runAllTimers()
+
+		expect(publishMock).toHaveBeenCalledWith("Create_New_Topic", { topicMode: "mode-b" })
+		expect(onModeChange).toHaveBeenCalledWith("mode-b")
 	})
 })

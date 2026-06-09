@@ -28,6 +28,7 @@ import { CodeEditor } from "@/components/base"
 import { shadow } from "@/utils/shadow"
 import { useMemoizedFn } from "ahooks"
 import { processHtmlContent, type ProcessHtmlContentInput } from "../../contents/HTML/htmlProcessor"
+import { resolvePptScaleContentDimensions } from "../../contents/HTML/utils/slide-dimensions"
 import { usePPTVersionManager } from "./hooks/usePPTVersionManager"
 import { cn } from "@/lib/utils"
 import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
@@ -166,6 +167,10 @@ const PPTSlide = observer(function PPTSlide({
 		content: content,
 		rawContent: rawContent,
 	})
+	const scaleContentDimensions = useMemo(
+		() => resolvePptScaleContentDimensions(displayContent.content, displayContent.rawContent),
+		[displayContent.content, displayContent.rawContent],
+	)
 
 	// 历史版本对比弹窗状态
 	const [showHistoryCompareDialog, setShowHistoryCompareDialog] = useState(false)
@@ -766,9 +771,11 @@ const PPTSlide = observer(function PPTSlide({
 		) : (
 			<IsolatedHTMLRenderer
 				ref={rendererRef as React.RefObject<IsolatedHTMLRendererRef>}
-				content={content}
+				content={displayContent.content}
+				rawSourceCode={displayContent.rawContent}
 				sandboxType="iframe"
 				isPptRender
+				scaleContentDimensions={scaleContentDimensions}
 				isFullscreen={isFullscreen}
 				isEditMode={isEditMode}
 				isVisible={isActive}

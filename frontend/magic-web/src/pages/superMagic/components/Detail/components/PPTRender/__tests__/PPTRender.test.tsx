@@ -125,12 +125,22 @@ vi.mock("../PPTSlide", async () => {
 		onRegisterSaveHandler,
 		onRegisterCloseSaveHandler,
 		onRegisterDiscardHandler,
+		onManualSave,
 	}: {
 		isActive?: boolean
 		onEditModeChange?: (isEditing: boolean) => void
 		onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void
 		onRegisterCloseSaveHandler?: (handler: (() => Promise<boolean>) | null) => void
 		onRegisterDiscardHandler?: (handler: (() => Promise<boolean>) | null) => void
+		onManualSave?: (
+			saveResult: {
+				fileId?: string
+				success?: boolean
+				cleanContent?: string
+				rawContent?: string
+			},
+			index: number,
+		) => Promise<void>
 	}) {
 		React.useEffect(() => {
 			if (!isActive) return
@@ -147,7 +157,26 @@ vi.mock("../PPTSlide", async () => {
 			onRegisterDiscardHandler,
 		])
 
-		return <div data-testid="ppt-slide" />
+		return (
+			<button
+				type="button"
+				data-testid="ppt-slide-manual-save"
+				onClick={() =>
+					void onManualSave?.(
+						{
+							fileId: "slide-file-id",
+							success: true,
+							cleanContent:
+								'<div class="slide-container" style="background-image:url(assets/bg.png)">raw</div>',
+							rawContent: "<html>raw editor content</html>",
+						},
+						0,
+					)
+				}
+			>
+				ppt-slide
+			</button>
+		)
 	}
 
 	return {
@@ -286,6 +315,12 @@ describe("PPTRender", () => {
 		mockState.store.setActiveIndex.mockReset()
 		mockState.store.getFileIdByPath.mockClear()
 		mockState.store.getSlideServerUpdate.mockClear()
+		mockState.store.updateSlideContent.mockReset()
+		mockState.store.updateSlideContent.mockResolvedValue(
+			'<div class="slide-container" style="background-image:url(blob:processed-bg)">processed</div>',
+		)
+		mockState.store.generateSlideScreenshot.mockReset()
+		mockState.store.markSlideAsManuallySaved.mockReset()
 		mockState.navigateSaveHandler.mockReset()
 		mockState.navigateSaveHandler.mockResolvedValue(true)
 		mockState.closeSaveHandler.mockReset()
@@ -327,6 +362,24 @@ describe("PPTRender", () => {
 			"fresh-1.html",
 			"fresh-2.html",
 		])
+	})
+
+	it("regenerates the saved slide thumbnail from processed content", async () => {
+		renderPPTRender()
+
+		fireEvent.click(screen.getByTestId("ppt-slide-manual-save"))
+
+		await waitFor(() => {
+			expect(mockState.store.generateSlideScreenshot).toHaveBeenCalledWith(
+				0,
+				'<div class="slide-container" style="background-image:url(blob:processed-bg)">processed</div>',
+			)
+		})
+		expect(mockState.store.updateSlideContent).toHaveBeenCalledWith(
+			0,
+			'<div class="slide-container" style="background-image:url(assets/bg.png)">raw</div>',
+		)
+		expect(mockState.store.markSlideAsManuallySaved).toHaveBeenCalledWith("slide-file-id")
 	})
 
 	it("shows the save-and-close confirmation and calls the active slide close-save handler", async () => {
