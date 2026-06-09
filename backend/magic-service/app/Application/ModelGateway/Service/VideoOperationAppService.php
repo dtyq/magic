@@ -33,7 +33,6 @@ use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\MagicApiErrorCode;
-use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -87,7 +86,7 @@ readonly class VideoOperationAppService
         private VideoBillingDetailsResolver $videoBillingDetailsResolver,
         private VideoMediaProbeInterface $videoMediaProbe,
         private VideoInputMediaMetadataResolver $videoInputMediaMetadataResolver,
-        //        private Producer $producer,
+        private Producer $producer,
         private LockerInterface $locker,
     ) {
     }
@@ -179,9 +178,12 @@ readonly class VideoOperationAppService
         // 先保存 operation hash，再写入并发槽位，避免并发清理把正在提交 provider 的任务误判为无效槽位。
         $this->videoQueueDomainService->saveOperation($operation);
 
+        // 占用新槽位前主动同步当前用户运行中的旧任务，释放已完成但调用方未轮询的残留槽位。
+        $this->recoverUserActiveOperationsBeforeClaim($operation);
+
         try {
             // 提交 provider 前先按套餐占用个人视频运行槽位
-            $this->claimUserActiveOperationWithRecovery(
+            $this->videoQueueDomainService->claimUserActiveOperation(
                 $operation,
                 $personalVideoGenerationConcurrencyLimit,
             );
@@ -312,23 +314,6 @@ readonly class VideoOperationAppService
                 'provider_task_id' => $operation->getProviderTaskId(),
             ]);
         });
-    }
-
-    private function claimUserActiveOperationWithRecovery(
-        VideoQueueOperationEntity $operation,
-        ?int $personalVideoGenerationConcurrencyLimit,
-    ): void {
-        try {
-            $this->videoQueueDomainService->claimUserActiveOperation($operation, $personalVideoGenerationConcurrencyLimit);
-            return;
-        } catch (BusinessException $throwable) {
-            if ($throwable->getCode() !== MagicApiErrorCode::RATE_LIMIT->value) {
-                throw $throwable;
-            }
-
-            $this->recoverUserActiveOperationsBeforeClaim($operation);
-            $this->videoQueueDomainService->claimUserActiveOperation($operation, $personalVideoGenerationConcurrencyLimit);
-        }
     }
 
     private function recoverUserActiveOperationsBeforeClaim(
@@ -482,23 +467,26 @@ readonly class VideoOperationAppService
                 'error_code' => is_array($result['error'] ?? null) ? ($result['error']['code'] ?? null) : null,
             ]);
 
-            if ($previousStatus !== $syncResult->getStatus()) {
-                $this->logger->info('video operation status changed', [
-                    'operation_id' => $operation->getId(),
-                    'organization_code' => $operation->getOrganizationCode(),
-                    'provider_task_id' => $providerTaskId,
-                    'previous_status' => $previousStatus->value,
-                    'current_status' => $syncResult->getStatus()->value,
-                ]);
-            }
+            try {
+                if ($previousStatus !== $syncResult->getStatus()) {
+                    $this->logger->info('video operation status changed', [
+                        'operation_id' => $operation->getId(),
+                        'organization_code' => $operation->getOrganizationCode(),
+                        'provider_task_id' => $providerTaskId,
+                        'previous_status' => $previousStatus->value,
+                        'current_status' => $syncResult->getStatus()->value,
+                    ]);
+                }
 
-            if ($syncResult->isFirstSucceeded()) {
-                $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult, $businessParams);
-            } elseif ($syncResult->isStatusChanged() && $syncResult->getStatus() === VideoOperationStatus::FAILED) {
-                $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
+                if ($syncResult->isFirstSucceeded()) {
+                    $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult, $businessParams);
+                } elseif ($syncResult->isStatusChanged() && $syncResult->getStatus() === VideoOperationStatus::FAILED) {
+                    $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
+                }
+            } finally {
+                $this->videoQueueDomainService->saveOperation($operation);
+                $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
             }
-            $this->videoQueueDomainService->saveOperation($operation);
-            $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
         } catch (ProviderVideoException $throwable) {
             if (! $failOnProviderQueryException) {
                 throw $throwable;
@@ -519,7 +507,7 @@ readonly class VideoOperationAppService
 
     private function dispatchInitialPollMessage(VideoQueueOperationEntity $operation, array $businessParams): void
     {
-        /*try {
+        try {
             $this->producer->produce(new VideoOperationPollDelayPublisher(new VideoOperationPollMessage(
                 $operation->getId(),
                 $businessParams,
@@ -531,7 +519,7 @@ readonly class VideoOperationAppService
                 'error' => $throwable->getMessage(),
             ]);
             throw $throwable;
-        }*/
+        }
     }
 
     /**
@@ -559,6 +547,7 @@ readonly class VideoOperationAppService
         $accessTokenEntity = $this->resolveAccessTokenEntity($dataIsolation);
         if ($accessTokenEntity !== null) {
             $businessParams['ak'] = $accessTokenEntity->getAccessToken();
+            $businessParams['access_token_id'] = $accessTokenEntity->getId();
             $businessParams['access_token_name'] = $accessTokenEntity->getName();
             $businessParams['access_token_type'] = $accessTokenEntity->getType()->value;
         }
@@ -778,6 +767,7 @@ readonly class VideoOperationAppService
         $accessTokenName = (string) ($accessTokenEntity?->getName() ?? $requestBusinessParams['access_token_name'] ?? '');
         $accessTokenType = (string) ($accessTokenEntity?->getType()->value ?? $requestBusinessParams['access_token_type'] ?? '');
         $accessToken = (string) ($accessTokenEntity?->getAccessToken() ?? $requestBusinessParams['ak'] ?? '');
+        $accessTokenId = $accessTokenEntity?->getId() ?? (int) ($requestBusinessParams['access_token_id'] ?? 0);
         $providerName = $operation->getAuditProviderName();
 
         $params = [
@@ -798,7 +788,7 @@ readonly class VideoOperationAppService
             'request_id' => $requestId,
             'magic_topic_id' => $magicTopicId,
             'ak' => $accessToken,
-            'access_token_id' => $accessTokenEntity->getId(),
+            'access_token_id' => $accessTokenId,
             'access_token_name' => $accessTokenName,
             'access_token_type' => $accessTokenType,
         ];

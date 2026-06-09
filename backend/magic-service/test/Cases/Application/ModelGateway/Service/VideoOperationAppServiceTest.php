@@ -321,6 +321,45 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertCount(1, $executor->submittedOperations);
     }
 
+    public function testEnqueueRecoversFinishedActiveOperationBeforeClaimingUserSlot(): void
+    {
+        $operationRepository = new InMemoryVideoQueueOperationRepository();
+        $executor = new RecordingQueueOperationExecutor(
+            submitResult: 'provider-task-new',
+            queryResult: [
+                'status' => 'succeeded',
+                'output' => [
+                    'video_url' => 'https://example.com/recovered-before-claim.mp4',
+                ],
+            ],
+        );
+        $service = $this->createVideoOperationAppService(
+            $operationRepository,
+            $executor,
+            $this->createDataIsolationWithVideoConcurrencyLimit(2)
+        );
+
+        $staleOperation = $this->createOperation('stale-operation-before-claim');
+        $staleOperation->setStatus(VideoOperationStatus::PROVIDER_RUNNING);
+        $staleOperation->setProviderTaskId('provider-task-before-claim');
+        $operationRepository->saveOperation($staleOperation, 3600);
+        $operationRepository->activeSlots['org-test:user-test'] = [$staleOperation->getId()];
+
+        $response = $service->enqueue('token-active-recover-before-claim', new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the next video after pre-claim recovery',
+        ]));
+
+        $this->assertSame('running', $response->getStatus());
+        $this->assertSame(1, $executor->queryCalls);
+        $this->assertSame(['provider-task-before-claim'], $executor->queriedProviderTaskIds);
+        $this->assertSame(VideoOperationStatus::SUCCEEDED, $operationRepository->operations['stale-operation-before-claim']->getStatus());
+        $this->assertSame([$response->getId()], $operationRepository->activeSlots['org-test:user-test'] ?? null);
+        $this->assertCount(1, $this->eventDispatcher->events);
+        $this->assertCount(1, $executor->submittedOperations);
+    }
+
     public function testEnqueueKeepsRunningActiveOperationWhenRecoveryStillFindsItRunning(): void
     {
         $operationRepository = new InMemoryVideoQueueOperationRepository();
@@ -851,6 +890,8 @@ class VideoOperationAppServiceTest extends TestCase
                 $probe,
                 $this->createMock(CacheInterface::class),
             ),
+            new RecordingProducer(),
+            $this->createNoopLocker(),
         );
 
         $result = $service->estimate('token-estimate-keling-reference', $requestDTO);
@@ -923,6 +964,8 @@ class VideoOperationAppServiceTest extends TestCase
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
             $this->createVideoInputMediaMetadataResolver(),
+            new RecordingProducer(),
+            $this->createNoopLocker(),
         );
 
         $enqueueResponse = $service->enqueue('token-keling-omni-reference', $requestDTO);
