@@ -1348,7 +1348,7 @@ export class PPTStore {
 		this.setSlides(newUrls)
 	}
 
-	async updateSlideContent(index: number, content: string): Promise<void> {
+	async updateSlideContent(index: number, content: string): Promise<string> {
 		const processedContent = await this.processorService.processSlide(content, index)
 		// Save both raw and processed content
 		this.slideManager.updateSlideItem(index, {
@@ -1357,6 +1357,7 @@ export class PPTStore {
 			loadingState: "loaded",
 			lastLoadedAt: Date.now(),
 		})
+		return processedContent
 	}
 
 	updateSlideContents(updates: Map<number, string>): void {
