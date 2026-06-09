@@ -4,7 +4,8 @@ import { SuperMagicApi } from "@/apis"
 import SuperMagicService from "../../services"
 import { workspaceStore, projectStore, topicStore } from "../../stores/core"
 import type { SuperMagicCreateNewTopicPayload } from "../../events/message"
-import type { ProjectListItem } from "../../pages/Workspace/types"
+import type { ProjectListItem, Topic } from "../../pages/Workspace/types"
+import { TopicMode } from "../../pages/Workspace/TopicMode"
 import type { TopicStore } from "../../stores/core/topic"
 
 export interface UseCreateTopicListenerOptions {
@@ -19,6 +20,38 @@ export interface UseCreateTopicListenerOptions {
 	 * instead of navigating to the main topic page.
 	 */
 	topicStore?: TopicStore
+}
+
+function resolveRequestedModeSourceTopic({
+	sourceTopic,
+	selectedProject,
+	topicMode,
+}: {
+	sourceTopic: Topic | null
+	selectedProject?: ProjectListItem | null
+	topicMode?: TopicMode
+}) {
+	if (!topicMode) return sourceTopic
+
+	const modeIdentifier = String(topicMode).trim()
+	if (!modeIdentifier) return sourceTopic
+
+	const projectId = sourceTopic?.project_id || selectedProject?.id
+	if (!projectId) return sourceTopic
+
+	const modeSource = modeIdentifier.startsWith("SMA")
+		? {
+				project_id: projectId,
+				topic_mode: TopicMode.CustomAgent,
+				agent_code: modeIdentifier,
+			}
+		: {
+				project_id: projectId,
+				topic_mode: topicMode,
+				agent_code: undefined,
+			}
+
+	return sourceTopic ? { ...sourceTopic, ...modeSource } : modeSource
 }
 
 /**
@@ -61,9 +94,15 @@ export function useCreateTopicListener(options?: UseCreateTopicListenerOptions) 
 			} else {
 				// 普通项目新建话题不把员工/mode 写入创建接口；
 				// 触发当下读取当前话题，交给 TopicService 在前端选中态中继承员工。
+				const sourceTopic = resolveRequestedModeSourceTopic({
+					sourceTopic: topicStore.selectedTopic,
+					selectedProject,
+					topicMode: payload?.topicMode,
+				})
+
 				SuperMagicService.handleCreateTopic({
 					selectedProject,
-					sourceTopic: topicStore.selectedTopic,
+					sourceTopic,
 					onNavigated: payload?.afterCreate
 						? () => {
 								pubsub.publish(PubSubEvents.Add_Content_To_Chat, {

@@ -24,7 +24,7 @@ export interface CreateTopicParams {
 	projectId: string
 	topicName: string
 	/** Topic whose frontend employee selection should be inherited after creation */
-	sourceTopic?: Topic | null
+	sourceTopic?: Pick<Topic, "project_id" | "topic_mode" | "agent_code"> | null
 }
 
 export interface MarkTopicReadProgressParams {
@@ -73,8 +73,8 @@ function inheritTopicFrontendMode<T extends Topic>(
 	}
 }
 
-function canApplyFrontendModePatchToTopic(topic: Pick<Topic, "topic_mode">) {
-	return !topic.topic_mode || topic.topic_mode === TopicMode.Empty
+function canApplyFrontendModePatchToTopic(topic: { topic_mode?: Topic["topic_mode"] | null }) {
+	return !topic.topic_mode
 }
 
 class TopicService {

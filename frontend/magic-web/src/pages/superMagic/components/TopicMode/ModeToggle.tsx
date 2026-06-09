@@ -226,7 +226,7 @@ function ModeToggle({
 
 		setTimeout(() => {
 			document.body.style.removeProperty("pointer-events")
-			pubsub.publish(PubSubEvents.Create_New_Topic)
+			pubsub.publish(PubSubEvents.Create_New_Topic, { topicMode: targetMode })
 			onModeChange?.(targetMode)
 		}, 0)
 	})

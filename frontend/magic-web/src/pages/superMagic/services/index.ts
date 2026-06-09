@@ -1061,7 +1061,7 @@ class SuperMagicService {
 		/** Called after navigateToState — safe moment to insert content into the new topic's editor */
 		onNavigated?: (topic: Topic) => void
 		/** 新话题后端空创建；该字段只用于前端选中态继承员工/mode */
-		sourceTopic?: Topic | null
+		sourceTopic?: Pick<Topic, "project_id" | "topic_mode" | "agent_code"> | null
 	}): Promise<Topic | null> {
 		const project = targetProject ?? selectedProject
 
