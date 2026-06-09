@@ -42,6 +42,11 @@ import { PPTProvider } from "./contexts/PPTContext"
 import { useContainerShowButtonText } from "@/hooks/useContainerShowButtonText"
 import type { MenuProps } from "antd"
 
+interface ManualSaveResult {
+	fileId?: string
+	cleanContent?: string
+}
+
 interface PPTRenderProps {
 	// ========== 外部依赖（必需） ==========
 	slidePaths: string[]
@@ -392,13 +397,15 @@ const PPTRenderInner = observer(function PPTRenderInner({
 	}, [attachmentList, store])
 
 	// 手动保存处理函数 - 使用 useMemoizedFn 避免每次渲染重新创建
-	const handleManualSave = useMemoizedFn(async (saveResult: any, index: number) => {
+	const handleManualSave = useMemoizedFn(async (saveResult: ManualSaveResult, index: number) => {
 		if (!saveResult) return
+		const cleanContent = saveResult.cleanContent || ""
 
 		if (saveResult.fileId) store.markSlideAsManuallySaved(saveResult.fileId)
-		// 更新幻灯片内容并立即生成新缩略图
-		store.updateSlideContent(index, saveResult.cleanContent)
-		store.generateSlideScreenshot(index, saveResult.cleanContent)
+		// 保存后的原始 HTML 需要先经过 PPT 资源路径处理，否则缩略图会用未解析的背景资源截图。
+		const processedContent = await store.updateSlideContent(index, cleanContent)
+		const thumbnailContent = processedContent || cleanContent
+		await store.generateSlideScreenshot(index, thumbnailContent)
 	})
 
 	const registerCloseSaveHandler = useMemoizedFn((handler: (() => Promise<boolean>) | null) => {

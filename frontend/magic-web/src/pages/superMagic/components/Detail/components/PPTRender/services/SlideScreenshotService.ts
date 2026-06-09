@@ -4,6 +4,11 @@ import {
 	fallbackImageBase64,
 	getFullContent,
 } from "../../../contents/HTML/utils/full-content"
+import { stabilizeSingleLineTextForSnapdom } from "./snapdomTextStabilizer"
+
+const SLIDE_WIDTH = 1920
+const SLIDE_HEIGHT = 1080
+const THUMBNAIL_SCALE = 4
 
 /**
  * Cache entry for slide screenshot
@@ -113,8 +118,8 @@ export class SlideScreenshotService {
 			position: fixed;
 			top: -9999px;
 			left: -9999px;
-			width: 1920px;
-			height: 1080px;
+			width: ${SLIDE_WIDTH}px;
+			height: ${SLIDE_HEIGHT}px;
 			visibility: hidden;
 			pointer-events: none;
 			z-index: -1;
@@ -140,25 +145,35 @@ export class SlideScreenshotService {
 				throw new Error("Iframe document not found")
 			}
 
-			const iframeBody = iframeDoc.body
-			if (!iframeBody) {
-				throw new Error("Iframe body not found")
+			const screenshotTarget = this.getScreenshotTarget(iframeDoc)
+			if (!screenshotTarget) {
+				throw new Error("Iframe screenshot target not found")
 			}
 
-			await this.waitForImages(iframeDoc)
+			await this.waitForRenderingReady(iframeDoc)
 
-			const result = await snapdom(iframeBody, {
-				width: 1920,
-				height: 1080,
-				backgroundColor: "#ffffff",
-				fallbackURL: fallbackImageBase64,
-			})
+			const restoreTextStyles = stabilizeSingleLineTextForSnapdom(screenshotTarget)
+			let thumbnailUrl: { src: string } | null = null
+			try {
+				const result = await snapdom(screenshotTarget, {
+					width: SLIDE_WIDTH,
+					height: SLIDE_HEIGHT,
+					backgroundColor: "#ffffff",
+					embedFonts: true,
+					fallbackURL: fallbackImageBase64,
+				})
 
-			const thumbnailUrl = await result.toWebp({
-				width: 1920 / 4,
-				height: 1080 / 4,
-				quality: 0.8,
-			})
+				thumbnailUrl = await result.toWebp({
+					width: SLIDE_WIDTH / THUMBNAIL_SCALE,
+					height: SLIDE_HEIGHT / THUMBNAIL_SCALE,
+					quality: 0.8,
+				})
+			} finally {
+				restoreTextStyles()
+			}
+			if (!thumbnailUrl) {
+				throw new Error("Screenshot generation failed")
+			}
 
 			// 延迟清理以确保 blob 已完全处理并与 iframe 上下文分离
 			// 使用 Promise 而不是 setTimeout，确保清理逻辑可控
@@ -369,7 +384,7 @@ export class SlideScreenshotService {
 				// 策略2: 监听文档就绪状态变化
 				if (doc) {
 					const checkReadyState = () => {
-						if (doc.readyState === "complete" || doc.readyState === "interactive") {
+						if (doc.readyState === "complete") {
 							handleResolve()
 						}
 					}
@@ -541,6 +556,38 @@ export class SlideScreenshotService {
 			doc.head?.appendChild(pauseScript)
 		} catch (e) {
 			console.warn("Failed to inject animation pause script", e)
+		}
+	}
+
+	private getScreenshotTarget(doc: Document): HTMLElement | null {
+		return doc.querySelector<HTMLElement>(".slide-container") || doc.body
+	}
+
+	private async waitForRenderingReady(doc: Document): Promise<void> {
+		await Promise.all([this.waitForFonts(doc), this.waitForImages(doc)])
+		await this.waitForAnimationFrames(doc, 2)
+	}
+
+	private async waitForFonts(doc: Document): Promise<void> {
+		const fonts = doc.fonts
+		if (!fonts?.ready) return
+
+		await Promise.race([
+			fonts.ready.catch(() => undefined),
+			new Promise((resolve) => setTimeout(resolve, 3000)),
+		])
+	}
+
+	private async waitForAnimationFrames(doc: Document, frameCount: number): Promise<void> {
+		const win = doc.defaultView
+		for (let i = 0; i < frameCount; i += 1) {
+			await new Promise<void>((resolve) => {
+				if (win?.requestAnimationFrame) {
+					win.requestAnimationFrame(() => resolve())
+					return
+				}
+				setTimeout(resolve, 16)
+			})
 		}
 	}
 

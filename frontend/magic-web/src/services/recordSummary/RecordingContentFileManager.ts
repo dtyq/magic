@@ -127,23 +127,35 @@ export class RecordingContentFileManager {
 		// Parent folder for preset content files is the ASR display directory
 		let displayDirId =
 			this.tokenManager.getDirectories(sessionId)?.asr_display_dir?.directory_id
-		if (!displayDirId) {
-			logger.warn(`ASR display dir missing for session ${sessionId}, refreshing token`)
+
+		// Parent folder for hidden content files is the ASR hidden directory
+		let hiddenDirId = this.tokenManager.getDirectories(sessionId)?.asr_hidden_dir?.directory_id
+
+		if (!displayDirId || !hiddenDirId) {
+			logger.warn(
+				`ASR display dir or hidden dir missing for session ${sessionId}, refreshing token`,
+				{
+					displayDirId,
+					hiddenDirId,
+				},
+			)
 			try {
 				await this.tokenManager.getToken(sessionId, topicId)
 				displayDirId =
 					this.tokenManager.getDirectories(sessionId)?.asr_display_dir?.directory_id
+				hiddenDirId =
+					this.tokenManager.getDirectories(sessionId)?.asr_hidden_dir?.directory_id
 			} catch (error) {
 				logger.error("Failed to refresh token for ASR display directory", error)
 			}
 		}
 
-		if (!displayDirId) {
-			throw new Error("ASR display directory_id not available for content files")
+		if (!displayDirId || !hiddenDirId) {
+			throw new Error("ASR display or hidden directory_id not available for content files")
 		}
 
 		const contentFilesParentId = displayDirId
-
+		const hiddenFilesParentId = hiddenDirId
 		// Initialize note file info from backend
 		this.noteFile = {
 			fileName: presetFiles.note_file.file_name,
@@ -159,7 +171,7 @@ export class RecordingContentFileManager {
 			fileName: presetFiles.transcript_file.file_name,
 			fileId: presetFiles.transcript_file.file_id,
 			filePath: presetFiles.transcript_file.file_path,
-			parentId: contentFilesParentId,
+			parentId: hiddenFilesParentId,
 			lastContent: options?.existingTranscript,
 			isUploading: false,
 		}

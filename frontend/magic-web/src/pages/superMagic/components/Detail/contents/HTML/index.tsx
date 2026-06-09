@@ -56,6 +56,7 @@ import { env } from "@/utils/env"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { exportHtmlToPdf, exportHtmlToImage } from "../../../../../../../packages/pdf-export/src"
 import type { ImageExportFormat } from "../../../../../../../packages/pdf-export/src"
+import { resolvePptScaleContentDimensions } from "./utils/slide-dimensions"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -242,6 +243,11 @@ export default memo(function HTML(props: HTMLProps) {
 	// Tracks the last successful local save so the follow-up refresh is not treated as an external update.
 	const lastLocalSavedContentRef = useRef<string | null>(null)
 	const pendingSaveIntentRef = useRef<"save" | "save-and-exit" | null>(null)
+	const scaleContentDimensions = useMemo(
+		() =>
+			isInPPTMode ? resolvePptScaleContentDimensions(processedContent, data?.content) : null,
+		[isInPPTMode, processedContent, data?.content],
+	)
 
 	const {
 		fileData: htmlFileData,
@@ -1350,6 +1356,7 @@ export default memo(function HTML(props: HTMLProps) {
 								rawSourceCode={data?.content}
 								sandboxType="iframe"
 								isPptRender={isInPPTMode}
+								scaleContentDimensions={scaleContentDimensions}
 								isFullscreen={isFullscreen}
 								isEditMode={isEditMode}
 								saveEditContent={saveEditContent}

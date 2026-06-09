@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import type { Topic } from "../../../pages/Workspace/types"
+import { TopicMode } from "../../../pages/Workspace/TopicMode"
 import SuperMagicService from "../../../services"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useCreateTopicListener } from "../useCreateTopicListener"
@@ -80,7 +81,9 @@ describe("useCreateTopicListener", () => {
 		topicStoreMock.selectedTopic = selectedTopic
 		renderHook(() => useCreateTopicListener())
 
-		const handler = vi.mocked(pubsub.subscribe).mock.calls[0]?.[1]
+		const handler = vi.mocked(pubsub.subscribe).mock.calls[0]?.[1] as
+			| ((payload?: { topicMode?: TopicMode }) => void)
+			| undefined
 		expect(handler).toBeTypeOf("function")
 
 		topicStoreMock.selectedTopic = latestTopic
@@ -92,5 +95,27 @@ describe("useCreateTopicListener", () => {
 			onNavigated: undefined,
 		})
 		expect(vi.mocked(pubsub.subscribe).mock.calls[0]?.[0]).toBe(PubSubEvents.Create_New_Topic)
+	})
+
+	it("uses the requested employee mode as the source when creating a topic from the mode toggle", () => {
+		topicStoreMock.selectedTopic = latestTopic
+		renderHook(() => useCreateTopicListener())
+
+		const handler = vi.mocked(pubsub.subscribe).mock.calls[0]?.[1] as
+			| ((payload?: { topicMode?: TopicMode }) => void)
+			| undefined
+		expect(handler).toBeTypeOf("function")
+
+		handler?.({ topicMode: "SMA-employee-code-2" as TopicMode })
+
+		expect(SuperMagicService.handleCreateTopic).toHaveBeenCalledWith({
+			selectedProject: { id: "project-1" },
+			sourceTopic: {
+				...latestTopic,
+				topic_mode: TopicMode.CustomAgent,
+				agent_code: "SMA-employee-code-2",
+			},
+			onNavigated: undefined,
+		})
 	})
 })
