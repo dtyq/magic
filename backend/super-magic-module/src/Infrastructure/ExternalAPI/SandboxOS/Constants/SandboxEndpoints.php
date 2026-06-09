@@ -52,4 +52,14 @@ class SandboxEndpoints
      * 获取沙箱网关当前部署的最新 Agent 镜像端点.
      */
     public const GATEWAY_AGENT_IMAGE = 'api/v1/sandboxes/agent-image';
+
+    /**
+     * 获取沙箱网关当前部署的最新 AGFS 镜像端点.
+     */
+    public const GATEWAY_AGFS_IMAGE = 'api/v1/sandboxes/agfs-image';
+
+    /**
+     * 一次性获取沙箱网关当前部署的所有镜像（agent + agfs）端点.
+     */
+    public const GATEWAY_SANDBOX_IMAGES = 'api/v1/sandboxes/images';
 }

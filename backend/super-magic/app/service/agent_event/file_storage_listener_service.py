@@ -309,10 +309,10 @@ class FileStorageListenerService:
             # Get directory paths
             chat_history_dir = PathManager.get_chat_history_dir()
             workspace_dir = PathManager.get_workspace_dir()
-            sandbox_id = agent_context.get_sandbox_id()
+            topic_id = agent_context.get_metadata().get("topic_id")
 
-            if not sandbox_id:
-                logger.error("无法获取sandbox_id，无法进行分离式打包")
+            if not topic_id:
+                logger.error("无法获取topic_id，无法进行分离式打包")
                 return
 
             # Load local manifest to check current state
@@ -343,13 +343,13 @@ class FileStorageListenerService:
 
             # Process and upload chat history archive
             await FileStorageListenerService._process_chat_history_archive(
-                chat_history_dir, sandbox_id, storage_service
+                chat_history_dir, topic_id, storage_service
             )
 
             # Process and upload checkpoints archive
             checkpoints_dir = PathManager.get_checkpoints_dir()
             await FileStorageListenerService._process_checkpoints_archive(
-                str(checkpoints_dir), sandbox_id, storage_service
+                str(checkpoints_dir), topic_id, storage_service
             )
 
             # Save and upload the final manifest
@@ -458,7 +458,7 @@ class FileStorageListenerService:
     @staticmethod
     async def _process_chat_history_archive(
         chat_history_dir: str,
-        sandbox_id: str,
+        topic_id: str,
         storage_service
     ) -> None:
         """
@@ -466,32 +466,32 @@ class FileStorageListenerService:
 
         Args:
             chat_history_dir: Path to chat history directory
-            sandbox_id: Sandbox ID for naming the archive
+            topic_id: Topic ID for naming the archive
             storage_service: Storage service instance
         """
         if not os.path.isdir(chat_history_dir) or not os.listdir(chat_history_dir):
             logger.info("聊天历史目录为空或不存在，跳过处理")
             return
 
-        await FileStorageListenerService._archive_and_upload_single_chat_history(chat_history_dir, sandbox_id, storage_service)
+        await FileStorageListenerService._archive_and_upload_single_chat_history(chat_history_dir, topic_id, storage_service)
 
     @staticmethod
-    async def _archive_and_upload_single_chat_history(chat_history_dir: str, sandbox_id: str, storage_service) -> None:
+    async def _archive_and_upload_single_chat_history(chat_history_dir: str, topic_id: str, storage_service) -> None:
         """
         Compress and upload a single chat history archive.
 
         Args:
             chat_history_dir: Path to the chat history directory.
-            sandbox_id: The sandbox ID for this chat history.
+            topic_id: The topic ID for this chat history.
             storage_service: The storage service instance.
         """
         try:
-            # Always archive and upload chat history for the current sandbox
-            logger.info(f"为沙箱 {sandbox_id} 处理聊天历史归档")
+            # Always archive and upload chat history for the current topic
+            logger.info(f"为话题 {topic_id} 处理聊天历史归档")
 
             # Create archive in a temporary directory
             with tempfile.TemporaryDirectory() as temp_dir:
-                archive_name = f"chat_history_{sandbox_id}"
+                archive_name = f"chat_history_{topic_id}"
                 archive_path = os.path.join(temp_dir, archive_name)
                 zip_path = shutil.make_archive(archive_path, 'zip', chat_history_dir)
                 logger.info(f"聊天历史已压缩到: {zip_path}")
@@ -521,7 +521,7 @@ class FileStorageListenerService:
     @staticmethod
     async def _process_checkpoints_archive(
         checkpoints_dir: str,
-        sandbox_id: str,
+        topic_id: str,
         storage_service
     ) -> None:
         """
@@ -529,32 +529,32 @@ class FileStorageListenerService:
 
         Args:
             checkpoints_dir: Path to checkpoints directory
-            sandbox_id: Sandbox ID for naming the archive
+            topic_id: Topic ID for naming the archive
             storage_service: Storage service instance
         """
         if not os.path.isdir(checkpoints_dir) or not os.listdir(checkpoints_dir):
             logger.info("checkpoints目录为空或不存在，跳过处理")
             return
 
-        await FileStorageListenerService._archive_and_upload_single_checkpoints(checkpoints_dir, sandbox_id, storage_service)
+        await FileStorageListenerService._archive_and_upload_single_checkpoints(checkpoints_dir, topic_id, storage_service)
 
     @staticmethod
-    async def _archive_and_upload_single_checkpoints(checkpoints_dir: str, sandbox_id: str, storage_service) -> None:
+    async def _archive_and_upload_single_checkpoints(checkpoints_dir: str, topic_id: str, storage_service) -> None:
         """
         Compress and upload a single checkpoints archive.
 
         Args:
             checkpoints_dir: Path to the checkpoints directory.
-            sandbox_id: The sandbox ID for this checkpoints.
+            topic_id: The topic ID for this checkpoints.
             storage_service: The storage service instance.
         """
         try:
-            # Always archive and upload checkpoints for the current sandbox
-            logger.info(f"为沙箱 {sandbox_id} 处理checkpoints归档")
+            # Always archive and upload checkpoints for the current topic
+            logger.info(f"为话题 {topic_id} 处理checkpoints归档")
 
             # Create archive in a temporary directory
             with tempfile.TemporaryDirectory() as temp_dir:
-                archive_name = f"checkpoints_{sandbox_id}"
+                archive_name = f"checkpoints_{topic_id}"
                 archive_path = os.path.join(temp_dir, archive_name)
                 zip_path = shutil.make_archive(archive_path, 'zip', checkpoints_dir)
                 logger.info(f"checkpoints已压缩到: {zip_path}")

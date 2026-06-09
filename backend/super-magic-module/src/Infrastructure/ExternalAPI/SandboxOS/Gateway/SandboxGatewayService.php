@@ -59,7 +59,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         string $workDir,
         string $projectSpaceRootFileId = '',
         string $userSpaceRootFileId = '',
-        string $authorization = ''
+        string $authorization = '',
+        array $labels = []
     ): GatewayResult {
         // In local debugging mode, return mock success result
         if (! $this->isEnabledSandbox()) {
@@ -84,6 +85,9 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'user_space_root_file_id' => $userSpaceRootFileId,
             'authorization' => $authorization,
         ];
+        if (! empty($labels)) {
+            $config['labels'] = $labels;
+        }
 
         $this->logger->debug('[Sandbox][Gateway] Creating sandbox', [
             'config' => [
@@ -93,6 +97,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'project_space_root_file_id' => $projectSpaceRootFileId,
                 'user_space_root_file_id' => $userSpaceRootFileId,
                 'authorization_provided' => $authorization !== '',
+                'labels' => $labels,
             ],
             'max_retries' => 5,
             'retry_delay' => 30000,
@@ -797,6 +802,257 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         } catch (Throwable $e) {
             $this->logger->error('[Sandbox][Gateway] Error getting latest agent image', ['error' => $e->getMessage()]);
             return '';
+        }
+    }
+
+    /**
+     * 获取沙箱网关当前部署的最新 AGFS 镜像.
+     */
+    public function getLatestAgfsImage(): string
+    {
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping getLatestAgfsImage');
+            return '';
+        }
+
+        try {
+            $response = $this->getClient()->get($this->buildApiPath(SandboxEndpoints::GATEWAY_AGFS_IMAGE), [
+                'headers' => $this->getCommonHeaders(),
+                'timeout' => 10,
+            ]);
+
+            $body = $response->getBody()->getContents();
+            $responseData = Json::decode($body);
+            $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Gateway] Failed to get latest agfs image', [
+                    'code' => $result->getCode(),
+                    'message' => $result->getMessage(),
+                ]);
+                return '';
+            }
+
+            $image = (string) ($result->getDataValue('image') ?? '');
+            $this->logger->info('[Sandbox][Gateway] Latest agfs image retrieved', ['image' => $image]);
+            return $image;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] Error getting latest agfs image', ['error' => $e->getMessage()]);
+            return '';
+        }
+    }
+
+    /**
+     * 一次性获取沙箱网关当前部署的 agent 与 agfs 最新镜像，避免两次调用。
+     *
+     * @return array{agent_image: string, agfs_image: string}
+     */
+    public function getLatestImages(): array
+    {
+        $empty = ['agent_image' => '', 'agfs_image' => ''];
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping getLatestImages');
+            return $empty;
+        }
+
+        try {
+            $response = $this->getClient()->get($this->buildApiPath(SandboxEndpoints::GATEWAY_SANDBOX_IMAGES), [
+                'headers' => $this->getCommonHeaders(),
+                'timeout' => 10,
+            ]);
+
+            $body = $response->getBody()->getContents();
+            $responseData = Json::decode($body);
+            $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Gateway] Failed to get latest sandbox images', [
+                    'code' => $result->getCode(),
+                    'message' => $result->getMessage(),
+                ]);
+                return $empty;
+            }
+
+            $images = [
+                'agent_image' => (string) ($result->getDataValue('agent_image') ?? ''),
+                'agfs_image' => (string) ($result->getDataValue('agfs_image') ?? ''),
+            ];
+            $this->logger->info('[Sandbox][Gateway] Latest sandbox images retrieved', $images);
+            return $images;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] Error getting latest sandbox images', ['error' => $e->getMessage()]);
+            return $empty;
+        }
+    }
+
+    public function createWarmPoolSandbox(string $sandboxId): GatewayResult
+    {
+        if ($sandboxId === '') {
+            return GatewayResult::error('sandbox_id is required');
+        }
+        if (! $this->isEnabledSandbox()) {
+            // Local debugging: fabricate a deterministic response so refill
+            // crontabs can be exercised without touching k8s.
+            return GatewayResult::success([
+                'sandbox_id' => $sandboxId,
+                'sandbox_name' => 'sandbox-' . $sandboxId,
+                'agent_image' => 'local/agent:debug',
+                'agfs_image' => 'local/agfs:debug',
+                'status' => 'running',
+            ], 'Warm-pool sandbox creation skipped (local debugging mode)');
+        }
+
+        $this->logger->debug('[Sandbox][Gateway] Creating warm-pool sandbox', ['sandbox_id' => $sandboxId]);
+        // Allow ops/dev to bypass the gateway-side agfs-server readiness probe.
+        // Required for local kind setups where the host can't route to pod CIDRs
+        // and the probe would otherwise time out, leaving DB empty + orphan pods.
+        $enableReadiness = (bool) config('super-magic.warm_pool.enable_readiness', true);
+        $payload = [
+            'sandbox_id' => $sandboxId,
+            'enable_readiness' => $enableReadiness,
+        ];
+        try {
+            return retry(3, function () use ($payload) {
+                try {
+                    $response = $this->getClient()->post(
+                        $this->buildApiPath('api/v1/warm-pool-sandboxes'),
+                        [
+                            'headers' => $this->getCommonHeaders(),
+                            'json' => $payload,
+                            // Pod creation + agfs-server health probe upper bound.
+                            // sandbox-gateway gives the pod up to 5min to reach Running.
+                            'timeout' => 360,
+                        ]
+                    );
+
+                    $body = $response->getBody()->getContents();
+                    $responseData = Json::decode($body);
+                    $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] Warm-pool sandbox created', [
+                            'sandbox_id' => $result->getDataValue('sandbox_id'),
+                            'sandbox_name' => $result->getDataValue('sandbox_name'),
+                            'agent_image' => $result->getDataValue('agent_image'),
+                            'agfs_image' => $result->getDataValue('agfs_image'),
+                        ]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to create warm-pool sandbox', [
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+                    return $result;
+                } catch (GuzzleException $e) {
+                    if (! $this->isRetryableError($e)) {
+                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+                    }
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when creating warm-pool sandbox', [
+                        'error' => $e->getMessage(),
+                    ]);
+                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+                }
+            }, 5000);
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for warm-pool sandbox creation', [
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
+        }
+    }
+
+    public function mountWarmPoolSandbox(
+        string $sandboxId,
+        string $projectId,
+        string $projectSpaceRootFileID,
+        string $userSpaceRootFileID,
+        string $authorization,
+        array $labels = []
+    ): GatewayResult {
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping warm-pool sandbox mount', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+            ]);
+            return GatewayResult::success(['sandbox_id' => $sandboxId], 'Warm-pool sandbox mount skipped (local debugging mode)');
+        }
+
+        // Note: project_space_root_file_id is required by sandbox-gateway,
+        // so callers are expected to resolve it before invoking this method.
+        $payload = [
+            'project_id' => $projectId,
+            'project_space_root_file_id' => $projectSpaceRootFileID,
+            'user_space_root_file_id' => $userSpaceRootFileID,
+            'authorization' => $authorization,
+        ];
+        if (! empty($labels)) {
+            $payload['labels'] = $labels;
+        }
+
+        $this->logger->debug('[Sandbox][Gateway] Mounting warm-pool sandbox', [
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+            'project_space_root_file_id' => $projectSpaceRootFileID,
+            'has_user_space_root' => $userSpaceRootFileID !== '',
+            'authorization_provided' => $authorization !== '',
+            'labels' => $labels,
+        ]);
+
+        try {
+            // Mount is NOT idempotent on the gateway side (it stamps pod labels
+            // and refuses to re-mount to a different project), so a generic
+            // retry-on-any-failure policy would be dangerous. We restrict
+            // retries to transient HTTP errors via isRetryableError.
+            return retry(3, function () use ($sandboxId, $payload) {
+                try {
+                    $response = $this->getClient()->post(
+                        $this->buildApiPath(sprintf('api/v1/warm-pool-sandboxes/%s/mount', $sandboxId)),
+                        [
+                            'headers' => $this->getCommonHeaders(),
+                            'json' => $payload,
+                            // wait_ready=1 inside the gateway blocks on the
+                            // versionTree initial load; keep ample timeout.
+                            'timeout' => 180,
+                        ]
+                    );
+
+                    $body = $response->getBody()->getContents();
+                    $responseData = Json::decode($body);
+                    $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] Warm-pool sandbox mounted', [
+                            'sandbox_id' => $sandboxId,
+                        ]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to mount warm-pool sandbox', [
+                            'sandbox_id' => $sandboxId,
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+                    return $result;
+                } catch (GuzzleException $e) {
+                    if (! $this->isRetryableError($e)) {
+                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+                    }
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when mounting warm-pool sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+                }
+            }, 2000);
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for warm-pool sandbox mount', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
         }
     }
 

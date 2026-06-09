@@ -302,12 +302,14 @@ class TaskInitializationConsumer extends ConsumerMessage
             (string) $projectEntity->getId(),
         );
 
+        // 传话题已绑定的 sandbox_id（未绑定则为空），让 Domain 在没有绑定时能走 warm pool。
+        // 不要传 topic_id，否则会跳过 warm 池守卫。
         $agentContext = $this->agentDomainService->buildInitAgentContext(
             dataIsolation: $dataIsolation,
             projectEntity: $projectEntity,
             topicEntity: $topicEntity,
             taskEntity: $taskContext->getTask(),
-            sandboxId: (string) $topicEntity->getId(),
+            sandboxId: (string) $topicEntity->getSandboxId(),
             memories: $memories
         );
         if ($agentContext->getInitContext() !== null && $taskContext->getAgentMode() !== '') {
