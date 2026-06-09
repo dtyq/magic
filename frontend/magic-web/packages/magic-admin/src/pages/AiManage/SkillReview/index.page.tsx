@@ -3,7 +3,14 @@ import { createStyles } from "antd-style"
 import { debounce } from "lodash-es"
 import { IconReload } from "@tabler/icons-react"
 import type { SearchItem, TableButton } from "@admin-components"
-import { SearchItemType, StatusTag, TableWithFilters } from "@admin-components"
+import {
+	HistoryMode,
+	SearchItemType,
+	StatusTag,
+	TableWithFilters,
+	TimeFilterTab,
+	type TimeRangeValue,
+} from "@admin-components"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { Button, Flex, Input, Modal, Tooltip, message, type TableProps } from "antd"
@@ -42,6 +49,7 @@ function AISkillReviewPage() {
 	const [reviewingId, setReviewingId] = useState<string>("")
 	const [reviewingAction, setReviewingAction] = useState<AiManage.ReviewAction>()
 	const [searchFormKey, setSearchFormKey] = useState(0)
+	const [lastTimeFilterValue, setLastTimeFilterValue] = useState<TimeRangeValue | null>(null)
 	const [params, setParams] = useState<ParamsType>({
 		page: 1,
 		page_size: 20,
@@ -166,6 +174,7 @@ function AISkillReviewPage() {
 
 	const handleReset = useMemoizedFn(() => {
 		setSearchFormKey((prev) => prev + 1)
+		setLastTimeFilterValue(null)
 		updateParams({
 			package_name: undefined,
 			skill_name: undefined,
@@ -377,6 +386,20 @@ function AISkillReviewPage() {
 		],
 	)
 
+	const timeFilterValue = useMemo((): TimeRangeValue | null => {
+		return lastTimeFilterValue
+			? lastTimeFilterValue
+			: params.start_time && params.end_time
+				? {
+						startDate: params.start_time,
+						endDate: params.end_time,
+						label: `${params.start_time} ~ ${params.end_time}`,
+						tab: TimeFilterTab.relative,
+						mode: HistoryMode.relative,
+					}
+				: null
+	}, [lastTimeFilterValue, params.end_time, params.start_time])
+
 	const searchItems: SearchItem[] = useMemo(
 		() => [
 			{
@@ -441,17 +464,20 @@ function AISkillReviewPage() {
 				},
 			},
 			{
-				type: SearchItemType.DATE_RANGE,
+				type: SearchItemType.TIME_FILTER_PANEL,
 				field: "created_at",
 				prefix: t("createdAt"),
-				onChange: (dates) => {
-					const start_time = dates?.[0]?.format("YYYY-MM-DD HH:mm:ss")
-					const end_time = dates?.[1]?.format("YYYY-MM-DD HH:mm:ss")
-					updateParams({ start_time, end_time })
+				value: timeFilterValue,
+				onChange: (value) => {
+					setLastTimeFilterValue(value)
+					updateParams({
+						start_time: value?.startDate || undefined,
+						end_time: value?.endDate || undefined,
+					})
 				},
 			},
 		],
-		[t, tCommon, updateParams, debouncedSearch],
+		[t, tCommon, timeFilterValue, updateParams, debouncedSearch],
 	)
 
 	const buttons: TableButton[] = useMemo(
