@@ -49,7 +49,8 @@ class SetEnv(BaseTool[SetEnvParams]):
 
     async def execute(self, tool_context: ToolContext, params: SetEnvParams) -> ToolResult:
         try:
-            info = EnvManagerService().set_env(params.key, params.value, params.scope)
+            metadata = tool_context.to_dict() if tool_context else None
+            info = await EnvManagerService(metadata=metadata).set_env(params.key, params.value, params.scope)
         except EnvManagerError as exc:
             key = (params.key or "").strip()
             payload = {

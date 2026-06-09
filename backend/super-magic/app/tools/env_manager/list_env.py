@@ -32,7 +32,8 @@ class ListEnv(BaseTool[ListEnvParams]):
 
     async def execute(self, tool_context: ToolContext, params: ListEnvParams) -> ToolResult:
         try:
-            info = EnvManagerService().list_env(params.scope)
+            metadata = tool_context.to_dict() if tool_context else None
+            info = await EnvManagerService(metadata=metadata).list_env(params.scope)
         except EnvManagerError as exc:
             payload = {
                 "operation": "list",
@@ -51,7 +52,8 @@ class ListEnv(BaseTool[ListEnvParams]):
 
         scope = info["scope"]
         count = info["count"]
-        content = f"Environment variables listed: {count} key(s) (scope: {scope})."
+        keys = info["keys"]
+        content = self._build_model_content(scope, count, keys)
         payload = {
             "operation": "list",
             "scope": scope,
@@ -60,6 +62,21 @@ class ListEnv(BaseTool[ListEnvParams]):
             "keys": info["keys"],
         }
         return ToolResult(content=content, extra_info=payload, data=payload)
+
+    @staticmethod
+    def _build_model_content(scope: str, count: int, keys: list[dict[str, Any]]) -> str:
+        if not keys:
+            return f"No environment variables found (scope: {scope})."
+
+        key_lines = []
+        for item in keys:
+            key = item.get("key", "")
+            value = item.get("value", "")
+            if item.get("available", True):
+                key_lines.append(f"- {key}: {value}")
+            else:
+                key_lines.append(f"- {key}: {value} (unavailable)")
+        return f"Environment variables listed: {count} key(s) (scope: {scope}).\nKeys:\n" + "\n".join(key_lines)
 
     async def get_before_tool_call_friendly_action_and_remark(
         self,

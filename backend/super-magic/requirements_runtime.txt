@@ -1,5 +1,6 @@
 # 核心工具和配置管理
 python-dotenv==1.0.1
+cryptography>=42.0.0
 pyyaml~=6.0.2
 loguru~=0.7.3
 typer>=0.15.2

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
-
-from dotenv import dotenv_values, set_key, unset_key
+from typing import Any, Mapping
 
 from app.path_manager import PathManager
+from app.service.env_manager import EnvFileStore, EnvIdentity, EnvIdentityResolver, EnvValueRecord
 
 SCOPE_PERSONAL = "personal"
 SCOPE_WORKSPACE = "workspace"
@@ -37,10 +36,14 @@ class EnvManagerService:
         personal_env_file: Path | None = None,
         workspace_dir: Path | None = None,
         workspace_env_file: Path | None = None,
+        metadata: Mapping[str, object] | None = None,
+        store: EnvFileStore | None = None,
     ) -> None:
         self._personal_env_file = personal_env_file
         self._workspace_dir = workspace_dir
         self._workspace_env_file = workspace_env_file
+        self._identity_resolver = EnvIdentityResolver(metadata)
+        self._store = store or EnvFileStore()
 
     def get_personal_env_file(self) -> Path:
         return self._personal_env_file or PathManager.get_personal_env_file()
@@ -61,11 +64,17 @@ class EnvManagerService:
 
     def get_env_paths(self, scope: str) -> list[Path]:
         self.validate_scope(scope, LIST_SCOPES)
+        return [env_path for env_path, _ in self.get_env_path_specs(scope)]
+
+    def get_env_path_specs(self, scope: str) -> list[tuple[Path, str]]:
+        self.validate_scope(scope, LIST_SCOPES)
         if scope == SCOPE_PERSONAL:
-            return [self.get_personal_env_file()]
+            return [(self.get_personal_env_file(), SCOPE_PERSONAL)]
         if scope == SCOPE_WORKSPACE:
-            return self.get_workspace_env_paths()
-        return self.get_workspace_env_paths() + [self.get_personal_env_file()]
+            return [(env_path, SCOPE_WORKSPACE) for env_path in self.get_workspace_env_paths()]
+        return [(env_path, SCOPE_WORKSPACE) for env_path in self.get_workspace_env_paths()] + [
+            (self.get_personal_env_file(), SCOPE_PERSONAL)
+        ]
 
     def get_write_env_file(self, scope: str) -> Path:
         self.validate_scope(scope, WRITE_SCOPES)
@@ -90,19 +99,25 @@ class EnvManagerService:
 
     @staticmethod
     def mask_value(value: str) -> str:
+        if not EnvFileStore.is_supported_value(value):
+            return "*" * min(len(value), 8)
         return value[:4] + "*" * (len(value) - 8) + value[-4:] if len(value) > 8 else "*" * len(value)
 
-    def set_env(self, key: str | None, value: str | None, scope: str = SCOPE_PERSONAL) -> dict[str, Any]:
-        key = self.validate_key(key)
+    @staticmethod
+    def validate_value(value: str | None) -> str:
         if value is None:
             raise EnvManagerError("value_required", "VALUE 不能为空")
+        if not EnvFileStore.is_supported_value(value):
+            # OS 环境变量不能包含 NUL，提前拒绝避免后续任何工具进程都无法启动。
+            raise EnvManagerError("invalid_value", "VALUE 包含不支持的空字节")
+        return value
+
+    async def set_env(self, key: str | None, value: str | None, scope: str = SCOPE_PERSONAL) -> dict[str, Any]:
+        key = self.validate_key(key)
+        value = self.validate_value(value)
 
         env_file = self.get_write_env_file(scope)
-        env_file.parent.mkdir(parents=True, exist_ok=True)
-        if not env_file.exists():
-            env_file.touch()
-
-        set_key(str(env_file), key, value)
+        await self._store.set_value(env_file, key, value, self._resolve_identity(scope))
         return {
             "ok": True,
             "key": key,
@@ -110,14 +125,13 @@ class EnvManagerService:
             "target": self.describe_scope(scope),
         }
 
-    def unset_env(self, key: str | None, scope: str = SCOPE_PERSONAL) -> dict[str, Any]:
+    async def unset_env(self, key: str | None, scope: str = SCOPE_PERSONAL) -> dict[str, Any]:
         key = self.validate_key(key)
         env_file = self.get_write_env_file(scope)
 
-        if not env_file.exists() or key not in dotenv_values(str(env_file)):
+        if not await self._store.unset_value(env_file, key, self._resolve_identity(scope)):
             raise EnvManagerError("key_not_found", f"KEY 不存在: {key}", key=key)
 
-        unset_key(str(env_file), key)
         return {
             "ok": True,
             "key": key,
@@ -125,13 +139,20 @@ class EnvManagerService:
             "target": self.describe_scope(scope),
         }
 
-    def list_env(self, scope: str = SCOPE_PERSONAL) -> dict[str, Any]:
-        merged: dict[str, str] = {}
-        for env_path in self.get_env_paths(scope):
-            if env_path.exists():
-                merged.update({k: v for k, v in dotenv_values(str(env_path)).items() if v is not None})
+    async def list_env(self, scope: str = SCOPE_PERSONAL) -> dict[str, Any]:
+        merged: dict[str, EnvValueRecord] = {}
+        for env_path, env_scope in self.get_env_path_specs(scope):
+            # list_env 保留不可用密文的占位记录，让用户能看到损坏变量。
+            merged.update(await self._store.read_records(env_path, self._resolve_identity(env_scope)))
 
-        keys = [{"key": key, "value": self.mask_value(merged[key]) if merged[key] else ""} for key in sorted(merged)]
+        keys = [
+            {
+                "key": key,
+                "value": self.mask_value(merged[key].value) if merged[key].available and merged[key].value else merged[key].value,
+                "available": merged[key].available,
+            }
+            for key in sorted(merged)
+        ]
         return {
             "ok": True,
             "scope": scope,
@@ -149,3 +170,10 @@ class EnvManagerService:
         if scope == SCOPE_ALL:
             return "effective env"
         return "unknown env"
+
+    def _resolve_identity(self, scope: str) -> EnvIdentity | None:
+        if scope == SCOPE_PERSONAL:
+            return self._identity_resolver.resolve_personal()
+        if scope == SCOPE_WORKSPACE:
+            return self._identity_resolver.resolve_workspace()
+        return None

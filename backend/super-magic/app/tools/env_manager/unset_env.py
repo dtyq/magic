@@ -44,7 +44,8 @@ class UnsetEnv(BaseTool[UnsetEnvParams]):
 
     async def execute(self, tool_context: ToolContext, params: UnsetEnvParams) -> ToolResult:
         try:
-            info = EnvManagerService().unset_env(params.key, params.scope)
+            metadata = tool_context.to_dict() if tool_context else None
+            info = await EnvManagerService(metadata=metadata).unset_env(params.key, params.scope)
         except EnvManagerError as exc:
             key = (params.key or "").strip()
             payload = {
