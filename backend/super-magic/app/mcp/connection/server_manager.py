@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 
+from ..config.env_resolver import MCPEnvResolutionError, MCPEnvVarResolver, redact_config_values
 from ..config.models import MCPServerConfig
 from ..tool.models import MCPServerResult, MCPToolInfo, UnavailableToolInfo
 from ..tool.schema_validator import validate_mcp_schema
@@ -115,7 +116,7 @@ class MCPServerManager:
         if not removed:
             logger.warning(f"服务器 '{server_name}' 不存在（既未连接也不在配置中）")
         return removed
-    
+
     async def shutdown(self) -> None:
         """关闭所有 MCP 连接并清理内部工具索引"""
         logger.debug("开始关闭 MCP 服务器管理器")
@@ -173,7 +174,20 @@ class MCPServerManager:
         config = self.server_configs[server_name]
         start_time = time.time()
 
-        client = MCPClient(config, max_retries=self.MAX_RETRIES, retry_delay=self.RETRY_DELAY)
+        try:
+            resolved_config = MCPEnvVarResolver().resolve_config(config)
+        except MCPEnvResolutionError as e:
+            return MCPServerResult(
+                name=server_name,
+                status="failed",
+                duration=time.time() - start_time,
+                tools=[],
+                tool_count=0,
+                error=str(e),
+                label_name=label_name,
+            )
+
+        client = MCPClient(resolved_config, max_retries=self.MAX_RETRIES, retry_delay=self.RETRY_DELAY)
         timeout = 30.0 + (self.MAX_RETRIES * 10.0)
         try:
             connected = await asyncio.wait_for(client.connect(), timeout=timeout)
@@ -219,13 +233,14 @@ class MCPServerManager:
             )
         except Exception as e:
             await client.disconnect()
+            error_detail = redact_config_values(resolved_config, f"{type(e).__name__}: {e}")
             return MCPServerResult(
                 name=server_name,
                 status="failed",
                 duration=time.time() - start_time,
                 tools=[],
                 tool_count=0,
-                error=f"{type(e).__name__}: {e}",
+                error=error_detail,
                 label_name=label_name,
             )
 
@@ -295,10 +310,11 @@ class MCPServerManager:
             raw = await client.call_tool(original_tool_name, arguments)
             return self._parse_tool_result(raw)
         except Exception as e:
+            error_text = redact_config_values(client.config, str(e))
             logger.warning(
-                f"调用 MCP 工具 '{server_name}.{original_tool_name}' 失败: {e}"
+                f"调用 MCP 工具 '{server_name}.{original_tool_name}' 失败: {error_text}"
             )
-            return ToolResult.error(f"MCP 工具调用失败: {e}")  # type: ignore
+            return ToolResult.error(f"MCP 工具调用失败: {error_text}")  # type: ignore
 
     def _get_label_name(self, server_name: str) -> str:
         config = self.server_configs.get(server_name)

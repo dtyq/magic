@@ -61,6 +61,27 @@ When the user wants to register a brand-new MCP server, run `mcp_add_server` fir
 3. NEVER call `mcp_*` tools as standalone tool calls. They only work inside `run_sdk_snippet` via `sdk.tool.call`.
 4. ALWAYS check `result.ok` before proceeding. Errors should be surfaced to the user, not silently retried.
 
+## Environment variables in reusable MCP configs
+
+MCP configs can be written as reusable templates in skills. Put sensitive
+values behind `${VAR_NAME}` placeholders, and ask the user to save their own
+value with env-manager before registering or connecting the MCP server.
+
+Supported placeholder locations:
+
+- `url`, including query parameters: `https://mcp.example.com/sse?key=${EXAMPLE_API_KEY}`
+- `headers` values: `{"x-api-key": "${EXAMPLE_API_KEY}"}`
+- `token`
+- stdio `env` values: `{"EXAMPLE_API_KEY": "${EXAMPLE_API_KEY}"}`
+
+Do not put personal API keys directly in skill docs or MCP config templates.
+If a referenced env variable is missing or unusable, connecting the MCP server
+fails with the missing variable name. The secret value is not written into the
+persisted MCP config.
+
+Only the fields above are resolved. Do not use `${VAR_NAME}` in `name`,
+`description`, `command`, or `args`.
+
 ## End-to-end example
 
 User asks to call a tool on some MCP server. The flow below uses angle-
@@ -170,12 +191,44 @@ add = tool.call('mcp_add_server', {
 })
 print(add.content)
 
+# stdio server with an API key injected into the subprocess environment.
+# First save EXAMPLE_API_KEY with set_env, then register this template.
+add = tool.call('mcp_add_server', {
+    'name': 'example-stdio-auth',
+    'server_type': 'stdio',
+    'command': 'npx',
+    'args': ['-y', '@example/mcp-server'],
+    'env': {'EXAMPLE_API_KEY': '${EXAMPLE_API_KEY}'},
+    'label_name': 'Example Stdio Auth',
+})
+print(add.content)
+
 # http server example
 add = tool.call('mcp_add_server', {
     'name': 'my-api-server',
     'server_type': 'http',
     'url': 'http://localhost:3000/mcp',
     'label_name': 'Custom API',
+})
+print(add.content)
+
+# http server with an API key stored through env-manager.
+# First save EXAMPLE_API_KEY with set_env, then register this template.
+add = tool.call('mcp_add_server', {
+    'name': 'example-header-auth',
+    'server_type': 'http',
+    'url': 'https://mcp.example.com/http',
+    'headers': {'x-api-key': '${EXAMPLE_API_KEY}'},
+    'label_name': 'Example Header Auth',
+})
+print(add.content)
+
+# URL query auth example for a reusable skill template.
+add = tool.call('mcp_add_server', {
+    'name': 'example-query-auth',
+    'server_type': 'http',
+    'url': 'https://mcp.example.com/sse?key=${EXAMPLE_API_KEY}',
+    'label_name': 'Example Query Auth',
 })
 print(add.content)
 """)

@@ -11,10 +11,12 @@ import asyncio
 import random
 from typing import Any, Dict, List, Optional
 
-from agentlang.logger import get_logger
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from agentlang.logger import get_logger
+
+from ..config.env_resolver import redact_config_values
 from ..config.models import MCPServerConfig, MCPServerType
 
 logger = get_logger(__name__)
@@ -151,7 +153,7 @@ class MCPClient:
             logger.debug(f"从 MCP 服务器 '{self.config.name}' 获取到 {len(tools)} 个工具")
             return tools
         except Exception as e:
-            logger.warning(f"从 MCP 服务器 '{self.config.name}' 获取工具列表失败: {e}")
+            logger.warning(f"从 MCP 服务器 '{self.config.name}' 获取工具列表失败: {self._redact_error_text(str(e))}")
             raise
 
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -174,8 +176,9 @@ class MCPClient:
                 "isError": result.isError if hasattr(result, 'isError') else False
             }
         except Exception as e:
-            logger.warning(f"调用 MCP 工具 '{name}' 失败: {e}")
-            return {"content": [{"type": "text", "text": str(e)}], "isError": True}
+            error_text = self._redact_error_text(str(e))
+            logger.warning(f"调用 MCP 工具 '{name}' 失败: {error_text}")
+            return {"content": [{"type": "text", "text": error_text}], "isError": True}
 
     async def ping(self) -> bool:
         """健康检查"""
@@ -185,7 +188,7 @@ class MCPClient:
                 return True
             return False
         except Exception as e:
-            logger.debug(f"MCP 服务器 '{self.config.name}' ping 失败: {e}")
+            logger.debug(f"MCP 服务器 '{self.config.name}' ping 失败: {self._redact_error_text(str(e))}")
             return False
 
     # ------------------------------------------------------------------ #
@@ -255,9 +258,10 @@ class MCPClient:
                 self._init_error = actual_error
                 self._init_event.set()
             else:
+                error_text = self._redact_error_text(f"{type(e).__name__}: {e}")
                 logger.warning(
                     f"MCP 服务器 '{self.config.name}' 连接意外中断: "
-                    f"{type(e).__name__}: {e}"
+                    f"{error_text}"
                 )
         finally:
             self.session = None
@@ -290,7 +294,7 @@ class MCPClient:
 
             logger.debug(
                 f"Streamable HTTP 失败，回退到 SSE: {self.config.name} "
-                f"({type(actual_error).__name__}: {actual_error})"
+                f"({self._redact_error_text(f'{type(actual_error).__name__}: {actual_error}')})"
             )
             from mcp.client.sse import sse_client
             sse_cm = self._create_transport_cm(sse_client, headers)
@@ -299,9 +303,11 @@ class MCPClient:
                     await self._session_lifecycle(streams[0], streams[1])
             except Exception as sse_error:
                 actual_sse_error = self._unwrap_exception_group(sse_error)
+                streamable_text = self._redact_error_text(str(actual_error))
+                sse_text = self._redact_error_text(str(actual_sse_error))
                 raise RuntimeError(
                     f"Streamable HTTP 和 SSE 均连接失败 "
-                    f"(streamable: {actual_error}, sse: {actual_sse_error})"
+                    f"(streamable: {streamable_text}, sse: {sse_text})"
                 ) from actual_sse_error
 
     async def _stdio_lifecycle(self) -> None:
@@ -368,8 +374,7 @@ class MCPClient:
             break
         return exc
 
-    @staticmethod
-    def _format_error(exc: BaseException) -> str:
+    def _format_error(self, exc: BaseException) -> str:
         """格式化异常为人类可读的字符串。
 
         对 httpx.HTTPStatusError 额外提取响应体，使错误信息包含服务器返回的具体原因。
@@ -386,7 +391,7 @@ class MCPClient:
                     "configuration directly. Do not attempt to resolve this by setting local "
                     "environment variables.)"
                 )
-                return f"{type(exc).__name__}: {first_line} | body: {body} {hint}"
+                return self._redact_error_text(f"{type(exc).__name__}: {first_line} | body: {body} {hint}")
             except Exception:
                 try:
                     text = response.text
@@ -398,10 +403,13 @@ class MCPClient:
                             "configuration directly. Do not attempt to resolve this by setting local "
                             "environment variables.)"
                         )
-                        return f"{type(exc).__name__}: {first_line} | body: {text[:300]} {hint}"
+                        return self._redact_error_text(f"{type(exc).__name__}: {first_line} | body: {text[:300]} {hint}")
                 except Exception:
                     pass
-        return f"{type(exc).__name__}: {exc}"
+        return self._redact_error_text(f"{type(exc).__name__}: {exc}")
+
+    def _redact_error_text(self, text: str) -> str:
+        return redact_config_values(self.config, text)
 
     def _prepare_headers(self) -> Dict[str, str]:
         """准备 HTTP 认证头，token 优先级高于自定义 headers"""

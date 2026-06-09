@@ -47,6 +47,11 @@ Server URL (required when server_type='http').""",
         description="""<!--zh: 启动子进程使用的环境变量。-->
 Environment variables used when launching the stdio subprocess.""",
     )
+    headers: Optional[Dict[str, str]] = Field(
+        None,
+        description="""<!--zh: HTTP MCP 请求头，可用 ${VAR_NAME} 引用 env-manager 中的敏感值。-->
+HTTP headers for HTTP MCP servers. Values may reference env-manager variables with ${VAR_NAME}.""",
+    )
     label_name: Optional[str] = Field(
         None,
         description="""<!--zh: 服务器在前端展示的友好名称。-->
@@ -81,7 +86,7 @@ class McpAddServer(BaseMcpTool[McpAddServerParams]):
         args = arguments or {}
         name = args.get("name", "")
         return i18n.translate("mcp.add_server.added", category="tool.messages", name=name)
-    
+
     async def get_tool_detail(
         self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
     ) -> Optional[ToolDetail]:
@@ -119,6 +124,8 @@ class McpAddServer(BaseMcpTool[McpAddServerParams]):
             config_kwargs["url"] = params.url
         if params.env:
             config_kwargs["env"] = params.env
+        if params.headers:
+            config_kwargs["headers"] = params.headers
         if params.label_name:
             config_kwargs["server_options"] = {"label_name": params.label_name}
 

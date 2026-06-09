@@ -303,6 +303,11 @@ Frontmatter fields:
 
 **Note:** Packaging validation only requires `name` and `description` in frontmatter; there is no fixed whitelist of keys.
 
+<!--zh
+**MCP 配置模板**：如果 skill 需要让其他用户注册同一个 MCP 服务，可以在 SKILL.md 中定义 MCP 配置模板。敏感值应使用环境变量占位符，具体支持字段、示例和调用流程不要在本 skill 展开，直接参考 `using-mcp` skill。
+-->
+**MCP config templates:** If a skill should let other users register the same MCP server, it may include an MCP config template in SKILL.md. Use environment variable placeholders for sensitive values. Do not duplicate the field-level rules or examples here; refer to the `using-mcp` skill for supported fields, examples, and workflow.
+
 Directory structure (paths relative to `.workspace/`, i.e. use `<workspace-skills-dir>/<skill-name>/...` with file tools):
 
 ```
