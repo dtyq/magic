@@ -22,6 +22,7 @@ const defaultComponents = new Map<string, SearchComponent>([
 	[SearchItemType.DATE, { component: MagicDatePicker }],
 	[SearchItemType.RADIO, { component: Radio }],
 	[SearchItemType.RADIO_GROUP, { component: Radio.Group }],
+	[SearchItemType.TIME_FILTER_PANEL, { component: TimeFilterPanel }],
 ])
 
 const SearchComponentContext = createContext<{

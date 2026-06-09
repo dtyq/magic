@@ -107,6 +107,7 @@ export type {
 	SelectSearchItem,
 	DateRangeSearchItem,
 	DateSearchItem,
+	TimeFilterPanelSearchItem,
 	CustomSearchItem,
 	TableButton,
 } from "./TableWithFilters/types"

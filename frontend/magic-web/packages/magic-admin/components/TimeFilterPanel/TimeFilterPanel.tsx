@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useControllableValue } from "ahooks"
 import { Button, DatePicker, Empty, Popover, Select, Space, Typography } from "antd"
 import dayjs, { type Dayjs } from "dayjs"
-import { IconCalendarClock, IconTrash } from "@tabler/icons-react"
+import { IconCalendarClock, IconTrash, IconX } from "@tabler/icons-react"
 import { useAdminComponents } from "../AdminComponentsProvider"
 import MagicButton from "../MagicButton"
 import MagicInputNumber from "../MagicInputNumber"
@@ -9,12 +10,10 @@ import MagicSwitch from "../MagicSwitch"
 import MagicTabs from "../MagicTabs"
 import { useStyles } from "./style"
 import {
-	CommonAbsolutePresetKey,
 	HistoryMode,
 	RelativeMode,
 	RelativeUnit,
 	TimeFilterHistoryItem,
-	TimeFilterLocale,
 	TimeFilterTab,
 	TimePresetKey,
 	TimeRangeValue,
@@ -33,6 +32,10 @@ import {
 	removeHistory,
 	STANDARD_PRESET_OPTIONS,
 	upsertHistory,
+	getPresetLabel,
+	getAbsolutePresetLabel,
+	formatTemplate,
+	getUnitLabel,
 } from "./utils"
 
 const { RangePicker } = DatePicker
@@ -40,15 +43,26 @@ const DEFAULT_CUSTOM_VALUE = 15
 const DEFAULT_CUSTOM_UNIT = RelativeUnit.minute
 
 export interface TimeFilterPanelProps {
+	/* 默认预设时间 */
 	defaultPresetKey?: TimePresetKey
-	onChange?: (value: TimeRangeValue) => void
+	/* 前缀 */
+	prefix?: React.ReactNode
+	/* 受控值，传 null 表示清空 */
+	value?: TimeRangeValue | null
+	/* 变化回调 */
+	onChange?: (value: TimeRangeValue | null) => void
 }
 
-function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
+function TimeFilterPanel({ defaultPresetKey, prefix, value, onChange }: TimeFilterPanelProps) {
 	const { styles, cx } = useStyles()
 	const { getLocale } = useAdminComponents()
 	const locale = getLocale("TimeFilterPanel")
 	const hasInitializedRef = useRef(false)
+	const isControlled = value !== undefined
+	const [timeRangeValue, setTimeRangeValue] = useControllableValue<TimeRangeValue | null>(
+		{ value, onChange },
+		{ defaultValue: null },
+	)
 	const [open, setOpen] = useState(false)
 	const [activeTab, setActiveTab] = useState<TimeFilterTab>(TimeFilterTab.relative)
 	const [selectedPresetKey, setSelectedPresetKey] = useState<TimePresetKey | null>(
@@ -59,7 +73,6 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 	const [customValue, setCustomValue] = useState(DEFAULT_CUSTOM_VALUE)
 	const [customUnit, setCustomUnit] = useState<RelativeUnit>(DEFAULT_CUSTOM_UNIT)
 	const [absoluteRange, setAbsoluteRange] = useState<[Dayjs | null, Dayjs | null]>([null, null])
-	const [currentValue, setCurrentValue] = useState<TimeRangeValue | null>(null)
 	const [history, setHistory] = useState<TimeFilterHistoryItem[]>([])
 
 	const monthKeys = useMemo(() => getRecentMonthKeys(dayjs(), 12), [])
@@ -119,8 +132,8 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 		],
 		[],
 	)
-	const currentRangeText = currentValue
-		? `${currentValue.startDate} ~ ${currentValue.endDate}`
+	const currentRangeText = timeRangeValue
+		? `${timeRangeValue.startDate} ~ ${timeRangeValue.endDate}`
 		: locale.placeholder
 
 	const applyRange = useCallback(
@@ -149,8 +162,7 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 				mode,
 			}
 
-			setCurrentValue(nextValue)
-			onChange?.(nextValue)
+			setTimeRangeValue(nextValue)
 
 			if (persist) {
 				setHistory(upsertHistory(createHistoryEntry(nextValue)))
@@ -160,20 +172,20 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 				setOpen(false)
 			}
 		},
-		[onChange],
+		[setTimeRangeValue],
 	)
 
 	const reapplyRelativeRangeForAlign = useCallback(
 		(nextAlignToUnit: boolean) => {
-			if (!currentValue || currentValue.tab !== TimeFilterTab.relative) return
+			if (!timeRangeValue || timeRangeValue.tab !== TimeFilterTab.relative) return
 
 			const now = dayjs()
 			let start: Dayjs
 			let end: Dayjs
-			let label = currentValue.label
-			const mode = currentValue.mode
+			let label = timeRangeValue.label
+			const mode = timeRangeValue.mode
 
-			if (currentValue.mode === HistoryMode.relative && selectedPresetKey) {
+			if (timeRangeValue.mode === HistoryMode.relative && selectedPresetKey) {
 				;[start, end] = getRangeByPreset(selectedPresetKey, now, nextAlignToUnit)
 				const option = [...QUICK_PRESET_OPTIONS, ...STANDARD_PRESET_OPTIONS].find(
 					(item) => item.key === selectedPresetKey,
@@ -181,7 +193,7 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 				if (option) {
 					label = getPresetLabel(locale, option.labelKey)
 				}
-			} else if (currentValue.mode === HistoryMode.custom) {
+			} else if (timeRangeValue.mode === HistoryMode.custom) {
 				;[start, end] = buildCustomRelativeRange({
 					now,
 					value: customValue,
@@ -206,7 +218,7 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 				closePanel: false,
 			})
 		},
-		[applyRange, currentValue, customUnit, customValue, locale, selectedPresetKey],
+		[applyRange, customUnit, customValue, locale, selectedPresetKey, timeRangeValue],
 	)
 
 	const handleAlignToUnitChange = useCallback(
@@ -222,7 +234,14 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 	}, [])
 
 	useEffect(() => {
-		if (hasInitializedRef.current || !defaultPresetKey) return
+		if (!isControlled) return
+		if (timeRangeValue?.startDate && timeRangeValue?.endDate) return
+
+		resetPanelState()
+	}, [defaultPresetKey, isControlled, timeRangeValue])
+
+	useEffect(() => {
+		if (hasInitializedRef.current || !defaultPresetKey || isControlled) return
 		hasInitializedRef.current = true
 
 		const matchedPreset = [...QUICK_PRESET_OPTIONS, ...STANDARD_PRESET_OPTIONS].find(
@@ -242,7 +261,18 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 			persist: false,
 		})
 		setSelectedPresetKey(defaultPresetKey)
-	}, [applyRange, defaultPresetKey, locale])
+	}, [applyRange, defaultPresetKey, isControlled, locale])
+
+	const resetPanelState = useCallback(() => {
+		setOpen(false)
+		setActiveTab(TimeFilterTab.relative)
+		setSelectedPresetKey(defaultPresetKey ?? null)
+		setRelativeMode(RelativeMode.preset)
+		setAlignToUnit(false)
+		setCustomValue(DEFAULT_CUSTOM_VALUE)
+		setCustomUnit(DEFAULT_CUSTOM_UNIT)
+		setAbsoluteRange([null, null])
+	}, [defaultPresetKey])
 
 	const handlePresetApply = (presetKey: TimePresetKey) => {
 		setRelativeMode(RelativeMode.preset)
@@ -318,6 +348,16 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 			mode: HistoryMode.absolute,
 		})
 	}
+
+	const handleClear = useCallback(
+		(event: React.MouseEvent<HTMLSpanElement>) => {
+			event.preventDefault()
+			event.stopPropagation()
+			resetPanelState()
+			setTimeRangeValue(null)
+		},
+		[resetPanelState, setTimeRangeValue],
+	)
 
 	const absolutePickerContainerRef = useRef<HTMLDivElement>(null)
 	const panelContent = (
@@ -473,7 +513,7 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 															[styles.optionButtonActive]:
 																relativeMode ===
 																	RelativeMode.monthly &&
-																currentValue?.label ===
+																timeRangeValue?.label ===
 																	formatTemplate(
 																		locale.monthLabel,
 																		{
@@ -602,15 +642,35 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 			placement="bottomLeft"
 		>
 			<MagicButton className={styles.triggerButton}>
-				{currentValue?.label ? (
-					<Typography.Text className={styles.triggerLabel}>
-						{currentValue.label}
-					</Typography.Text>
-				) : (
-					locale.placeholder
-				)}
-				<Space size={6}>
-					<IconCalendarClock size={16} />
+				<div className={styles.triggerContent}>
+					{prefix ? <span className={styles.triggerPrefix}>{prefix}</span> : null}
+					{timeRangeValue?.label ? (
+						<Typography.Text className={styles.triggerLabel}>
+							{timeRangeValue.label}
+						</Typography.Text>
+					) : (
+						<span className={styles.triggerPlaceholder}>{locale.placeholder}</span>
+					)}
+				</div>
+				<Space size={6} className={styles.triggerIconWrap}>
+					{timeRangeValue?.label ? (
+						<>
+							<span
+								data-role="time-filter-clear"
+								className={styles.triggerClearIconWrap}
+								onClick={handleClear}
+							>
+								<IconX size={14} className={styles.triggerClearButton} />
+							</span>
+							<IconCalendarClock
+								size={16}
+								data-role="time-filter-icon"
+								className={styles.triggerCalendarIcon}
+							/>
+						</>
+					) : (
+						<IconCalendarClock size={16} />
+					)}
 				</Space>
 			</MagicButton>
 		</Popover>
@@ -618,37 +678,3 @@ function TimeFilterPanel({ defaultPresetKey, onChange }: TimeFilterPanelProps) {
 }
 
 export default TimeFilterPanel
-
-function getPresetLabel(locale: { preset: Record<string, string> }, key: string) {
-	return locale.preset[key as keyof typeof locale.preset] || locale.preset.last24Hours
-}
-
-function getAbsolutePresetLabel(locale: TimeFilterLocale, key: CommonAbsolutePresetKey) {
-	if (key === CommonAbsolutePresetKey.last_3_days) return locale.preset.last3Days
-	if (key === CommonAbsolutePresetKey.last_7_days) return locale.preset.last7Days
-	if (key === CommonAbsolutePresetKey.last_14_days)
-		return formatTemplate(locale.customRelativeLabel, {
-			value: "14",
-			unit: locale.unit.day,
-		})
-	if (key === CommonAbsolutePresetKey.last_21_days)
-		return formatTemplate(locale.customRelativeLabel, {
-			value: "21",
-			unit: locale.unit.day,
-		})
-	if (key === CommonAbsolutePresetKey.last_30_days) return locale.preset.last30Days
-	return locale.preset.last90Days
-}
-
-function formatTemplate(template: string, values: Record<string, string>) {
-	return Object.entries(values).reduce(
-		(result, [key, value]) => result.split(`{${key}}`).join(value),
-		template,
-	)
-}
-
-function getUnitLabel(locale: TimeFilterLocale, unit: RelativeUnit) {
-	if (unit === RelativeUnit.day) return locale.unit.day
-	if (unit === RelativeUnit.hour) return locale.unit.hour
-	return locale.unit.minute
-}

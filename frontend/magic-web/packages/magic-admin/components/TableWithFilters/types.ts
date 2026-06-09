@@ -4,6 +4,7 @@ import type { MagicDropdownButtonProps } from "../MagicDropdown"
 import type { MagicInputProps } from "../MagicInput"
 import type { MagicSelectProps } from "../MagicSelect"
 import type { MagicButtonProps } from "../MagicButton"
+import type { TimeFilterPanelProps } from "../TimeFilterPanel"
 
 export type WithType<D, T> = D & {
 	type: T
@@ -18,6 +19,7 @@ export enum SearchItemType {
 	DATE = "date",
 	RADIO = "radio",
 	RADIO_GROUP = "radioGroup",
+	TIME_FILTER_PANEL = "timeFilterPanel",
 }
 
 /* 文本搜索 */
@@ -44,7 +46,11 @@ export type RadioSearchItem = WithType<RadioProps, SearchItemType.RADIO>
 /* 单选组搜索 */
 export type RadioGroupSearchItem = WithType<RadioGroupProps, SearchItemType.RADIO_GROUP>
 
-/* 自定义搜索 */
+/* 时间筛选面板搜索 */
+export type TimeFilterPanelSearchItem = WithType<
+	TimeFilterPanelProps,
+	SearchItemType.TIME_FILTER_PANEL
+>
 export type CustomSearchItem = WithType<
 	{
 		component: React.ComponentType<any>
@@ -61,6 +67,7 @@ export type SearchItem =
 	| DateSearchItem
 	| RadioSearchItem
 	| RadioGroupSearchItem
+	| TimeFilterPanelSearchItem
 	| CustomSearchItem
 	| TreeSelectSearchItem
 

@@ -17,6 +17,17 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => ({
 			border-color: ${token.magicColorScales.brand[3]};
 			background: #f8fbff;
 		}
+
+		&:hover [data-role="time-filter-clear"] {
+			opacity: 1;
+			visibility: visible;
+			pointer-events: auto;
+		}
+
+		&:hover [data-role="time-filter-icon"] {
+			opacity: 0;
+			visibility: hidden;
+		}
 	`,
 	triggerContent: css`
 		display: flex;
@@ -26,15 +37,7 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => ({
 		flex: 1;
 	`,
 	triggerIconWrap: css`
-		width: 28px;
-		height: 28px;
-		border-radius: 8px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: #eef4ff;
-		color: ${token.magicColorScales.brand[5]};
-		flex-shrink: 0;
+		position: relative;
 	`,
 	triggerTextBlock: css`
 		min-width: 0;
@@ -59,6 +62,52 @@ export const useStyles = createStyles(({ css, token, prefixCls }) => ({
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	`,
+	triggerPrefix: css`
+		flex-shrink: 0;
+		font-size: 14px;
+		font-weight: 600;
+		color: ${token.magicColorUsages.text[3]};
+		margin-inline-end: 8px;
+	`,
+	triggerPlaceholder: css`
+		font-size: 14px;
+		color: ${token.magicColorUsages.text[3]};
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	`,
+	triggerClearIconWrap: css`
+		position: absolute;
+		top: 50%;
+		left: 70%;
+		transform: translate(-50%, -50%);
+		width: 16px;
+		height: 16px;
+		background: ${token.magicColorUsages.fill[0]};
+		border-radius: 999px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+		transition: opacity 0.16s ease;
+		&:hover {
+			background: ${token.magicColorUsages.fill[1]};
+		}
+	`,
+	triggerClearButton: css`
+		color: ${token.magicColorUsages.text[3]};
+		&:hover {
+			color: ${token.magicColorUsages.text[1]};
+		}
+	`,
+	triggerCalendarIcon: css`
+		opacity: 1;
+		visibility: visible;
+		transition: opacity 0.16s ease;
 	`,
 	popover: css`
 		.${prefixCls}-popover-inner {

@@ -20,8 +20,8 @@ import { TimeFilterPanel, type TimeRangeValue } from "@admin-components"
 function Example() {
 	return (
 		<TimeFilterPanel
-			onChange={(value: TimeRangeValue) => {
-				console.log(value.startDate, value.endDate, value.label)
+			onChange={(value: TimeRangeValue | null) => {
+				console.log(value?.startDate, value?.endDate, value?.label)
 			}}
 		/>
 	)
@@ -32,8 +32,9 @@ function Example() {
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `defaultPresetKey` | `TimePresetKey` | 无 | 可选，传入时在挂载后自动应用对应预设 |
-| `onChange` | `(value: TimeRangeValue) => void` | - | 时间范围变更回调 |
+| `defaultPresetKey` | `TimePresetKey` | 无 | 非受控模式下，挂载后自动应用对应预设 |
+| `value` | `TimeRangeValue \| null` | 无 | 受控值；传 `null` 表示清空 |
+| `onChange` | `(value: TimeRangeValue \| null) => void` | - | 时间范围变更回调；清空时返回 `null` |
 
 ## 输出结构
 

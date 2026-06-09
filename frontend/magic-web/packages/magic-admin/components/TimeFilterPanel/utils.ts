@@ -3,6 +3,7 @@ import type {
 	BuildCustomRelativeRangeArgs,
 	CommonAbsolutePresetRange,
 	TimeFilterHistoryItem,
+	TimeFilterLocale,
 	TimePresetOption,
 } from "./types"
 import { CommonAbsolutePresetKey, RelativeUnit, TimePresetKey } from "./types"
@@ -224,4 +225,39 @@ export function removeHistory(id: string) {
 	const nextHistory = loadHistory().filter((item) => item.id !== id)
 	saveHistory(nextHistory)
 	return nextHistory
+}
+
+
+export function getPresetLabel(locale: { preset: Record<string, string> }, key: string) {
+	return locale.preset[key as keyof typeof locale.preset] || locale.preset.last24Hours
+}
+
+export function getAbsolutePresetLabel(locale: TimeFilterLocale, key: CommonAbsolutePresetKey) {
+	if (key === CommonAbsolutePresetKey.last_3_days) return locale.preset.last3Days
+	if (key === CommonAbsolutePresetKey.last_7_days) return locale.preset.last7Days
+	if (key === CommonAbsolutePresetKey.last_14_days)
+		return formatTemplate(locale.customRelativeLabel, {
+			value: "14",
+			unit: locale.unit.day,
+		})
+	if (key === CommonAbsolutePresetKey.last_21_days)
+		return formatTemplate(locale.customRelativeLabel, {
+			value: "21",
+			unit: locale.unit.day,
+		})
+	if (key === CommonAbsolutePresetKey.last_30_days) return locale.preset.last30Days
+	return locale.preset.last90Days
+}
+
+export function formatTemplate(template: string, values: Record<string, string>) {
+	return Object.entries(values).reduce(
+		(result, [key, value]) => result.split(`{${key}}`).join(value),
+		template,
+	)
+}
+
+export function getUnitLabel(locale: TimeFilterLocale, unit: RelativeUnit) {
+	if (unit === RelativeUnit.day) return locale.unit.day
+	if (unit === RelativeUnit.hour) return locale.unit.hour
+	return locale.unit.minute
 }

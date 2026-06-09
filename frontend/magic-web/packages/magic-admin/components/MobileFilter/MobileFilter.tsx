@@ -35,7 +35,9 @@ function MobileFilter({ search, buttons, filterCount = 0 }: MobileFilterProps) {
 				return null
 			}
 
-			return <SearchComponent {...item} key={item.field} />
+			return (
+				<SearchComponent key={item.field} {...item} />
+			)
 		})
 	}, [search, getComponent])
 
