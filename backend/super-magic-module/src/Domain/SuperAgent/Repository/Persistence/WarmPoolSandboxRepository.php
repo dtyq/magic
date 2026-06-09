@@ -52,6 +52,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
             'sandbox_id' => $entity->getSandboxId(),
             'sandbox_name' => $entity->getSandboxName(),
             'agent_image' => $entity->getAgentImage(),
+            'agfs_image' => $entity->getAgfsImage(),
             'env' => $entity->getEnv(),
             'status' => $entity->getStatus(),
             'bound_user_id' => $entity->getBoundUserId(),
@@ -103,7 +104,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         return array_map(fn ($m) => $this->toEntity($m), $models->all());
     }
 
-    public function findByImageAndStatuses(string $agentImage, array $statuses, int $limit = 100): array
+    public function findByImageAndStatuses(string $agentImage, string $agfsImage, array $statuses, int $limit = 100): array
     {
         if (empty($statuses)) {
             return [];
@@ -111,6 +112,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         $models = WarmPoolSandboxModel::query()
             ->where('env', $this->env)
             ->where('agent_image', $agentImage)
+            ->where('agfs_image', $agfsImage)
             ->whereIn('status', $statuses)
             ->orderBy('id', 'ASC')
             ->limit($limit)
@@ -118,19 +120,23 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         return array_map(fn ($m) => $this->toEntity($m), $models->all());
     }
 
-    public function findReadyExcludingImage(string $currentAgentImage, int $limit = 100): array
+    public function findReadyExcludingImage(string $currentAgentImage, string $currentAgfsImage, int $limit = 100): array
     {
         $models = WarmPoolSandboxModel::query()
             ->where('env', $this->env)
             ->whereIn('status', [WarmPoolSandboxStatus::Creating->value, WarmPoolSandboxStatus::Ready->value])
-            ->where('agent_image', '!=', $currentAgentImage)
+            ->where(function ($q) use ($currentAgentImage, $currentAgfsImage) {
+                // Stale if EITHER image differs from the current generation.
+                $q->where('agent_image', '!=', $currentAgentImage)
+                    ->orWhere('agfs_image', '!=', $currentAgfsImage);
+            })
             ->orderBy('id', 'ASC')
             ->limit($limit)
             ->get();
         return array_map(fn ($m) => $this->toEntity($m), $models->all());
     }
 
-    public function countByImageAndStatuses(string $agentImage, array $statuses): int
+    public function countByImageAndStatuses(string $agentImage, string $agfsImage, array $statuses): int
     {
         if (empty($statuses)) {
             return 0;
@@ -138,23 +144,26 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         return WarmPoolSandboxModel::query()
             ->where('env', $this->env)
             ->where('agent_image', $agentImage)
+            ->where('agfs_image', $agfsImage)
             ->whereIn('status', $statuses)
             ->count();
     }
 
     public function claimOneReady(
         string $agentImage,
+        string $agfsImage,
         string $userId,
         string $projectId,
         string $now,
         ?string $topicId = null
     ): ?WarmPoolSandboxEntity {
-        return Db::transaction(function () use ($agentImage, $userId, $projectId, $now, $topicId) {
+        return Db::transaction(function () use ($agentImage, $agfsImage, $userId, $projectId, $now, $topicId) {
             // SKIP LOCKED is the whole point: other workers should not block
             // on a row we're already taking, they should fall to the next.
             $model = WarmPoolSandboxModel::query()
                 ->where('env', $this->env)
                 ->where('agent_image', $agentImage)
+                ->where('agfs_image', $agfsImage)
                 ->where('status', WarmPoolSandboxStatus::Ready->value)
                 ->orderBy('id', 'ASC')
                 ->lock('FOR UPDATE SKIP LOCKED')
@@ -280,6 +289,15 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         return $model ? (string) $model->agent_image : null;
     }
 
+    public function findLatestAgfsImage(): ?string
+    {
+        $model = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
+            ->orderBy('id', 'DESC')
+            ->first(['agfs_image']);
+        return $model ? (string) $model->agfs_image : null;
+    }
+
     private function toEntity(WarmPoolSandboxModel $model): WarmPoolSandboxEntity
     {
         $e = new WarmPoolSandboxEntity();
@@ -287,6 +305,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         $e->setSandboxId((string) $model->sandbox_id);
         $e->setSandboxName((string) $model->sandbox_name);
         $e->setAgentImage((string) $model->agent_image);
+        $e->setAgfsImage((string) ($model->agfs_image ?? ''));
         $e->setEnv((string) ($model->env ?? 'default'));
         $e->setStatus((string) $model->status);
         $e->setProvisionDurationMs($model->provision_duration_ms !== null ? (int) $model->provision_duration_ms : null);

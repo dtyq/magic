@@ -38,26 +38,29 @@ interface WarmPoolSandboxRepositoryInterface
      * @param string[] $statuses
      * @return WarmPoolSandboxEntity[]
      */
-    public function findByImageAndStatuses(string $agentImage, array $statuses, int $limit = 100): array;
+    public function findByImageAndStatuses(string $agentImage, string $agfsImage, array $statuses, int $limit = 100): array;
 
     /**
-     * Find ready entries whose image is NOT the given one (stale generation).
+     * Find ready/creating entries whose image generation is NOT the current
+     * one — i.e. agent_image OR agfs_image differs from the given pair.
      *
      * @return WarmPoolSandboxEntity[]
      */
-    public function findReadyExcludingImage(string $currentAgentImage, int $limit = 100): array;
+    public function findReadyExcludingImage(string $currentAgentImage, string $currentAgfsImage, int $limit = 100): array;
 
-    public function countByImageAndStatuses(string $agentImage, array $statuses): int;
+    public function countByImageAndStatuses(string $agentImage, string $agfsImage, array $statuses): int;
 
     /**
-     * Atomically claim ONE `ready` row matching the given image and stamp
-     * status/bound_* columns to `claimed`/<user>/<project>/<topic>. Uses
-     * `FOR UPDATE SKIP LOCKED` so concurrent claimers don't collide.
+     * Atomically claim ONE `ready` row matching the given image generation
+     * (agent_image AND agfs_image) and stamp status/bound_* columns to
+     * `claimed`/<user>/<project>/<topic>. Uses `FOR UPDATE SKIP LOCKED` so
+     * concurrent claimers don't collide.
      *
      * Returns the claimed entity (post-update) or null if none available.
      */
     public function claimOneReady(
         string $agentImage,
+        string $agfsImage,
         string $userId,
         string $projectId,
         string $now,
@@ -112,4 +115,10 @@ interface WarmPoolSandboxRepositoryInterface
      * detect generation changes without an event bus.
      */
     public function findLatestAgentImage(): ?string;
+
+    /**
+     * Most recently observed agfs_image stored in the warm pool. Used to
+     * detect generation changes without an event bus.
+     */
+    public function findLatestAgfsImage(): ?string;
 }

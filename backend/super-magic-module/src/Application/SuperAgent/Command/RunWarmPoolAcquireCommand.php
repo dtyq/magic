@@ -55,16 +55,23 @@ class RunWarmPoolAcquireCommand extends HyperfCommand
         $release = (bool) $this->input->getOption('release');
         $image = (string) ($this->input->getOption('image') ?? '');
 
+        $images = $gateway->getLatestImages();
         if ($image === '') {
-            $image = $gateway->getLatestAgentImage();
+            $image = $images['agent_image'];
         }
         if ($image === '') {
             $this->error('Unable to resolve agent image (gateway returned empty and no --image given)');
             return;
         }
 
-        $available = $domain->countAvailableForImage($image);
-        $this->info("[Config] image={$image}, available_ready={$available}, request={$times}, release=" . ($release ? 'true' : 'false'));
+        $agfsImage = $images['agfs_image'];
+        if ($agfsImage === '') {
+            $this->error('Unable to resolve agfs image (gateway returned empty)');
+            return;
+        }
+
+        $available = $domain->countAvailableForImage($image, $agfsImage);
+        $this->info("[Config] image={$image}, agfs_image={$agfsImage}, available_ready={$available}, request={$times}, release=" . ($release ? 'true' : 'false'));
 
         $acquired = 0;
         $released = 0;
@@ -74,7 +81,7 @@ class RunWarmPoolAcquireCommand extends HyperfCommand
         for ($i = 1; $i <= $times; ++$i) {
             $start = microtime(true);
             try {
-                $entity = $domain->claimOneReady($image, $userId, $projectId);
+                $entity = $domain->claimOneReady($image, $agfsImage, $userId, $projectId);
             } catch (Throwable $e) {
                 $this->error("claimOneReady #{$i} threw: " . $e->getMessage());
                 continue;
@@ -100,10 +107,10 @@ class RunWarmPoolAcquireCommand extends HyperfCommand
         }
 
         if (! empty($rows)) {
-            $this->table(['#', 'id', 'sandbox_id', 'sandbox_name', 'agent_image', 'elapsed_ms'], $rows);
+            $this->table(['#', 'id', 'sandbox_id', 'sandbox_name', 'agent_image', 'agfs_image', 'elapsed_ms'], $rows);
         }
 
-        $remaining = $domain->countAvailableForImage($image);
+        $remaining = $domain->countAvailableForImage($image, $agfsImage);
         $this->info("[Result] acquired={$acquired}, released={$released}, missed={$missed}, available_ready_after={$remaining}");
 
         if ($acquired > 0 && ! $release) {
@@ -125,6 +132,7 @@ class RunWarmPoolAcquireCommand extends HyperfCommand
             $entity->getSandboxId(),
             (string) ($entity->getSandboxName() ?? ''),
             (string) ($entity->getAgentImage() ?? ''),
+            (string) ($entity->getAgfsImage() ?? ''),
             (string) $elapsedMs,
         ];
     }

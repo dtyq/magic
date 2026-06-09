@@ -17,6 +17,7 @@ use Carbon\Carbon;
  * @property string $sandbox_id
  * @property string $sandbox_name
  * @property string $agent_image
+ * @property string $agfs_image
  * @property string $env
  * @property string $status
  * @property null|int $provision_duration_ms
@@ -45,6 +46,7 @@ class WarmPoolSandboxModel extends AbstractModel
         'sandbox_id',
         'sandbox_name',
         'agent_image',
+        'agfs_image',
         'env',
         'status',
         'provision_duration_ms',

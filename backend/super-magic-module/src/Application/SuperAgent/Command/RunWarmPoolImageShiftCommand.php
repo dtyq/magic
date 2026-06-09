@@ -8,8 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Command;
 
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WarmPoolSandboxAppService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\SandboxAgentImageChangedEvent;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\SandboxImageChangedEvent;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
 use Psr\Container\ContainerInterface;
@@ -45,7 +44,6 @@ class RunWarmPoolImageShiftCommand extends HyperfCommand
     public function handle(): void
     {
         $appService = $this->container->get(WarmPoolSandboxAppService::class);
-        $gateway = $this->container->get(SandboxGatewayInterface::class);
         $eventDispatcher = $this->container->get(EventDispatcherInterface::class);
 
         $isLoop = $this->input->getOption('loop');
@@ -65,47 +63,58 @@ class RunWarmPoolImageShiftCommand extends HyperfCommand
             $this->info("Loop mode: {$times} iterations, interval {$interval}s");
             for ($i = 1; $i <= $times; ++$i) {
                 $this->info("--- iteration {$i}/{$times} ---");
-                $this->runOnce($appService, $gateway, $eventDispatcher);
+                $this->runOnce($appService, $eventDispatcher);
                 if ($i < $times) {
                     sleep($interval);
                 }
             }
             $this->info('Loop finished.');
         } else {
-            $this->runOnce($appService, $gateway, $eventDispatcher);
+            $this->runOnce($appService, $eventDispatcher);
         }
     }
 
     private function runOnce(
         WarmPoolSandboxAppService $appService,
-        SandboxGatewayInterface $gateway,
         EventDispatcherInterface $eventDispatcher
     ): void {
         $start = microtime(true);
         try {
-            $previousImage = $appService->detectImageGenerationShift();
-            if ($previousImage === null) {
+            $shift = $appService->detectImageGenerationShift();
+            if ($shift === null) {
                 $elapsedMs = round((microtime(true) - $start) * 1000, 2);
                 $this->info("No image shift detected ({$elapsedMs} ms)");
                 return;
             }
 
-            $latest = $this->safeLatestImage($gateway);
-            if ($latest === '') {
-                $this->warn('Detected previous image but failed to read latest image; skip dispatch/invalidate.');
+            $currentAgent = (string) $shift['current_agent_image'];
+            $currentAgfs = (string) $shift['current_agfs_image'];
+            if ($currentAgent === '' || $currentAgfs === '') {
+                $this->warn('Detected shift but failed to read latest image(s); skip dispatch/invalidate.');
                 return;
             }
 
-            $this->info(sprintf('[ImageShift] previous=%s -> current=%s', $previousImage, $latest));
+            $this->info(sprintf(
+                '[ImageShift] agent: %s -> %s | agfs: %s -> %s',
+                (string) ($shift['previous_agent_image'] ?? ''),
+                $currentAgent,
+                (string) ($shift['previous_agfs_image'] ?? ''),
+                $currentAgfs
+            ));
 
             try {
-                $eventDispatcher->dispatch(new SandboxAgentImageChangedEvent($previousImage, $latest));
-                $this->info('Event SandboxAgentImageChangedEvent dispatched.');
+                $eventDispatcher->dispatch(new SandboxImageChangedEvent(
+                    (string) ($shift['previous_agent_image'] ?? ''),
+                    $currentAgent,
+                    (string) ($shift['previous_agfs_image'] ?? ''),
+                    $currentAgfs
+                ));
+                $this->info('Event SandboxImageChangedEvent dispatched.');
             } catch (Throwable $e) {
                 $this->error('Failed to dispatch event: ' . $e->getMessage());
             }
 
-            $result = $appService->invalidateStaleImageGeneration($latest);
+            $result = $appService->invalidateStaleImageGeneration($currentAgent, $currentAgfs);
             $elapsedMs = round((microtime(true) - $start) * 1000, 2);
             $this->info("Invalidate done ({$elapsedMs} ms)");
             $rows = [];
@@ -117,16 +126,6 @@ class RunWarmPoolImageShiftCommand extends HyperfCommand
             $elapsedMs = round((microtime(true) - $start) * 1000, 2);
             $this->error("Failed ({$elapsedMs} ms): " . $e->getMessage());
             $this->line($e->getTraceAsString());
-        }
-    }
-
-    private function safeLatestImage(SandboxGatewayInterface $gateway): string
-    {
-        try {
-            return (string) $gateway->getLatestAgentImage();
-        } catch (Throwable $e) {
-            $this->warn('Failed to read latest agent image: ' . $e->getMessage());
-            return '';
         }
     }
 }

@@ -100,13 +100,18 @@ class WarmPoolSandboxAppService extends AbstractAppService
      */
     public function refill(int $targetSize): array
     {
-        $latestImage = $this->gateway->getLatestAgentImage();
-        if ($latestImage === '') {
-            $this->logger->warning('[WarmPoolSandbox] Refill skipped: unable to resolve latest agent image');
+        $images = $this->gateway->getLatestImages();
+        $latestImage = $images['agent_image'];
+        $latestAgfsImage = $images['agfs_image'];
+        if ($latestImage === '' || $latestAgfsImage === '') {
+            $this->logger->warning('[WarmPoolSandbox] Refill skipped: unable to resolve latest agent/agfs image', [
+                'agent_image' => $latestImage,
+                'agfs_image' => $latestAgfsImage,
+            ]);
             return ['skipped' => 'no_latest_image', 'created' => 0];
         }
 
-        $available = $this->domain->countAvailableForImage($latestImage);
+        $available = $this->domain->countAvailableForImage($latestImage, $latestAgfsImage);
         $deficit = max(0, $targetSize - $available);
         $burst = min($deficit, self::REFILL_BURST);
         $created = 0;
@@ -130,11 +135,12 @@ class WarmPoolSandboxAppService extends AbstractAppService
             }
             $sandboxName = (string) ($result->getDataValue('sandbox_name') ?? '');
             $image = (string) ($result->getDataValue('agent_image') ?? $latestImage);
+            $agfsImage = (string) ($result->getDataValue('agfs_image') ?? $latestAgfsImage);
 
             try {
                 // sandbox-gateway returns once the agfs-server inside the pod
                 // is responsive, so we can fast-forward straight to ready.
-                $entity = $this->domain->recordCreating($sandboxId, $sandboxName, $image, self::POOL_TTL_MINUTES);
+                $entity = $this->domain->recordCreating($sandboxId, $sandboxName, $image, $agfsImage, self::POOL_TTL_MINUTES);
                 if ($entity->getId() !== null) {
                     $provisionDurationMs = (int) round((microtime(true) - $startedAt) * 1000);
                     $this->domain->markReady($entity->getId(), $provisionDurationMs);
@@ -151,6 +157,7 @@ class WarmPoolSandboxAppService extends AbstractAppService
 
         $this->logger->info('[WarmPoolSandbox] Refill summary', [
             'image' => $latestImage,
+            'agfs_image' => $latestAgfsImage,
             'available_before' => $available,
             'target' => $targetSize,
             'created' => $created,
@@ -159,6 +166,7 @@ class WarmPoolSandboxAppService extends AbstractAppService
 
         return [
             'image' => $latestImage,
+            'agfs_image' => $latestAgfsImage,
             'available_before' => $available,
             'target' => $targetSize,
             'created' => $created,
@@ -397,47 +405,62 @@ class WarmPoolSandboxAppService extends AbstractAppService
     }
 
     /**
-     * Drop all warm-pool sandboxes whose agent_image does not match the
-     * current generation; used when sandbox-gateway rolls out a new agent
-     * image.
+     * Drop all warm-pool sandboxes whose image generation does not match the
+     * current one; used when sandbox-gateway rolls out a new agent OR agfs
+     * image. A pooled row is stale if EITHER image differs from the current
+     * generation.
      */
-    public function invalidateStaleImageGeneration(string $currentImage): array
+    public function invalidateStaleImageGeneration(string $currentImage, string $currentAgfsImage): array
     {
-        if ($currentImage === '') {
+        if ($currentImage === '' || $currentAgfsImage === '') {
             return ['deleted' => 0, 'skipped' => 'no_current_image'];
         }
-        $rows = $this->domain->listStaleImage($currentImage, 200);
+        $rows = $this->domain->listStaleImage($currentImage, $currentAgfsImage, 200);
         $deleted = 0;
         foreach ($rows as $row) {
-            if ($this->forceDelete($row, 'stale_image:' . $currentImage)) {
+            if ($this->forceDelete($row, 'stale_image:' . $currentImage . '|' . $currentAgfsImage)) {
                 ++$deleted;
             }
         }
         if ($deleted > 0) {
             $this->logger->info('[WarmPoolSandbox] Invalidated stale-image warm-pool sandboxes', [
                 'current_image' => $currentImage,
+                'current_agfs_image' => $currentAgfsImage,
                 'deleted' => $deleted,
             ]);
         }
-        return ['deleted' => $deleted, 'current_image' => $currentImage];
+        return ['deleted' => $deleted, 'current_image' => $currentImage, 'current_agfs_image' => $currentAgfsImage];
     }
 
     /**
-     * Detect whether the gateway has rolled to a new agent image generation
-     * since we last persisted a warm-pool row. Returns the previous image
-     * or null when no shift has occurred.
+     * Detect whether the gateway has rolled to a new image generation since
+     * we last persisted a warm-pool row. A generation is the pair
+     * (agent_image, agfs_image); a shift in EITHER counts. Returns the
+     * previous + current images when a shift occurred, or null otherwise.
+     *
+     * @return null|array{previous_agent_image: ?string, previous_agfs_image: ?string, current_agent_image: string, current_agfs_image: string}
      */
-    public function detectImageGenerationShift(): ?string
+    public function detectImageGenerationShift(): ?array
     {
-        $latest = $this->gateway->getLatestAgentImage();
-        if ($latest === '') {
+        $images = $this->gateway->getLatestImages();
+        $latestAgent = $images['agent_image'];
+        $latestAgfs = $images['agfs_image'];
+        if ($latestAgent === '' || $latestAgfs === '') {
             return null;
         }
-        $previous = $this->domain->lastObservedAgentImage();
-        if ($previous === null || $previous === $latest) {
+        $previousAgent = $this->domain->lastObservedAgentImage();
+        $previousAgfs = $this->domain->lastObservedAgfsImage();
+        $agentShifted = $previousAgent !== null && $previousAgent !== $latestAgent;
+        $agfsShifted = $previousAgfs !== null && $previousAgfs !== $latestAgfs;
+        if (! $agentShifted && ! $agfsShifted) {
             return null;
         }
-        return $previous;
+        return [
+            'previous_agent_image' => $previousAgent,
+            'previous_agfs_image' => $previousAgfs,
+            'current_agent_image' => $latestAgent,
+            'current_agfs_image' => $latestAgfs,
+        ];
     }
 
     public static function gatewayResultMessage(GatewayResult $result): string

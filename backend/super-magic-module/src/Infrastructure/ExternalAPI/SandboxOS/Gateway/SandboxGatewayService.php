@@ -805,6 +805,86 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
     }
 
+    /**
+     * 获取沙箱网关当前部署的最新 AGFS 镜像.
+     */
+    public function getLatestAgfsImage(): string
+    {
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping getLatestAgfsImage');
+            return '';
+        }
+
+        try {
+            $response = $this->getClient()->get($this->buildApiPath(SandboxEndpoints::GATEWAY_AGFS_IMAGE), [
+                'headers' => $this->getCommonHeaders(),
+                'timeout' => 10,
+            ]);
+
+            $body = $response->getBody()->getContents();
+            $responseData = Json::decode($body);
+            $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Gateway] Failed to get latest agfs image', [
+                    'code' => $result->getCode(),
+                    'message' => $result->getMessage(),
+                ]);
+                return '';
+            }
+
+            $image = (string) ($result->getDataValue('image') ?? '');
+            $this->logger->info('[Sandbox][Gateway] Latest agfs image retrieved', ['image' => $image]);
+            return $image;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] Error getting latest agfs image', ['error' => $e->getMessage()]);
+            return '';
+        }
+    }
+
+    /**
+     * 一次性获取沙箱网关当前部署的 agent 与 agfs 最新镜像，避免两次调用。
+     *
+     * @return array{agent_image: string, agfs_image: string}
+     */
+    public function getLatestImages(): array
+    {
+        $empty = ['agent_image' => '', 'agfs_image' => ''];
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping getLatestImages');
+            return $empty;
+        }
+
+        try {
+            $response = $this->getClient()->get($this->buildApiPath(SandboxEndpoints::GATEWAY_SANDBOX_IMAGES), [
+                'headers' => $this->getCommonHeaders(),
+                'timeout' => 10,
+            ]);
+
+            $body = $response->getBody()->getContents();
+            $responseData = Json::decode($body);
+            $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Gateway] Failed to get latest sandbox images', [
+                    'code' => $result->getCode(),
+                    'message' => $result->getMessage(),
+                ]);
+                return $empty;
+            }
+
+            $images = [
+                'agent_image' => (string) ($result->getDataValue('agent_image') ?? ''),
+                'agfs_image' => (string) ($result->getDataValue('agfs_image') ?? ''),
+            ];
+            $this->logger->info('[Sandbox][Gateway] Latest sandbox images retrieved', $images);
+            return $images;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] Error getting latest sandbox images', ['error' => $e->getMessage()]);
+            return $empty;
+        }
+    }
+
     public function createWarmPoolSandbox(string $sandboxId): GatewayResult
     {
         if ($sandboxId === '') {
@@ -817,6 +897,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'sandbox_id' => $sandboxId,
                 'sandbox_name' => 'sandbox-' . $sandboxId,
                 'agent_image' => 'local/agent:debug',
+                'agfs_image' => 'local/agfs:debug',
                 'status' => 'running',
             ], 'Warm-pool sandbox creation skipped (local debugging mode)');
         }
@@ -853,6 +934,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                             'sandbox_id' => $result->getDataValue('sandbox_id'),
                             'sandbox_name' => $result->getDataValue('sandbox_name'),
                             'agent_image' => $result->getDataValue('agent_image'),
+                            'agfs_image' => $result->getDataValue('agfs_image'),
                         ]);
                     } else {
                         $this->logger->error('[Sandbox][Gateway] Failed to create warm-pool sandbox', [

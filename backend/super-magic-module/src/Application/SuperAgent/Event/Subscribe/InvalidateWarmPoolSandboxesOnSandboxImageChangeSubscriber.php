@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WarmPoolSandboxAppService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\SandboxAgentImageChangedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\SandboxImageChangedEvent;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -16,7 +16,7 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * Drops every still-pending warm-pool sandbox running the previous agent
+ * Drops every still-pending warm-pool sandbox running the previous sandbox
  * image generation so the pool refill loop can repopulate using the latest
  * image.
  *
@@ -24,7 +24,7 @@ use Throwable;
  * same application method which deletes by image+status.
  */
 #[Listener]
-class InvalidateWarmPoolSandboxesOnAgentImageChangeSubscriber implements ListenerInterface
+class InvalidateWarmPoolSandboxesOnSandboxImageChangeSubscriber implements ListenerInterface
 {
     private LoggerInterface $logger;
 
@@ -38,26 +38,33 @@ class InvalidateWarmPoolSandboxesOnAgentImageChangeSubscriber implements Listene
     public function listen(): array
     {
         return [
-            SandboxAgentImageChangedEvent::class,
+            SandboxImageChangedEvent::class,
         ];
     }
 
     public function process(object $event): void
     {
-        if (! $event instanceof SandboxAgentImageChangedEvent) {
+        if (! $event instanceof SandboxImageChangedEvent) {
             return;
         }
         try {
-            $summary = $this->warmPoolSandboxAppService->invalidateStaleImageGeneration($event->getCurrentImage());
+            $summary = $this->warmPoolSandboxAppService->invalidateStaleImageGeneration(
+                $event->getCurrentAgentImage(),
+                $event->getCurrentAgfsImage()
+            );
             $this->logger->info('[WarmPoolSandbox] image change event handled', [
-                'previous_image' => $event->getPreviousImage(),
-                'current_image' => $event->getCurrentImage(),
+                'previous_agent_image' => $event->getPreviousAgentImage(),
+                'current_agent_image' => $event->getCurrentAgentImage(),
+                'previous_agfs_image' => $event->getPreviousAgfsImage(),
+                'current_agfs_image' => $event->getCurrentAgfsImage(),
                 'summary' => $summary,
             ]);
         } catch (Throwable $e) {
             $this->logger->error('[WarmPoolSandbox] image change subscriber failed', [
-                'previous_image' => $event->getPreviousImage(),
-                'current_image' => $event->getCurrentImage(),
+                'previous_agent_image' => $event->getPreviousAgentImage(),
+                'current_agent_image' => $event->getCurrentAgentImage(),
+                'previous_agfs_image' => $event->getPreviousAgfsImage(),
+                'current_agfs_image' => $event->getCurrentAgfsImage(),
                 'error' => $e->getMessage(),
             ]);
         }

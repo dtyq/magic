@@ -24,6 +24,8 @@ class WarmPoolSandboxEntity
 
     private string $agentImage = '';
 
+    private string $agfsImage = '';
+
     private string $env = 'default';
 
     private string $status = '';
@@ -84,6 +86,16 @@ class WarmPoolSandboxEntity
     public function setAgentImage(string $agentImage): void
     {
         $this->agentImage = $agentImage;
+    }
+
+    public function getAgfsImage(): string
+    {
+        return $this->agfsImage;
+    }
+
+    public function setAgfsImage(string $agfsImage): void
+    {
+        $this->agfsImage = $agfsImage;
     }
 
     public function getEnv(): string

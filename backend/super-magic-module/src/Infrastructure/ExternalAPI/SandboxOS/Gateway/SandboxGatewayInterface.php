@@ -117,13 +117,29 @@ interface SandboxGatewayInterface
     public function getLatestAgentImage(): string;
 
     /**
+     * 获取沙箱网关当前部署的最新 AGFS 镜像.
+     *
+     * @return string 最新 AGFS 镜像全名（如 registry.example.com/agfs:v1.2.3），失败时返回空字符串
+     */
+    public function getLatestAgfsImage(): string;
+
+    /**
+     * 一次性获取沙箱网关当前部署的 agent 与 agfs 最新镜像，避免两次调用。
+     *
+     * 任一镜像获取失败时，两个字段均返回空字符串（与单镜像接口的容错语义一致）。
+     *
+     * @return array{agent_image: string, agfs_image: string}
+     */
+    public function getLatestImages(): array;
+
+    /**
      * 在 warm pool 中创建一个未绑定项目的沙箱。
      *
      * sandbox_id 由调用方（warm-pool worker）生成并先入库，再发请求，避免响应丢失
      * 导致的孤儿 pod。pod 名固定为 `sandbox-<sandbox_id>`，因此 sandbox_id 必须是
      * DNS-1123 label fragment（首位 [a-z0-9]，仅含小写字母/数字/-）。
      *
-     * 返回 data 字段：sandbox_id / sandbox_name / agent_image / namespace。
+     * 返回 data 字段：sandbox_id / sandbox_name / agent_image / agfs_image / namespace。
      */
     public function createWarmPoolSandbox(string $sandboxId): GatewayResult;
 

@@ -59,6 +59,7 @@ class WarmPoolSandboxDomainService
         string $sandboxId,
         string $sandboxName,
         string $agentImage,
+        string $agfsImage,
         int $ttlMinutes
     ): WarmPoolSandboxEntity {
         $now = new DateTimeImmutable();
@@ -66,6 +67,7 @@ class WarmPoolSandboxDomainService
         $entity->setSandboxId($sandboxId);
         $entity->setSandboxName($sandboxName);
         $entity->setAgentImage($agentImage);
+        $entity->setAgfsImage($agfsImage);
         $entity->setStatus(WarmPoolSandboxStatus::Creating->value);
         $entity->setCreatedAt($now->format('Y-m-d H:i:s'));
         $entity->setExpiresAt($now->modify(sprintf('+%d minutes', $ttlMinutes))->format('Y-m-d H:i:s'));
@@ -98,27 +100,30 @@ class WarmPoolSandboxDomainService
         return $this->repository->findBySandboxId($sandboxId);
     }
 
-    public function countAvailableForImage(string $agentImage): int
+    public function countAvailableForImage(string $agentImage, string $agfsImage): int
     {
         // creating + ready both contribute to "soon-available" headroom so
         // refill doesn't over-shoot while pods are still booting.
-        return $this->repository->countByImageAndStatuses($agentImage, [
+        return $this->repository->countByImageAndStatuses($agentImage, $agfsImage, [
             WarmPoolSandboxStatus::Creating->value,
             WarmPoolSandboxStatus::Ready->value,
         ]);
     }
 
     /**
-     * Atomically claim a ready sandbox for the given image.
+     * Atomically claim a ready sandbox for the given image generation
+     * (agent_image AND agfs_image).
      */
     public function claimOneReady(
         string $agentImage,
+        string $agfsImage,
         string $userId,
         string $projectId,
         ?string $topicId = null
     ): ?WarmPoolSandboxEntity {
         return $this->repository->claimOneReady(
             $agentImage,
+            $agfsImage,
             $userId,
             $projectId,
             date('Y-m-d H:i:s'),
@@ -147,17 +152,17 @@ class WarmPoolSandboxDomainService
     /**
      * @return WarmPoolSandboxEntity[]
      */
-    public function listStaleImage(string $currentAgentImage, int $limit = 100): array
+    public function listStaleImage(string $currentAgentImage, string $currentAgfsImage, int $limit = 100): array
     {
-        return $this->repository->findReadyExcludingImage($currentAgentImage, $limit);
+        return $this->repository->findReadyExcludingImage($currentAgentImage, $currentAgfsImage, $limit);
     }
 
     /**
      * @return WarmPoolSandboxEntity[]
      */
-    public function listForImage(string $agentImage, int $limit = 200): array
+    public function listForImage(string $agentImage, string $agfsImage, int $limit = 200): array
     {
-        return $this->repository->findByImageAndStatuses($agentImage, [
+        return $this->repository->findByImageAndStatuses($agentImage, $agfsImage, [
             WarmPoolSandboxStatus::Creating->value,
             WarmPoolSandboxStatus::Ready->value,
         ], $limit);
@@ -206,6 +211,11 @@ class WarmPoolSandboxDomainService
         return $this->repository->findLatestAgentImage();
     }
 
+    public function lastObservedAgfsImage(): ?string
+    {
+        return $this->repository->findLatestAgfsImage();
+    }
+
     /**
      * Request-time fast path.
      *
@@ -229,12 +239,14 @@ class WarmPoolSandboxDomainService
         array $labels = [],
         ?string $topicId = null
     ): ?string {
-        $latestImage = $this->gateway->getLatestAgentImage();
-        if ($latestImage === '') {
+        $images = $this->gateway->getLatestImages();
+        $latestImage = $images['agent_image'];
+        $latestAgfsImage = $images['agfs_image'];
+        if ($latestImage === '' || $latestAgfsImage === '') {
             return null;
         }
 
-        $claimed = $this->claimOneReady($latestImage, $userId, $projectId, $topicId);
+        $claimed = $this->claimOneReady($latestImage, $latestAgfsImage, $userId, $projectId, $topicId);
         if ($claimed === null) {
             return null;
         }
