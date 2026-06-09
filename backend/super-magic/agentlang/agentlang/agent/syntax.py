@@ -122,11 +122,8 @@ class SyntaxProcessor:
         Returns:
             str: 处理后的提示词
 
-        Raises:
-            SyntaxError: 语法格式错误
-            ValueError: 参数验证失败
-            FileNotFoundError: 文件不存在
-            RuntimeError: 处理过程中的其他错误
+        Notes:
+            动态语法按 best-effort 处理。无法解析、未注册或执行失败的块会原样保留。
         """
         # Step 1: Remove human annotations before processing dynamic syntax
         # Enables bilingual maintenance (CN for humans, EN for LLM)
@@ -155,7 +152,7 @@ class SyntaxProcessor:
                 return prompt
 
             # 预分配结果列表容量，减少动态扩容
-            result_parts = [None] * (len(matches) * 2 + 1)
+            result_parts: list[Optional[str]] = [None] * (len(matches) * 2 + 1)
             part_index = 0
             last_end = 0
 
@@ -170,32 +167,38 @@ class SyntaxProcessor:
                     result_parts[part_index] = prompt[last_end:start]
                     part_index += 1
 
+                syntax_call = self._try_parse_syntax_call(code)
+                if syntax_call is None:
+                    logger.debug("动态语法块无法解析，按原文保留")
+                    result_parts[part_index] = original_block
+                    part_index += 1
+                    last_end = end
+                    continue
+
+                syntax_name, params = syntax_call
+                processor = self._processors.get(syntax_name)
+                if processor is None:
+                    logger.debug(f"动态语法未注册，按原文保留: @{syntax_name}")
+                    result_parts[part_index] = original_block
+                    part_index += 1
+                    last_end = end
+                    continue
+
                 try:
-                    # 解析语法名称和参数
-                    syntax_name, params = self._parse_syntax_call(code)
-
-                    if syntax_name not in self._processors:
-                        raise RuntimeError(f"不支持的语法: @{syntax_name}")
-
-                    # 使用对应的处理器处理语法
-                    processor = self._processors[syntax_name]
-
                     # 如果是 include 处理器，传递当前文件信息
                     if syntax_name == "include" and hasattr(processor, 'set_current_file'):
                         processor.set_current_file(current_file)
 
                     processed_content = processor.process(params)
-
-                    # 添加处理后的内容
                     result_parts[part_index] = processed_content
                     part_index += 1
 
                     logger.debug(f"成功处理语法: @{syntax_name}")
 
                 except Exception as e:
-                    logger.error(f"处理动态代码块时出错: {e!s}")
-                    # 直接抛出异常，不再替换为错误标记
-                    raise RuntimeError(f"语法处理失败: {original_block} - {e!s}") from e
+                    self._log_fallback_syntax(syntax_name, params, e)
+                    result_parts[part_index] = original_block
+                    part_index += 1
 
                 last_end = end
 
@@ -211,6 +214,26 @@ class SyntaxProcessor:
             # 处理完成后，从栈中移除当前文件
             if current_file and self._processing_stack and self._processing_stack[-1] == current_file:
                 self._processing_stack.pop()
+
+    def _try_parse_syntax_call(self, code: str) -> Optional[tuple[str, Dict[str, str]]]:
+        try:
+            return self._parse_syntax_call(code)
+        except SyntaxError:
+            return None
+
+    def _log_fallback_syntax(self, syntax_name: str, params: Dict[str, str], error: Exception) -> None:
+        reason = str(error)
+        if syntax_name == "variable":
+            key = params.get("key") or params.get("_pos_0") or ""
+            logger.warning(f"动态语法处理失败，按原文保留: syntax=@variable, key={key}, reason={reason}")
+            return
+
+        if syntax_name == "include":
+            path = params.get("path") or params.get("_pos_0") or ""
+            logger.warning(f"动态语法处理失败，按原文保留: syntax=@include, path={path}, reason={reason}")
+            return
+
+        logger.debug(f"动态语法处理失败，按原文保留: syntax=@{syntax_name}, reason={reason}")
 
     def _has_complex_syntax(self, prompt: str) -> bool:
         """检测是否包含复杂语法（如嵌套括号）
