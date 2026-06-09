@@ -583,7 +583,7 @@ function TopicPage() {
 				GlobalMentionPanelStore.clearInitLoadAttachmentsPromise(projectId)
 			}
 		}
-	}, [selectedProject])
+	}, [selectedProject?.id])
 
 	const disPlayDetail = useMemo(() => {
 		return userSelectDetail || autoDetail
