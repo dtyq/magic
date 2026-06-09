@@ -71,6 +71,8 @@
 		"loading": "正在加载录音详情...",
 		"loadFailed": "加载失败，请稍后重试",
 		"entryNotFound": "未找到录音入口文件",
+		"openProject": "查看项目详情",
+		"openingProject": "正在进入项目...",
 		"audioNotFound": "未找到录音音频文件",
 		"untitled": "未命名录音"
 	}

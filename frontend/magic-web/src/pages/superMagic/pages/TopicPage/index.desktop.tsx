@@ -36,6 +36,7 @@ import { useTopicMessages } from "../../hooks/useTopicMessages"
 import { useCreateTopicListener } from "../../components/TopicMode/useCreateTopicListener"
 import { useTopicFiles } from "./hooks/useTopicFiles"
 import TopicSidebar from "./components/TopicSidebar"
+import { isAudioProjectMode } from "../AudioRecordings/utils/is-audio-project-mode"
 import TopicMessagePanel from "./components/TopicMessagePanel"
 import TopicDesktopPanels from "./components/TopicDesktopPanels"
 import { useTopicDetailPanelController } from "./hooks/useTopicDetailPanelController"
@@ -148,6 +149,7 @@ function TopicPage() {
 	const [isDetailPanelFullscreen, setIsDetailPanelFullscreen] = useState(false)
 	// Calculate read-only status based on user role
 	const isReadOnly = isReadOnlyProject(selectedProject?.user_role)
+	const hideProjectCard = isAudioProjectMode(selectedProject?.project_mode)
 	const topicActions = useMessageHeaderTopicActions({
 		selectedProject,
 		selectedTopic,
@@ -723,6 +725,7 @@ function TopicPage() {
 					selectedTopic={selectedTopic}
 					isReadOnly={isReadOnly}
 					topicFilesProps={topicFilesPropsWithPanel}
+					hideProjectCard={hideProjectCard}
 				/>
 			}
 			detailPanel={

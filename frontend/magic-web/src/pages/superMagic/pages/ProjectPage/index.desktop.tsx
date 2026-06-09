@@ -24,6 +24,7 @@ import { workspaceStore, projectStore, topicStore } from "../../stores/core"
 import { Files } from "lucide-react"
 import ProjectCardContainer from "../../components/ProjectCardContainer"
 import TopicDesktopPanels from "../TopicPage/components/TopicDesktopPanels"
+import { isAudioProjectMode } from "../AudioRecordings/utils/is-audio-project-mode"
 
 // 项目页组件
 function ProjectPage() {
@@ -53,6 +54,7 @@ function ProjectPage() {
 	const isReadOnly = true
 	const shouldShowDetailPanel = true
 	const showProjectResizeHandle = true
+	const hideProjectCard = isAudioProjectMode(selectedProject?.project_mode)
 
 	// 使用详情模式缓存 hook
 	useDetailModeCache({
@@ -235,10 +237,12 @@ function ProjectPage() {
 			isDetailPanelFullscreen={false}
 			sidebar={
 				<div className="flex h-full flex-col gap-2" data-testid="workspace-sidebar-wrapper">
-					<ProjectCardContainer
-						selectedProject={selectedProject}
-						selectedWorkspace={selectedWorkspace}
-					/>
+					{hideProjectCard ? null : (
+						<ProjectCardContainer
+							selectedProject={selectedProject}
+							selectedWorkspace={selectedWorkspace}
+						/>
+					)}
 					<ProjectSider
 						items={[
 							{

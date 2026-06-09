@@ -16,6 +16,8 @@ interface TopicSidebarProps {
 	selectedTopic: Topic | null
 	isReadOnly: boolean
 	topicFilesProps: any
+	/** When true, hides the project header card in the sidebar */
+	hideProjectCard?: boolean
 }
 
 function TopicSidebar({
@@ -24,6 +26,7 @@ function TopicSidebar({
 	selectedTopic,
 	isReadOnly,
 	topicFilesProps,
+	hideProjectCard = false,
 }: TopicSidebarProps) {
 	const { t } = useTranslation("super")
 	const { t: tLongMemory } = useTranslation("super/longMemory")
@@ -74,10 +77,12 @@ function TopicSidebar({
 
 	return (
 		<div className="flex h-full flex-col gap-2">
-			<ProjectCardContainer
-				selectedProject={selectedProject}
-				selectedWorkspace={selectedWorkspace}
-			/>
+			{hideProjectCard ? null : (
+				<ProjectCardContainer
+					selectedProject={selectedProject}
+					selectedWorkspace={selectedWorkspace}
+				/>
+			)}
 			<ProjectSider
 				items={items}
 				className="flex-1 overflow-hidden rounded-lg border border-border bg-background"

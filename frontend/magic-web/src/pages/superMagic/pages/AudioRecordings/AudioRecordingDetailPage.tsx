@@ -11,6 +11,7 @@ import { AttachmentDataProcessor } from "@/pages/superMagic/utils/attachmentData
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
+import SuperMagicService from "@/pages/superMagic/services"
 import type { AudioRecordingCardStatus } from "@/types/audioProject"
 import {
 	resolveAudioPreviewTarget,
@@ -44,6 +45,7 @@ function AudioRecordingDetailPage() {
 	)
 	const [previewKind, setPreviewKind] = useState<AudioPreviewTarget["kind"] | null>(null)
 	const [resolvedTitle, setResolvedTitle] = useState<string>("")
+	const [isOpeningProject, setIsOpeningProject] = useState(false)
 
 	const locationState = location.state as AudioRecordingDetailLocationState | null
 	const initialTitle = locationState?.projectName?.trim() ?? ""
@@ -148,6 +150,26 @@ function AudioRecordingDetailPage() {
 		navigate({ name: RouteName.AudioRecordings })
 	}
 
+	/** Fallback when bundled HTML entry is missing: hydrate Super state then open project file tree */
+	async function handleOpenProjectDetail() {
+		if (!projectId || isOpeningProject) return
+
+		setIsOpeningProject(true)
+		try {
+			// Recordings routes sit outside Super layout; initializeState mirrors share/copy-project entry.
+			await SuperMagicService.initializeState({ projectId })
+		} catch (error) {
+			console.error("Failed to initialize project state before navigation:", error)
+		} finally {
+			setIsOpeningProject(false)
+		}
+
+		navigate({
+			name: RouteName.SuperWorkspaceProjectState,
+			params: { projectId },
+		})
+	}
+
 	return (
 		<div
 			className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xs"
@@ -191,9 +213,27 @@ function AudioRecordingDetailPage() {
 				{!loading && !loadError && previewMissingKind ? (
 					<div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
 						<p className="text-sm text-muted-foreground">{previewMissingMessage}</p>
-						<Button variant="outline" onClick={handleBack}>
-							{t("detail.back")}
-						</Button>
+						<div className="flex flex-wrap items-center justify-center gap-2">
+							{previewMissingKind === "html-entry" ? (
+								<Button
+									onClick={() => void handleOpenProjectDetail()}
+									disabled={isOpeningProject}
+									data-testid="audio-recording-detail-open-project"
+								>
+									{isOpeningProject ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											{t("detail.openingProject")}
+										</>
+									) : (
+										t("detail.openProject")
+									)}
+								</Button>
+							) : null}
+							<Button variant="outline" onClick={handleBack}>
+								{t("detail.back")}
+							</Button>
+						</div>
 					</div>
 				) : null}
 
