@@ -76,6 +76,8 @@ export interface ProviderConfig {
 	app_key?: string
 	hot_words?: string
 	replacement_words?: string
+	// 图片编辑字段
+	timeout?: number | string
 }
 
 /** AI能力配置 */

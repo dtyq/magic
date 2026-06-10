@@ -149,6 +149,26 @@ export const DefaultRemoveBackgroundProviderList = [
 	},
 ]
 
+// 擦图/扩图 - 默认服务商列表
+export const DefaultImageEditProviderList = [
+	{
+		provider: "official_proxy",
+		name: "官方代理服务",
+		request_url: "",
+		api_key: "",
+		timeout: 300,
+		enable: false,
+	},
+	{
+		provider: "volcengine",
+		name: "火山引擎",
+		access_key: "",
+		secret_key: "",
+		timeout: 300,
+		enable: false,
+	},
+]
+
 // 天气查询 - 默认服务商列表
 export const DefaultWeatherForecastProviderList = [
 	{
@@ -169,6 +189,8 @@ export const DefaultProviderListMap: Record<string, PlatformPackage.ProviderConf
 	[PlatformPackage.PowerCode.REALTIME_SPEECH_RECOGNITION]: DefaultRealtimeSpeechProviderList,
 	[PlatformPackage.PowerCode.AUDIO_FILE_RECOGNITION]: DefaultAudioFileProviderList,
 	[PlatformPackage.PowerCode.IMAGE_REMOVE_BACKGROUND]: DefaultRemoveBackgroundProviderList,
+	[PlatformPackage.PowerCode.IMAGE_ERASER]: DefaultImageEditProviderList,
+	[PlatformPackage.PowerCode.IMAGE_EXPAND]: DefaultImageEditProviderList,
 	[PlatformPackage.PowerCode.WEATHER_FORECAST]: DefaultWeatherForecastProviderList,
 }
 
@@ -181,6 +203,8 @@ export const ServiceConfigList = [
 	PlatformPackage.PowerCode.AUDIO_FILE_RECOGNITION,
 	PlatformPackage.PowerCode.IMAGE_SEARCH,
 	PlatformPackage.PowerCode.IMAGE_REMOVE_BACKGROUND,
+	PlatformPackage.PowerCode.IMAGE_ERASER,
+	PlatformPackage.PowerCode.IMAGE_EXPAND,
 	PlatformPackage.PowerCode.WEATHER_FORECAST,
 ]
 

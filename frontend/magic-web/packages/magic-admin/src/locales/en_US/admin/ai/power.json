@@ -24,6 +24,7 @@
 	"replacementWordsDesc": "Multiple replacement words support newlines",
 	"replacementWordsPlaceholder": "Please enter your replacement words (multiple replacement words separated by newlines)",
 	"searchModel": "Search Model",
+	"secretKeyPlaceholder": "Please enter your Secret Key",
 	"service": "Provider",
 	"serviceConfig": "Provider Configuration",
 	"userInputUrl": "API URL",

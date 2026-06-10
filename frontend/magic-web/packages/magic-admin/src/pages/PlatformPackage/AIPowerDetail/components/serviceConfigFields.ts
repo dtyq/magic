@@ -67,6 +67,10 @@ const COMMON_FIELDS = {
 		description: "appKeyPlaceholder",
 	}),
 
+	timeout: createFieldConfig("timeout", "Timeout", "input", {
+		required: false,
+	}),
+
 	// 语音识别专用字段
 	hotWords: createFieldConfig("hot_words", "hotWords", "textarea", {
 		required: false,
@@ -114,6 +118,22 @@ export const imageRemoveBackgroundConfig: Record<string, FieldConfig[]> = {
 		COMMON_FIELDS.apiKey,
 		COMMON_FIELDS.requestUrl,
 		COMMON_FIELDS.modelName,
+	],
+}
+
+// 擦图/扩图配置
+export const imageEditConfig: Record<string, FieldConfig[]> = {
+	official_proxy: [
+		COMMON_FIELDS.provider,
+		COMMON_FIELDS.apiKey,
+		COMMON_FIELDS.requestUrl,
+		COMMON_FIELDS.timeout,
+	],
+	volcengine: [
+		COMMON_FIELDS.provider,
+		COMMON_FIELDS.accessKey,
+		COMMON_FIELDS.secretKey,
+		COMMON_FIELDS.timeout,
 	],
 }
 
@@ -170,6 +190,15 @@ export function getServiceFields(code?: string, provider?: string): FieldConfig[
 
 	if (code === PlatformPackage.PowerCode.IMAGE_REMOVE_BACKGROUND && provider) {
 		return imageRemoveBackgroundConfig[provider.toLowerCase()] || []
+	}
+
+	if (
+		[PlatformPackage.PowerCode.IMAGE_ERASER, PlatformPackage.PowerCode.IMAGE_EXPAND].includes(
+			code as PlatformPackage.PowerCode,
+		) &&
+		provider
+	) {
+		return imageEditConfig[provider.toLowerCase()] || []
 	}
 
 	const config = serviceTypeConfigs[code]
