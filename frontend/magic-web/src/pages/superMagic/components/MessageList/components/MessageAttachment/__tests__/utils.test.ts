@@ -193,6 +193,19 @@ describe("getAppEntryFile", () => {
 		).toBe("a")
 	})
 
+	it("uses app.json entry for micro-app type", () => {
+		const children = [
+			{ name: "index.html", file_id: "i" },
+			{ name: "main.html", file_id: "m", is_directory: false },
+		]
+		expect(
+			getAppEntryFile(children, {
+				type: "micro-app",
+				entry: "main.html",
+			})?.file_id,
+		).toBe("m")
+	})
+
 	it("falls back to root_path for legacy custom metadata", () => {
 		const children = [
 			{ name: "index.html", file_id: "i" },

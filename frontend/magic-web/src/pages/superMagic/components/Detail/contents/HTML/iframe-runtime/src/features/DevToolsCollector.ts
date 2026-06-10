@@ -9,6 +9,7 @@ import { NetworkInterceptor } from "./NetworkInterceptor"
 import { ApiCallProxy } from "./ApiCallProxy"
 import { MessageProxy } from "./MessageProxy"
 import { StorageInspector } from "./StorageInspector"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 // Message types for parent ↔ iframe communication
 export const DEVTOOLS_MSG = {
@@ -134,7 +135,7 @@ export class DevToolsCollector {
 
 	private postToParent(type: string, payload: unknown): void {
 		try {
-			window.parent.postMessage({ type, payload, timestamp: Date.now() }, "*")
+			window.parent.postMessage({ type, payload, timestamp: Date.now() }, getParentOrigin())
 		} catch {
 			// Silently ignore if parent is not available
 		}

@@ -6,6 +6,7 @@
  */
 
 import { MagicApiLogger } from "./MagicApiLogger"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 export class MagicInputApi {
 	install(): void {
@@ -29,7 +30,7 @@ export class MagicInputApi {
 					message,
 					timestamp: Date.now(),
 				},
-				"*",
+				getParentOrigin(),
 			)
 		}
 	}

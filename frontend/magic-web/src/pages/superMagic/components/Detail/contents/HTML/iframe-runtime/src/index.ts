@@ -15,6 +15,7 @@ import { EditorLogger } from "./utils/EditorLogger"
 import { DevToolsCollector, DEVTOOLS_MSG } from "./features/DevToolsCollector"
 import { ElementInspectorHandler } from "./features/ElementInspectorHandler"
 import { installMagicAPIs } from "./magic-api"
+import { getParentOrigin } from "./utils/parentOrigin"
 
 // ─── Phase 1: Install APIs (always runs) ───────────────────────────────────
 
@@ -291,7 +292,7 @@ function activateEditorRuntime(scaleRatio: number): void {
 	if (typeof window !== "undefined") {
 		if ((window as unknown as Record<string, unknown>).__elementSelectorV2__) {
 			try {
-				; (
+				;(
 					(window as unknown as Record<string, unknown>).__elementSelectorV2__ as {
 						destroy?: () => void
 					}
@@ -394,7 +395,7 @@ window.addEventListener("message", (event: MessageEvent) => {
 					structured,
 					timestamp: Date.now(),
 				},
-				"*",
+				getParentOrigin(),
 			)
 		} catch {
 			// ignore
@@ -418,7 +419,7 @@ window.addEventListener("message", (event: MessageEvent) => {
 					completions,
 					timestamp: Date.now(),
 				},
-				"*",
+				getParentOrigin(),
 			)
 		} catch {
 			// ignore
@@ -435,7 +436,10 @@ installMagicAPIs()
 // Notify parent that iframe-runtime is ready. This allows the parent to
 // re-enable DevTools after an iframe content refresh.
 try {
-	window.parent.postMessage({ type: "MAGIC_DEVTOOLS_RUNTIME_READY", timestamp: Date.now() }, "*")
+	window.parent.postMessage(
+		{ type: "MAGIC_DEVTOOLS_RUNTIME_READY", timestamp: Date.now() },
+		getParentOrigin(),
+	)
 } catch {
 	// ignore if parent is not available
 }
@@ -484,6 +488,9 @@ declare global {
 					options?: { model?: string },
 				) => Promise<void>
 			}
+			// ─── 顶层 API ────────────────────────────────────────────────
+			/** 返回应用在 workspace 中的根目录路径（例如 "个人财务记账/"） */
+			getAppBasePath?: () => Promise<string>
 			// ─── 向后兼容（deprecated）────────────────────────────────────
 			reload?: () => void
 			setInputMessage?: (message: string) => void
@@ -522,6 +529,10 @@ declare global {
 				readFile: (path: string) => Promise<string>
 				writeFile: (path: string, content: string) => Promise<void>
 				listFiles: (dir?: string) => Promise<string[]>
+				deleteFile: (path: string) => Promise<void>
+				deleteDir: (path: string) => Promise<void>
+				moveFile: (path: string, targetDir: string) => Promise<void>
+				renameFile: (path: string, newName: string) => Promise<void>
 				watchFile: (
 					path: string,
 					callback: (e: { path: string; timestamp: number }) => void,
@@ -540,6 +551,25 @@ declare global {
 					onChunk: (delta: string, done: boolean) => void,
 					options?: Record<string, unknown>,
 				) => () => void
+			}
+			user?: {
+				getInfo: (options?: {
+					scopes?: Array<
+						| "user.profile.display"
+						| "user.profile.name"
+						| "user.profile.identity"
+						| "user.profile.organization"
+					>
+					reason?: string
+				}) => Promise<{
+					name: string
+					avatar: string
+					nickname?: string
+					real_name?: string
+					user_id?: string
+					magic_id?: string
+					organization_code?: string
+				}>
 			}
 		}
 	}

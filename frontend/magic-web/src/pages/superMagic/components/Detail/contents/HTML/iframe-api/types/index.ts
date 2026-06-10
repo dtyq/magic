@@ -17,9 +17,19 @@ export const FS_MESSAGE_TYPES = {
 	WRITE_BLOB_RESPONSE: "MAGIC_FS_WRITE_BLOB_RESPONSE",
 	LIST_REQUEST: "MAGIC_FS_LIST_REQUEST",
 	LIST_RESPONSE: "MAGIC_FS_LIST_RESPONSE",
+	DELETE_FILE_REQUEST: "MAGIC_FS_DELETE_FILE_REQUEST",
+	DELETE_FILE_RESPONSE: "MAGIC_FS_DELETE_FILE_RESPONSE",
+	DELETE_DIR_REQUEST: "MAGIC_FS_DELETE_DIR_REQUEST",
+	DELETE_DIR_RESPONSE: "MAGIC_FS_DELETE_DIR_RESPONSE",
+	MOVE_FILE_REQUEST: "MAGIC_FS_MOVE_FILE_REQUEST",
+	MOVE_FILE_RESPONSE: "MAGIC_FS_MOVE_FILE_RESPONSE",
+	RENAME_FILE_REQUEST: "MAGIC_FS_RENAME_FILE_REQUEST",
+	RENAME_FILE_RESPONSE: "MAGIC_FS_RENAME_FILE_RESPONSE",
 	WATCH_REGISTER: "MAGIC_FS_WATCH_REGISTER",
 	WATCH_UNREGISTER: "MAGIC_FS_WATCH_UNREGISTER",
 	FILE_CHANGED: "MAGIC_FS_FILE_CHANGED",
+	GET_APP_BASE_PATH_REQUEST: "MAGIC_FS_GET_APP_BASE_PATH_REQUEST",
+	GET_APP_BASE_PATH_RESPONSE: "MAGIC_FS_GET_APP_BASE_PATH_RESPONSE",
 } as const
 
 export type FSMessageType = (typeof FS_MESSAGE_TYPES)[keyof typeof FS_MESSAGE_TYPES]
@@ -103,6 +113,64 @@ export interface FSListResponse {
 	error?: string
 }
 
+export interface FSDeleteFileRequest {
+	type: typeof FS_MESSAGE_TYPES.DELETE_FILE_REQUEST
+	requestId: string
+	path: string
+}
+
+export interface FSDeleteFileResponse {
+	type: typeof FS_MESSAGE_TYPES.DELETE_FILE_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
+}
+
+export interface FSDeleteDirRequest {
+	type: typeof FS_MESSAGE_TYPES.DELETE_DIR_REQUEST
+	requestId: string
+	path: string
+}
+
+export interface FSDeleteDirResponse {
+	type: typeof FS_MESSAGE_TYPES.DELETE_DIR_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
+}
+
+export interface FSMoveFileRequest {
+	type: typeof FS_MESSAGE_TYPES.MOVE_FILE_REQUEST
+	requestId: string
+	/** 源文件/目录路径（相对于应用根目录） */
+	path: string
+	/** 目标父目录路径（相对于应用根目录） */
+	targetDir: string
+}
+
+export interface FSMoveFileResponse {
+	type: typeof FS_MESSAGE_TYPES.MOVE_FILE_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
+}
+
+export interface FSRenameFileRequest {
+	type: typeof FS_MESSAGE_TYPES.RENAME_FILE_REQUEST
+	requestId: string
+	/** 待重命名的文件/目录路径（相对于应用根目录） */
+	path: string
+	/** 新名称（仅文件名，不含路径） */
+	newName: string
+}
+
+export interface FSRenameFileResponse {
+	type: typeof FS_MESSAGE_TYPES.RENAME_FILE_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
+}
+
 export interface FSWatchRegister {
 	type: typeof FS_MESSAGE_TYPES.WATCH_REGISTER
 	requestId: string
@@ -145,6 +213,10 @@ export interface LLMModelInfo {
 	id: string
 	object?: string
 	owned_by?: string
+	icon?: string
+	label?: string
+	/** Raw model info from the API, containing attributes and options */
+	info?: Record<string, unknown>
 }
 
 export interface LLMGetModelsRequest {
@@ -283,18 +355,84 @@ export interface AgentSendMessageResponse {
 	error?: string
 }
 
+// ─── UserInfo 消息类型常量 ────────────────────────────────────────────────────
+
+export const USER_INFO_MESSAGE_TYPES = {
+	GET_USER_INFO_REQUEST: "MAGIC_GET_USER_INFO_REQUEST",
+	GET_USER_INFO_RESPONSE: "MAGIC_GET_USER_INFO_RESPONSE",
+} as const
+
+export type UserInfoMessageType =
+	(typeof USER_INFO_MESSAGE_TYPES)[keyof typeof USER_INFO_MESSAGE_TYPES]
+
+export const USER_INFO_SCOPES = {
+	DISPLAY: "user.profile.display",
+	NAME: "user.profile.name",
+	IDENTITY: "user.profile.identity",
+	ORGANIZATION: "user.profile.organization",
+} as const
+
+export type UserInfoScope = (typeof USER_INFO_SCOPES)[keyof typeof USER_INFO_SCOPES]
+
+// ─── UserInfo 消息报文 ───────────────────────────────────────────────────────
+
+export interface UserInfo {
+	/** 展示用名称 */
+	name: string
+	/** 头像 URL */
+	avatar: string
+	/** 昵称（需授权 user.profile.name） */
+	nickname?: string
+	/** 真实姓名（需授权 user.profile.name） */
+	real_name?: string
+	/** 用户 ID（需授权 user.profile.identity） */
+	user_id?: string
+	/** Magic 全局唯一 ID（需授权 user.profile.identity） */
+	magic_id?: string
+	/** 当前组织编码（需授权 user.profile.organization） */
+	organization_code?: string
+}
+
+export interface UserInfoGetRequest {
+	type: typeof USER_INFO_MESSAGE_TYPES.GET_USER_INFO_REQUEST
+	requestId: string
+	/** 请求的信息范围。未传时仅返回 user.profile.display。 */
+	scopes?: UserInfoScope[]
+	/** 可选用途说明，会展示在授权确认中。 */
+	reason?: string
+}
+
+export interface UserInfoGetResponse {
+	type: typeof USER_INFO_MESSAGE_TYPES.GET_USER_INFO_RESPONSE
+	requestId: string
+	success: boolean
+	userInfo?: UserInfo
+	error?: string
+}
+
 // ─── HTML 应用配置（app.json，可选） ─────────────────────────────────────────
 
 /**
  * app.json 可选配置。
- * 与 HTML 入口同级目录下，用于短路径别名等。未提供时主站
- * 使用 null，iframe FS 仅按应用根目录做路径隔离。
+ * 与 HTML 入口同级目录下，作为 HTML 微应用场景的唯一声明式 manifest，
+ * 用于微应用标识、入口、图标、短路径别名、权限声明等。
+ * magic.project.js 仅作为旧版 HTML 微应用兼容或其它项目类型的运行时配置，
+ * 不承载新 HTML 微应用的 manifest/权限声明。
+ * 未提供时主站使用 null，iframe FS 仅按应用根目录做路径隔离。
  */
 export interface HTMLAppConfig {
+	/** 微应用类型。新 HTML 微应用固定为 micro-app。 */
+	type?: "micro-app" | string
 	/** 应用名称，仅用于展示 */
 	name?: string
 	/** 应用版本 */
 	version?: string
+	/** 入口文件，相对应用根目录。默认 index.html。 */
+	entry?: string
+	/** 应用图标，可为相对路径或远程 URL。 */
+	icon?: string
+	/** 宿主/应用可读取的扩展元数据。 */
+	metadata?: Record<string, unknown>
 	/**
 	 * 文件别名：逻辑名 -> 相对应用根目录的路径。
 	 * 例如 { "users": "data/users.json" }
@@ -302,6 +440,15 @@ export interface HTMLAppConfig {
 	files?: Record<string, string>
 	/** 建议参与 watch 的文件（文档约定；主站不强制校验） */
 	watch?: string[]
+	/** 微应用权限声明。敏感能力必须先声明，再由用户确认授权。 */
+	permissions?: {
+		userInfo?: {
+			/** 允许请求的用户信息范围 */
+			scopes?: UserInfoScope[]
+			/** 展示给用户的用途说明 */
+			reason?: string
+		}
+	}
 }
 
 export const DEFAULT_APP_CONFIG: HTMLAppConfig = {

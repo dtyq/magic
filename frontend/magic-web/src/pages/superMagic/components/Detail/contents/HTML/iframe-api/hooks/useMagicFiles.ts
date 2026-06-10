@@ -46,6 +46,7 @@ interface MagicDownloadFilesRequest {
 
 interface UseMagicFilesOptions {
 	iframeRef: React.RefObject<HTMLIFrameElement>
+	targetOrigin: string
 	selectedProject?: any
 	attachmentList?: any[]
 	relative_file_path?: string
@@ -89,6 +90,7 @@ function findFileInAttachments(attachments: any[], targetPath: string): any | nu
 export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesReturn {
 	const {
 		iframeRef,
+		targetOrigin,
 		selectedProject,
 		attachmentList,
 		relative_file_path,
@@ -101,7 +103,7 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 	attachmentListRef.current = attachmentList
 
 	const replyToIframe = useMemoizedFn((type: string, requestId: string, payload: object) => {
-		iframeRef.current?.contentWindow?.postMessage({ type, requestId, ...payload }, "*")
+		iframeRef.current?.contentWindow?.postMessage({ type, requestId, ...payload }, targetOrigin)
 	})
 
 	// ─── handleMagicUploadFiles ───────────────────────────────────────────────

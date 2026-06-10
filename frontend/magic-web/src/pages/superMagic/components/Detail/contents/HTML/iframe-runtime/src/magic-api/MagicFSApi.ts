@@ -5,15 +5,35 @@
  * 提供 readFile / writeFile / listFiles / watchFile，均通过 postMessage
  * 委托给主站（parent window）的 IframeFSService 处理。
  *
+ * 同时注入 window.Magic.getAppBasePath() 返回应用在 workspace 中的根目录路径。
+ *
  * 工作区级文件操作（上传到 OSS、触发下载、附加到消息输入框）由
  * MagicWorkspaceApi 负责，安装到 window.Magic.uploadFiles 等方法上。
  */
 
 import { MagicBaseApi } from "./MagicBaseApi"
+import { getParentOrigin } from "../utils/parentOrigin"
+
+function isSingleFileName(name: string): boolean {
+	return (
+		name.trim().length > 0 &&
+		!/[\/\\]/.test(name) &&
+		!name.includes("..") &&
+		!/[\x00-\x1F\x7F]/.test(name)
+	)
+}
 
 export class MagicFSApi extends MagicBaseApi {
 	install(): void {
 		if (!window.Magic) window.Magic = {}
+
+		// Install getAppBasePath at top-level
+		if (!window.Magic.getAppBasePath) {
+			window.Magic.getAppBasePath = (): Promise<string> => {
+				return this.request<string>("MAGIC_FS_GET_APP_BASE_PATH_REQUEST", {})
+			}
+		}
+
 		if (window.Magic.fs) return
 
 		window.Magic.fs = {
@@ -40,10 +60,7 @@ export class MagicFSApi extends MagicBaseApi {
 
 				// For Blob / ArrayBuffer, use the blob write protocol (supports up to 100MB)
 				if (content instanceof Blob || content instanceof ArrayBuffer) {
-					const blob =
-						content instanceof ArrayBuffer
-							? new Blob([content])
-							: content
+					const blob = content instanceof ArrayBuffer ? new Blob([content]) : content
 					return this.request<void>(
 						"MAGIC_FS_WRITE_BLOB_REQUEST",
 						{ path, blob },
@@ -68,6 +85,45 @@ export class MagicFSApi extends MagicBaseApi {
 					}
 					return []
 				})
+			},
+
+			deleteFile: (path: string): Promise<void> => {
+				if (typeof path !== "string") {
+					return Promise.reject(new Error("deleteFile: path must be a string"))
+				}
+				return this.request<void>("MAGIC_FS_DELETE_FILE_REQUEST", { path })
+			},
+
+			deleteDir: (path: string): Promise<void> => {
+				if (typeof path !== "string") {
+					return Promise.reject(new Error("deleteDir: path must be a string"))
+				}
+				return this.request<void>("MAGIC_FS_DELETE_DIR_REQUEST", { path })
+			},
+
+			moveFile: (path: string, targetDir: string): Promise<void> => {
+				if (typeof path !== "string") {
+					return Promise.reject(new Error("moveFile: path must be a string"))
+				}
+				if (typeof targetDir !== "string") {
+					return Promise.reject(new Error("moveFile: targetDir must be a string"))
+				}
+				return this.request<void>("MAGIC_FS_MOVE_FILE_REQUEST", { path, targetDir })
+			},
+
+			renameFile: (path: string, newName: string): Promise<void> => {
+				if (typeof path !== "string") {
+					return Promise.reject(new Error("renameFile: path must be a string"))
+				}
+				if (typeof newName !== "string") {
+					return Promise.reject(new Error("renameFile: newName must be a string"))
+				}
+				if (!isSingleFileName(newName)) {
+					return Promise.reject(
+						new Error("renameFile: newName must be a single file name"),
+					)
+				}
+				return this.request<void>("MAGIC_FS_RENAME_FILE_REQUEST", { path, newName })
 			},
 
 			watchFile: (
@@ -97,14 +153,14 @@ export class MagicFSApi extends MagicBaseApi {
 				window.addEventListener("message", handler)
 				window.parent.postMessage(
 					{ type: "MAGIC_FS_WATCH_REGISTER", requestId: watchId, path },
-					"*",
+					getParentOrigin(),
 				)
 
 				return () => {
 					window.removeEventListener("message", handler)
 					window.parent.postMessage(
 						{ type: "MAGIC_FS_WATCH_UNREGISTER", requestId: watchId, path },
-						"*",
+						getParentOrigin(),
 					)
 				}
 			},

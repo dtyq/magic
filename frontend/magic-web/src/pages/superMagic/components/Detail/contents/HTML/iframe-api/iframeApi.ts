@@ -63,3 +63,63 @@ export async function createIframeFile(data: {
 }): Promise<{ file_id?: string }> {
 	return iframeClient.post("/api/v1/super-agent/file", data)
 }
+
+export interface IframeFileInfo {
+	file_id?: string
+	file_name?: string
+	relative_file_path?: string
+}
+
+/**
+ * 获取文件真实信息（iframe 专用）。
+ * 用于破坏性操作前按 file_id 反查服务端路径，避免只信前端 fileList。
+ */
+export async function getIframeFileInfo(
+	file_id: string,
+	project_id: string,
+): Promise<IframeFileInfo> {
+	const query = project_id ? `?project_id=${encodeURIComponent(project_id)}` : ""
+	return iframeClient.get<IframeFileInfo>(`/api/v1/super-agent/file/${file_id}${query}`)
+}
+
+// ─── 删除文件/目录 ───────────────────────────────────────────────────────────
+
+/**
+ * 删除单个文件（iframe 专用）。
+ */
+export async function deleteIframeFile(file_id: string, project_id: string): Promise<unknown> {
+	return iframeClient.delete(`/api/v1/super-agent/file/${file_id}`, { data: { project_id } })
+}
+
+/**
+ * 批量删除文件（iframe 专用）。
+ * 用于删除目录时一次性删除目录下所有文件及目录本身。
+ */
+export async function deleteIframeFiles(file_ids: string[], project_id: string): Promise<unknown> {
+	return iframeClient.post("/api/v1/super-agent/file/batch-delete", { file_ids, project_id })
+}
+
+// ─── 移动/重命名文件 ─────────────────────────────────────────────────────────
+
+/**
+ * 移动单个文件或目录到目标父目录（iframe 专用）。
+ */
+export async function moveIframeFile(params: {
+	file_id: string
+	target_parent_id: string
+	project_id: string
+}): Promise<unknown> {
+	const { file_id, ...data } = params
+	return iframeClient.post(`/api/v1/super-agent/file/${file_id}/move`, data)
+}
+
+/**
+ * 重命名文件或目录（iframe 专用）。
+ */
+export async function renameIframeFile(params: {
+	file_id: string
+	target_name: string
+}): Promise<unknown> {
+	const { file_id, target_name } = params
+	return iframeClient.post(`/api/v1/super-agent/file/${file_id}/rename`, { target_name })
+}
