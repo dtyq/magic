@@ -132,12 +132,15 @@ Re-run extraction only when artifacts are missing, incomplete, point to a differ
 
 ## Batch Conversion Rules
 
+- Multi-file conversion is Code Mode orchestration, not a multi-file tool API. In batch work, run one `run_sdk_snippet` loop and call single-file tools such as `inspect_document`, `export_document_markdown`, and `convert_document_format` once per source file.
+- Do not pass `files`, `file_paths`, multiple `input_path` values, or any invented batch parameter to document-converter tools. Their API boundary is one source document per tool call.
+- Process batch inputs sequentially in list order. Do not use concurrent execution patterns in document-converter batch examples.
 - Process every file requested by the user. Do not invent a local supported-extension whitelist.
 - Office-like documents may include Microsoft Office, WPS Office, OpenDocument, RTF, templates, macro-enabled files, and slide-show files. Try the document-converter tools first and rely on the tool result to decide whether a specific file can be parsed in the current environment.
 - Prefer calling `inspect_document` or `export_document_markdown` and record the returned error when a file is unsupported.
 - Do not skip images, CSS, logs, configuration files, code files, or small text-like files just because they look different from office documents.
 - Keep the source directory clean. Write reports, summaries, indexes, chunks, and combined Markdown files under the chosen output root, not inside the input directory.
-- Use a unique output directory for each input file. The directory name should include the original extension as described above.
+- Use a unique output directory for each input file. The directory name must include the original extension as described above so that files such as `sample.pdf`, `sample.docx`, and `sample.png` do not mix artifacts in the same directory.
 - For batch reports, record one row per file with `input_path`, `output_dir`, `ok`, `file_type`, `index_path`, `combined_path`, and `error` when present.
 - Count success from actual tool results and output files, not from the planned file list.
 
@@ -380,6 +383,49 @@ if not export.ok:
     raise SystemExit(export.content)
 
 print(export.content)
+""")
+```
+
+### Export multiple documents to Markdown sequentially
+
+```python
+run_sdk_snippet(python_code="""
+import json
+import re
+from pathlib import Path
+from sdk.tool import tool
+
+def document_output_dir(output_root: str, input_path: str) -> str:
+    path = Path(input_path)
+    safe_name = re.sub(r"[^\\w.-]+", "_", path.name, flags=re.UNICODE).strip("._")
+    safe_name = safe_name.replace(".", "_") or "document"
+    return str(Path(output_root) / safe_name)
+
+docs = [
+    "/absolute/path/to/uploads/report.pdf",
+    "/absolute/path/to/uploads/minutes.docx",
+    "/absolute/path/to/uploads/slides.pptx",
+]
+output_root = "/absolute/path/to/document-output"
+
+reports = []
+for doc in docs:
+    out = document_output_dir(output_root, doc)
+    export = tool.call("export_document_markdown", {
+        "input_path": doc,
+        "output_dir": out,
+    })
+    reports.append({
+        "input_path": doc,
+        "output_dir": out,
+        "ok": export.ok,
+        "file_type": export.data.get("file_type"),
+        "index_path": export.data.get("index_path"),
+        "combined_path": export.data.get("combined_path"),
+        "error": None if export.ok else export.content,
+    })
+
+print(json.dumps(reports, ensure_ascii=False, indent=2))
 """)
 ```
 
