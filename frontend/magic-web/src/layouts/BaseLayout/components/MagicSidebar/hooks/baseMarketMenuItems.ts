@@ -1,15 +1,20 @@
 import { Bot, Mic, type LucideIcon } from "lucide-react"
 import { MagiClaw, Skills } from "@/enhance/lucide-react"
 import { RouteName } from "@/routes/constants"
+import { isPrivateDeployment } from "@/utils/env"
 import type { SidebarMarketMenuItem } from "@/layouts/BaseLayout/components/MagicSidebar/hooks/useSidebarMarketMenuItems.types"
 
 export const BASE_MARKET_MENU_ITEMS: SidebarMarketMenuItem[] = [
-	{
-		titleKey: "sidebar:audioRecordings.title",
-		routeName: RouteName.AudioRecordings,
-		testId: "sidebar-content-audio-recordings-button",
-		Icon: Mic,
-	},
+	...(isPrivateDeployment()
+		? []
+		: [
+				{
+					titleKey: "sidebar:audioRecordings.title",
+					routeName: RouteName.AudioRecordings,
+					testId: "sidebar-content-audio-recordings-button",
+					Icon: Mic,
+				},
+			]),
 	{
 		titleKey: "sidebar:crewMarket.title",
 		routeName: RouteName.CrewMarket,
