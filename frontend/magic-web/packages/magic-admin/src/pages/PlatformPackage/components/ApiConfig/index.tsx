@@ -70,7 +70,7 @@ const ApiConfig = memo(({ data, lang, isOfficial, onLangSave }: ApiConfigProps) 
 	return (
 		<>
 			{/* 别名 */}
-			{category === AiModel.ServiceProviderCategory.LLM && !isOfficial && (
+			{!isOfficial && (
 				<Flex justify="space-between" gap={50} align="center">
 					<Flex gap={4} vertical className={styles.label}>
 						<div className={styles.labelText}>{t("form.alias")}</div>

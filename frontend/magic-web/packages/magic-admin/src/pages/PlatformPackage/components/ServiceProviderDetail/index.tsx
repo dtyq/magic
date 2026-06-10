@@ -35,6 +35,7 @@ const ServiceProviderDetail = ({
 	const { t } = useTranslation("admin/ai/model")
 	const { t: tCommon } = useTranslation("admin/common")
 	const isMobile = useIsMobile()
+	const { styles, cx } = useStyles({ isMobile })
 	const openModal = useOpenModal()
 
 	const { AIManageApi } = useApis()
@@ -62,8 +63,6 @@ const ServiceProviderDetail = ({
 		() => data?.provider_type === AiModel.ProviderType.Official,
 		[data?.provider_type],
 	)
-
-	const { styles, cx } = useStyles({ isOfficial, isMobile })
 
 	const isLLM = useMemo(
 		() => data?.category === AiModel.ServiceProviderCategory.LLM,

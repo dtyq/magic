@@ -261,7 +261,12 @@ function PlatformPackageLayout() {
 		]
 	}, [t, isOfficialOrg, isSaas])
 
-	return <SecondaryLayout items={items} openKeys={[RoutePath.PlatformModel]} />
+	return (
+		<SecondaryLayout
+			items={items}
+			openKeys={[RoutePath.PlatformModel, RoutePath.PlatformAgent, RoutePath.PlatformManage]}
+		/>
+	)
 }
 
 export default PlatformPackageLayout

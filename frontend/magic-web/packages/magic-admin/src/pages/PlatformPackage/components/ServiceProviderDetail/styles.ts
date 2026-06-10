@@ -1,10 +1,7 @@
 import { createStyles } from "antd-style"
 
 export const useStyles = createStyles(
-	(
-		{ css, token, isDarkMode },
-		{ isOfficial, isMobile }: { isOfficial: boolean; isMobile?: boolean },
-	) => {
+	({ css, token, isDarkMode }, { isMobile }: { isMobile?: boolean }) => {
 		return {
 			content: css`
 				min-width: ${isMobile ? "100%" : "400px"};
@@ -16,7 +13,7 @@ export const useStyles = createStyles(
 			cardContainer: css`
 				display: flex;
 				flex-direction: column;
-				gap: ${isOfficial ? 8 : 20}px;
+				gap: 20px;
 				padding: ${isMobile ? 10 : 20}px;
 				border-radius: 8px;
 				border: 1px solid ${token.magicColorUsages.border};
