@@ -92,7 +92,7 @@ function resolveImmersiveEntryFileId(params: {
 		(isLegacy
 			? fileId
 			: defaultOpenFileId ||
-				calculateDefaultOpenFileId(fallbackTopLevelIds, attachmentsTree)) || ""
+			calculateDefaultOpenFileId(fallbackTopLevelIds, attachmentsTree)) || ""
 
 	if (!candidateId) return ""
 
@@ -568,11 +568,10 @@ function Share() {
 	const shouldEnterSharedProject = useMemo(() => {
 		const currentUserId = toStringId(userInfo?.user_id)
 		const creatorUserId = getShareProjectCreatorUserId(data)
-
 		return Boolean(
-			isProjectShare && projectId && currentUserId && creatorUserId === currentUserId,
+			projectId && currentUserId && creatorUserId === currentUserId,
 		)
-	}, [data, isProjectShare, projectId, userInfo?.user_id])
+	}, [data, projectId, userInfo?.user_id])
 
 	// 是否显示复制项目按钮：旧文件分享 或 allowCopyProjectFiles 为 true 时显示，且用户已登录
 	const showCopyProjectButton = useMemo(() => {
