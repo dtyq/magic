@@ -149,7 +149,10 @@ export function MentionPanelFileImageIcon(props: { context: MentionItemRendererC
 			}
 		}
 
-		if (fileDisplayConfig?.type === "custom") {
+		if (
+			fileDisplayConfig?.type === "custom" ||
+			(fileDisplayConfig?.type === "micro-app" && (item as any)?.is_directory)
+		) {
 			// 优先使用 _customFolderId（入口文件需从原始 custom 文件夹解析 icon_path）
 			const customFolderId = (fileDisplayConfig as any)?._customFolderId
 			const targetFolderId = customFolderId || parentId

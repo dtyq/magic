@@ -7,6 +7,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { MessageBridge } from "../MessageBridge"
 import { EditorMessageType, MessageCategory, MESSAGE_PROTOCOL_VERSION } from "../../types/messages"
 
+const targetOrigin = "https://sandbox.example.com"
+
 describe("MessageBridge 通讯测试", () => {
 	let iframe: HTMLIFrameElement
 	let bridge: MessageBridge
@@ -27,7 +29,7 @@ describe("MessageBridge 通讯测试", () => {
 		})
 
 		// 创建 MessageBridge
-		bridge = new MessageBridge(iframe)
+		bridge = new MessageBridge(iframe, targetOrigin)
 	})
 
 	afterEach(() => {
@@ -57,6 +59,7 @@ describe("MessageBridge 通讯测试", () => {
 			const callArgs = mockContentWindow.postMessage.mock.calls[0]
 			const message = callArgs[0]
 
+			expect(callArgs[1]).toBe(targetOrigin)
 			// 验证消息格式
 			expect(message.version).toBe(MESSAGE_PROTOCOL_VERSION)
 			expect(message.category).toBe(MessageCategory.REQUEST)
@@ -355,7 +358,7 @@ describe("IFRAME_READY 事件流程", () => {
 			writable: true,
 		})
 
-		const bridge = new MessageBridge(mockIframe)
+		const bridge = new MessageBridge(mockIframe, targetOrigin)
 		const readyHandler = vi.fn()
 
 		// 1. 父窗口注册 IFRAME_READY 事件监听器
@@ -401,7 +404,7 @@ describe("请求/响应完整流程", () => {
 			writable: true,
 		})
 
-		const bridge = new MessageBridge(mockIframe)
+		const bridge = new MessageBridge(mockIframe, targetOrigin)
 
 		// 1. 父窗口发送 GET_CONTENT 请求
 		const requestPromise = bridge.request(EditorMessageType.GET_CONTENT)

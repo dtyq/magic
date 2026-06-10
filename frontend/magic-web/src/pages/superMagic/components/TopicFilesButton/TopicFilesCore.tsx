@@ -1253,14 +1253,15 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 							) : !isFolderBusy && isMagicSystemFolder(item) ? (
 								<MagicSystemFolderIcon size={16} />
 							) : display_config?.type ? (
-								display_config?.type === "custom" ? (
+								["custom", "micro-app"].includes(display_config?.type) &&
+								(display_config?.type === "custom" || item?.is_directory) ? (
 									<CustomFolderMagicIcon
 										displayConfig={item?.display_config}
 										childrenItems={getChildrenForCustomMetadataIconPath(
 											item,
 											(id) => findFileInTree(id),
 										)}
-										typeFallback="custom"
+										typeFallback={display_config?.type}
 										size={16}
 									/>
 								) : (
@@ -1461,13 +1462,14 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						) : null}
 						{decoration?.icon && !isFileBusy ? (
 							decoration.icon
-						) : item?.display_config?.type === "custom" ? (
+						) : item?.display_config?.type === "custom" ||
+						  (item?.display_config?.type === "micro-app" && item?.is_directory) ? (
 							<CustomFolderMagicIcon
 								displayConfig={item?.display_config}
 								childrenItems={getChildrenForCustomMetadataIconPath(item, (id) =>
 									findFileInTree(id),
 								)}
-								typeFallback="custom"
+								typeFallback={item?.display_config?.type}
 								size={16}
 							/>
 						) : (

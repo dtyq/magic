@@ -7,6 +7,7 @@
  */
 
 import { MagicApiLogger } from "./MagicApiLogger"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 interface LLMMessage {
 	role: string
@@ -86,7 +87,7 @@ export class MagicLLMApi {
 							type: "MAGIC_LLM_GET_MODELS_REQUEST",
 							requestId,
 						},
-						"*",
+						getParentOrigin(),
 					)
 				})
 			},
@@ -148,7 +149,7 @@ export class MagicLLMApi {
 							messages,
 							options: options ?? {},
 						},
-						"*",
+						getParentOrigin(),
 					)
 				})
 			},
@@ -214,7 +215,7 @@ export class MagicLLMApi {
 						messages,
 						options: { ...(options ?? {}), stream: true },
 					},
-					"*",
+					getParentOrigin(),
 				)
 
 				return () => {
@@ -222,7 +223,10 @@ export class MagicLLMApi {
 					aborted = true
 					MagicApiLogger.warn("MagicLLMApi", "stream:abort", { requestId })
 					window.removeEventListener("message", handler)
-					window.parent.postMessage({ type: "MAGIC_LLM_STREAM_ABORT", requestId }, "*")
+					window.parent.postMessage(
+						{ type: "MAGIC_LLM_STREAM_ABORT", requestId },
+						getParentOrigin(),
+					)
 				}
 			},
 		}

@@ -1,241 +1,203 @@
 ---
 name: html-api-sdk
-description: "Guide for using window.Magic.* APIs in SuperMagic HTML micro-apps (HTML 微应用). Use this skill whenever the user wants to build ANY application, system, tool, page, or interactive experience that will run as HTML in the workspace — regardless of domain or complexity. Also use when user needs to read/write workspace files from HTML, call LLM models, stream AI responses, listen for file changes, communicate with the Agent, upload/download files, create topics, send messages to agents, or select agents programmatically. Covers: file system API (fs 文件系统读写), LLM calls (llm 大模型调用 单次/流式), Agent interaction (Agent 交互), project/topic management (项目与话题管理), and agent dispatch (员工调度). Trigger phrases: 'make an app', 'build a tool', 'create a system', 'develop an application', 'create a dashboard', 'write a page', 'make an HTML app', 'build a web tool', 'develop a micro-app', 'write an interactive page', 'build a form app', 'create a chat interface', 'read workspace files in HTML', 'call LLM from HTML', 'stream AI output', 'notify Agent from HTML', '做一个应用', '做一个系统', '做一个工具', '做一个页面', '创建HTML微应用', '开发网页工具', '数据看板', '交互式页面', '读写工作区文件', '调用大模型', '流式输出', '上传下载文件', '新建话题', '选择员工'."
+description: "Complete API reference for window.Magic.* in SuperMagic HTML micro-apps (HTML 微应用). Read this skill when you need exact method signatures, parameters, return types, or usage examples for: fs (readFile/writeFile/listFiles/deleteFile/deleteDir/moveFile/renameFile/watchFile), llm (chat/stream/getModels), agent (getAgents/selectAgent), project (createTopicAndSend/sendMessage/uploadFiles/downloadFiles), user (getInfo with app.json userInfo scopes), getAppBasePath, setInputMessage, reload. Also covers tiptap JSON message format, @file and @skill mention structures, model selector UI rules, user info authorization, error handling patterns, and backward compatibility table. Trigger phrases: 'window.Magic API', 'readFile writeFile', 'deleteFile deleteDir', 'moveFile renameFile', 'watchFile callback', 'llm.stream', 'llm.chat', 'createTopicAndSend format', 'tiptap JSON mention', '@file mention structure', '@skill mention', 'getAppBasePath usage', 'model selector UI', 'user.getInfo', 'get user info', 'user avatar', 'userInfo scopes', 'app.json permissions', 'Magic API 用法', 'fs 读写文件 API', 'fs 删除文件', 'fs 移动重命名', '流式调用参数', '文件监听回调', '话题消息格式', 'mention 结构', '模型选择器', '用户信息', '用户授权', '获取头像'."
 ---
 
-# window.Magic API — HTML Micro-App Development Guide
+# window.Magic API — HTML Micro-App Guide
 
-This skill guides the correct usage of `window.Magic.*` APIs when developing HTML micro-apps in a SuperMagic workspace.
+## How to Use This Document
+
+- API signatures & constraints → this document
+- App manifest & permission declarations → `app.json`
+- TiptapJSON & @mention structures → [references/tiptap-json-format.md](references/tiptap-json-format.md)
+- Complete HTML examples → [references/complete-examples.md](references/complete-examples.md)
+
+## Important Constraints
+
+1. All `window.Magic.*` APIs are **pre-injected** — no imports needed. External CDN allowed.
+2. File paths are relative to **app root** (`index.html` dir) by default. `../` is forbidden. Use leading-slash paths such as `"/shared/data.json"` to access project-root files. Writing, deleting, moving, or renaming files outside the app root triggers host confirmation.
+3. `window.Magic.llm` tokens hosted; no `api_key` in HTML.
+4. **No inline event handlers** — use `addEventListener`.
+5. **LLM calls must include model selector UI** unless user specifies model. Default `"auto"`.
+6. **Complex file-based AI** → use `createTopicAndSend` + `@file` + companion skill. Simple → `readFile` + `llm.chat/stream`.
+7. **User info is privacy-gated** — `window.Magic.user.getInfo()` returns only `name` and `avatar` by default. Sensitive fields require `app.json.permissions.userInfo.scopes`, a matching runtime `getInfo({ scopes, reason })` request, and user confirmation.
+8. **Use `app.json` as the micro-app manifest** — every new HTML micro-app folder should include `app.json` next to `index.html`. Put `type`, `name`, `entry`, file aliases, watch hints, and permissions there. Do not generate `magic.project.js` for new HTML micro-apps.
+   ```json
+   {
+     "version": "1.0.0",
+     "type": "micro-app",
+     "name": "App Name",
+     "entry": "index.html",
+     "files": {},
+     "watch": [],
+     "permissions": {}
+   }
+   ```
 
 ---
 
-## Important Constraints (Must Follow)
+## 1. File System (`window.Magic.fs`)
 
-1. These APIs are **only available inside HTML files opened in a SuperMagic workspace**; no external scripts need to be imported.
-2. All file paths are relative to the **app root directory** (the directory containing `index.html`). **Using `../` to traverse to parent directories is forbidden**.
-3. `window.Magic.llm` tokens are managed by the host; you cannot directly obtain an `api_key` in HTML — just call the methods directly.
-4. **Inline event handlers are forbidden** (`onclick` attributes, etc.). All event bindings must use `addEventListener` in JS.
-
----
-
-## 1. File System API (`window.Magic.fs`)
-
-### Read File `readFile(path)`
+### `readFile(path)` → `Promise<string>`
 
 ```javascript
 const raw = await window.Magic.fs.readFile("data/users.json");
 const users = JSON.parse(raw);
-
-const markdown = await window.Magic.fs.readFile("README.md");
 ```
 
-- **Parameter**: `path: string` — path relative to the app root directory
-- **Returns**: `Promise<string>` — file text content
-- **Limits**: max 5 MB per file; rejects if file does not exist
+- `path: string` — relative to app root. Max 5 MB; rejects if not found.
 
-### Write File `writeFile(path, content)`
+### `writeFile(path, content)` → `Promise<void>`
 
 ```javascript
 await window.Magic.fs.writeFile(
   "data/users.json",
   JSON.stringify(data, null, 2),
 );
-await window.Magic.fs.writeFile("output/report.md", markdownContent);
-
-// Write large files: pass Blob or ArrayBuffer directly (no string conversion needed, supports binary, up to 500 MB)
-const response = await fetch("https://example.com/large-data.bin");
-const blob = await response.blob();
-await window.Magic.fs.writeFile("data/large-data.bin", blob);
-
-// Using ArrayBuffer
-const buffer = await response.arrayBuffer();
-await window.Magic.fs.writeFile("data/large-data.bin", buffer);
+// Binary (up to 500 MB):
+await window.Magic.fs.writeFile("data/large.bin", blob);
 ```
 
-**Parameters**:
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | `string` | Path relative to the app root directory (supports `"dir/file.txt"` or `"./dir/file.txt"`) |
-| `content` | `string \| Blob \| ArrayBuffer` | File content |
+- `content: string | Blob | ArrayBuffer`. String max 5 MB. Auto-creates dirs. `../` blocked.
 
-- **Returns**: `Promise<void>`
-- **Limits**:
-  - `string` content: max 5 MB
-  - `Blob` / `ArrayBuffer` content: max 500 MB (transferred via postMessage structured clone with no extra encoding overhead)
-- **Notes**: Overwrites if file exists; directories in path are created automatically; `../` traversal outside app root is blocked
+> ⚠️ Paths relative to `index.html` dir, NOT workspace root.
 
-> **⚠️ Path Reference (Common Pitfall)**
->
-> `writeFile` paths are **relative to the directory containing `index.html`**, not the workspace root.
->
-> | HTML File Location  | Write Path         | Actual Save Location (Workspace) |
-> | ------------------- | ------------------ | -------------------------------- |
-> | `my-app/index.html` | `report.md`        | `my-app/report.md`               |
-> | `my-app/index.html` | `output/report.md` | `my-app/output/report.md`        |
-> | `index.html` (root) | `report.md`        | `report.md`                      |
->
-> **Using `../` to traverse to parent directories is forbidden** (will be intercepted). If you want files at the workspace root, place `index.html` at the root as well, or note the actual save location in your prompt (e.g., `Saved to my-app/report.md`).
+### File Paths and Project-Root Access
 
-### List Directory Files `listFiles(dir?)`
+By default, relative `window.Magic.fs.*` paths resolve inside the app folder next to `index.html`. Use a leading slash for project-root paths. Do not add a file-scope permission block to `app.json`; file access scope is controlled by path syntax and host confirmation for writes outside the app root.
+
+Path rules:
+
+- `"data/config.json"` -> app root, e.g. `my-app/data/config.json`.
+- `"/shared/config.json"` -> project root.
+- `"/"` lists project-root entries.
+- `../` remains blocked in all scopes.
+- Writing, deleting, moving, or renaming files outside the app root triggers host confirmation and may be rejected by the user.
+- Reading and listing project-root files do not require an `app.json` file-scope declaration.
+
+### `listFiles(dir?)` → `Promise<string[]>`
 
 ```javascript
-const rootFiles = await window.Magic.fs.listFiles(); // root directory
-const dataFiles = await window.Magic.fs.listFiles("data/"); // subdirectory
+const files = await window.Magic.fs.listFiles("data/");
 ```
 
-- **Parameter**: `dir?: string` — defaults to `"./"`
-- **Returns**: `Promise<string[]>` — list of file names (without path prefix)
-
-### Watch File Changes `watchFile(path, callback)`
+### `deleteFile(path)` → `Promise<void>`
 
 ```javascript
-const unwatch = window.Magic.fs.watchFile("data/orders.json", async (event) => {
-  console.log("File updated:", event.path, event.timestamp);
+await window.Magic.fs.deleteFile("data/temp.json");
+```
+
+- Rejects if file not found. `../` blocked.
+
+### `deleteDir(path)` → `Promise<void>`
+
+```javascript
+await window.Magic.fs.deleteDir("temp/");
+```
+
+- Recursively deletes all files and subdirectories. Cannot delete app root or project root. Rejects if dir not found. `../` blocked.
+
+### `moveFile(path, targetDir)` → `Promise<void>`
+
+```javascript
+await window.Magic.fs.moveFile("data/old.json", "archive/");
+```
+
+- Moves a file or directory to the specified target parent directory. Rejects if source file or target directory not found. `../` blocked.
+
+### `renameFile(path, newName)` → `Promise<void>`
+
+```javascript
+await window.Magic.fs.renameFile("data/draft.txt", "final.txt");
+```
+
+- Renames a file or directory. `newName` is just the new name (no path separators). Rejects if file not found. `../` blocked.
+
+### `watchFile(path, cb)` → `() => void`
+
+```javascript
+const unwatch = window.Magic.fs.watchFile("data/orders.json", async (e) => {
   const fresh = JSON.parse(await window.Magic.fs.readFile("data/orders.json"));
   renderTable(fresh);
 });
-// Stop watching: unwatch()
 ```
 
-- **Parameters**: `path: string`, `callback: (e: { path: string; timestamp: number }) => void`
-- **Returns**: `() => void` — call to stop watching
-- **Notes**: Host polls approximately every 3 seconds; max **10 watched paths** per app
+- Polls ~3s; max 10 watched paths per app. Call returned fn to stop.
 
-### Concurrent Reads (Recommended)
+### Concurrent Reads
 
 ```javascript
-const [users, orders, settings] = await Promise.all([
+const [users, orders] = await Promise.all([
   window.Magic.fs.readFile("data/users.json").then(JSON.parse),
   window.Magic.fs.readFile("data/orders.json").then(JSON.parse),
-  window.Magic.fs.readFile("config/settings.json").then(JSON.parse),
 ]);
 ```
+
+---
+
+## 1.5 `getAppBasePath()` → `Promise<string>`
+
+```javascript
+const basePath = await window.Magic.getAppBasePath();
+// "个人财务记账/" or "" (workspace root)
+```
+
+- `fs.*` paths → relative to app root by default: `"data/file.json"`; project-root paths use a leading slash such as `"/shared/file.json"`.
+- `@file` mention `file_path` → prefix: `basePath + "data/file.json"`
+- `.magic/` paths → use as-is (already workspace root)
 
 ---
 
 ## 2. LLM API (`window.Magic.llm`)
 
-### Get Available Models `getModels()`
+### `getModels()` → `Promise<Model[]>`
 
 ```javascript
 const models = await window.Magic.llm.getModels();
-// → [{ id: "gpt-4o", object: "model", owned_by: "openai" }, ...]
-const modelIds = models.map((m) => m.id);
+// [{id, object?, owned_by?, icon?, label?, info?}]
 ```
 
-- **Returns**: `Promise<Array<{ id: string; object?: string; owned_by?: string }>>`
+> ⚠️ `model` field **required** — default `"auto"`. Empty string forbidden.
+> Model selector UI must have "Auto Select" as first/default item.
 
-> **⚠️ The `model` field is required — default to `"auto"`**
->
-> The `model` parameter **cannot be omitted or be an empty string**. If the user has not selected a model, you must explicitly pass `"auto"`, and the system will automatically choose an appropriate model:
->
-> ```javascript
-> // ✅ Correct: explicitly pass "auto" when no model is selected
-> const modelId = selectedModel || "auto"; // must never be empty string or undefined
-> window.Magic.llm.stream(messages, onChunk, { model: modelId });
-> window.Magic.llm.chat(messages, { model: modelId });
->
-> // ❌ Wrong: omitting model field or passing empty value
-> window.Magic.llm.stream(messages, onChunk, { maxTokens: 1500 }); // forbidden
-> window.Magic.llm.chat(messages, { model: "" }); // forbidden
-> ```
->
-> In model selection UI, **must** place "Auto Select" as the first item and select it by default:
->
-> ```javascript
-> // After loading model list, insert default option at top
-> const autoItem = { id: "auto", label: "Auto Select (Recommended)" };
-> [autoItem, ...models].forEach((m) => renderModelItem(m.id, m.label || m.id));
-> // Ensure select initial value is "auto"
-> document.getElementById("model-select").value = "auto";
-> ```
-
-### Single Chat `chat(messages, options?)`
+### `chat(messages, options?)` → `Promise<string>`
 
 ```javascript
-// Basic usage
-const reply = await window.Magic.llm.chat([
-  {
-    role: "user",
-    content:
-      "Summarize in one sentence: how many planets are in the solar system?",
-  },
-]);
-
-// With system prompt and history context
-const reply2 = await window.Magic.llm.chat([
-  {
-    role: "system",
-    content: "You are a data analysis expert. Answer concisely.",
-  },
-  {
-    role: "user",
-    content: "Sales grew 15% year-over-year last month. What does this imply?",
-  },
-]);
-
-// Specify model and parameters
-const reply3 = await window.Magic.llm.chat(
-  [{ role: "user", content: "Write a haiku about autumn." }],
-  { model: "gpt-4o", temperature: 0.9, maxTokens: 200 },
+const reply = await window.Magic.llm.chat(
+  [{ role: "user", content: "How many planets?" }],
+  { model: "auto" },
 );
 ```
 
-**options parameter:**
+Options: `model` (required), `temperature?` (0-2), `maxTokens?`, `systemPrompt?`. Timeout: 120s.
 
-| Parameter      | Type      | Description                                                         |
-| -------------- | --------- | ------------------------------------------------------------------- |
-| `model`        | `string`  | **Required**. Model ID; pass `"auto"` if none selected              |
-| `temperature`  | `number?` | Temperature (0–2, higher = more random)                             |
-| `maxTokens`    | `number?` | Maximum output tokens                                               |
-| `systemPrompt` | `string?` | Equivalent to inserting a `system` message at the start of the list |
-
-- **Returns**: `Promise<string>` — model reply content (plain text)
-- **Timeout**: auto-rejects after 120 seconds with no response
-
-### Streaming Chat `stream(messages, onChunk, options?)`
-
-Receives tokens incrementally; suitable for long text generation with real-time output.
+### `stream(messages, onChunk, options?)` → `() => void`
 
 ```javascript
-let fullText = "";
-const outputEl = document.getElementById("output");
-
+let text = "";
 const cancel = window.Magic.llm.stream(
-  [{ role: "user", content: "Write a 500-word article about AI development." }],
+  [{ role: "user", content: "Write about AI." }],
   (delta, done) => {
-    fullText += delta;
-    outputEl.textContent = fullText;
-    if (done) console.log("Generation complete,", fullText.length, "chars");
+    text += delta;
+    if (done) console.log("Done");
   },
-  { model: "gpt-4o", maxTokens: 1000 },
+  { model: "auto", maxTokens: 1000 },
 );
-
-// Cancel streaming output
-document.getElementById("cancel-btn").addEventListener("click", () => cancel());
 ```
 
-- **`onChunk`**: `(delta: string, done: boolean) => void` — `done=true` indicates completion
-- **Returns**: `() => void` — cancel function; stops receiving immediately when called
+`onChunk: (delta: string, done: boolean) => void`. Returns cancel fn.
 
 ---
 
-## 3. Agent Interaction API
+## 3. Agent Interaction
 
-### Send Message to Agent `setInputMessage(msg)`
-
-Fills the message into the input box and auto-sends, triggering the Agent to continue execution.
+### `setInputMessage(msg)` → `void`
 
 ```javascript
-await window.Magic.fs.writeFile("output/analysis.json", JSON.stringify(result));
-window.Magic.setInputMessage(
-  "Data analysis complete. Please generate visualizations based on output/analysis.json",
-);
+window.Magic.setInputMessage("Analysis complete. Please generate charts.");
 ```
 
-### Trigger Refresh `reload()`
-
-Notifies the Agent to refresh or re-execute the current task.
+### `reload()` → `void`
 
 ```javascript
 window.Magic.reload();
@@ -245,513 +207,230 @@ window.Magic.reload();
 
 ## 4. Agent Namespace (`window.Magic.agent`)
 
-### Get Agent List `getAgents()`
-
-Retrieves the list of currently available Agents.
+### `getAgents()` → `Promise<AgentInfo[]>`
 
 ```javascript
 const agents = await window.Magic.agent.getAgents();
-// → [
-//   { id: "general", name: "General Assistant", icon: "https://...", color: "#4A90D9", type: "official" },
-//   { id: "data_analysis", name: "Data Analyst", icon: "https://...", color: "#52C41A", type: "official" },
-//   { id: "my_custom_agent", name: "My Custom Agent", icon: "https://...", color: "#FF6B6B", type: "custom" },
-// ]
-
-// Display available agent list
-agents.forEach((agent) => {
-  console.log(`${agent.name} (${agent.type}) - ${agent.id}`);
-});
+// [{id, name, icon, color, type: "official"|"custom"|"public"}]
 ```
-
-**Returns**: `Promise<Array<{ id: string; name: string; icon: string; color: string; type: "official" | "custom" | "public" }>>`
-
-| Field   | Type     | Description                                        |
-| ------- | -------- | -------------------------------------------------- |
-| `id`    | `string` | Agent unique identifier (mode.identifier)          |
-| `name`  | `string` | Agent name                                         |
-| `icon`  | `string` | Agent icon URL                                     |
-| `color` | `string` | Agent icon color                                   |
-| `type`  | `string` | Agent type: `"official"` / `"custom"` / `"public"` |
 
 ---
 
 ## 5. Project Namespace (`window.Magic.project`)
 
-### 5.1 Upload Files to Workspace `uploadFiles(files)`
+### 5.1 `uploadFiles(files)` → `Promise<unknown>`
 
-> **Recommended**: For writing files within the app root directory, prefer `window.Magic.fs.writeFile(path, blob)`.
-> It's simpler (no need to construct arrays), supports 500 MB, and auto-creates directories.
-> `uploadFiles` is suitable for batch uploading multiple files or when custom target paths are needed.
+> Prefer `fs.writeFile(path, blob)` for single files.
 
 ```javascript
-// ✅ Recommended: use writeFile directly for single files
-const input = document.createElement("input");
-input.type = "file";
-input.addEventListener("change", async () => {
-  const file = input.files[0];
-  await window.Magic.fs.writeFile(file.name, file);
-});
-input.click();
-
-// Use uploadFiles for batch uploading multiple files
-const input2 = document.createElement("input");
-input2.type = "file";
-input2.multiple = true;
-input2.addEventListener("change", async () => {
-  await window.Magic.project.uploadFiles(
-    Array.from(input2.files).map((f) => ({
-      file: f,
-      path: `./${f.name}`,
-      filename: f.name,
-    })),
-  );
-});
-input2.click();
+await window.Magic.project.uploadFiles(
+  files.map((f) => ({ file: f, path: `./${f.name}`, filename: f.name })),
+);
 ```
 
-- **Parameter**: `files: Array<{ file: File, path: string, filename: string }>` — each item contains a File object, target path, and filename
-- **Returns**: `Promise<unknown>`
-- **Limits**: max 500 MB per file
+Max 500 MB per file.
 
-### 5.2 Download Workspace Files `downloadFiles(paths)`
+### 5.2 `downloadFiles(paths)` → `Promise<unknown>`
 
 ```javascript
-await window.Magic.project.downloadFiles([
-  "output/report.pdf",
-  "data/export.csv",
-]);
+await window.Magic.project.downloadFiles(["output/report.pdf"]);
 ```
 
-### 5.3 Attach Files to Message Input `addFilesToMessage(filePaths, agentMode?)`
+### 5.3 `addFilesToMessage(filePaths, agentMode?)` → `Promise<unknown>`
 
 ```javascript
-await window.Magic.project.addFilesToMessage([
-  "data/report.csv",
-  "output/chart.png",
-]);
+await window.Magic.project.addFilesToMessage(["data/report.csv"]);
 ```
 
-### 5.4 Create Topic and Send Message `createTopicAndSend(message, options?)`
+### 5.4 `createTopicAndSend(message, options?)` → `Promise<{topicId}>`
 
-Creates a new topic and sends the specified message in it, optionally specifying an agent and model.
-`message` supports plain text strings or tiptap JSON document structures (can inline `@` mentions and other rich text nodes).
+Creates new topic. `message`: plain text or tiptap JSON (see [tiptap ref](references/tiptap-json-format.md)).
 
 ```javascript
-// Basic usage: create new topic and send plain text message
+// Plain text
 const { topicId } = await window.Magic.project.createTopicAndSend(
-  "Please help me analyze this data",
+  "Analyze this",
+  { model: "auto" },
 );
 
-// Send with specified agent
-const { topicId: tid2 } = await window.Magic.project.createTopicAndSend(
-  "Please write a web scraper in Python",
-  { agentId: "general" },
-);
-
-// Specify agent + model
-const { topicId: tid3 } = await window.Magic.project.createTopicAndSend(
-  "Please generate a report for me",
+// Tiptap JSON with @file mention (trigger companion skill)
+const { topicId: t2 } = await window.Magic.project.createTopicAndSend(
   {
-    agentId: "data_analysis",
-    model: "gpt-4o",
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "请阅读技能文件并执行：" },
+          {
+            type: "mention",
+            attrs: {
+              type: "project_file",
+              data: {
+                file_id: "skill_ref",
+                file_name: "SKILL.md",
+                file_path: ".magic/report_writer/SKILL.md",
+                file_extension: "md",
+              },
+            },
+          },
+          { type: "text", text: "\n\n任务：生成报告" },
+        ],
+      },
+    ],
   },
+  { model: "auto" },
 );
-
-// Send rich text message with @file reference (tiptap JSON)
-const { topicId: tid4 } = await window.Magic.project.createTopicAndSend({
-  type: "doc",
-  content: [
-    {
-      type: "paragraph",
-      content: [
-        { type: "text", text: "Please generate a chart based on " },
-        {
-          type: "mention",
-          attrs: {
-            type: "project_file",
-            data: {
-              file_id: "file_abc123",
-              file_name: "report.csv",
-              file_path: "data/report.csv",
-              file_extension: "csv",
-            },
-          },
-        },
-      ],
-    },
-  ],
-});
 ```
 
-**Parameters**:
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `message` | `string \| TiptapJSONContent` | Plain text message or tiptap JSON document (can contain mention nodes) |
-| `options.agentId` | `string?` | Agent ID (from `getAgents()`) |
-| `options.model` | `string?` | Model ID |
+Options: `agentId?` (defaults general mode), `model?` (default `"auto"`). Timeout: 30s.
 
-- **Returns**: `Promise<{ topicId: string }>` — the newly created topic ID
-- **Timeout**: auto-rejects after 30 seconds with no response
-
-### 5.5 Send Message in Current Topic `sendMessage(message, options?)`
-
-Sends a message directly in the currently active topic, optionally specifying a model.
-`message` supports plain text strings or tiptap JSON document structures (can inline `@` mentions and other rich text nodes).
+### 5.5 `sendMessage(message, options?)` → `Promise<void>`
 
 ```javascript
-// Basic usage: send plain text message directly
-await window.Magic.project.sendMessage(
-  "Please continue analyzing the second part of the data",
-);
-
-// Send with specified model
-await window.Magic.project.sendMessage("Please explain in more detail", {
-  model: "gpt-4o",
-});
-
-// Send rich text message with @file reference
-await window.Magic.project.sendMessage({
-  type: "doc",
-  content: [
-    {
-      type: "paragraph",
-      content: [
-        { type: "text", text: "Please analyze the trends in " },
-        {
-          type: "mention",
-          attrs: {
-            type: "project_file",
-            data: {
-              file_id: "file_xyz789",
-              file_name: "sales.csv",
-              file_path: "data/sales.csv",
-              file_extension: "csv",
-            },
-          },
-        },
-      ],
-    },
-  ],
-});
+await window.Magic.project.sendMessage("Continue analyzing", { model: "auto" });
 ```
 
-**Parameters**:
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `message` | `string \| TiptapJSONContent` | Plain text message or tiptap JSON document (can contain mention nodes) |
-| `options.model` | `string?` | Model ID |
+Options: `model?`. Timeout: 15s.
 
-- **Returns**: `Promise<void>`
-- **Timeout**: auto-rejects after 15 seconds with no response
+---
 
-### 5.6 TiptapJSONContent Data Structure
+## 6. User Info (`window.Magic.user`)
 
-The `message` parameter of `createTopicAndSend` and `sendMessage` supports tiptap JSON format, which can inline `@` mention nodes to reference workspace files.
+### `getInfo(options?)` → `Promise<UserInfo>`
 
-#### Basic Structure
-
-```typescript
-interface TiptapJSONContent {
-  type: string; // Node type, e.g. "doc", "paragraph", "text", "mention"
-  attrs?: Record<string, unknown>; // Node attributes
-  content?: TiptapJSONContent[]; // Child nodes
-  text?: string; // Text node content
-}
-```
-
-#### Mention Node Format
-
-Two mention types are supported: `project_file` (file) and `project_directory` (directory).
-
-**File mention (`project_file`):**
+Default call returns only display-safe fields:
 
 ```javascript
+const user = await window.Magic.user.getInfo();
+// {name, avatar}
+document.getElementById("avatar").src = user.avatar;
+```
+
+Sensitive fields require permission declaration in `app.json` in the same folder as `index.html`. `app.json` is the declarative manifest read by the host before authorization checks; do not declare user info scopes in `magic.project.js`.
+
+```json
 {
-  type: "mention",
-  attrs: {
-    type: "project_file",
-    data: {
-      file_id: "file_abc123",       // File unique identifier
-      file_name: "report.csv",      // Filename (with extension)
-      file_path: "data/report.csv", // Relative path (from workspace root)
-      file_extension: "csv",        // File extension
-      file_size: 1024,              // Optional, file size in bytes
+  "name": "Profile Card",
+  "permissions": {
+    "userInfo": {
+      "scopes": ["user.profile.name", "user.profile.identity"],
+      "reason": "Display the current user's profile"
     }
   }
 }
 ```
 
-**Directory mention (`project_directory`):**
+Then request the declared scopes at runtime:
 
 ```javascript
-{
-  type: "mention",
-  attrs: {
-    type: "project_directory",
-    data: {
-      directory_id: "dir_456",      // Directory unique identifier
-      directory_name: "docs",       // Directory name
-      directory_path: "docs",       // Relative path (from workspace root)
-      directory_metadata: {         // Directory metadata
-        version: "1",
-        type: "folder",
-        name: "docs",
-      }
-    }
-  }
-}
-```
-
-#### attrs Field Reference
-
-**`project_file` data fields:**
-
-| Field            | Type     | Required | Description                         |
-| ---------------- | -------- | -------- | ----------------------------------- |
-| `file_id`        | `string` | Yes      | File unique identifier              |
-| `file_name`      | `string` | Yes      | Filename (with extension)           |
-| `file_path`      | `string` | Yes      | Relative path (from workspace root) |
-| `file_extension` | `string` | Yes      | File extension (without `.`)        |
-| `file_size`      | `number` | No       | File size in bytes                  |
-
-**`project_directory` data fields:**
-
-| Field                | Type     | Required | Description                                                |
-| -------------------- | -------- | -------- | ---------------------------------------------------------- |
-| `directory_id`       | `string` | Yes      | Directory unique identifier                                |
-| `directory_name`     | `string` | Yes      | Directory name                                             |
-| `directory_path`     | `string` | Yes      | Relative path (from workspace root)                        |
-| `directory_metadata` | `object` | Yes      | Directory metadata (contains `version?`, `type?`, `name?`) |
-
----
-
-## 6. Backward Compatibility
-
-The following legacy paths still work but migration to the new namespaces is recommended:
-
-| Legacy Path (deprecated)                      | New Path                                              |
-| --------------------------------------------- | ----------------------------------------------------- |
-| `window.Magic.getAgents()`                    | `window.Magic.agent.getAgents()`                      |
-| `window.Magic.uploadFiles(files)`             | `window.Magic.project.uploadFiles(files)`             |
-| `window.Magic.downloadFiles(paths)`           | `window.Magic.project.downloadFiles(paths)`           |
-| `window.Magic.addFilesToMessage(files)`       | `window.Magic.project.addFilesToMessage(files)`       |
-| `window.Magic.createTopicAndSend(msg, opts?)` | `window.Magic.project.createTopicAndSend(msg, opts?)` |
-| `window.Magic.sendMessage(msg, opts?)`        | `window.Magic.project.sendMessage(msg, opts?)`        |
-
----
-
-## 7. Error Handling Best Practices
-
-```javascript
-// fs error handling
 try {
-  const content = await window.Magic.fs.readFile("data/config.json");
-  return JSON.parse(content);
+  const user = await window.Magic.user.getInfo({
+    scopes: ["user.profile.name", "user.profile.identity"],
+    reason: "Display the current user's profile",
+  });
+  // {name, avatar, nickname, real_name, user_id, magic_id}
 } catch (err) {
-  if (err.message.includes("not found")) {
-    return { theme: "light", lang: "en" }; // File not found, use defaults
-  }
-  console.error("Failed to read config:", err);
+  // Rejected when scopes are undeclared or the user denies authorization.
+}
+```
+
+| Scope | Returned fields | Authorization |
+| --- | --- | --- |
+| `user.profile.display` | `name`, `avatar` | No prompt; default |
+| `user.profile.name` | `nickname`, `real_name` | Requires declaration and user confirmation |
+| `user.profile.identity` | `user_id`, `magic_id` | Requires declaration and user confirmation |
+| `user.profile.organization` | `organization_code` | Requires declaration and user confirmation |
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Display name (real_name > nickname) |
+| `avatar` | `string` | Avatar URL |
+| `nickname` | `string` | Nickname; only with `user.profile.name` |
+| `real_name` | `string` | Real name; only with `user.profile.name` |
+| `user_id` | `string` | User ID in current org; only with `user.profile.identity` |
+| `magic_id` | `string` | Global unique ID; only with `user.profile.identity` |
+| `organization_code` | `string` | Current org code; only with `user.profile.organization` |
+
+Notes:
+
+- Sensitive scopes must be present in both `app.json.permissions.userInfo.scopes` and the runtime `getInfo({ scopes })` call.
+- `magic.project.js` is legacy for older HTML micro-apps and still used by other project types such as slides/design/media. It is not the HTML micro-app manifest.
+- `reason` should explain why the app needs these fields; runtime `reason` overrides the `app.json` reason in the confirmation dialog.
+- Approved sensitive scopes are cached only for the current iframe session.
+- Never assume identity or organization fields are available from a bare `getInfo()` call.
+
+Timeout: 15s.
+
+---
+
+## 7. Backward Compatibility
+
+| Deprecated | New Path |
+| --- | --- |
+| `window.Magic.getAgents()` | `window.Magic.agent.getAgents()` |
+| `window.Magic.uploadFiles(files)` | `window.Magic.project.uploadFiles(files)` |
+| `window.Magic.downloadFiles(paths)` | `window.Magic.project.downloadFiles(paths)` |
+| `window.Magic.addFilesToMessage(files)` | `window.Magic.project.addFilesToMessage(files)` |
+| `window.Magic.createTopicAndSend(msg, opts?)` | `window.Magic.project.createTopicAndSend(msg, opts?)` |
+| `window.Magic.sendMessage(msg, opts?)` | `window.Magic.project.sendMessage(msg, opts?)` |
+
+---
+
+## 8. Error Handling
+
+```javascript
+// fs: file not found
+try {
+  return JSON.parse(await window.Magic.fs.readFile("data/config.json"));
+} catch (err) {
+  if (err.message.includes("not found")) return { theme: "light" };
   throw err;
 }
 
-// llm timeout/failure handling
+// llm: timeout
 try {
-  const reply = await window.Magic.llm.chat(messages, { maxTokens: 500 });
-  return reply;
+  return await window.Magic.llm.chat(messages, { model: "auto" });
 } catch (err) {
-  if (err.message.includes("timed out"))
-    return "Request timed out. Please retry.";
-  return "Call failed: " + err.message;
+  if (err.message.includes("timed out")) return "Request timed out.";
+  return "Failed: " + err.message;
 }
 
-// stream error: onChunk notifies end with done=true (including error cases)
-window.Magic.llm.stream(messages, (delta, done) => {
-  buffer += delta;
-  if (done) finalize(buffer);
-});
-```
-
----
-
-## 8. Complete Example Templates
-
-### Example A: Read Data → LLM Analysis → Write Results → Notify Agent
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Data Analysis Assistant</title>
-  </head>
-  <body>
-    <button id="analyze">Start Analysis</button>
-    <pre id="output">Waiting for analysis...</pre>
-
-    <script>
-      document.getElementById("analyze").addEventListener("click", async () => {
-        const output = document.getElementById("output");
-        output.textContent = "Reading data...";
-
-        // 1. Concurrent data reads
-        const [users, orders] = await Promise.all([
-          window.Magic.fs.readFile("data/users.json").then(JSON.parse),
-          window.Magic.fs.readFile("data/orders.json").then(JSON.parse),
-        ]);
-
-        output.textContent = "Calling LLM for analysis...";
-
-        // 2. Stream LLM call
-        let analysis = "";
-        await new Promise((resolve) => {
-          window.Magic.llm.stream(
-            [
-              {
-                role: "user",
-                content: `Analyze the following data and provide business recommendations:\nUsers: ${users.length}\nTotal order amount: ${orders.reduce((s, o) => s + o.amount, 0)}`,
-              },
-            ],
-            (delta, done) => {
-              analysis += delta;
-              output.textContent = analysis;
-              if (done) resolve(null);
-            },
-            { model: "auto", maxTokens: 500 },
-          );
-        });
-
-        // 3. Write analysis results
-        await window.Magic.fs.writeFile("output/analysis.md", analysis);
-
-        // 4. Notify Agent
-        window.Magic.setInputMessage(
-          "Analysis complete. Results written to output/analysis.md. Please generate charts.",
-        );
-      });
-    </script>
-  </body>
-</html>
-```
-
-### Example B: Watch Agent-Written Data and Auto-Refresh UI
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Real-Time Dashboard</title>
-  </head>
-  <body>
-    <div id="dashboard">Loading...</div>
-
-    <script>
-      async function render() {
-        const data = JSON.parse(
-          await window.Magic.fs.readFile("data/metrics.json"),
-        );
-        document.getElementById("dashboard").innerHTML = `
-        <h2>Real-Time Metrics</h2>
-        <p>Total Users: ${data.totalUsers}</p>
-        <p>Daily Active: ${data.dailyActive}</p>
-        <p>Updated: ${new Date(data.updatedAt).toLocaleString()}</p>
-      `;
-      }
-
-      render().catch(console.error);
-
-      // Watch for Agent updates to the data file
-      window.Magic.fs.watchFile("data/metrics.json", () => {
-        render().catch(console.error);
-      });
-    </script>
-  </body>
-</html>
-```
-
-### Example C: Let User Select Model and Stream Chat
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Model Chat</title>
-  </head>
-  <body>
-    <select id="model-select">
-      <option>Loading...</option>
-    </select>
-    <textarea id="input" placeholder="Type a message..."></textarea>
-    <button id="send">Send</button>
-    <button id="cancel" disabled>Cancel</button>
-    <div id="output"></div>
-
-    <script>
-      let cancelStream = null;
-
-      window.Magic.llm.getModels().then((models) => {
-        const sel = document.getElementById("model-select");
-        // Insert "Auto Select" at the top as default option
-        const autoOpt = `<option value="auto" selected>Auto Select (Recommended)</option>`;
-        sel.innerHTML =
-          autoOpt +
-          models
-            .map((m) => `<option value="${m.id}">${m.id}</option>`)
-            .join("");
-      });
-
-      document.getElementById("send").addEventListener("click", async () => {
-        const content = document.getElementById("input").value.trim();
-        if (!content) return;
-
-        const output = document.getElementById("output");
-        output.textContent = "";
-        document.getElementById("cancel").disabled = false;
-
-        const model = document.getElementById("model-select").value || "auto"; // ensure not empty
-        cancelStream = window.Magic.llm.stream(
-          [{ role: "user", content }],
-          (delta, done) => {
-            output.textContent += delta;
-            if (done) {
-              document.getElementById("cancel").disabled = true;
-              cancelStream = null;
-            }
-          },
-          { model },
-        );
-      });
-
-      document.getElementById("cancel").addEventListener("click", () => {
-        cancelStream?.();
-        cancelStream = null;
-        document.getElementById("cancel").disabled = true;
-      });
-    </script>
-  </body>
-</html>
+// stream: done=true signals end (including errors)
+window.Magic.llm.stream(
+  messages,
+  (delta, done) => {
+    buffer += delta;
+    if (done) finalize(buffer);
+  },
+  { model: "auto" },
+);
 ```
 
 ---
 
 ## 9. API Quick Reference
 
-| API                                                   | Description                                                      | Returns                  |
-| ----------------------------------------------------- | ---------------------------------------------------------------- | ------------------------ |
-| `window.Magic.fs.readFile(path)`                      | Read file text                                                   | `Promise<string>`        |
-| `window.Magic.fs.writeFile(path, content)`            | Write/create file (content: string/Blob/ArrayBuffer, max 500 MB) | `Promise<void>`          |
-| `window.Magic.fs.listFiles(dir?)`                     | List directory files                                             | `Promise<string[]>`      |
-| `window.Magic.fs.watchFile(path, cb)`                 | Watch file changes                                               | `() => void` (cancel fn) |
-| `window.Magic.llm.getModels()`                        | Get available models                                             | `Promise<Model[]>`       |
-| `window.Magic.llm.chat(msgs, opts?)`                  | Single chat                                                      | `Promise<string>`        |
-| `window.Magic.llm.stream(msgs, onChunk, opts?)`       | Streaming chat                                                   | `() => void` (cancel fn) |
-| `window.Magic.setInputMessage(msg)`                   | Send message to Agent                                            | `void`                   |
-| `window.Magic.reload()`                               | Trigger Agent refresh                                            | `void`                   |
-| `window.Magic.agent.getAgents()`                      | Get available agent list                                         | `Promise<AgentInfo[]>`   |
-| `window.Magic.project.uploadFiles(files)`             | Upload files to workspace                                        | `Promise<unknown>`       |
-| `window.Magic.project.downloadFiles(paths)`           | Download workspace files                                         | `Promise<unknown>`       |
-| `window.Magic.project.addFilesToMessage(files)`       | Attach files to input box                                        | `Promise<unknown>`       |
-| `window.Magic.project.createTopicAndSend(msg, opts?)` | Create topic and send message (msg: string or tiptap JSON)       | `Promise<{ topicId }>`   |
-| `window.Magic.project.sendMessage(msg, opts?)`        | Send message in current topic (msg: string or tiptap JSON)       | `Promise<void>`          |
+| API | Returns |
+| --- | --- |
+| `window.Magic.getAppBasePath()` | `Promise<string>` |
+| `window.Magic.fs.readFile(path)` | `Promise<string>` |
+| `window.Magic.fs.writeFile(path, content)` | `Promise<void>` |
+| `window.Magic.fs.listFiles(dir?)` | `Promise<string[]>` |
+| `window.Magic.fs.deleteFile(path)` | `Promise<void>` |
+| `window.Magic.fs.deleteDir(path)` | `Promise<void>` |
+| `window.Magic.fs.moveFile(path, targetDir)` | `Promise<void>` |
+| `window.Magic.fs.renameFile(path, newName)` | `Promise<void>` |
+| `window.Magic.fs.watchFile(path, cb)` | `() => void` |
+| `window.Magic.llm.getModels()` | `Promise<Model[]>` |
+| `window.Magic.llm.chat(msgs, opts?)` | `Promise<string>` |
+| `window.Magic.llm.stream(msgs, onChunk, opts?)` | `() => void` |
+| `window.Magic.setInputMessage(msg)` | `void` |
+| `window.Magic.reload()` | `void` |
+| `window.Magic.agent.getAgents()` | `Promise<AgentInfo[]>` |
+| `window.Magic.project.uploadFiles(files)` | `Promise<unknown>` |
+| `window.Magic.project.downloadFiles(paths)` | `Promise<unknown>` |
+| `window.Magic.project.addFilesToMessage(files)` | `Promise<unknown>` |
+| `window.Magic.project.createTopicAndSend(msg, opts?)` | `Promise<{topicId}>` |
+| `window.Magic.project.sendMessage(msg, opts?)` | `Promise<void>` |
+| `window.Magic.user.getInfo(options?)` | `Promise<UserInfo>` |

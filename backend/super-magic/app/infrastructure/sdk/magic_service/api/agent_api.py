@@ -15,6 +15,7 @@ from ..parameter.get_agent_openapi_parameter import GetAgentOpenApiParameter
 from ..parameter.get_skill_file_urls_parameter import GetSkillFileUrlsParameter
 from ..parameter.import_skill_from_agent_parameter import ImportSkillFromAgentParameter
 from ..parameter.ingest_third_party_message_parameter import IngestThirdPartyMessageParameter
+from ..parameter.list_agents_parameter import ListAgentsParameter
 from ..parameter.search_knowledge_parameter import SearchKnowledgeParameter
 from ..parameter.tool_execute_parameter import ToolExecuteParameter
 from ..parameter.update_agent_parameter import UpdateAgentParameter
@@ -23,6 +24,7 @@ from ..result.agent_execute_result import AgentExecuteResult
 from ..result.agent_openapi_result import AgentOpenApiResult
 from ..result.import_skill_result import ImportSkillResult
 from ..result.ingest_third_party_message_result import IngestThirdPartyMessageResult
+from ..result.list_agents_result import ListAgentsResult
 from ..result.search_knowledge_result import SearchKnowledgeResult
 from ..result.skill_file_urls_result import SkillFileUrlsResult
 from ..result.tool_execute_result import ToolExecuteResult
@@ -298,3 +300,43 @@ class AgentApi(MagicServiceAbstractApi):
         """
         endpoint_path = f"/api/v1/open-api/sandbox/agents/{parameter.get_code()}/skills"
         await self.request_by_parameter_async(parameter, 'DELETE', endpoint_path)
+
+    async def list_agents_async(
+        self,
+        parameter: ListAgentsParameter
+    ) -> ListAgentsResult:
+        """
+        List all agents available to the current user (async)
+
+        Uses the /api/v1/super-agents/featured endpoint which returns
+        the user's frequent + all accessible agents.
+
+        Args:
+            parameter: ListAgentsParameter instance
+
+        Returns:
+            ListAgentsResult containing the list of available agents
+        """
+        endpoint_path = "/api/v1/super-agents/featured"
+        data = await self.request_by_parameter_async(parameter, 'GET', endpoint_path)
+        return ListAgentsResult(data)
+
+    def list_agents(
+        self,
+        parameter: ListAgentsParameter
+    ) -> ListAgentsResult:
+        """
+        List all agents available to the current user (sync)
+
+        Uses the /api/v1/super-agents/featured endpoint which returns
+        the user's frequent + all accessible agents.
+
+        Args:
+            parameter: ListAgentsParameter instance
+
+        Returns:
+            ListAgentsResult containing the list of available agents
+        """
+        endpoint_path = "/api/v1/super-agents/featured"
+        data = self.request_by_parameter(parameter, 'GET', endpoint_path)
+        return ListAgentsResult(data)

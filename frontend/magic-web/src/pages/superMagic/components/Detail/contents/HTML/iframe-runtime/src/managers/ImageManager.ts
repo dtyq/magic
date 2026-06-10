@@ -10,6 +10,7 @@ import { replaceBackgroundImageInStyleAttribute } from "../../../utils/backgroun
 import { EditorLogger } from "../utils/EditorLogger"
 import { findElement } from "../utils/ElementSelector"
 import { getElementSelector } from "../utils/dom"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 interface ReplaceElementImageState {
 	selector: string
@@ -444,7 +445,7 @@ export class ImageManager {
 						type: "REQUEST_IMAGE_UPLOAD",
 						data: request,
 					},
-					"*",
+					getParentOrigin(),
 				)
 			} catch (error) {
 				this.pendingUploadRequests.delete(request.requestId)

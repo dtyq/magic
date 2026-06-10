@@ -235,6 +235,7 @@
 	},
 	"chat": {
 		"backToChatList": "Back to chat list",
+		"chatNameFieldLabel": "Conversation Name",
 		"confirmSaveAsProject": "Confirm Save as Project",
 		"deleteChat": "Delete",
 		"deleteChatConfirm": "Are you sure you want to delete the conversation \"{{name}}\"?",
@@ -242,7 +243,6 @@
 		"deleteChatSuccess": "Deleted successfully",
 		"friend": "My friend",
 		"greet": "Hi! {{name}}",
-		"chatNameFieldLabel": "Conversation Name",
 		"inputChatName": "Please enter conversation name",
 		"noChats": "No conversations yet",
 		"noPreview": "No conversation preview yet",
@@ -815,11 +815,6 @@
 		"uploadFailedPrefix": "Upload failed: ",
 		"uploadedAttachments": "Uploaded Attachments ({{count}})"
 	},
-	"htmlEditor": {
-		"dropOverlay": {
-			"hint": "Release to insert image"
-		}
-	},
 	"fileViewer": {
 		"addNewSlide": "New Slide",
 		"addNewSlideTooltip": "Insert new slide below current page",
@@ -1172,6 +1167,35 @@
 		"sloganSubtitle": "Your dedicated AI team is ready",
 		"sloganTitle": "What do you need help with today?"
 	},
+	"htmlEditor": {
+		"dropOverlay": {
+			"hint": "Release to insert image"
+		},
+		"projectFileOperationConfirm": {
+			"cancel": "Cancel",
+			"content": "The HTML micro-app wants to {{operation}} a {{targetType}} outside the app directory: {{path}}. App directory: {{appRootDir}}.",
+			"operations": {
+				"delete": "Delete",
+				"move": "Move",
+				"rename": "Rename",
+				"write": "Modify"
+			},
+			"projectRoot": "project root",
+			"targetTypes": {
+				"directory": "directory",
+				"file": "file"
+			},
+			"title": "Confirm Project File {{operation}}"
+		},
+		"userInfoAuthorizationConfirm": {
+			"allow": "Allow",
+			"content": "\"{{appName}}\" requests access to: {{fields}}. Purpose: {{reason}}",
+			"contentWithoutReason": "\"{{appName}}\" requests access to: {{fields}}. This app did not provide a purpose.",
+			"deny": "Deny",
+			"fieldSeparator": ", ",
+			"title": "Authorize User Info Access"
+		}
+	},
 	"messageEditor": {
 		"addAttachment": "Add Attachment",
 		"addModel": {
@@ -1393,113 +1417,113 @@
 		},
 		"emptyState": {
 			"variants": {
-				"generic": {
-					"title": "Nothing here yet",
-					"description": "Content will appear here when it is available."
-				},
-				"search": {
-					"title": "No results",
-					"description": "Try a different keyword or adjust your filters."
+				"apps": {
+					"description": "Apps will appear here once enabled or you have access.",
+					"title": "No apps available"
 				},
 				"chat": {
-					"title": "No conversations yet",
-					"description": "Start a new chat from the button in the header."
-				},
-				"workspace": {
-					"title": "No workspaces yet",
-					"description": "Create a workspace to organize your projects."
-				},
-				"project": {
-					"title": "No projects yet",
-					"description": "Create a project to start collaborating."
-				},
-				"sharedProject": {
-					"title": "No shared projects",
-					"description": "Nothing matches the current filters."
-				},
-				"topic": {
-					"title": "No topics yet",
-					"description": "Start a new topic from the composer below."
-				},
-				"crew": {
-					"title": "No crew here",
-					"description": "Change filters or add agents with the plus button."
-				},
-				"orgMembers": {
-					"title": "No people found",
-					"description": "Try another name or clear the search."
-				},
-				"orgDept": {
-					"title": "Nothing in this department",
-					"description": "There are no sub-departments or members here."
-				},
-				"files": {
-					"title": "No files",
-					"description": "Upload or create files to see them here."
-				},
-				"chatFilesSearch": {
-					"title": "No matching files",
-					"description": "Try a different search term."
+					"description": "Start a new chat from the button in the header.",
+					"title": "No conversations yet"
 				},
 				"chatFilesFolder": {
-					"title": "This folder is empty",
-					"description": "Add files or folders to get started."
+					"description": "Add files or folders to get started.",
+					"title": "This folder is empty"
 				},
-				"plugin": {
-					"title": "No plugins found",
-					"description": "Try another search keyword."
-				},
-				"model": {
-					"title": "No models found",
-					"description": "Try another search keyword."
-				},
-				"skill": {
-					"title": "No skills found",
-					"description": "Try another search keyword."
-				},
-				"mention": {
-					"title": "No matches",
-					"description": "Nothing in this category matches your search."
-				},
-				"mentionSelected": {
-					"title": "No items selected yet",
-					"description": "Go back and pick people, files, or tools to mention."
-				},
-				"shareLink": {
-					"title": "No share links yet",
-					"description": "Go back to create your first share link."
+				"chatFilesSearch": {
+					"description": "Try a different search term.",
+					"title": "No matching files"
 				},
 				"collaborator": {
-					"title": "No collaborators yet",
-					"description": "Tap Add to invite people or departments."
+					"description": "Tap Add to invite people or departments.",
+					"title": "No collaborators yet"
 				},
-				"apps": {
-					"title": "No apps available",
-					"description": "Apps will appear here once enabled or you have access."
-				},
-				"trash": {
-					"title": "Trash is empty",
-					"description": "Deleted items will show up here for 180 days."
-				},
-				"loginDevice": {
-					"title": "No other active devices",
-					"description": "You're only signed in on this device."
-				},
-				"loginActivity": {
-					"title": "No login activity",
-					"description": "No recent login attempts."
+				"crew": {
+					"description": "Change filters or add agents with the plus button.",
+					"title": "No crew here"
 				},
 				"feedback": {
-					"title": "No feedback yet",
-					"description": "Have a question or suggestion? Tap + to send us a message."
+					"description": "Have a question or suggestion? Tap + to send us a message.",
+					"title": "No feedback yet"
+				},
+				"files": {
+					"description": "Upload or create files to see them here.",
+					"title": "No files"
+				},
+				"generic": {
+					"description": "Content will appear here when it is available.",
+					"title": "Nothing here yet"
+				},
+				"loginActivity": {
+					"description": "No recent login attempts.",
+					"title": "No login activity"
+				},
+				"loginDevice": {
+					"description": "You're only signed in on this device.",
+					"title": "No other active devices"
+				},
+				"mention": {
+					"description": "Nothing in this category matches your search.",
+					"title": "No matches"
+				},
+				"mentionSelected": {
+					"description": "Go back and pick people, files, or tools to mention.",
+					"title": "No items selected yet"
+				},
+				"model": {
+					"description": "Try another search keyword.",
+					"title": "No models found"
+				},
+				"orgDept": {
+					"description": "There are no sub-departments or members here.",
+					"title": "Nothing in this department"
+				},
+				"orgMembers": {
+					"description": "Try another name or clear the search.",
+					"title": "No people found"
+				},
+				"plugin": {
+					"description": "Try another search keyword.",
+					"title": "No plugins found"
+				},
+				"project": {
+					"description": "Create a project to start collaborating.",
+					"title": "No projects yet"
 				},
 				"recording": {
-					"title": "No recordings yet",
-					"description": "Tap + to start a new recording or import a file."
+					"description": "Tap + to start a new recording or import a file.",
+					"title": "No recordings yet"
 				},
 				"recordingGroup": {
-					"title": "Nothing in this group",
-					"description": "Move recordings here from the more menu."
+					"description": "Move recordings here from the more menu.",
+					"title": "Nothing in this group"
+				},
+				"search": {
+					"description": "Try a different keyword or adjust your filters.",
+					"title": "No results"
+				},
+				"shareLink": {
+					"description": "Go back to create your first share link.",
+					"title": "No share links yet"
+				},
+				"sharedProject": {
+					"description": "Nothing matches the current filters.",
+					"title": "No shared projects"
+				},
+				"skill": {
+					"description": "Try another search keyword.",
+					"title": "No skills found"
+				},
+				"topic": {
+					"description": "Start a new topic from the composer below.",
+					"title": "No topics yet"
+				},
+				"trash": {
+					"description": "Deleted items will show up here for 180 days.",
+					"title": "Trash is empty"
+				},
+				"workspace": {
+					"description": "Create a workspace to organize your projects.",
+					"title": "No workspaces yet"
 				}
 			}
 		},
@@ -1541,27 +1565,6 @@
 				"selectAllVisible": "Select all in list ({{count}})",
 				"title": "Bulk Actions"
 			},
-			"orphanWarn": {
-				"cancel": "Cancel restore",
-				"intro": "{{count}} items can't be restored automatically because the original location no longer exists:",
-				"noneRestorable": "No remaining items can be restored.",
-				"remaining": "{{count}} remaining items can be restored.",
-				"restoreOthers": "Restore the rest ({{count}})",
-				"restoreOthersAria": "Restore the rest",
-				"title": "Some items can't be restored"
-			},
-			"purge": {
-				"cancelAria": "Cancel",
-				"confirmAria": "Confirm permanent delete",
-				"message": "Permanently delete {{count}} items? This cannot be undone.",
-				"title": "Delete permanently"
-			},
-			"restoreConfirm": {
-				"cancelAria": "Cancel",
-				"confirmAria": "Confirm restore",
-				"message": "Restore {{count}} items to their original location?",
-				"title": "Restore"
-			},
 			"deleteSuccess": {
 				"content": "Permanently deleted {{count}} items."
 			},
@@ -1593,9 +1596,32 @@
 			"loader": {
 				"noMoreData": "You've seen everything!"
 			},
+			"orphanWarn": {
+				"cancel": "Cancel restore",
+				"intro": "{{count}} items can't be restored automatically because the original location no longer exists:",
+				"noneRestorable": "No remaining items can be restored.",
+				"remaining": "{{count}} remaining items can be restored.",
+				"restoreOthers": "Restore the rest ({{count}})",
+				"restoreOthersAria": "Restore the rest",
+				"title": "Some items can't be restored"
+			},
 			"pathScopes": {
 				"workspaces": "Workspace"
 			},
+			"purge": {
+				"cancelAria": "Cancel",
+				"confirmAria": "Confirm permanent delete",
+				"message": "Permanently delete {{count}} items? This cannot be undone.",
+				"title": "Delete permanently"
+			},
+			"restoreConfirm": {
+				"cancelAria": "Cancel",
+				"confirmAria": "Confirm restore",
+				"message": "Restore {{count}} items to their original location?",
+				"title": "Restore"
+			},
+			"restoreFileTip": "Please restore files on PC.",
+			"restoreNeedPc": "Some items need to be restored on PC.",
 			"restorePicker": {
 				"backAria": "Back",
 				"cancelAria": "Cancel",
@@ -1606,13 +1632,6 @@
 				"title": "Choose a new location",
 				"workspaceStep": "Choose a workspace"
 			},
-			"selection": {
-				"purge": "Delete permanently",
-				"restore": "Restore",
-				"selectAll": "Select all"
-			},
-			"restoreFileTip": "Please restore files on PC.",
-			"restoreNeedPc": "Some items need to be restored on PC.",
 			"restoreSuccess": {
 				"content": "Restored {{count}} items.",
 				"title": "Restore completed"
@@ -1634,6 +1653,11 @@
 				"chooseWorkspace": "Select workspace, then select target project",
 				"noProject": "No projects in this workspace",
 				"noWorkspace": "No workspace available"
+			},
+			"selection": {
+				"purge": "Delete permanently",
+				"restore": "Restore",
+				"selectAll": "Select all"
 			},
 			"tabEmpty": {
 				"description": "Switch to All or another type",
@@ -1671,8 +1695,8 @@
 	"modeToggle": {
 		"cannotSwitchModeMessage": "Current crew cannot be switched. Create a new topic to enable \"<strong>{{modeName}}</strong>\".",
 		"cannotSwitchModeMessageChat": "Current crew cannot be switched. Create a new chat to enable \"<strong>{{modeName}}</strong>\".",
-		"createNewTopic": "Create New Topic",
 		"createNewChat": "Create New Chat",
+		"createNewTopic": "Create New Topic",
 		"emptySearchResult": "No matching crew found",
 		"searchPlaceholder": "Search crew",
 		"selectCrew": "Select Crew",
@@ -1687,8 +1711,12 @@
 		"attachment": "Attachment",
 		"attachmentLimit": "It supports adding up to 10 JPG or PNG images. The width and height of the image should be less than 2048 pixels, and the file size should be less than 2MB.",
 		"cancel": "Cancel",
+		"clawFeedbackDescription": "Claw ID: {{clawId}}\nPlease describe the problems encountered in the conversation or areas you hope to improve:",
+		"clawFeedbackTitle": "Feedback for conversation \"{{clawName}}\"",
 		"contactEmail": "Email",
 		"contactEmailPlaceholder": "Your email address.",
+		"conversationFeedbackDescription": "Conversation ID: {{topicId}}\nPlease describe the problems encountered in the conversation or areas you hope to improve:",
+		"conversationFeedbackTitle": "Feedback for conversation \"{{topicName}}\"",
 		"creditDeductRelated": "Points Deduction Issues",
 		"creditRechargeRelated": "Related to Points Recharge/Usage",
 		"emailFormatError": "Please enter a valid email address",
@@ -1700,17 +1728,13 @@
 		"officialWechatGroup": "WeChat Group",
 		"officialWechatGroupDescription": "Welcome to join",
 		"onlineFeedback": "Online Feedback",
+		"orderFeedbackTitle": "Question about order {{orderNo}}",
 		"orderProblemDescription": "Order ID: {{id}}\nAdditional description:",
 		"orderRelated": "Order Issues",
 		"other": "Others",
 		"paidPackageRelated": "Related to Paid Packages",
-		"pointsDeductProblemDescription": "Transaction ID: {{id}}\nI have questions about the points consumption, please check.",
-		"clawFeedbackTitle": "Feedback for conversation \"{{clawName}}\"",
-		"clawFeedbackDescription": "Claw ID: {{clawId}}\nPlease describe the problems encountered in the conversation or areas you hope to improve:",
-		"conversationFeedbackTitle": "Feedback for conversation \"{{topicName}}\"",
-		"conversationFeedbackDescription": "Conversation ID: {{topicId}}\nPlease describe the problems encountered in the conversation or areas you hope to improve:",
-		"orderFeedbackTitle": "Question about order {{orderNo}}",
 		"pointsDeductFeedbackTitle": "Question about points deduction",
+		"pointsDeductProblemDescription": "Transaction ID: {{id}}\nI have questions about the points consumption, please check.",
 		"pointsTopUpProblemDescription": "Record ID: {{id}}\nI have questions about points top-up or usage. Please verify.",
 		"problemDescription": "Problem Description",
 		"problemDescriptionPlaceholder": "Describe your issue or suggestion.",
@@ -1939,6 +1963,9 @@
 		"copyLink": "Copy link",
 		"createLink": "Create share link",
 		"createTitle": "Project Share",
+		"defaultNameOrganization": "Organization Share",
+		"defaultNamePassword": "Password Link",
+		"defaultNamePublic": "Public Link",
 		"deleteConfirmDescription": "People with this link will no longer be able to access the share after it is canceled.",
 		"deleteConfirmMessage": "Cancel \"{{name}}\"? People with this link will no longer be able to access the share.",
 		"deleteConfirmTitle": "Cancel shared link",
@@ -1956,14 +1983,10 @@
 		"linkLabel": "Share link",
 		"linkNameLabel": "Link name (optional)",
 		"linkNamePlaceholder": "For example: client demo, partner review...",
-		"defaultNameOrganization": "Organization Share",
-		"defaultNamePassword": "Password Link",
-		"defaultNamePublic": "Public Link",
 		"manageOrganizationDepartmentsOnly": "{{departmentCount}} departments",
 		"manageOrganizationMembersAndDepartments": "{{userCount}} members, {{departmentCount}} departments",
 		"manageOrganizationMembersOnly": "{{userCount}} members",
 		"manageOrganizationSummary": "Organization members can access",
-		"shareScopeAllMembers": "All members",
 		"managePasswordSummary": "Password required",
 		"managePermanent": "Permanent",
 		"managePublicSummary": "Anyone with the link can access",
@@ -1973,6 +1996,7 @@
 		"selectedFilesCount": "{{count}} files",
 		"selectedFilesLabel": "Selected files",
 		"selectedMembersCount": "{{count}} selected",
+		"shareScopeAllMembers": "All members",
 		"typeLabel": "Share type",
 		"typeOrganization": "Organization",
 		"typeOrganizationDescription": "Only selected members or departments can access",
@@ -2060,6 +2084,9 @@
 			"title": "Notice",
 			"toSummarize": "to summarize",
 			"useModel": "Use"
+		},
+		"chunkProduction": {
+			"failed": "Recording error: No audio data detected"
 		},
 		"debugPanel": {
 			"apply": "Apply",
@@ -2224,9 +2251,6 @@
 				"takeNotes": "Take Notes"
 			},
 			"title": "Recording"
-		},
-		"chunkProduction": {
-			"failed": "Recording error: No audio data detected"
 		},
 		"network": {
 			"max_retries_reached": "Some audio chunks failed to upload. Please check your network connection and retry",
@@ -2502,6 +2526,7 @@
 	"selectPathModal": {
 		"all": "All",
 		"cannotSelectCurrentFolder": "Cannot select the currently selected folder as move target",
+		"chatCount": "{{count}} chats",
 		"completeFolderCreation": "Complete Folder Creation",
 		"confirm": "Confirm",
 		"createdSuccessfully": "Created Successfully",
@@ -2522,11 +2547,10 @@
 		"inputFolderName": "Input Folder Name",
 		"inputProjectName": "Input Project Name",
 		"inputWorkspaceName": "Input Workspace Name",
+		"myWorkspaces": "My Workspaces",
 		"newProject": "New Project",
 		"newSubfolder": "New Folder",
 		"newWorkspace": "New Workspace",
-		"myWorkspaces": "My Workspaces",
-		"chatCount": "{{count}} chats",
 		"noDirPermission": "No Directory Permission",
 		"noDirectory": "No Directory",
 		"noProject": "No Project",
@@ -2926,10 +2950,10 @@
 		},
 		"searchPlaceholder": "Search",
 		"sharedWith": "Shared with {{count}} people",
-		"topicCount": "{{count}} topics",
 		"tabSharedByMe": "Shared by me",
 		"tabSharedWithMe": "Shared with me",
 		"title": "Shared Workspace",
+		"topicCount": "{{count}} topics",
 		"unknownCreator": "Unknown sharer",
 		"unknownTime": "Unknown time"
 	},
@@ -3308,10 +3332,10 @@
 	},
 	"topicFiles": {
 		"AIOptimization": "AI Edit",
-		"aiPick": "AI Pick",
-		"aiPickTooltip": "Click to select a page element and let AI modify it",
 		"addFile": "Add File",
 		"addFolder": "Add Folder",
+		"aiPick": "AI Pick",
+		"aiPickTooltip": "Click to select a page element and let AI modify it",
 		"batchExportingPdf": "Batch Exporting PDF...",
 		"batchExportingPpt": "Batch Exporting PPT...",
 		"batchOperation": "Batch Operation",
@@ -3455,10 +3479,10 @@
 		"download": "Download",
 		"downloadAllTitle": "Download All",
 		"downloadFailed": "Download failed",
-		"downloadSuccess": "Downloaded successfully",
-		"downloading": "Downloading...",
 		"downloadSelected": "Download Selected ({{count}})",
+		"downloadSuccess": "Downloaded successfully",
 		"downloadTitle": "Batch Download",
+		"downloading": "Downloading...",
 		"dragMove": {
 			"cannotDrop": "Cannot drop here",
 			"cannotMoveParentToChild": "Cannot move parent folder to child folder",
@@ -3688,9 +3712,6 @@
 		"consumptionPoints": "Used {{points}} points this round",
 		"consumptionPoints1": "This round used",
 		"consumptionPoints2": "points",
-		"usedModel": "Model：",
-		"usedImageModel": "Image Model: ",
-		"usedVideoModel": "Video Model: ",
 		"copyTopic": "Create a new topic from here",
 		"deleteProjectConfirm": "Are you sure to delete project: \"{{name}}\"?",
 		"deleteProjectConfirmTitle": "Delete Project?",
@@ -3766,7 +3787,10 @@
 			"contextUsageDescription": "Conversation memory usage. When the progress bar is full, AI may forget earlier content.",
 			"highContextWarning": "High context length may significantly increase the cost per response",
 			"tokenCount": "{{used}} / {{max}} Tokens"
-		}
+		},
+		"usedImageModel": "Image Model: ",
+		"usedModel": "Model：",
+		"usedVideoModel": "Video Model: "
 	},
 	"uploadModal": {
 		"addUploadFiles": "Add Files",
@@ -3831,8 +3855,8 @@
 		"newWorkspace": "New Workspace",
 		"noOtherWorkspace": "No other workspaces available",
 		"noWorkspaces": "No workspaces",
-		"projectCount": "{{count}} Projects",
 		"pinWorkspaceSuccess": "Workspace pinned successfully",
+		"projectCount": "{{count}} Projects",
 		"projects": "Projects",
 		"rename": "Rename",
 		"renameWorkspaceSuccess": "Rename workspace successfully",
@@ -3854,8 +3878,8 @@
 		"topicList": "Topic List",
 		"topics": "Topics",
 		"transfer": "Transfer Workspace",
-		"unpinWorkspaceSuccess": "Workspace unpinned successfully",
 		"unnamedWorkspace": "Unnamed Workspace",
+		"unpinWorkspaceSuccess": "Workspace unpinned successfully",
 		"workspace": "Workspace",
 		"workspaceList": "Workspace List",
 		"workspaceName": "Workspace Name",

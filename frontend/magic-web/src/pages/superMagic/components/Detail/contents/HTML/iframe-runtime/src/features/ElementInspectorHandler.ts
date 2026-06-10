@@ -11,6 +11,7 @@
  */
 
 import { getElementSelector, isInjectedElement } from "../utils/dom"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 // Mirror the constants from the shared types (iframe-runtime is a separate build)
 const INSPECTOR_MSG = {
@@ -170,7 +171,7 @@ export class ElementInspectorHandler {
 		try {
 			window.parent.postMessage(
 				{ type: INSPECTOR_MSG.HOVER, elementInfo: info, timestamp: Date.now() },
-				"*",
+				getParentOrigin(),
 			)
 		} catch {
 			// ignore
@@ -187,7 +188,7 @@ export class ElementInspectorHandler {
 			try {
 				window.parent.postMessage(
 					{ type: INSPECTOR_MSG.HOVER_END, timestamp: Date.now() },
-					"*",
+					getParentOrigin(),
 				)
 			} catch {
 				// ignore
@@ -209,7 +210,7 @@ export class ElementInspectorHandler {
 		try {
 			window.parent.postMessage(
 				{ type: INSPECTOR_MSG.SELECT, elementInfo: info, timestamp: Date.now() },
-				"*",
+				getParentOrigin(),
 			)
 		} catch {
 			// ignore

@@ -7,6 +7,7 @@
  */
 
 import { MagicApiLogger } from "./MagicApiLogger"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 export abstract class MagicBaseApi {
 	/**
@@ -72,7 +73,7 @@ export abstract class MagicBaseApi {
 				}
 			}
 			window.addEventListener("message", handler)
-			window.parent.postMessage({ type, requestId, ...payload }, "*")
+			window.parent.postMessage({ type, requestId, ...payload }, getParentOrigin())
 		})
 	}
 }

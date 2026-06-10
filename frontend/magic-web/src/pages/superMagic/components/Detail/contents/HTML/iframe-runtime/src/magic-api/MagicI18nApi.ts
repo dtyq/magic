@@ -7,6 +7,7 @@
  */
 
 import { MagicApiLogger } from "./MagicApiLogger"
+import { getParentOrigin } from "../utils/parentOrigin"
 
 export class MagicI18nApi {
 	install(): void {
@@ -45,7 +46,7 @@ export class MagicI18nApi {
 						requestId,
 						timestamp: Date.now(),
 					},
-					"*",
+					getParentOrigin(),
 				)
 				return () => i18nSubscribers.delete(callback as I18nCallback)
 			},
