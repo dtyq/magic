@@ -59,10 +59,15 @@ export enum CommonAbsolutePresetKey {
 }
 
 export interface TimeRangeValue {
+	/* 开始时间 */
 	startDate: string
+	/* 结束时间 */
 	endDate: string
+	/* 标签 */
 	label: string
+	/* tab 类型 */
 	tab: TimeFilterTab
+	/* 模式 */
 	mode: HistoryMode
 }
 
@@ -89,6 +94,7 @@ export interface CommonAbsolutePresetRange {
 }
 
 export type TimeFilterLocale = {
+	monthFormat: string
 	customRelativeLabel: string
 	preset: Record<string, string>
 	unit: {

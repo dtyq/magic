@@ -11,6 +11,7 @@ export default {
 	history: "History",
 	monthLabel: "{month}",
 	monthly: "Monthly",
+	monthFormat: "YYYY M",
 	placeholder: "Select a time range",
 	preset: {
 		last1Minute: "Last 1 Minute",

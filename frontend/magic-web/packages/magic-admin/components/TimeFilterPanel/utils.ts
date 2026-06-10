@@ -5,8 +5,9 @@ import type {
 	TimeFilterHistoryItem,
 	TimeFilterLocale,
 	TimePresetOption,
+	TimeRangeValue,
 } from "./types"
-import { CommonAbsolutePresetKey, RelativeUnit, TimePresetKey } from "./types"
+import { CommonAbsolutePresetKey, HistoryMode, RelativeUnit, TimeFilterTab, TimePresetKey } from "./types"
 
 export const DATE_TIME_FORMAT = "YYYY-MM-DD HH:mm:ss"
 export const MONTH_KEY_FORMAT = "YYYY-MM"
@@ -178,8 +179,8 @@ export function getCommonAbsolutePresetRanges(now = dayjs()): CommonAbsolutePres
 	]
 }
 
-export function formatMonthLabel(monthKey: string) {
-	return dayjs(`${monthKey}-01`).format("YYYY年M月")
+export function formatMonthLabel(monthKey: string, locale: TimeFilterLocale) {
+	return dayjs(`${monthKey}-01`).format(locale.monthFormat)
 }
 
 export function createHistoryEntry(
@@ -260,4 +261,25 @@ export function getUnitLabel(locale: TimeFilterLocale, unit: RelativeUnit) {
 	if (unit === RelativeUnit.day) return locale.unit.day
 	if (unit === RelativeUnit.hour) return locale.unit.hour
 	return locale.unit.minute
+}
+
+/** 获取同步后的时间筛选值 */
+export function getSyncedTimeFilterValue(
+	lastValue: TimeFilterHistoryItem | TimeRangeValue | null,
+	startDate?: string,
+	endDate?: string,
+): TimeRangeValue | null {
+	if (!startDate || !endDate) return null
+
+	if (lastValue?.startDate === startDate && lastValue.endDate === endDate) {
+		return lastValue
+	}
+
+	return {
+		startDate,
+		endDate,
+		label: `${startDate} ~ ${endDate}`,
+		tab: TimeFilterTab.absolute,
+		mode: HistoryMode.absolute,
+	}
 }

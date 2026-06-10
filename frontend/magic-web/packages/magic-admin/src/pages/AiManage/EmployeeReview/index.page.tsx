@@ -4,11 +4,10 @@ import { debounce } from "lodash-es"
 import { IconReload } from "@tabler/icons-react"
 import type { SearchItem, TableButton } from "@admin-components"
 import {
-	HistoryMode,
+	getSyncedTimeFilterValue,
 	SearchItemType,
 	StatusTag,
 	TableWithFilters,
-	TimeFilterTab,
 	type TimeRangeValue,
 } from "@admin-components"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
@@ -355,19 +354,11 @@ function AIEmployeeReviewPage() {
 		],
 	)
 
-	const timeFilterValue = useMemo((): TimeRangeValue | null => {
-		return lastTimeFilterValue
-			? lastTimeFilterValue
-			: params.start_time && params.end_time
-				? {
-						startDate: params.start_time,
-						endDate: params.end_time,
-						label: `${params.start_time} ~ ${params.end_time}`,
-						tab: TimeFilterTab.relative,
-						mode: HistoryMode.relative,
-					}
-				: null
-	}, [lastTimeFilterValue, params.end_time, params.start_time])
+	const timeFilterValue = useMemo(
+		(): TimeRangeValue | null =>
+			getSyncedTimeFilterValue(lastTimeFilterValue, params.start_time, params.end_time),
+		[lastTimeFilterValue, params.end_time, params.start_time],
+	)
 
 	const searchItems: SearchItem[] = useMemo(
 		() => [

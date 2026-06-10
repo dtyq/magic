@@ -10,6 +10,7 @@ export default {
 	filter: "筛选",
 	history: "历史记录",
 	monthLabel: "{month}",
+	monthFormat: "YYYY年M月",
 	monthly: "按月查询",
 	placeholder: "请选择时间范围",
 	preset: {

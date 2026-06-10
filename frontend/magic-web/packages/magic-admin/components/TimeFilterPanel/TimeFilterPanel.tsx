@@ -329,7 +329,7 @@ function TimeFilterPanel({ defaultPresetKey, prefix, value, onChange }: TimeFilt
 		applyRange({
 			start,
 			end,
-			label: formatTemplate(locale.monthLabel, { month: formatMonthLabel(monthKey) }),
+			label: formatTemplate(locale.monthLabel, { month: formatMonthLabel(monthKey, locale) }),
 			tab: TimeFilterTab.relative,
 			mode: HistoryMode.monthly,
 		})
@@ -519,13 +519,14 @@ function TimeFilterPanel({ defaultPresetKey, prefix, value, onChange }: TimeFilt
 																		{
 																			month: formatMonthLabel(
 																				monthKey,
+																				locale,
 																			),
 																		},
 																	),
 														})}
 														onClick={() => handleMonthApply(monthKey)}
 													>
-														{formatMonthLabel(monthKey)}
+														{formatMonthLabel(monthKey, locale)}
 													</Button>
 												))}
 											</div>
