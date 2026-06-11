@@ -100,9 +100,15 @@ function ProjectPage() {
 				detailRef.current?.openPlaybackTab?.({ toolData, forceActivate: true })
 			}, 100)
 		})
+		pubsub.subscribe(PubSubEvents.Open_Knowledge_Base_Tab, (data) => {
+			setTimeout(() => {
+				detailRef.current?.openKnowledgeBaseTab?.(data)
+			}, 100)
+		})
 		return () => {
 			pubsub?.unsubscribe(PubSubEvents.Open_File_Tab)
 			pubsub?.unsubscribe(PubSubEvents.Open_Playback_Tab)
+			pubsub?.unsubscribe(PubSubEvents.Open_Knowledge_Base_Tab)
 		}
 	}, [])
 

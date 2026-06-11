@@ -20,6 +20,14 @@ import { useLocation } from "react-router"
 import { copyFileContent } from "@/pages/superMagic/utils/share"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import { useMemoizedFn } from "ahooks"
+import MagicFileIcon from "@/components/base/MagicFileIcon"
+import { Flex } from "antd"
+import ToolIcon from "@/pages/superMagic/components/MessageList/components/Tool/components/ToolIcon"
+import { getAttachmentExtension } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
+import { BookOpen } from "lucide-react"
+import IconTerminal from "@/pages/superMagic/assets/svg/terminal.svg"
+import PDFIcon from "@/pages/superMagic/assets/file_icon/pdf.svg"
+import CommonFileIcon from "@/pages/superMagic/assets/svg/file.svg"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type { Topic, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -39,6 +47,7 @@ const MOBILE_PREVIEW_SHEET_CLASSNAME = cn(
 /** Body must stay flex + hidden overflow so Render fills the sheet below actionHeader. */
 const MOBILE_PREVIEW_BODY_CLASSNAME =
 	"flex min-h-0 flex-1 flex-col overflow-hidden !overflow-hidden bg-background p-0"
+import { getPreviewDetailDisplayName, isKnowledgeSearchPreviewDetail } from "./headerMeta"
 
 export interface PreviewDetail<T extends keyof DetailData = keyof DetailData> {
 	type: T
@@ -370,23 +379,7 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 		const correctedPreviewDetail = correctDetailType(previewDetail, {
 			attachmentList,
 		})
-		if (!correctedPreviewDetail?.data) return t("ui.preview")
-
-		const currentType = correctedPreviewDetail.type as DetailType
-		const data = correctedPreviewDetail.data as {
-			name?: string
-			file_name?: string
-			title?: string
-			display_config?: { name?: string }
-		}
-
-		// Design 类型优先使用 data.name
-		if (currentType === DetailType.Design) {
-			return data.name || data.display_config?.name || data.file_name || t("ui.preview")
-		}
-
-		// 其他类型按优先级获取
-		return data.display_config?.name || data.file_name || data.title || t("ui.preview")
+		return getPreviewDetailDisplayName(correctedPreviewDetail, t)
 	}, [attachmentList, previewDetail, t])
 
 	if (isFileShare) {

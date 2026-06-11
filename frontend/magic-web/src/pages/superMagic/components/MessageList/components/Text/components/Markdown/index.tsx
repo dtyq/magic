@@ -12,6 +12,7 @@ import {
 	type ReactElement,
 } from "react"
 import { preprocessMarkdown } from "@/pages/superMagic/utils/handleMarkDown"
+import type { CitationSource } from "@/pages/superMagic/utils/citations"
 import HtmlCodeBlockPreview from "./components/HtmlCodeBlockPreview"
 import type { HtmlCodeBlockPreviewStreamingScrollState } from "./components/HtmlCodeBlockPreview/types"
 import {
@@ -23,10 +24,20 @@ import { Image } from "./parser/Image"
 import { MarkdownLink, type MarkdownLinkProps } from "./parser/MarkdownLink"
 import { cn } from "@/lib/utils"
 import type { MarkdownComponentProps } from "./types"
+import {
+	resolveMarkdownRenderSource,
+	shouldEnableStreamingTextAnimation,
+} from "./streamingMarkdown"
 import styles from "./index.module.css"
+import { CitationBadge } from "../../../Citations"
+
+const MARKDOWN_ALLOWED_URI_REGEXP =
+	/^(?:(?:https?|ftps?|mailto|tel|callto|sms|cid|xmpp|matrix|oa|oa-view|open-action|openaction):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
 
 const MARKDOWN_DOMPURIFY_CONFIG = {
-	ADD_ATTR: ["path"],
+	ADD_ATTR: ["path", "index"],
+	ALLOWED_URI_REGEXP: MARKDOWN_ALLOWED_URI_REGEXP,
+	ADD_TAGS: ["citation", "references", "ref"],
 }
 // 规则：
 // - allowRawHtml=true：HTML 直接渲染为 DOM（跳过预处理）
@@ -34,8 +45,6 @@ const MARKDOWN_DOMPURIFY_CONFIG = {
 //   混合内容中 fence 外的零散 HTML 标签转义为纯文本（白名单标签如 file-path 除外）
 // - 以 ```html 开头的 fenced block 通过 pre handler 进入 HtmlCodeBlockPreview
 
-// 匹配单行 fenced code 标记，用来统计 ``` 是否成对闭合。
-const MARKDOWN_FENCE_LINE_PATTERN = /^\s*```[\w-]*\s*$/gm
 // 匹配完整的 fenced code block，用来定位需要跳过的代码块区间。
 const MARKDOWN_FENCE_BLOCK_PATTERN = /^\s*```[\w-]*\s*$[\s\S]*?^\s*```\s*$/gm
 // 匹配普通 raw HTML 标签，用来识别 fence 外需要特殊处理的 HTML 片段。
@@ -43,7 +52,7 @@ const RAW_HTML_TAG_PATTERN = /<\/?([a-z][a-z0-9_-]*)((?:\s+[^>/]*)?)\s*\/?>/gi
 // 匹配 DOCTYPE、注释等 HTML 声明节点。
 const RAW_HTML_DECLARATION_PATTERN = /<![^>]*>/gi
 // 允许保留的项目自定义标签，避免它们在预处理阶段被误转义。
-const RAW_HTML_ALLOWED_CUSTOM_TAGS = new Set(["file-path"])
+const RAW_HTML_ALLOWED_CUSTOM_TAGS = new Set(["file-path", "citation", "references", "ref"])
 const QRCODE_FENCE_LANGUAGE = "qrcode"
 
 function isCodeLanguage(className: string | undefined, language: string): boolean {
@@ -77,21 +86,6 @@ function resolveQRCodeValue(props: {
 
 function escapeHtmlLiteral(raw: string) {
 	return raw.replace(/</g, "&lt;").replace(/>/g, "&gt;")
-}
-
-// 流式消息中用户可能手动结束任务或者大模型偶发漏掉结尾的 ```，这里对为闭合的 fence 做兜底补全
-function ensureClosedMarkdownFence(markdown: string) {
-	if (!markdown.includes("```")) {
-		return markdown
-	}
-
-	const fenceCount = markdown.match(MARKDOWN_FENCE_LINE_PATTERN)?.length ?? 0
-
-	if (fenceCount % 2 === 0) {
-		return markdown
-	}
-
-	return `${markdown.replace(/\s*$/, "")}\n\`\`\``
 }
 
 // 只转义 fence 外的裸 HTML，避免 XMarkdown 把普通文本里的 HTML 片段当成原生节点直接渲染。
@@ -168,15 +162,34 @@ export interface UseMarkdownComponentResult {
 	a: (props: MarkdownLinkProps) => ReactElement
 	img: (props: XMarkdownComponentProps) => ReactElement
 	"file-path": (props: XMarkdownComponentProps) => ReactElement
+	citation: (props: XMarkdownComponentProps) => ReactElement
+	references: () => ReactElement
+	ref: () => ReactElement
 }
 
 export function useMarkdownComponent({
 	streamingScrollStateRef,
 	isStreaming = false,
+	citations,
+	highlightedCitation,
+	onCitationClick,
 }: {
 	streamingScrollStateRef: MutableRefObject<HtmlCodeBlockPreviewStreamingScrollState>
 	isStreaming: boolean
+	citations?: CitationSource[]
+	highlightedCitation?: number | null
+	onCitationClick?: (index: number | null) => void
 }): UseMarkdownComponentResult {
+	// 用 ref 持有随每个 chunk 变化的 citation 相关值，避免 components 对象随
+	// 每个 chunk 重建——否则 components.pre 引用变化会导致 XMarkdown 重新挂载
+	// HtmlCodeBlockPreview，造成视觉抖动。
+	const citationsRef = useRef(citations)
+	citationsRef.current = citations
+	const highlightedCitationRef = useRef(highlightedCitation)
+	highlightedCitationRef.current = highlightedCitation
+	const onCitationClickRef = useRef(onCitationClick)
+	onCitationClickRef.current = onCitationClick
+
 	return useMemo(
 		() => ({
 			pre(props: XMarkdownComponentProps) {
@@ -239,7 +252,32 @@ export function useMarkdownComponent({
 			"file-path"(props: XMarkdownComponentProps) {
 				return <FilePath path={props.path} />
 			},
+			citation(props: XMarkdownComponentProps) {
+				const index = Number(props.index)
+				if (!index || index < 1) return <></>
+				const hasCitationData = citationsRef.current?.some((c) => c.index === index)
+				const highlighted = highlightedCitationRef.current
+				return (
+					<CitationBadge
+						index={index}
+						highlighted={highlighted === index}
+						clickable={!!hasCitationData}
+						onClick={(idx) =>
+							onCitationClickRef.current?.(highlighted === idx ? null : idx)
+						}
+					/>
+				)
+			},
+			references() {
+				return <></>
+			},
+			ref() {
+				return <></>
+			},
 		}),
+		// citation 相关值通过 ref 读取，不加入 deps，保证 streaming 期间 components
+		// 对象引用稳定，防止 HtmlCodeBlockPreview 因 pre 函数引用变化而重新挂载。
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[isStreaming, streamingScrollStateRef],
 	)
 }
@@ -249,6 +287,9 @@ function MarkdownComponent({
 	className,
 	isStreaming = false,
 	allowRawHtml = true,
+	citations,
+	highlightedCitation,
+	onCitationClick,
 	onMouseEnter,
 	onMouseLeave,
 }: MarkdownComponentProps) {
@@ -258,10 +299,27 @@ function MarkdownComponent({
 		const nextMarkdownSource =
 			shouldUseNormalizedStreamingContent || !isStreaming ? normalizedContent : content
 
-		const fenceClosed = ensureClosedMarkdownFence(nextMarkdownSource)
+		const fenceClosed = resolveMarkdownRenderSource(nextMarkdownSource, { isStreaming })
 		const normalized = allowRawHtml ? fenceClosed : normalizeMarkdownHtmlFences(fenceClosed)
+		// preprocessMarkdown 处理标签转义等；citation/references 作为自定义标签保留
 		return preprocessMarkdown(normalized)
 	}, [content, isStreaming, allowRawHtml])
+
+	const shouldAnimateStreamingText = useMemo(
+		() => shouldEnableStreamingTextAnimation(markdownContent, { isStreaming }),
+		[isStreaming, markdownContent],
+	)
+
+	const streamingOptions = useMemo(
+		() =>
+			isStreaming
+				? {
+						hasNextChunk: true,
+						enableAnimation: shouldAnimateStreamingText,
+					}
+				: undefined,
+		[isStreaming, shouldAnimateStreamingText],
+	)
 
 	const streamingScrollStateRef = useRef<HtmlCodeBlockPreviewStreamingScrollState>({
 		hasUserInteracted: false,
@@ -270,6 +328,9 @@ function MarkdownComponent({
 	const components = useMarkdownComponent({
 		isStreaming,
 		streamingScrollStateRef: streamingScrollStateRef,
+		citations,
+		highlightedCitation,
+		onCitationClick,
 	})
 
 	return (
@@ -284,7 +345,7 @@ function MarkdownComponent({
 				protectCustomTagNewlines
 				content={markdownContent}
 				components={components as unknown as NonNullable<XMarkdownProps["components"]>}
-				streaming={isStreaming ? { hasNextChunk: true, enableAnimation: true } : undefined}
+				streaming={streamingOptions}
 				openLinksInNewTab
 				dompurifyConfig={MARKDOWN_DOMPURIFY_CONFIG}
 			/>

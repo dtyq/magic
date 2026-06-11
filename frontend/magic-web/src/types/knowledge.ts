@@ -6,7 +6,6 @@ import type {
 	EmbeddingModelConfig,
 	RetrieveConfig,
 } from "@/pages/vectorKnowledge/types"
-import { DataSourceType } from "@/pages/vectorKnowledge/constant"
 import type { DocumentNodes } from "@/pages/superMagic/pages/CrewEdit/components/StepDetailPanel/KnowledgeDetailView/types/content-node"
 import { CrewKnowledge } from "./crew-knowledge"
 
@@ -262,6 +261,25 @@ export namespace Knowledge {
 	export interface DeleteKnowledgeDocumentParams {
 		knowledge_code: string
 		document_code: string
+	}
+
+	/** 获取知识库源文件打开链接 */
+	export interface GetKnowledgeSourceFileLinkParams {
+		knowledgeBaseCode: string
+		documentCode: string
+		fileKey?: string
+	}
+
+	export interface KnowledgeSourceFileLink {
+		available: boolean
+		url?: string
+		fileUrl?: string
+		file_url?: string
+		name?: string
+		file_key?: string
+		type?: "external" | "third_platform" | "project_file" | string
+		source_type?: string
+		link_type?: "download" | "web" | string
 	}
 
 	/** 分段预览 */

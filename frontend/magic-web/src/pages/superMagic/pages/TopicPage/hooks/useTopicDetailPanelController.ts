@@ -147,14 +147,31 @@ export function useTopicDetailPanelController({
 			}
 		}
 
+		const handleOpenKnowledgeBaseTab = (data: unknown) => {
+			const payload = data as {
+				knowledgeBaseId: string
+				documentCode?: string
+				fileKey?: string
+				title: string
+				knowledgeBaseName?: string
+				fileExtension?: string
+			}
+			setActiveDetailTabType("file")
+			window.setTimeout(() => {
+				detailRef.current?.openKnowledgeBaseTab?.(payload)
+			}, DETAIL_OPEN_DELAY_MS)
+		}
+
 		pubsub.subscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
 		pubsub.subscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
 		pubsub.subscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
+		pubsub.subscribe(PubSubEvents.Open_Knowledge_Base_Tab, handleOpenKnowledgeBaseTab)
 
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
 			pubsub.unsubscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
 			pubsub.unsubscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
+			pubsub.unsubscribe(PubSubEvents.Open_Knowledge_Base_Tab, handleOpenKnowledgeBaseTab)
 		}
 	}, [detailRef, scheduleFileOpenFallback, setActiveFileId, attachmentList])
 

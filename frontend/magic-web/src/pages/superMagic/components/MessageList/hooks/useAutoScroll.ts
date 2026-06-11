@@ -111,14 +111,25 @@ export function useAutoScroll({
 		const observer = new ResizeObserver(() => {
 			if (pullMoreSnapshotRef.current) {
 				const { scrollTop, scrollHeight } = pullMoreSnapshotRef.current
+				// 只有当内容高度增加时才执行 pullMore 恢复逻辑（拉取更多消息只会增加内容）。
+				// 如果高度减少或不变，说明是其他操作（如引用展开/收起）触发的 resize，
+				// 应丢弃过期的 snapshot，走正常逻辑。
+				if (viewport.scrollHeight > scrollHeight) {
+					pullMoreSnapshotRef.current = null
+					viewport.scrollTop = scrollTop + (viewport.scrollHeight - scrollHeight)
+					return
+				}
+				// snapshot 过期，丢弃
 				pullMoreSnapshotRef.current = null
-				viewport.scrollTop = scrollTop + (viewport.scrollHeight - scrollHeight)
-				return
 			}
+
+			const now = Date.now()
 
 			if (!autoFollowRef.current) return
 
-			if (Date.now() < suppressUntilRef.current) return
+			if (now < suppressUntilRef.current) {
+				return
+			}
 
 			isResizeScrollingRef.current = true
 			window.clearTimeout(resizeScrollTimerRef.current)

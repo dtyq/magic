@@ -692,6 +692,21 @@ describe("MessageList Markdown HTML preview", () => {
 		expect(screen.getByTestId("markdown-qrcode-block").querySelector("canvas")).not.toBeNull()
 		expect(screen.queryByText("https://www.letsmagic.cn")).not.toBeInTheDocument()
 	})
+	it("keeps citation tags as literal text inside json fenced code blocks", () => {
+		const { container } = render(
+			<MarkdownComponent
+				content={
+					'```json\n{"answer":"literal <citation index=\\"1\\"></citation> marker"}\n```'
+				}
+				citations={[{ index: 1, type: "url", title: "Doc", url: "https://example.com" }]}
+			/>,
+		)
+
+		expect(container.querySelector("button")).not.toBeInTheDocument()
+		expect(
+			screen.getByText(/literal <citation index="1"><\/citation> marker/),
+		).toBeInTheDocument()
+	})
 
 	it("renders preview when preface text is directly followed by a single html fence", () => {
 		render(<MarkdownComponent content={"说明文案\n```html\n<div>Inline</div>\n```"} />)

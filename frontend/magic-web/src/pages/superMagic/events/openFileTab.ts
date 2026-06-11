@@ -41,3 +41,32 @@ export interface SuperMagicOpenFileTabByPathPayload {
 	/** 可选动作，默认 "open"，传 "download" 时触发下载 */
 	action?: "open" | "download"
 }
+
+/**
+ * 打开知识库文件预览 Tab。
+ * 适用于引用（citation）场景：点击知识库类型引用时，携带知识库 ID 与文档 code 或文件 key，
+ * 在详情区创建一个知识库文件预览 Tab。
+ */
+export interface SuperMagicOpenKnowledgeBaseTabPayload {
+	/** 知识库 ID */
+	knowledgeBaseId: string
+	/** 知识库文档 code */
+	documentCode?: string
+	/** 文件 key（对象存储标识） */
+	fileKey?: string
+	/** 文档标题（用于 Tab 显示） */
+	title: string
+	/** 知识库名称（可选，用于辅助展示） */
+	knowledgeBaseName?: string
+	/** 文件扩展名（可选，用于 Tab 图标渲染） */
+	fileExtension?: string
+}
+
+export function hasKnowledgeBaseTabTarget(
+	payload: Pick<
+		SuperMagicOpenKnowledgeBaseTabPayload,
+		"knowledgeBaseId" | "documentCode" | "fileKey"
+	>,
+) {
+	return !!((payload.knowledgeBaseId && payload.documentCode) || payload.fileKey)
+}
