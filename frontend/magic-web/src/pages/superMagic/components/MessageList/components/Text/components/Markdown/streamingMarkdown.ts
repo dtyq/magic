@@ -10,9 +10,8 @@ export function hasMarkdownFence(markdown: string): boolean {
 
 export function resolveMarkdownRenderSource(
 	markdown: string,
-	options: ResolveMarkdownRenderSourceOptions,
+	_options: ResolveMarkdownRenderSourceOptions,
 ) {
-	if (options.isStreaming) return markdown
 	return ensureClosedMarkdownFence(markdown)
 }
 

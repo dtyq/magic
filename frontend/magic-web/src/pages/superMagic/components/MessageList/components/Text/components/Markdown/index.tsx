@@ -180,6 +180,16 @@ export function useMarkdownComponent({
 	highlightedCitation?: number | null
 	onCitationClick?: (index: number | null) => void
 }): UseMarkdownComponentResult {
+	// 用 ref 持有随每个 chunk 变化的 citation 相关值，避免 components 对象随
+	// 每个 chunk 重建——否则 components.pre 引用变化会导致 XMarkdown 重新挂载
+	// HtmlCodeBlockPreview，造成视觉抖动。
+	const citationsRef = useRef(citations)
+	citationsRef.current = citations
+	const highlightedCitationRef = useRef(highlightedCitation)
+	highlightedCitationRef.current = highlightedCitation
+	const onCitationClickRef = useRef(onCitationClick)
+	onCitationClickRef.current = onCitationClick
+
 	return useMemo(
 		() => ({
 			pre(props: XMarkdownComponentProps) {
@@ -245,14 +255,15 @@ export function useMarkdownComponent({
 			citation(props: XMarkdownComponentProps) {
 				const index = Number(props.index)
 				if (!index || index < 1) return <></>
-				const hasCitationData = citations?.some((c) => c.index === index)
+				const hasCitationData = citationsRef.current?.some((c) => c.index === index)
+				const highlighted = highlightedCitationRef.current
 				return (
 					<CitationBadge
 						index={index}
-						highlighted={highlightedCitation === index}
+						highlighted={highlighted === index}
 						clickable={!!hasCitationData}
 						onClick={(idx) =>
-							onCitationClick?.(highlightedCitation === idx ? null : idx)
+							onCitationClickRef.current?.(highlighted === idx ? null : idx)
 						}
 					/>
 				)
@@ -264,7 +275,10 @@ export function useMarkdownComponent({
 				return <></>
 			},
 		}),
-		[isStreaming, streamingScrollStateRef, citations, highlightedCitation, onCitationClick],
+		// citation 相关值通过 ref 读取，不加入 deps，保证 streaming 期间 components
+		// 对象引用稳定，防止 HtmlCodeBlockPreview 因 pre 函数引用变化而重新挂载。
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[isStreaming, streamingScrollStateRef],
 	)
 }
 
