@@ -1,4 +1,4 @@
-const { srcImportBoundaryOverride } = require("./eslint/src-import-boundary.cjs")
+const path = require("path")
 
 module.exports = {
 	root: true,
@@ -24,7 +24,7 @@ module.exports = {
 			version: "detect",
 		},
 		tailwindcss: {
-			config: "./tailwind.config.js",
+			config: path.resolve(__dirname, "tailwind.config.js"),
 			callees: ["cn", "clsx", "cva"],
 		},
 		polyfills: [
@@ -86,7 +86,6 @@ module.exports = {
 		],
 	},
 	overrides: [
-		srcImportBoundaryOverride,
 		{
 			files: ["*.cjs"],
 			rules: {
