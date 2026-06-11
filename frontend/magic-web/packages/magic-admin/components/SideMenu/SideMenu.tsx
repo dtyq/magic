@@ -8,6 +8,7 @@ import { useAdminComponents } from "../AdminComponentsProvider"
 import { useStyles } from "./style"
 
 export interface SideMenuItem extends MenuItemType {
+	hidden?: boolean
 	validate?: (permissions: string[], isSuperAdmin?: boolean) => boolean
 	children?: Array<SideMenuItem>
 }

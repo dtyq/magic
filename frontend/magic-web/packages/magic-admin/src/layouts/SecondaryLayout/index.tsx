@@ -136,6 +136,9 @@ const SecondaryLayout = memo((props: SecondaryLayoutProps) => {
 		const filterMenuItems = (menuItemsList: SideMenuItem[]): SideMenuItem[] => {
 			return menuItemsList
 				.filter((item) => {
+					if (item.hidden) {
+						return false
+					}
 					return checkItemPermission(item, userPermissions, hasAllPermissions)
 				})
 				.map((item) => {
