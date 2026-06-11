@@ -1,6 +1,6 @@
 {
 	"name": "@dtyq/user-selector",
-	"version": "0.1.10",
+	"version": "0.1.12",
 	"description": "React user selector components for organization and member selection.",
 	"keywords": [
 		"react",
