@@ -4,6 +4,7 @@ import { IconBook2, IconChevronDown, IconExternalLink } from "@tabler/icons-reac
 import type { CitationSource } from "@/pages/superMagic/utils/citations"
 import { useTranslation } from "react-i18next"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { resolveSafePreviewUrl } from "@/pages/superMagic/components/Detail/components/FilesViewer/components/previewUrl"
 
 interface CitationCardProps {
 	/** 引用来源列表 */
@@ -72,6 +73,10 @@ function CitationCard({
 				<ul className="flex flex-col gap-2 m-0 p-0 list-none">
 					{sources.map((source) => {
 						const isHighlighted = highlightedIndex === source.index
+						const safeSourceUrl =
+							source.type === "url" && source.url
+								? resolveSafePreviewUrl(source.url)
+								: null
 						return (
 							<li key={source.index}>
 								<div className="flex items-start gap-2 w-full">
@@ -114,9 +119,9 @@ function CitationCard({
 														{source.knowledge_base_name}
 													</span>
 												)}
-											{source.type === "url" && source.url && (
+											{source.type === "url" && safeSourceUrl && (
 												<span className="text-[11px] leading-4 text-muted-foreground truncate">
-													{new URL(source.url).hostname}
+													{new URL(safeSourceUrl).hostname}
 												</span>
 											)}
 										</div>
@@ -149,7 +154,10 @@ function CitationCard({
 		if (source.type === "knowledge_base") {
 			onFileClick?.(source)
 		} else if (source.type === "url" && source.url) {
-			window.open(source.url, "_blank", "noopener,noreferrer")
+			const safeUrl = resolveSafePreviewUrl(source.url)
+			if (!safeUrl) return
+
+			window.open(safeUrl, "_blank", "noopener,noreferrer")
 		}
 	}
 }
