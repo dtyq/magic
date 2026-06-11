@@ -113,6 +113,9 @@ const HTML_TAGS = new Set([
 	// 自定义标签
 	"cursor",
 	"file-path",
+	"citation",
+	"references",
+	"ref",
 ])
 
 const FILE_PATH_PATTERN = /\[@file_path:(.*?)\]/g

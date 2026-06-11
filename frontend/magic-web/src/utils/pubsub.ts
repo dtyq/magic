@@ -137,6 +137,8 @@ export const PubSubEvents = {
 	Open_File_Tab: "super_magic_open_file_tab",
 	/** 超级麦吉 - 通过文件相对路径打开文件tab（仅有路径时使用，由订阅方在附件树中查找） */
 	Open_File_Tab_By_Path: "super_magic_open_file_tab_by_path",
+	/** 超级麦吉 - 打开知识库文件预览tab（由引用点击触发） */
+	Open_Knowledge_Base_Tab: "super_magic_open_knowledge_base_tab",
 	/** 超级麦吉 - 打开演示模式tab */
 	Open_Playback_Tab: "super_magic_open_playback_tab",
 	/** 订阅超麦消息队列更新 */

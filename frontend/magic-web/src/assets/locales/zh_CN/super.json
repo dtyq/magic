@@ -281,6 +281,11 @@
 		"swipeUnpin": "取消置顶",
 		"title": "对话"
 	},
+	"citations": {
+		"badgeAria": "引用 {{index}}",
+		"openSource": "打开来源",
+		"sourceCount": "{{count}} 条知识库引用"
+	},
 	"clawPlayground": {
 		"stopTaskBeforeToolbarAction": "请先停止当前任务后再操作",
 		"toolbarNewChat": "新对话"
@@ -1196,6 +1201,44 @@
 			"fieldSeparator": "、",
 			"title": "授权用户信息访问"
 		}
+	},
+	"knowledgeBase": {
+		"fetchFailed": "无法获取知识库文件",
+		"loadError": "加载知识库文件失败",
+		"openInNewWindow": "新窗口打开",
+		"sourceLabel": "来源知识库",
+		"sourceUnavailable": "来源暂不可用",
+		"unsupportedPreview": "暂不支持预览该知识库来源文件，请在新窗口打开"
+	},
+	"knowledgeSearch": {
+		"action": "检索知识库",
+		"detailEmpty": "暂无知识库检索详情",
+		"detailEmptyFallback": "没有检索到相关知识库内容",
+		"detailErrorFallback": "知识库检索失败",
+		"detailTitle": "知识库检索详情",
+		"detailTruncated": "结果已截断，仅展示部分召回内容",
+		"documentCodeLabel": "document_code: {{code}}",
+		"documentCount": "文档 {{shown}}/{{total}}",
+		"empty": "未检索到相关条目",
+		"error": "检索失败：知识库不可用。",
+		"fileKeyLabel": "file_key: {{fileKey}}",
+		"hits": "命中",
+		"noSnippet": "该文档没有返回片段详情",
+		"openSourceAria": "打开来源 {{title}}",
+		"queryLabel": "查询：{{query}}",
+		"running": "检索中…",
+		"scoreLabel": "Score {{score}}",
+		"snippetCount": "片段 {{shown}}/{{total}}",
+		"snippetRank": "片段 #{{rank}}",
+		"statusEmpty": "未检索到结果",
+		"statusError": "检索失败",
+		"statusFallback": "详情",
+		"statusSuccess": "检索成功",
+		"title": "知识库检索",
+		"toggleResults": "展开或收起检索结果",
+		"truncatedTag": "已截断",
+		"untitledDocument": "未命名文档",
+		"wordCount": "{{count}} 字"
 	},
 	"messageEditor": {
 		"addAttachment": "添加附件",

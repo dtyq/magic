@@ -78,6 +78,8 @@ import {
 	SuperMobileShellRouteLayout,
 	useOptionalSuperMobileShellOutlet,
 } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
+import { useMobileKnowledgeBasePreview } from "@/pages/superMagic/hooks/useMobileKnowledgeBasePreview"
+import KnowledgeBasePreviewPopup from "@/pages/superMagic/components/KnowledgeBasePreviewPopup"
 
 interface ClawMobileConversationPanelRef {
 	sendSkillInstallPrompt: (content: JSONContent) => void
@@ -705,6 +707,7 @@ function ClawPlaygroundMobile() {
 		topicFilesProps,
 		attachmentList,
 	})
+	const knowledgeBasePreviewState = useMobileKnowledgeBasePreview()
 
 	const resolveTopicFileRowDecoration = useMemoizedFn(
 		createClawPlaygroundFileRowDecorationResolver({
@@ -854,6 +857,7 @@ function ClawPlaygroundMobile() {
 					void 0
 				}}
 			/>
+			<KnowledgeBasePreviewPopup state={knowledgeBasePreviewState} />
 		</div>
 	)
 

@@ -14,6 +14,13 @@ describe("preprocessMarkdown", () => {
 		)
 	})
 
+	it("keeps citation references tags for markdown custom renderers", () => {
+		const content =
+			'<references><ref index="1" title="Doc" url="https://example.com" /></references>'
+
+		expect(preprocessMarkdown(content)).toBe(content)
+	})
+
 	it("escapes underscore emphasis but keeps code spans intact", () => {
 		expect(preprocessMarkdown("_demo_ `inline_code` _text_")).toBe(
 			"\\_demo\\_ `inline_code` \\_text\\_",

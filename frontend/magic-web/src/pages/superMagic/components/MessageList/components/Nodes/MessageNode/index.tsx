@@ -9,6 +9,8 @@ import { observer } from "mobx-react-lite"
 import { ToolCall } from "./ToolCall"
 import { cn } from "@/lib/utils"
 import MarkdownComponent from "../../Text/components/Markdown"
+import { extractCitations, trimIncompleteCitationTag } from "@/pages/superMagic/utils/citations"
+import { CitationCard } from "../../Citations"
 import { Attachment } from "@/pages/superMagic/components/MessageList/components/MessageAttachment"
 import type { AttachmentProps } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/type"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
@@ -21,6 +23,7 @@ import {
 import { findAttachmentByPath } from "@/pages/superMagic/components/MessageList/components/Text/components/Markdown/parser/helper"
 import projectFilesStore from "@/stores/projectFiles"
 import { FilePathAttachmentList } from "./FilePathAttachmentList"
+import { hasKnowledgeBaseTabTarget } from "@/pages/superMagic/events/openFileTab"
 
 const markdownBaseClassName = cn(
 	"w-full break-words leading-relaxed text-foreground",
@@ -75,9 +78,26 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 	const reasoningContent =
 		typeof node?.reasoning_content === "string" ? node.reasoning_content : ""
 	const hasReasoningContent = !/^\s*$/.test(reasoningContent)
-	const content = typeof node?.content === "string" ? node.content : ""
-	const hasContent = !/^\s*$/.test(content)
+	const rawContent = typeof node?.content === "string" ? node.content : ""
+	const hasContent = !/^\s*$/.test(rawContent)
 	const hasAssistantContent = node?.role === "assistant" && hasContent
+
+	const [highlightedCitation, setHighlightedCitation] = useState<number | null>(null)
+
+	const streamState =
+		superMagicStore.getStreamState(topicId, correlationId)?.stage ||
+		superMagicStore.getStreamState(topicId, messageId)?.stage
+	const isContentStreaming = streamState === "content"
+
+	// 解析引用数据：仅对 assistant 消息提取 <references> 数据；标签由 Markdown 自定义组件隐藏
+	const citations = useMemo(
+		() => (hasAssistantContent ? extractCitations(rawContent) : []),
+		[rawContent, hasAssistantContent],
+	)
+	const displayContent = useMemo(
+		() => (isContentStreaming ? trimIncompleteCitationTag(rawContent) : rawContent),
+		[rawContent, isContentStreaming],
+	)
 
 	const [openReasoning, setOpenReasoning] = useState(false)
 	// const hasToolCall = Boolean(node?.tool_calls)
@@ -112,10 +132,6 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 		if (found.type === "directory" || found.is_directory) return false
 		return true
 	})
-
-	const streamState =
-		superMagicStore.getStreamState(topicId, correlationId)?.stage ||
-		superMagicStore.getStreamState(topicId, messageId)?.stage
 
 	const { viewportRef: reasoningViewportRef } = useScrollAreaAutoScroll({
 		isStreaming: streamState === "reasoning_content",
@@ -191,13 +207,44 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 				</ReasoningPanel>
 			)}
 			{hasContent && (
-				<MarkdownComponent
-					className={markdownBaseClassName}
-					isStreaming={streamState === "content"}
-					content={content}
-					onMouseEnter={onMouseEnter}
-					onMouseLeave={onMouseLeave}
-				/>
+				<>
+					<MarkdownComponent
+						className={markdownBaseClassName}
+						isStreaming={isContentStreaming}
+						content={displayContent}
+						citations={citations}
+						highlightedCitation={highlightedCitation}
+						onCitationClick={setHighlightedCitation}
+						onMouseEnter={onMouseEnter}
+						onMouseLeave={onMouseLeave}
+					/>
+					{citations.length > 0 && (
+						<CitationCard
+							sources={citations}
+							highlightedIndex={highlightedCitation}
+							onHighlightChange={setHighlightedCitation}
+							onFileClick={(citation) => {
+								if (
+									citation.type === "knowledge_base" &&
+									hasKnowledgeBaseTabTarget({
+										knowledgeBaseId: citation.knowledge_base_id || "",
+										documentCode: citation.document_code,
+										fileKey: citation.file_key,
+									})
+								) {
+									pubsub.publish(PubSubEvents.Open_Knowledge_Base_Tab, {
+										knowledgeBaseId: citation.knowledge_base_id || "",
+										documentCode: citation.document_code,
+										fileKey: citation.file_key,
+										title: citation.title,
+										knowledgeBaseName: citation.knowledge_base_name,
+										fileExtension: citation.file_extension,
+									})
+								}
+							}}
+						/>
+					)}
+				</>
 			)}
 
 			{hasToolCall &&

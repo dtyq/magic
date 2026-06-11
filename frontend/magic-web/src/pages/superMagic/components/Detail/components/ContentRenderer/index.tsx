@@ -11,6 +11,7 @@ const HTML = lazy(() => import("../../contents/HTML"))
 const TextEditor = lazy(() => import("../../contents/Md"))
 const PDFViewer = lazy(() => import("../../contents/Pdf"))
 const Search = lazy(() => import("../../contents/Search"))
+const KnowledgeSearch = lazy(() => import("../../contents/KnowledgeSearch"))
 const Terminal = lazy(() => import("../../contents/Terminal"))
 const OnlyOfficeViewer = lazy(() => import("../../contents/OnlyOffice"))
 const OfficePreview = lazy(() => import("../../contents/OfficePreview"))
@@ -66,6 +67,8 @@ function ContentRenderer({ type, data, commonProps }: ContentRendererProps) {
 			return <HTML data={data as DetailHTMLData} isInPPTMode={isInPPTMode} {...commonProps} />
 		case DetailType.Search:
 			return <Search data={data} {...commonProps} />
+		case DetailType.KnowledgeSearch:
+			return <KnowledgeSearch data={data} {...commonProps} />
 		case DetailType.Terminal:
 			return <Terminal data={data as DetailTerminalData} {...commonProps} />
 		case DetailType.Text:

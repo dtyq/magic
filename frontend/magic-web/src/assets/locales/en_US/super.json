@@ -282,6 +282,11 @@
 		"swipeUnpin": "Unpin",
 		"title": "Chats"
 	},
+	"citations": {
+		"badgeAria": "Citation {{index}}",
+		"openSource": "Open source",
+		"sourceCount": "{{count}} knowledge base citations"
+	},
 	"clawPlayground": {
 		"stopTaskBeforeToolbarAction": "Stop the current task before using this",
 		"toolbarNewChat": "New Chat"
@@ -1195,6 +1200,44 @@
 			"fieldSeparator": ", ",
 			"title": "Authorize User Info Access"
 		}
+	},
+	"knowledgeBase": {
+		"fetchFailed": "Unable to fetch knowledge base file",
+		"loadError": "Failed to load knowledge base file",
+		"openInNewWindow": "Open in new window",
+		"sourceLabel": "Source knowledge base",
+		"sourceUnavailable": "Source unavailable",
+		"unsupportedPreview": "Preview is not supported for this knowledge source file. Open it in a new window."
+	},
+	"knowledgeSearch": {
+		"action": "Search knowledge",
+		"detailEmpty": "No knowledge search details",
+		"detailEmptyFallback": "No matching knowledge content found",
+		"detailErrorFallback": "Knowledge search failed",
+		"detailTitle": "Knowledge Search Details",
+		"detailTruncated": "Results were truncated. Only part of the recalled content is shown.",
+		"documentCodeLabel": "document_code: {{code}}",
+		"documentCount": "Documents {{shown}}/{{total}}",
+		"empty": "No relevant entries found",
+		"error": "Search failed: knowledge base is unavailable.",
+		"fileKeyLabel": "file_key: {{fileKey}}",
+		"hits": "hits",
+		"noSnippet": "This document did not return snippet details",
+		"openSourceAria": "Open source {{title}}",
+		"queryLabel": "Query: {{query}}",
+		"running": "Searching…",
+		"scoreLabel": "Score {{score}}",
+		"snippetCount": "Snippets {{shown}}/{{total}}",
+		"snippetRank": "Snippet #{{rank}}",
+		"statusEmpty": "No results",
+		"statusError": "Search failed",
+		"statusFallback": "Details",
+		"statusSuccess": "Search succeeded",
+		"title": "Knowledge Search",
+		"toggleResults": "Expand or collapse search results",
+		"truncatedTag": "Truncated",
+		"untitledDocument": "Untitled document",
+		"wordCount": "{{count}} words"
 	},
 	"messageEditor": {
 		"addAttachment": "Add Attachment",
