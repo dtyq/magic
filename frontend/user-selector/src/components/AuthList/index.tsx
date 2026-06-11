@@ -28,7 +28,14 @@ function AuthList(props: AuthListProps) {
 	const { getLocale, theme } = useAppearance()
 	const locale = getLocale()
 
-	const { disabled, checkbox = true, selected, className, style } = props
+	const {
+		disabled,
+		checkbox = true,
+		selected,
+		className,
+		style,
+		"data-testid": dataTestId,
+	} = props
 	const [innerCheckedList, setInnerCheckedList] = useState<TreeNode[]>(selected || [])
 
 	const [selectedAuthList, setSelectedAuthList] = useControllableValue<TreeNode[]>(props, {
@@ -156,9 +163,11 @@ function AuthList(props: AuthListProps) {
 			className={cn("flex flex-col overflow-hidden gap-3", className)}
 			style={style}
 			data-theme={theme}
+			data-testid={dataTestId ?? "user-selector-auth-list"}
 		>
 			<SelectedText
 				className="z-[1] px-1.5"
+				data-testid="user-selector-auth-selected-text"
 				selected={selectedList}
 				checkbox
 				checkAll={checkAll}
@@ -168,6 +177,7 @@ function AuthList(props: AuthListProps) {
 				<div className="flex items-center gap-2">
 					<span className="text-sm text-secondary-foreground">{locale.batchSet}</span>
 					<SelectWrapper
+						data-testid="user-selector-auth-batch-select"
 						style={{ width: 100 }}
 						options={operationOptions}
 						onChange={(value) => onBatchChange(value as OperationTypes)}
@@ -179,7 +189,10 @@ function AuthList(props: AuthListProps) {
 					/>
 				</div>
 			</SelectedText>
-			<div className="flex flex-col overflow-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+			<div
+				className="flex flex-col overflow-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+				data-testid="user-selector-auth-list-content"
+			>
 				{selectedAuthList?.map((item) => {
 					const title = String(item.name ?? item.real_name ?? "")
 					const operationValue =
@@ -190,10 +203,12 @@ function AuthList(props: AuthListProps) {
 						<div
 							key={item.id}
 							className="text-foreground-secondary flex cursor-pointer items-center justify-between gap-2 border-b border-border px-1.5 py-2.5 text-sm leading-5"
+							data-testid={`user-selector-auth-item-${item.id}`}
 						>
 							<div className="flex items-center gap-2">
 								{checkbox && (
 									<Checkbox
+										data-testid={`user-selector-auth-checkbox-${item.id}`}
 										checked={
 											isDisabled(item) ||
 											!!innerCheckedList.find((i) => i.id === item.id)
@@ -226,6 +241,7 @@ function AuthList(props: AuthListProps) {
 							</div>
 							<div className="flex items-center gap-1">
 								<SelectWrapper
+									data-testid={`user-selector-auth-operation-${item.id}`}
 									style={{ width: 100 }}
 									value={operationValue}
 									onChange={(value) =>
@@ -242,6 +258,7 @@ function AuthList(props: AuthListProps) {
 									className="h-9 rounded-lg border-border bg-background px-3 text-foreground disabled:border-border disabled:bg-accent disabled:text-muted-foreground"
 									onClick={() => onRemove(item)}
 									disabled={isDisabled(item)}
+									data-testid={`user-selector-auth-remove-${item.id}`}
 								>
 									<IconTrash size={16} />
 								</Button>

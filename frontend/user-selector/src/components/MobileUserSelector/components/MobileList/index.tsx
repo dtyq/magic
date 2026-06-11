@@ -77,6 +77,7 @@ const MobileList = ({
 			case SegmentType.Partner:
 				return (
 					<CommonListPanel<Group | Partner | User>
+						data-testid="mobile-user-selector-list"
 						loading={loading}
 						list={segmentData?.[segment]}
 						checkboxOptions={checkboxOptions}
@@ -90,6 +91,7 @@ const MobileList = ({
 			case SegmentType.Resigned:
 				return (
 					<CommonListPanel<Resigned | UserGroup>
+						data-testid="mobile-user-selector-list"
 						loading={loading}
 						list={segmentData?.[segment]?.items}
 						checkboxOptions={checkboxOptions}
@@ -103,11 +105,16 @@ const MobileList = ({
 					/>
 				)
 			case SegmentType.ShareToGroup:
-				return segmentData?.[segment] ?? null
+				return (
+					<div data-testid="mobile-user-selector-list">
+						{segmentData?.[segment] ?? null}
+					</div>
+				)
 			case SegmentType.Organization:
 			default:
 				return (
 					<CommonListPanel<TreeNode>
+						data-testid="mobile-user-selector-list"
 						loading={loading}
 						list={segmentData?.[SegmentType.Organization] ?? data}
 						checkboxOptions={checkboxOptions}
@@ -132,7 +139,7 @@ const MobileList = ({
 	])
 
 	return (
-		<div className="h-[calc(100%-40px)]">
+		<div className="h-[calc(100%-40px)]" data-testid="mobile-user-selector-list-panel">
 			<BreadCrumb
 				segment={segment}
 				organization={organization}

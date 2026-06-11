@@ -65,6 +65,7 @@ function OrganizationPanel({
 	hasMore,
 	loadMore,
 	renderItemRight,
+	"data-testid": dataTestId,
 }: OrganizationPanelProps) {
 	const { getLocale } = useAppearance()
 	const locale = getLocale()
@@ -116,7 +117,11 @@ function OrganizationPanel({
 	})
 
 	return (
-		<div className={cn("flex flex-col h-full overflow-y-hidden", className)} style={style}>
+		<div
+			className={cn("flex flex-col h-full overflow-y-hidden", className)}
+			style={style}
+			data-testid={dataTestId ?? "user-selector-organization-panel"}
+		>
 			<SelectorBreadcrumb
 				organization={organization}
 				selectedPath={selectedPath}
@@ -126,6 +131,7 @@ function OrganizationPanel({
 			{checkbox && data.length > 0 ? (
 				<div
 					className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
+					data-testid="user-selector-select-all"
 					onClick={() => {
 						if (data.length > 0) {
 							handleCheckAll(!checkAll)
@@ -133,6 +139,7 @@ function OrganizationPanel({
 					}}
 				>
 					<Checkbox
+						data-testid="user-selector-select-all-checkbox"
 						checked={checkAll || checkSome ? "indeterminate" : false}
 						onCheckedChange={(checked) => {
 							handleCheckAll(checked === true)
@@ -143,6 +150,7 @@ function OrganizationPanel({
 				</div>
 			) : null}
 			<CommonListPanel<TreeNode>
+				data-testid="user-selector-organization-list"
 				loading={loading}
 				list={data}
 				checkboxOptions={checkboxOptions}

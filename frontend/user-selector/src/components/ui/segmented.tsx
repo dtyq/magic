@@ -34,6 +34,7 @@ const Segmented = forwardRef<HTMLDivElement, SegmentedProps>(
 					block && "flex w-full",
 					className,
 				)}
+				data-testid="user-selector-segmented"
 				{...props}
 			>
 				{options.map((option) => {
@@ -42,6 +43,7 @@ const Segmented = forwardRef<HTMLDivElement, SegmentedProps>(
 						<button
 							key={String(option.value)}
 							type="button"
+							data-testid={`user-selector-segmented-item-${option.value}`}
 							onClick={() => onChange?.(option.value)}
 							className={cn(
 								"flex-1 rounded-sm px-3 py-1.5 text-sm font-medium transition-all duration-200",

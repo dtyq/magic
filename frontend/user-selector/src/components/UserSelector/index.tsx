@@ -255,12 +255,14 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 				)}
 				style={style}
 				data-theme={theme}
+				data-testid="user-selector-dialog"
 			>
 				<DialogHeader
 					className={cn(
 						"px-3 py-3 mb-0 border-b border-border flex flex-row items-center justify-between",
 						modalClassNames?.header,
 					)}
+					data-testid="user-selector-header"
 				>
 					<DialogTitle className="text-base font-semibold text-foreground">
 						{title ?? locale.defaultTitle}
@@ -269,6 +271,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 				<div className="flex min-h-0 flex-1">
 					<SearchContainer
 						ref={searchContainerRef}
+						data-testid="user-selector-search-panel"
 						onSearchChange={innerOnSearchChange}
 						searchData={searchData}
 						loading={loading}
@@ -320,6 +323,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 						variant="outline"
 						onClick={handleReset}
 						className="h-9 rounded-md border-input bg-background px-4 text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
+						data-testid="user-selector-reset-button"
 					>
 						{locale.reset}
 					</Button>
@@ -328,6 +332,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 							variant="outline"
 							onClick={onCancel}
 							className="h-9 rounded-md border-input bg-background px-4 text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
+							data-testid="user-selector-cancel-button"
 						>
 							{cancelText || locale.cancel}
 						</Button>
@@ -335,6 +340,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 							variant="default"
 							onClick={() => onOk?.(selected)}
 							className="h-9 rounded-md bg-primary px-4 text-primary-foreground shadow-sm hover:bg-primary/90"
+							data-testid="user-selector-ok-button"
 						>
 							{okText || locale.ok}
 						</Button>

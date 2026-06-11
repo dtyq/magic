@@ -43,12 +43,15 @@ export const SelectorBreadcrumb: FC<Props> = ({
 	const showOrganization = organization && segment !== SegmentType.ShareToGroup
 
 	return (
-		<Breadcrumb className="py-2">
+		<Breadcrumb className="py-2" data-testid="mobile-user-selector-breadcrumb">
 			<BreadcrumbList className="flex-nowrap">
 				{segment && (
 					<BreadcrumbItem>
 						<BreadcrumbLink asChild>
-							<button onClick={() => onItemClick(-2)}>
+							<button
+								onClick={() => onItemClick(-2)}
+								data-testid="mobile-user-selector-breadcrumb-segment"
+							>
 								{SegmentOption[segment]}
 							</button>
 						</BreadcrumbLink>
@@ -59,7 +62,12 @@ export const SelectorBreadcrumb: FC<Props> = ({
 						{segment && <BreadcrumbSeparator />}
 						<BreadcrumbItem>
 							<BreadcrumbLink asChild>
-								<button onClick={() => onItemClick(-1)}>{organization.name}</button>
+								<button
+									onClick={() => onItemClick(-1)}
+									data-testid="mobile-user-selector-breadcrumb-root"
+								>
+									{organization.name}
+								</button>
 							</BreadcrumbLink>
 						</BreadcrumbItem>
 					</>

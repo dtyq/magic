@@ -25,6 +25,7 @@ export interface SelectWrapperProps {
 	popupClassName?: string
 	dropdownRender?: (menu: ReactNode) => ReactNode
 	placeholder?: string
+	"data-testid"?: string
 }
 
 const SelectWrapper = forwardRef<HTMLButtonElement, SelectWrapperProps>(
@@ -39,6 +40,7 @@ const SelectWrapper = forwardRef<HTMLButtonElement, SelectWrapperProps>(
 			popupClassName,
 			dropdownRender,
 			placeholder,
+			"data-testid": dataTestId,
 		},
 		ref,
 	) => {
@@ -71,6 +73,7 @@ const SelectWrapper = forwardRef<HTMLButtonElement, SelectWrapperProps>(
 					ref={ref}
 					className={cn("h-9 rounded-lg w-full focus:ring-offset-0", className)}
 					style={style}
+					data-testid={dataTestId}
 				>
 					<SelectValue placeholder={placeholder} />
 				</SelectTrigger>

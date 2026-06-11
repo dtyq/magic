@@ -50,6 +50,7 @@ export const CommonBreadCrumb = ({ selectedPath, onItemClick }: CommonBreadCrumb
 							<DropdownMenuTrigger
 								className="flex items-center gap-1"
 								aria-label="Toggle menu"
+								data-testid="user-selector-breadcrumb-more"
 							>
 								<BreadcrumbEllipsis className="size-4" />
 							</DropdownMenuTrigger>
@@ -60,6 +61,7 @@ export const CommonBreadCrumb = ({ selectedPath, onItemClick }: CommonBreadCrumb
 											className={BREADCRUMB_LABEL_CLASS}
 											title={item.name}
 											onClick={() => onItemClick(index)}
+											data-testid={`user-selector-breadcrumb-menu-item-${item.id}`}
 										>
 											{item.name}
 										</button>
@@ -85,13 +87,17 @@ export const CommonBreadCrumb = ({ selectedPath, onItemClick }: CommonBreadCrumb
 									<button
 										className={`${BREADCRUMB_LABEL_CLASS} transition-colors hover:text-foreground`}
 										onClick={() => onItemClick(actualIndex)}
+										data-testid={`user-selector-breadcrumb-item-${item.id}`}
 									>
 										{item.name}
 									</button>
 								</BreadcrumbNameTooltip>
 							) : (
 								<BreadcrumbNameTooltip name={item.name}>
-									<BreadcrumbPage className={BREADCRUMB_LABEL_CLASS}>
+									<BreadcrumbPage
+										className={BREADCRUMB_LABEL_CLASS}
+										data-testid={`user-selector-breadcrumb-item-${item.id}`}
+									>
 										{item.name}
 									</BreadcrumbPage>
 								</BreadcrumbNameTooltip>
@@ -107,7 +113,10 @@ export const CommonBreadCrumb = ({ selectedPath, onItemClick }: CommonBreadCrumb
 const SelectorBreadcrumb = ({ organization, onItemClick, ...rets }: Props) => {
 	return (
 		<TooltipProvider>
-			<div className="flex min-w-0 flex-wrap items-center gap-1.5 py-1.5">
+			<div
+				className="flex min-w-0 flex-wrap items-center gap-1.5 py-1.5"
+				data-testid="user-selector-breadcrumb"
+			>
 				{organization && (
 					<Avatar
 						shape="square"
@@ -127,6 +136,7 @@ const SelectorBreadcrumb = ({ organization, onItemClick, ...rets }: Props) => {
 									<button
 										className={`${BREADCRUMB_LABEL_CLASS} transition-colors hover:text-foreground`}
 										onClick={() => onItemClick(-1)}
+										data-testid="user-selector-breadcrumb-root"
 									>
 										{organization?.name}
 									</button>

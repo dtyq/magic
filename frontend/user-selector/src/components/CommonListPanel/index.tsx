@@ -39,6 +39,7 @@ interface CommonListPanelProps<T> {
 	onItemClick?: (node: TreeNode) => void
 	/* 自定义渲染列表项右侧内容 */
 	renderItemRight?: RenderListItemRight
+	"data-testid"?: string
 }
 
 const CommonListPanel = <T extends TreeNode>({
@@ -53,6 +54,7 @@ const CommonListPanel = <T extends TreeNode>({
 	loadMore,
 	onItemClick,
 	renderItemRight,
+	"data-testid": dataTestId,
 }: CommonListPanelProps<T>) => {
 	const { getLocale } = useAppearance()
 	const locale = getLocale()
@@ -137,6 +139,7 @@ const CommonListPanel = <T extends TreeNode>({
 
 		return (
 			<div
+				data-testid={`user-selector-list-item-${item.id}`}
 				className={cn(
 					"flex w-full items-center gap-2 rounded-md cursor-pointer px-2 py-1.5 min-h-[44px]",
 					"hover:bg-accent transition-colors",
@@ -146,6 +149,7 @@ const CommonListPanel = <T extends TreeNode>({
 			>
 				{isMobile ? (
 					<MobileCheckbox
+						data-testid={`user-selector-list-item-checkbox-${item.id}`}
 						disabled={disabled}
 						checked={isChecked}
 						onCheckedChange={(checked) => handleCheck(checked === true, item)}
@@ -153,6 +157,7 @@ const CommonListPanel = <T extends TreeNode>({
 					/>
 				) : (
 					<Checkbox
+						data-testid={`user-selector-list-item-checkbox-${item.id}`}
 						disabled={disabled}
 						checked={isChecked}
 						onCheckedChange={(checked) => {
@@ -161,7 +166,10 @@ const CommonListPanel = <T extends TreeNode>({
 						className="shrink-0"
 					/>
 				)}
-				<div className="h-full min-w-0 flex-1">
+				<div
+					className="h-full min-w-0 flex-1"
+					data-testid={`user-selector-list-item-content-${item.id}`}
+				>
 					{isMember(item) ? (
 						<MemberItem
 							data={item}
@@ -184,6 +192,7 @@ const CommonListPanel = <T extends TreeNode>({
 
 	return (
 		<InfiniteList<T>
+			data-testid={dataTestId ?? "user-selector-common-list-panel"}
 			isLoading={loading}
 			list={list}
 			hasMore={hasMore}

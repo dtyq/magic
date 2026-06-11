@@ -233,6 +233,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 							onClick={() => onSegmentChange(item.value)}
 							prefix={<IconAvatar name={item.label} icon={item.icon} />}
 							arrowIcon={<IconChevronRight size={18} stroke={1.5} />}
+							data-testid={`mobile-user-selector-segment-${item.value}`}
 						>
 							{item.label2}
 						</MobileListItem>
@@ -277,6 +278,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 	return (
 		<>
 			<BasePopup
+				data-testid="mobile-user-selector-popup"
 				visible={visible}
 				onClose={onClose}
 				position="bottom"
@@ -287,7 +289,12 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 			>
 				<div className="flex h-full flex-col">
 					<div className="flex h-[50px] items-center px-3.5 text-sm">
-						<Button variant="ghost" className="p-1 text-foreground" onClick={onCancel}>
+						<Button
+							variant="ghost"
+							className="p-1 text-foreground"
+							onClick={onCancel}
+							data-testid="mobile-user-selector-cancel-button"
+						>
 							{locale.cancel}
 						</Button>
 						<div className="flex-1 text-center text-base font-semibold leading-[22px] text-foreground">
@@ -297,6 +304,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 							variant="ghost"
 							className="p-1 text-foreground"
 							onClick={() => onOk?.(selected)}
+							data-testid="mobile-user-selector-ok-button"
 						>
 							{locale.finish}
 						</Button>
@@ -304,6 +312,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 
 					<SearchContainer
 						ref={searchContainerRef}
+						data-testid="mobile-user-selector-search-panel"
 						searchValue={searchValue}
 						placeholder={locale.searchDepartmentOrMember}
 						searchData={searchData}
@@ -329,6 +338,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 							}}
 						>
 							<Checkbox
+								data-testid="mobile-user-selector-select-all"
 								checked={checkAll || checkSome ? "indeterminate" : false}
 								onCheckedChange={(checked) => {
 									handleCheckAll(checked === true)
@@ -344,6 +354,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 									selected.length > 0 ? "text-primary" : "text-muted-foreground",
 								)}
 								onClick={() => setPopupVisible(true)}
+								data-testid="mobile-user-selector-selected-summary"
 							>
 								<span>{locale.selected}</span>
 								<span>{selected.length}</span>

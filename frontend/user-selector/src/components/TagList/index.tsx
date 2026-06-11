@@ -13,7 +13,14 @@ export interface TagListProps extends BaseProps {
 	onClose?: (value: TreeNode) => void
 }
 
-function TagList({ selected, className, style, onClose, disabledNodes }: TagListProps) {
+function TagList({
+	selected,
+	className,
+	style,
+	onClose,
+	disabledNodes,
+	"data-testid": dataTestId,
+}: TagListProps) {
 	const disabledMap = useMemo(
 		() =>
 			disabledNodes?.reduce(
@@ -29,9 +36,13 @@ function TagList({ selected, className, style, onClose, disabledNodes }: TagList
 		<div
 			className={cn("flex flex-col h-full overflow-hidden gap-1.5", className)}
 			style={style}
+			data-testid={dataTestId ?? "user-selector-tag-list"}
 		>
 			<SelectedText selected={selected} />
-			<div className="flex min-h-0 flex-1 flex-wrap content-start gap-2 overflow-y-auto py-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar]:w-1.5">
+			<div
+				className="flex min-h-0 flex-1 flex-wrap content-start gap-2 overflow-y-auto py-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar]:w-1.5"
+				data-testid="user-selector-tag-list-content"
+			>
 				{selected?.map((item) => (
 					<SelectedItemTag
 						key={item.id}

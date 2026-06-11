@@ -58,6 +58,7 @@ function SearchContainer(
 		showSearch = true,
 		renderItemRight,
 		onSearchChange,
+		"data-testid": dataTestId,
 	}: SearchContainerProps,
 	ref: Ref<SearchContainerRef>,
 ) {
@@ -86,6 +87,7 @@ function SearchContainer(
 	return (
 		<div
 			style={style}
+			data-testid={dataTestId ?? "user-selector-search-container"}
 			className={cn(
 				"flex flex-col gap-1.5 overflow-hidden",
 				isMobile ? "w-full h-full p-2.5" : "w-full h-full p-3",
@@ -99,6 +101,7 @@ function SearchContainer(
 						className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
 					/>
 					<Input
+						data-testid="user-selector-search-input"
 						className={cn(
 							"w-full h-9",
 							"pl-9 pr-9 rounded-lg border border-input bg-background text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring",
@@ -112,13 +115,19 @@ function SearchContainer(
 							type="button"
 							onClick={clearValue}
 							className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+							data-testid="user-selector-search-clear"
 						>
 							<IconX size={14} />
 						</button>
 					)}
 				</div>
 			)}
-			<div className="min-h-0 flex-1 overflow-hidden">
+			<div
+				className="min-h-0 flex-1 overflow-hidden"
+				data-testid={
+					searchValue ? "user-selector-search-result-list" : "user-selector-default-content"
+				}
+			>
 				{searchValue ? (
 					<CommonListPanel<TreeNode>
 						loading={loading}

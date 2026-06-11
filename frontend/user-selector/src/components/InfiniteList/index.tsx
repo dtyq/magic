@@ -35,6 +35,7 @@ export interface InfiniteListProps<T> {
 	itemClassName?: string
 	/** 列表项高度 */
 	itemHeight?: number
+	"data-testid"?: string
 }
 
 export interface InfiniteListRef {
@@ -58,6 +59,7 @@ const InfiniteList = forwardRef(function InfiniteList<T>(
 		itemClassName,
 		itemHeight = 60,
 		grid,
+		"data-testid": dataTestId,
 	} = props
 
 	const { getLocale } = useAppearance()
@@ -68,12 +70,15 @@ const InfiniteList = forwardRef(function InfiniteList<T>(
 
 	const defaultLoader = useMemo(
 		() => (
-			<div className="flex items-center justify-center gap-1 py-2.5 text-xs text-muted-foreground">
+			<div
+				className="flex items-center justify-center gap-1 py-2.5 text-xs text-muted-foreground"
+				data-testid={`${dataTestId ?? "user-selector-infinite-list"}-loader`}
+			>
 				<IconLoader size={20} className="animate-spin" />
 				<div>{locale.loading}</div>
 			</div>
 		),
-		[locale],
+		[locale, dataTestId],
 	)
 
 	const defaultEmptyComponent = (
@@ -113,7 +118,10 @@ const InfiniteList = forwardRef(function InfiniteList<T>(
 
 	if (isLoading) {
 		return (
-			<div className={cn("flex h-full items-center justify-center", wrapperClassName)}>
+			<div
+				className={cn("flex h-full items-center justify-center", wrapperClassName)}
+				data-testid={`${dataTestId ?? "user-selector-infinite-list"}-loading`}
+			>
 				<Spin spinning />
 			</div>
 		)
@@ -128,8 +136,13 @@ const InfiniteList = forwardRef(function InfiniteList<T>(
 			)}
 			id="scrollableDiv"
 			ref={scrollRef}
+			data-testid={dataTestId ?? "user-selector-infinite-list"}
 		>
-			{!isLoading && list?.length === 0 && (emptyComponent || defaultEmptyComponent)}
+			{!isLoading && list?.length === 0 && (
+				<div data-testid={`${dataTestId ?? "user-selector-infinite-list"}-empty`}>
+					{emptyComponent || defaultEmptyComponent}
+				</div>
+			)}
 			{list && list?.length > 0 && (
 				<InfiniteScroll
 					next={loadMore || (() => {})}
@@ -142,7 +155,11 @@ const InfiniteList = forwardRef(function InfiniteList<T>(
 				>
 					<div className={cn("h-full overflow-auto")}>
 						{list.map((item, index) => (
-							<div key={index} className={cn("p-0", itemClassName)}>
+							<div
+								key={index}
+								className={cn("p-0", itemClassName)}
+								data-testid={`${dataTestId ?? "user-selector-infinite-list"}-item-${index}`}
+							>
 								{renderItem(item)}
 							</div>
 						))}

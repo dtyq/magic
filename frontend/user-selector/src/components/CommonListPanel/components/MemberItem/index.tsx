@@ -27,6 +27,7 @@ function MemberItem({ data, rightContent, onItemClick }: Props) {
 			<div
 				className="flex h-full flex-1 cursor-pointer items-center justify-between gap-2 overflow-hidden"
 				onClick={() => onItemClick?.(data)}
+				data-testid={`user-selector-member-item-${data.id}`}
 			>
 				<div className="flex min-w-0 flex-1 items-center gap-2">
 					<Avatar
@@ -39,12 +40,18 @@ function MemberItem({ data, rightContent, onItemClick }: Props) {
 					</Avatar>
 
 					<div className="flex min-w-0 flex-1 flex-col">
-						<div className="truncate text-sm font-medium leading-5 text-foreground">
+						<div
+							className="truncate text-sm font-medium leading-5 text-foreground"
+							data-testid={`user-selector-member-name-${data.id}`}
+						>
 							{String(data.name ?? data?.real_name ?? "")}
 						</div>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="truncate text-xs leading-4 text-muted-foreground">
+								<div
+									className="truncate text-xs leading-4 text-muted-foreground"
+									data-testid={`user-selector-member-desc-${data.id}`}
+								>
 									{desc}
 								</div>
 							</TooltipTrigger>

@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from "react"
 export interface BaseProps {
 	className?: string
 	style?: CSSProperties
+	"data-testid"?: string
 }
 
 /** 分页信息 */

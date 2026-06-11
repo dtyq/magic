@@ -52,8 +52,15 @@ function SelectedPanel({
 	const locale = getLocale()
 
 	return (
-		<div className={cn("flex flex-col h-full", className)} style={style}>
-			<div className="flex flex-1 flex-col overflow-hidden p-3">
+		<div
+			className={cn("flex flex-col h-full", className)}
+			style={style}
+			data-testid="user-selector-selected-panel"
+		>
+			<div
+				className="flex flex-1 flex-col overflow-hidden p-3"
+				data-testid="user-selector-selected-panel-content"
+			>
 				{renderRightTop?.(checkboxOptions?.checked || [])}
 				{useAuthPanel ? (
 					<AuthList
@@ -72,11 +79,15 @@ function SelectedPanel({
 				{renderRightBottom?.(checkboxOptions?.checked || [])}
 			</div>
 			{!hideFooter && (
-				<div className="mt-auto flex w-full shrink-0 justify-end gap-2.5 border-t border-border p-3">
+				<div
+					className="mt-auto flex w-full shrink-0 justify-end gap-2.5 border-t border-border p-3"
+					data-testid="user-selector-selected-panel-footer"
+				>
 					<Button
 						variant="outline"
 						className="h-9 rounded-md border-input bg-background px-4 shadow-sm hover:bg-accent hover:text-accent-foreground"
 						onClick={onCancel}
+						data-testid="user-selector-selected-panel-cancel-button"
 					>
 						{cancelText || locale.cancel}
 					</Button>
@@ -84,6 +95,7 @@ function SelectedPanel({
 						variant="default"
 						className="h-9 rounded-md bg-primary px-4 text-primary-foreground shadow-sm hover:bg-primary/90"
 						onClick={onOk}
+						data-testid="user-selector-selected-panel-ok-button"
 					>
 						{okText || locale.ok}
 					</Button>

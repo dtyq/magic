@@ -36,6 +36,7 @@ export type BasePopupProps = ComponentPropsWithoutRef<typeof Drawer> & {
 	maskClosable?: boolean
 	/** Whether the popup can be dismissed by dragging or clicking outside (default: true) */
 	dismissible?: boolean
+	"data-testid"?: string
 }
 
 const BasePopup = memo(
@@ -54,6 +55,7 @@ const BasePopup = memo(
 		title,
 		destroyOnClose = true,
 		maskClosable = true,
+		"data-testid": dataTestId,
 		...props
 	}: BasePopupProps) => {
 		const { open, onOpenChange, direction, ...restProps } = props
@@ -93,10 +95,15 @@ const BasePopup = memo(
 				{...restProps}
 			>
 				<DrawerPortal container={container}>
-					<div className="selector" data-theme={theme}>
+					<div
+						className="selector"
+						data-theme={theme}
+						data-testid={dataTestId ?? "user-selector-base-popup"}
+					>
 						<DrawerOverlay
 							className={"z-popup bg-[rgba(22,22,26,0.6)]"}
 							style={{ zIndex }}
+							data-testid={`${dataTestId ?? "user-selector-base-popup"}-overlay`}
 							onClick={(e) => {
 								if (!maskClosable) {
 									e.preventDefault()
@@ -124,6 +131,7 @@ const BasePopup = memo(
 								zIndex,
 								...style,
 							}}
+							data-testid={`${dataTestId ?? "user-selector-base-popup"}-content`}
 						>
 							{/* Hidden title for accessibility */}
 							<DrawerTitle className="sr-only">{title || "Dialog"}</DrawerTitle>
@@ -139,6 +147,7 @@ const BasePopup = memo(
 									bodyClassName,
 								)}
 								style={bodyStyle}
+								data-testid={`${dataTestId ?? "user-selector-base-popup"}-body`}
 							>
 								{shouldRenderChildren && children}
 							</div>

@@ -92,6 +92,7 @@ function SelectItemTag({
 					className,
 				)}
 				style={style}
+				data-testid={`user-selector-selected-tag-${data.id}`}
 				{...props}
 			>
 				{getItem}
@@ -106,6 +107,7 @@ function SelectItemTag({
 				className,
 			)}
 			style={style}
+			data-testid={`user-selector-selected-tag-${data.id}`}
 			{...props}
 		>
 			<div className="flex items-center gap-1">
@@ -118,6 +120,7 @@ function SelectItemTag({
 							onClose?.(e)
 						}}
 						className="ml-1 flex items-center justify-center text-secondary-foreground/50 transition-colors hover:text-secondary-foreground"
+						data-testid={`user-selector-selected-tag-close-${data.id}`}
 					>
 						<IconX size={12} stroke={2.5} />
 					</button>

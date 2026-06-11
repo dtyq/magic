@@ -86,6 +86,7 @@ const SelectedPopup = ({
 
 	return (
 		<BasePopup
+			data-testid="mobile-user-selector-selected-popup"
 			open={open}
 			visible={visible}
 			onOpenChange={onOpenChange}
@@ -97,19 +98,33 @@ const SelectedPopup = ({
 			bodyClassName={cn("w-full h-full max-h-[90vh] rounded-t-lg", bodyClassName)}
 			title={locale.selectedTitle}
 		>
-			<div className={cn("flex flex-col h-full", className)}>
+			<div
+				className={cn("flex flex-col h-full", className)}
+				data-testid="mobile-user-selector-selected-popup-content"
+			>
 				<div className="flex h-[50px] items-center px-3.5 text-sm">
-					<Button variant="ghost" className="p-1 text-foreground" onClick={onClose}>
+					<Button
+						variant="ghost"
+						className="p-1 text-foreground"
+						onClick={onClose}
+						data-testid="mobile-user-selector-selected-popup-cancel-button"
+					>
 						{locale.cancel}
 					</Button>
 					<div className="flex-1 text-center text-base font-semibold leading-[22px] text-foreground">
 						{locale.selectedTitle}
 					</div>
-					<Button variant="ghost" className="p-1 text-foreground" onClick={onOk}>
+					<Button
+						variant="ghost"
+						className="p-1 text-foreground"
+						onClick={onOk}
+						data-testid="mobile-user-selector-selected-popup-ok-button"
+					>
 						{locale.finish}
 					</Button>
 				</div>
 				<SearchContainer
+					data-testid="mobile-user-selector-selected-popup-search"
 					searchData={searchData}
 					loading={loading}
 					placeholder={locale.searchDepartmentOrMember}
@@ -118,6 +133,7 @@ const SelectedPopup = ({
 					isMobile
 				>
 					<CommonListPanel<TreeNode>
+						data-testid="mobile-user-selector-selected-popup-list"
 						list={selected}
 						loading={loading}
 						checkboxOptions={checkboxOptions}

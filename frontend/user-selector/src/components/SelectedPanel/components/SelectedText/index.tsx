@@ -25,6 +25,7 @@ function SelectedText({
 	checkAll,
 	checkSome,
 	onCheckAll,
+	"data-testid": dataTestId,
 }: SelectedTextProps) {
 	const { getLocale } = useAppearance()
 	const locale = getLocale()
@@ -62,10 +63,15 @@ function SelectedText({
 	const statsText = statsParts.join(" · ")
 
 	return (
-		<div className={cn("flex h-9 items-center justify-between gap-2", className)} style={style}>
+		<div
+			className={cn("flex h-9 items-center justify-between gap-2", className)}
+			style={style}
+			data-testid={dataTestId ?? "user-selector-selected-text"}
+		>
 			<div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
 				{checkbox && (
 					<Checkbox
+						data-testid="user-selector-selected-text-checkbox"
 						checked={checkAll || checkSome ? "indeterminate" : false}
 						onCheckedChange={(checked) => {
 							onCheckAll?.(checked === true)
@@ -76,7 +82,10 @@ function SelectedText({
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<div className="min-w-0 flex-1 truncate">
+							<div
+								className="min-w-0 flex-1 truncate"
+								data-testid="user-selector-selected-text-stats"
+							>
 								<span className="font-medium text-foreground">
 									{locale.selected}
 								</span>
