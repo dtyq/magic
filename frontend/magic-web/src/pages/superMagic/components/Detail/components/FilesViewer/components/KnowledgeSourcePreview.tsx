@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { downloadFileContent } from "@/pages/superMagic/utils/api"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
 import { DetailType } from "../../../types"
+import { resolveSafePreviewUrl } from "./previewUrl"
 
 const UniverComponent = lazy(() => import("@/components/UniverComponent"))
 const OnlyOfficeViewer = lazy(() => import("../../../contents/OnlyOffice"))
@@ -59,7 +60,7 @@ function SourceHeader({
 }: {
 	fileName: string
 	knowledgeBaseName?: string
-	url: string
+	url: string | null
 }) {
 	const { t } = useTranslation("super")
 
@@ -75,13 +76,15 @@ function SourceHeader({
 					<span className="font-medium text-foreground/80">{fileName}</span>
 				)}
 			</div>
-			<button
-				type="button"
-				className="shrink-0 rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
-				onClick={() => openSourceUrl(url)}
-			>
-				{t("knowledgeBase.openInNewWindow", "新窗口打开")}
-			</button>
+			{url ? (
+				<button
+					type="button"
+					className="shrink-0 rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
+					onClick={() => openSourceUrl(url)}
+				>
+					{t("knowledgeBase.openInNewWindow", "新窗口打开")}
+				</button>
+			) : null}
 		</div>
 	)
 }
@@ -260,40 +263,55 @@ function TextSourcePreview({
 	)
 }
 
-function UnsupportedPreview({ source }: { source: KnowledgeSourcePreviewData }) {
+function UnsupportedPreview({ safeUrl, reason }: { safeUrl?: string | null; reason?: string }) {
 	const { t } = useTranslation("super")
 
 	return (
 		<div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 text-center text-sm text-muted-foreground">
 			<span>
-				{t(
-					"knowledgeBase.unsupportedPreview",
-					"暂不支持预览该知识库来源文件，请在新窗口打开",
-				)}
+				{reason ??
+					t(
+						"knowledgeBase.unsupportedPreview",
+						"暂不支持预览该知识库来源文件，请在新窗口打开",
+					)}
 			</span>
-			<button
-				type="button"
-				className="rounded-md px-3 py-1.5 text-sm text-primary hover:bg-primary/10"
-				onClick={() => openSourceUrl(source.url)}
-			>
-				{t("knowledgeBase.openInNewWindow", "新窗口打开")}
-			</button>
+			{safeUrl ? (
+				<button
+					type="button"
+					className="rounded-md px-3 py-1.5 text-sm text-primary hover:bg-primary/10"
+					onClick={() => openSourceUrl(safeUrl)}
+				>
+					{t("knowledgeBase.openInNewWindow", "新窗口打开")}
+				</button>
+			) : null}
 		</div>
 	)
 }
 
 function KnowledgeSourcePreview({ source, knowledgeBaseName, title }: KnowledgeSourcePreviewProps) {
+	const { t } = useTranslation("super")
+	const safePreviewUrl = useMemo(() => resolveSafePreviewUrl(source.url), [source.url])
+
 	const detailType = useMemo(() => {
 		if (source.linkType === "web") return DetailType.Browser
 		return (getFileType(source.fileExtension) || DetailType.NotSupport) as DetailType
 	}, [source.fileExtension, source.linkType])
 
 	const content = (() => {
+		if (!safePreviewUrl) {
+			return (
+				<UnsupportedPreview
+					safeUrl={safePreviewUrl}
+					reason={t("knowledgeBase.unsafePreviewUrl", "来源链接协议不受支持，无法预览")}
+				/>
+			)
+		}
+
 		if (detailType === DetailType.Browser) {
 			return (
 				<iframe
 					className="h-full w-full border-0"
-					src={source.url}
+					src={safePreviewUrl}
 					title={title}
 					referrerPolicy="no-referrer"
 				/>
@@ -333,7 +351,7 @@ function KnowledgeSourcePreview({ source, knowledgeBaseName, title }: KnowledgeS
 			return <TextSourcePreview source={source} detailType={detailType} />
 		}
 
-		return <UnsupportedPreview source={source} />
+		return <UnsupportedPreview safeUrl={safePreviewUrl} />
 	})()
 
 	return (
@@ -341,7 +359,7 @@ function KnowledgeSourcePreview({ source, knowledgeBaseName, title }: KnowledgeS
 			<SourceHeader
 				fileName={source.fileName}
 				knowledgeBaseName={knowledgeBaseName}
-				url={source.url}
+				url={safePreviewUrl}
 			/>
 			<div className="min-h-0 flex-1 overflow-hidden">{content}</div>
 		</div>

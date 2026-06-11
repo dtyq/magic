@@ -23,7 +23,7 @@ import { FilePath } from "./parser/FilePath"
 import { Image } from "./parser/Image"
 import { MarkdownLink, type MarkdownLinkProps } from "./parser/MarkdownLink"
 import { cn } from "@/lib/utils"
-import type { MarkdownComponentProps, MarkdownResolvedLinkPayload } from "./types"
+import type { MarkdownComponentProps } from "./types"
 import {
 	resolveMarkdownRenderSource,
 	shouldEnableStreamingTextAnimation,
