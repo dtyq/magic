@@ -90,6 +90,11 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 		showApiUrl: true,
 		showApiKey: true,
 	},
+	Requesty: {
+		defaultUrl: "https://router.requesty.ai/v1",
+		showApiUrl: true,
+		showApiKey: true,
+	},
 	DashScope: {
 		defaultUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 		showApiUrl: true,
@@ -114,6 +119,7 @@ const PROVIDERS: Provider[] = [
 	{ value: "Gemini", icon: <Sparkles className="h-5 w-5" /> },
 	{ value: "AWSBedrock", icon: <Boxes className="h-5 w-5" /> },
 	{ value: "OpenRouter", icon: <Route className="h-5 w-5" /> },
+	{ value: "Requesty", icon: <Route className="h-5 w-5" /> },
 	{ value: "DashScope", icon: <CloudCog className="h-5 w-5" /> },
 	{ value: "Volcengine", icon: <Flame className="h-5 w-5" /> },
 	{ value: "DeepSeek", icon: <Search className="h-5 w-5" /> },

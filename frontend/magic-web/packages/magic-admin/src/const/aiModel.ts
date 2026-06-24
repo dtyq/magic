@@ -52,6 +52,8 @@ export namespace AiModel {
 		QwenGlobal = "QwenGlobal",
 		/** OpenRouter */
 		OpenRouter = "OpenRouter",
+		/** Requesty */
+		Requesty = "Requesty",
 		/** 百度  */
 		Baidu = "Baidu",
 		/** 国家超算平台 */
@@ -93,6 +95,7 @@ export namespace AiModel {
 		[ServiceProvider.Gemini]: "https://api.gemini.com",
 		[ServiceProvider.GoogleImage]: "https://api.googleimage.com",
 		[ServiceProvider.OpenRouter]: "https://openrouter.ai/api/v1/chat/completions",
+		[ServiceProvider.Requesty]: "https://router.requesty.ai/v1/chat/completions",
 		[ServiceProvider.Google]: "https://generativelanguage.googleapis.com/v1beta",
 		[ServiceProvider.Anthropic]: "https://api.anthropic.com",
 		[ServiceProvider.Keling]: "https://api.klingai.com",

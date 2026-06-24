@@ -50,6 +50,7 @@ enum ProviderCode: string
     case Gemini = 'Gemini';
     case DashScope = 'DashScope';
     case OpenRouter = 'OpenRouter';
+    case Requesty = 'Requesty';
     case SuChuang = 'SuChuang';
     case Anthropic = 'Anthropic';
 
