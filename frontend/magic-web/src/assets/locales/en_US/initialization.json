@@ -59,6 +59,7 @@
 			"OfficialOpenAI": "Official OpenAI",
 			"OpenAI": "OpenAI Compatible",
 			"OpenRouter": "OpenRouter",
+			"Requesty": "Requesty",
 			"Volcengine": "Volcengine"
 		},
 		"subtitle": "Select and configure your AI model service provider",

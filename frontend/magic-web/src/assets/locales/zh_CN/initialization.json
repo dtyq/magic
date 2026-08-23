@@ -59,6 +59,7 @@
 			"OfficialOpenAI": "OpenAI 官方",
 			"OpenAI": "OpenAI 兼容",
 			"OpenRouter": "OpenRouter",
+			"Requesty": "Requesty",
 			"Volcengine": "火山引擎"
 		},
 		"subtitle": "选择并配置您的 AI 模型服务提供商",

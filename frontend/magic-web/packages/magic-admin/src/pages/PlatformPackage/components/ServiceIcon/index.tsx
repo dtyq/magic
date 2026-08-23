@@ -47,6 +47,7 @@ const serviceIconMap: Partial<Record<string, string>> = {
 	[AiModel.ServiceProvider.Google]: googleIcon,
 	[AiModel.ServiceProvider.Gemini]: googleIcon,
 	[AiModel.ServiceProvider.OpenRouter]: openrouterIcon,
+	[AiModel.ServiceProvider.Requesty]: defaultIcon,
 	[AiModel.ServiceProvider.MiracleVision]: miraclevisionIcon,
 	[AiModel.ServiceProvider.Tencent]: tencentCloudIcon,
 	[AiModel.ServiceProvider.TTAPI]: ttapiIcon,
