@@ -369,7 +369,7 @@ async def _run_subagent_task(
         state.active_tool_call_id = None
         async with handle.state_lock:
             await SubagentRuntimeStore.save_state(state, chat_history_dir)
-        return state
+        raise
     except Exception as e:
         state.status = SubagentStatus.ERROR
         state.last_error = str(e)

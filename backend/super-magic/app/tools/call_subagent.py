@@ -766,7 +766,7 @@ async def _run_subagent(
         )
         async with handle.state_lock:
             await SubagentRuntimeStore.save_state(state)
-        return state
+        raise
     except Exception as e:
         _mark_failed(
             state=state,
