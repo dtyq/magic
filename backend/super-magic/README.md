@@ -26,6 +26,21 @@ SuperMagic 是一个通用人工智能系统(AGI)，提供强大的任务处理�
 - `ANTHROPIC_API_KEY`：Anthropic API密钥
 - `TIKHUB_API_KEY`：TikHub API密钥（用于知乎工具）
 
+可选网页搜索引擎：
+
+```bash
+WEB_SEARCH_DEFAULT_ENGINE=parallel
+```
+
+`parallel` 会让内置 `web_search` 通过 Streamable HTTP 调用
+[Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) 的
+`https://search.parallel.ai/mcp`；免费匿名路径不需要 Parallel API key，并受服务限流。
+默认值仍是 `magic`，其他引擎仍可通过同一变量选择。查询文本以及语言、地区和时间范围偏好会发送给
+Parallel；这些偏好不是严格过滤条件，Parallel 搜索不支持偏移分页。此接入只提供搜索，不提供网页抓取。
+请求使用稳定的 `super-magic` 项目标识和可用的已安装包版本进行聚合用量归因，不加入用户或设备标识；
+服务仍可能处理其他请求元数据。当前搜索驱动接口不提供符合要求的随机会话标识，因此不会发送 MCP
+`session_id`。
+
 ## 工具列表
 
 ### 知乎工具
