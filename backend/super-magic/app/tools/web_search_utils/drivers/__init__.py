@@ -1,7 +1,8 @@
-from .magic_service import MagicServiceSearchDriver
 from .bing import BingSearchDriver
-from .tavily import TavilySearchDriver
+from .magic_service import MagicServiceSearchDriver
 from .metaso import MetasoSearchDriver
+from .parallel import ParallelSearchDriver
+from .tavily import TavilySearchDriver
 from .web_collector import WebCollectorSearchDriver
 
 DRIVERS = {
@@ -10,6 +11,15 @@ DRIVERS = {
     "tavily": TavilySearchDriver,
     "metaso": MetasoSearchDriver,
     "web_collector": WebCollectorSearchDriver,
+    "parallel": ParallelSearchDriver,
 }
 
-__all__ = ["DRIVERS", "MagicServiceSearchDriver", "BingSearchDriver", "TavilySearchDriver", "MetasoSearchDriver", "WebCollectorSearchDriver"]
+__all__ = [
+    "DRIVERS",
+    "BingSearchDriver",
+    "MagicServiceSearchDriver",
+    "MetasoSearchDriver",
+    "ParallelSearchDriver",
+    "TavilySearchDriver",
+    "WebCollectorSearchDriver",
+]

@@ -389,7 +389,7 @@ magic_image_search:
 
 # 搜索引擎选择
 web_search:
-  # 默认搜索引擎: bing, tavily, magic 或 metaso
+  # 默认搜索引擎: bing, tavily, magic, metaso 或 parallel
   default_engine: "${WEB_SEARCH_DEFAULT_ENGINE:-magic}"
 
 # 图片搜索引擎选择
