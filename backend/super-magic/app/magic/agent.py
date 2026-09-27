@@ -396,6 +396,7 @@ class Agent(BaseAgent):
         if self._closed:
             return
         self._closed = True
+        self._clear_stream_fallback_correlation()
         self._bg_compact_state.reset()
 
         if self._context_registered:
@@ -403,6 +404,11 @@ class Agent(BaseAgent):
             AgentContextRegistry.get_instance().unregister(self.agent_context)
             self._context_registered = False
             logger.info(f"Agent context 已注销: {self.agent_context.get_agent_session_label()}")
+
+    def _clear_stream_fallback_correlation(self) -> None:
+        """清理当前上下文未消费的流式降级标记。"""
+        from agentlang.event import get_correlation_manager
+        get_correlation_manager().set_stream_fallback_cid(None, self.agent_context.context_id)
 
     def has_active_run(self) -> bool:
         """返回当前 Agent 是否仍有尚未退出的 run 协程。"""
@@ -435,6 +441,8 @@ class Agent(BaseAgent):
         """只允许持有当前 Task 身份的 run 释放活动标记。"""
         if self._active_run_task is not run_task:
             return
+        # 取消或终态错误可能跳过非流式 fallback，不能把标记留给后续 run。
+        self._clear_stream_fallback_correlation()
         self._active_run_task = None
 
     def dispose(self) -> None:
