@@ -328,6 +328,14 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("namespace cannot be empty")
 	}
 
+	// API_TOKEN gates every /api/v1 route (sandbox lifecycle, proxy, file-copy).
+	// TokenAuthMiddleware fails OPEN (skips auth entirely) when this is empty, so
+	// an unset token must be a hard startup failure, not a silent unauthenticated
+	// default, matching how every other required field above is enforced.
+	if c.APIToken == "" {
+		return fmt.Errorf("API_TOKEN must be set: the sandbox gateway refuses to start without it, since an empty token disables request authentication entirely")
+	}
+
 	if err := c.ValidateStorageType(); err != nil {
 		return fmt.Errorf("storage type validation failed: %w", err)
 	}
