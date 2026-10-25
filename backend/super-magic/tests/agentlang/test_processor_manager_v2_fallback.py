@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from agentlang.event.correlation_id_manager import CorrelationIdManager
+from agentlang.llms.processors.processor_config import ProcessorConfig
 from agentlang.llms.processors.processor_manager import ProcessorManager
 
 
@@ -40,7 +41,7 @@ async def test_v2_stream_failure_keeps_scoped_fallback(monkeypatch):
             llm_config=SimpleNamespace(),
             request_params={},
             model_id="mock-model-id",
-            processor_config=SimpleNamespace(use_stream_mode=True),
+            processor_config=ProcessorConfig(use_stream_mode=True),
             agent_context=context,
             request_id="mock-request-id",
         )
@@ -66,7 +67,7 @@ async def test_v1_stream_does_not_manage_v2_fallback(monkeypatch):
         llm_config=SimpleNamespace(),
         request_params={},
         model_id="mock-model-id",
-        processor_config=SimpleNamespace(use_stream_mode=True),
+        processor_config=ProcessorConfig(use_stream_mode=True),
         agent_context=context,
         request_id="mock-request-id",
     )
@@ -92,7 +93,7 @@ async def test_v2_stream_without_reply_events_does_not_manage_fallback(monkeypat
         llm_config=SimpleNamespace(),
         request_params={},
         model_id="mock-model-id",
-        processor_config=SimpleNamespace(use_stream_mode=True),
+        processor_config=ProcessorConfig(use_stream_mode=True),
         agent_context=context,
         request_id="mock-request-id",
         enable_llm_response_events=False,
